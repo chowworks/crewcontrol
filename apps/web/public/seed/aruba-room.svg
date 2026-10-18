@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800"><defs><linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF6EE"/><stop offset="1" stop-color="#F0E6D6"/></linearGradient><linearGradient id="view" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5AB4E8"/><stop offset="0.55" stop-color="#BFE6F6"/><stop offset="0.56" stop-color="#2EB8C4"/><stop offset="1" stop-color="#1E8FB8"/></linearGradient></defs><rect width="1200" height="800" fill="url(#wall)"/>
+<rect x="560" y="90" width="560" height="470" fill="url(#view)" stroke="#FFFFFF" stroke-width="16"/><path d="M840 90v470" stroke="#fff" stroke-width="10"/>
+<g stroke="#FFFFFF" stroke-width="6"><path d="M560 470h560"/><path d="M590 470 v90"/><path d="M635 470 v90"/><path d="M680 470 v90"/><path d="M725 470 v90"/><path d="M770 470 v90"/><path d="M815 470 v90"/><path d="M860 470 v90"/><path d="M905 470 v90"/><path d="M950 470 v90"/><path d="M995 470 v90"/><path d="M1040 470 v90"/><path d="M1085 470 v90"/></g>
+<g transform="translate(1060 470) scale(-0.5 0.5)"><path d="M0 0 C10 -120 30 -240 70 -330" stroke="#7A5A3A" stroke-width="18" fill="none" stroke-linecap="round"/><g fill="#2F7D4F"><path d="M70 -330 C10 -360 -60 -340 -110 -290 C-40 -320 20 -320 70 -330Z"/><path d="M70 -330 C120 -380 200 -380 250 -330 C180 -350 120 -345 70 -330Z"/><path d="M70 -330 C40 -400 -10 -430 -70 -430 C-10 -410 30 -380 70 -330Z"/><path d="M70 -330 C110 -420 170 -440 220 -420 C160 -410 110 -380 70 -330Z"/><path d="M70 -330 C130 -320 190 -280 210 -220 C170 -270 120 -300 70 -330Z"/><path d="M70 -330 C20 -300 -20 -250 -30 -190 C0 -250 30 -290 70 -330Z"/></g></g>
+<path d="M540 80 q30 240 0 490 h50 q-25 -250 0 -490z M1140 80 q-30 240 0 490 h-50 q25 -250 0 -490z" fill="#F6EBDD" opacity="0.95"/>
+<rect y="640" width="1200" height="160" fill="#D9C2A0"/>
+<rect x="60" y="340" width="420" height="190" rx="14" fill="#C9A77C"/>
+<rect x="40" y="500" width="460" height="150" rx="14" fill="#FFFFFF"/>
+<rect x="40" y="580" width="460" height="70" rx="10" fill="#2EB8C4"/>
+<rect x="90" y="450" width="160" height="70" rx="28" fill="#FFFFFF"/><rect x="280" y="450" width="160" height="70" rx="28" fill="#FFFFFF"/>
+<path d="M40 650v40M500 650v40" stroke="#8C6A4A" stroke-width="14"/>
+<g transform="translate(240 540)" fill="#F26B5B"><circle r="10"/><circle cx="20" cy="4" r="8"/></g></svg>

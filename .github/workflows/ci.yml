@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# One deploy at a time; a newer push waits for the one in flight instead of racing it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Lint, Typecheck, Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test
+
+  # Deploys switch on once the Railway project and Vercel project exist: set the repository variable
+  # DEPLOY_ENABLED=true and the secrets RAILWAY_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
+  # They are aimed the way Audit Differently's are, so the same jobs serve dev now and production later:
+  # RAILWAY_TOKEN is a project token for ONE Railway environment (dev for now), so the config apply and the deploy
+  # touch only that environment, and the repository variable RAILWAY_API_SERVICE names the API service in it
+  # (api-dev now, crewcontrol-api for production).
+  deploy-web:
+    name: Deploy Web (Vercel)
+    needs: [ci]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  railway-config:
+    name: Apply Railway config (.railway/railway.ts)
+    needs: [ci]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The railway SDK (root devDependency) evaluates .railway/railway.ts.
+      - run: npm install
+      - run: npm install -g @railway/cli@5.63.1
+      - run: railway config plan --verbose
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      # No --confirm-destructive: a plan that deletes anything fails here.
+      - run: railway config apply --yes
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  deploy-api:
+    name: Deploy API (Railway)
+    needs: [ci, railway-config]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g @railway/cli@5.63.1
+      # The API builds from apps/api alone (.railway/railway.ts), so that folder is the upload.
+      - run: railway up apps/api --path-as-root --service "${{ vars.RAILWAY_API_SERVICE }}" --ci
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

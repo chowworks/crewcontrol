@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5B4A8C"/><stop offset="0.45" stop-color="#E36F6F"/><stop offset="0.75" stop-color="#F7A94B"/><stop offset="1" stop-color="#FCD58A"/></linearGradient><linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E98A5A"/><stop offset="1" stop-color="#3D3A6E"/></linearGradient></defs><rect width="1200" height="800" fill="url(#sky)"/>
+<circle cx="760" cy="470" r="110" fill="#FFD27A"/>
+<rect y="470" width="1200" height="330" fill="url(#sea)"/>
+<g fill="#FFD27A" opacity="0.6"><rect x="680" y="490" width="160" height="6" rx="3"/><rect x="700" y="520" width="120" height="6" rx="3"/><rect x="720" y="555" width="80" height="6" rx="3"/><rect x="735" y="595" width="50" height="6" rx="3"/></g>
+<g fill="#2A2340"><path d="M260 600 H640 L600 640 H300Z"/><rect x="300" y="585" width="300" height="18" rx="4"/><path d="M440 585 V250" stroke="#2A2340" stroke-width="10"/><path d="M450 260 L450 575 L620 575Z"/><path d="M430 280 L430 575 L300 575Z"/></g>
+<g stroke="#2A2340" stroke-width="5" stroke-linecap="round"><path d="M80 300 q15 -12 30 0 q15 -12 30 0"/><path d="M160 250 q12 -10 24 0 q12 -10 24 0"/></g></svg>

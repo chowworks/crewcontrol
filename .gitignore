@@ -1,0 +1,19 @@
+node_modules
+dist
+build
+.turbo
+*.local
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+*.tsbuildinfo
+.vercel
+.env*.local
+
+# Local dev photo uploads
+apps/api/storage/
+
+# Local embedded Postgres for this Mac (not part of the app)
+.localdb/

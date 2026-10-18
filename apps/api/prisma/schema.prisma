@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One group trip. The organizer edits it; guests see the published version at /t/<slug>.
+// Photos, highlights and key dates are ordered lists the organizer replaces whole on save,
+// so they live as JSON on the trip rather than as tables of their own.
+model Trip {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  name                String
+  destination         String
+  startDate           String // 'YYYY-MM-DD', a calendar date with no time zone
+  endDate             String
+  organizerName       String
+  description         String
+  costPerPersonCents  Int
+  installmentCount    Int      @default(1)
+  galleryTitle        String   @default("Photos")
+  showGuestNames      Boolean  @default(false)
+  // Shown only to approved guests (passenger portal, slice 3). Never on the public page.
+  paymentInstructions String   @default("")
+  published           Boolean  @default(false)
+  photos              Json     @default("[]") // TripPhoto[]; the first is the cover
+  highlights          Json     @default("[]") // TripHighlight[]
+  keyDates            Json     @default("[]") // TripKeyDate[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  guests              Guest[]
+}
+
+// Someone who registered interest in a trip. The organizer approves them; only then do they pay.
+model Guest {
+  id        String   @id @default(cuid())
+  tripId    String
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+  status    String   @default("interested") // 'interested' | 'approved'
+  createdAt DateTime @default(now())
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
