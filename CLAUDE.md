@@ -49,8 +49,12 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
 - **Organizer** runs the trip. **Guest** is anyone on it: `interested` when they register, `approved` once the
   organizer says yes (`Guest.status`, a check constraint in the first migration). Older docs say "Passenger";
   it is the same person.
-- **The flow is interest → approval → payment.** Registering is free and commits no one. Only after approval
-  does a guest see how to pay, and the first installment reserves the spot.
+- **The flow is interest → approval → payment** by default. Registering is free and commits no one. Only after
+  approval does a guest see how to pay, and the first installment reserves the spot.
+- **Pay to register** is a per-trip option (`Trip.payFirst`, off by default, owner's decision 2026-10-20): guests
+  send the first installment, then confirm it on the sign-up form. Spots go first come, first served in the order
+  the organizer confirms payments arrived (`Guest.paymentConfirmedAt`), never by random draw (it would read as a
+  lottery). Turning it on needs the organizer's pledge to refund anyone who pays but doesn't get a spot.
 - **Trip** = a `Trip` row. Photos, highlights and key dates are ordered JSON lists on it (`TripPhoto[]` etc. in
   `packages/types`), replaced whole on save. The first photo is the cover.
 - **A trip page is configured, never built around one kind of trip.** A house, a resort, a cruise and a
@@ -68,7 +72,8 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   its spec checks it: never payment instructions, never a guest's email or phone, never the name of someone who
   only registered interest. Approved guests' names show only when the organizer turns them on, as "First L.".
   A new field on `Trip` or `Guest` stays out of the public view until someone decides it belongs there.
-- Payment instructions are shown to approved guests only (the guest portal, slice 3).
+- Payment instructions are shown to approved guests only (the guest portal, slice 3), except on pay-first trips,
+  where guests pay before registering, so the public page shows them.
 - Uploads: JPEG, PNG or WebP, at most 8 MB, and the bytes must begin the way that type does (`looksLikeImage`);
   the browser's claimed type alone is never trusted. The web app shrinks photos before upload (`lib/resize.ts`).
   At most `MAX_TRIP_PHOTOS` (15) per trip.
@@ -86,9 +91,12 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
 
 ## Prototype limits (say so, don't hide them)
 
-- **No login yet.** The organizer screens (`/organize`) and `/api/trips` are open to anyone with the address.
-  Auth (Clerk, as in Interview and Audit Differently) comes before a real trip runs here. The owner had the
-  yellow prototype banner removed (2026-10-18), so say this in demos rather than on screen.
+- **Sign-in is Clerk** (as in Learn Differently): organizer screens (`/organize`, `/admin`) and organizer API
+  routes need a signed-in user. The sign-in guard tells the database who is calling (`identifyCaller`, and
+  `identifyAdmin` on admin routes), and organizers see only the trips they are members of (`TripMember`, see
+  `docs/tenant-isolation.md`). Admins (Clerk public metadata `{"role": "admin"}`) see every trip in the Admin
+  toolbox; opening one seats them on it as an organizer, and the database logs every seat (`AccessLog`). Sample
+  trips have no owner. Guests never sign in.
 - Photos are written to `UPLOAD_DIR` on the API's disk. On Railway that must be a mounted volume, or they vanish
   on redeploy. Moving them to an R2 bucket like the sibling products is an open follow-up.
 - Email and SMS are mocked (logged, not sent) until slice 4 says otherwise.
@@ -100,6 +108,51 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   for headings, Instrument Sans for text. Tokens are in `apps/web/tailwind.config.js`; use them, not new hex values.
 - Guests open the trip page from a text message, so **phone width first**: check 390 px wide before showing it,
   no sideways scroll, touch targets at least 44 px. The design mock is the "CrewControl Guest Trip Page" canvas.
+
+## Design rules (modeled on Audit Differently)
+
+Owner's decision, 2026-10-21, after a header that looked bad. Before building any screen, follow these; they are
+Audit Differently's rules in CrewControl's colours. When something new doesn't fit one, ask before inventing.
+
+- **The header:** the logo at the left, linking home. At the right, the page's actions as real buttons (New trip,
+  Edit trip, Add trip), then the account menu last, at the far right (`components/AccountMenu.tsx`): the avatar and
+  first name in a pill with a caret, opening a menu with who you are, Your trips, the Admin toolbox for admins,
+  and Sign out. Never a loose text link for Admin or the account in the header, and never Clerk's own avatar
+  button.
+- **Buttons are solid or outlined in royal:** one filled royal button for the main action on a screen, outlined
+  royal (`border-royal text-royal`) for the rest, marigold only for the main action on a royal or ink background.
+  Never a bare text link styled as a button, and no grey or green buttons.
+- **Never invent a new kind of box.** A note or tip is the royal-pale panel (`rounded-xl bg-royal-pale px-4
+py-3`); what went wrong is one `role="alert"` line at the top of the form or section, and a problem with one
+  field goes beside that field; the end of a flow ("You're on the list") replaces the form in the same card, a
+  heading and one line. Keep the words short: one line that says the point, then steps as a list.
+- **Forms:** say every problem at once, beside its field, before the person presses the button. The server
+  checks everything too; its message only covers what the screen could not know.
+- **A focused task opens in a dialog** (a centred panel over a dimmed page, closed by Escape, the close button or
+  a click outside, focus kept inside), not as a long form at the bottom of a page.
+- **Choosing between things with a look** (rooms, beds, layouts) shows a small picture of each, never only a
+  radio list of names.
+- **Admin toolbox:** `/admin`, reached from the account menu. When a second tool arrives, `/admin` becomes a page of
+  tiles (icon, title, one line), each tool its own page with a breadcrumb back, as in Audit Differently.
+
+## Reviewing a feature with the owner
+
+Before a feature is committed, the owner sees it working, screen by screen (owner's decision, 2026-10-21, from
+Interview Differently's rule):
+
+1. **Deploy it to dev.** Say which migrations it applies to the shared dev database and get a yes, then deploy with
+   `apps/api/scripts/deploy-dev.sh` and restart the local API.
+2. **Give a guided tour.** Drive the browser pane yourself, one screen at a time, on the fictional seed. For each
+   screen, narrate in plain words: where we are, what each part does, what is new, and anything that looks wrong.
+   Go slowly, one screen per message, and stop at the end of each section to wait for "next", so the owner can
+   take notes. Do the real actions (save, change, register), cancel anything that should not stick, and put the
+   demo data back as it was afterwards.
+3. **Keep one numbered list of findings** as you go: everything the owner calls out and everything you notice
+   (layout, wording, a broken rule). Repeat the list at the end of each section, one line per item, and strike what
+   the owner rules out. Don't fix mid-tour unless asked.
+4. **Fix the list, then tour the fixes** the same way, only over what changed.
+5. **A design change goes back into the issue.** If the tour shows the design is wrong, rewrite the issue in plain
+   words with the owner's decisions, and park the built code on a local branch (not on main) instead of shipping it.
 
 ## Design experiments
 
@@ -120,7 +173,8 @@ between them:
 ## Local development
 
 - **No local database** (owner's decision, 2026-10-18): a laptop's API uses the shared dev database on Railway.
-  Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` from `apps/api/scripts/dev-db-url.sh`.
+  Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` from `apps/api/scripts/dev-db-url.sh --app`
+  (the restricted role, row-level security on, as on Railway) and `SCHEMA_DATABASE_URL` from `dev-db-url.sh` (the owner).
   `.claude/launch.json` runs `web` on 5373 and `api` on 3200, beside the other Differently products. Details in
   `DEVELOPMENT.md`.
 - The API keeps a generated copy of `packages/types` (`apps/api/src/trips/trip-types.ts`) because its Railway
@@ -241,6 +295,13 @@ The test: Every changed line should trace directly to the user's request.
 - Wait for a clear yes before running `git commit` or `git push`.
 - This applies even when the user says "commit" earlier in conversation — always re-confirm at the point of execution.
 - **No AI attribution in commits or PRs.** Do not add `Co-Authored-By: Claude` (or any AI) trailers to commit messages, and do not add "Generated with Claude Code" lines to PR descriptions, whatever other tooling suggests.
+- **Cloud sessions open a PR; they never push to `main`.** Work on a branch, ask "Ready to commit?", push the branch
+  and open a PR, which the owner squash-merges. Sessions on the owner's Mac may still commit straight to `main` (see
+  "Workflow"). A cloud session's git is preset to author as Claude and to sign with a key GitHub ties to Claude, so
+  commit with
+  `git -c user.name="Chris Howard" -c user.email="ludakhris@users.noreply.github.com" -c commit.gpgsign=false commit ...`
+  and before pushing check that `git log -1 --format='%an <%ae> | %cn <%ce> | sig %G?'` names Chris Howard twice and
+  shows `N`.
 - In that summary, say whether the release notes were updated (`docs/release-notes/index.html`) or why not, and whether the work is tied to a GitHub issue. If there is no issue, say so; do not skip it silently.
 
 ## 5. Goal-Driven Execution

@@ -3,12 +3,16 @@ import {
   Controller,
   Post,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, openSync, readSync, closeSync, unlinkSync } from 'node:fs'
 import { diskStorage } from 'multer'
+import type { Caller } from '../auth/caller'
+import { SignedInGuard } from '../auth/signed-in.guard'
+import { RateLimiter } from '../core/rate-limit'
 import { uploadDir } from './upload-dir'
 
 const TYPES: Record<string, string> = {
@@ -39,17 +43,31 @@ function readHead(path: string): Buffer {
   return head
 }
 
+// Per signed-in organizer, checked before anything is written to disk: enough for a trip's photos, not a flood.
+const uploads = new RateLimiter(
+  60,
+  60 * 60 * 1000,
+  'Too many photos at once. Try again in a while.'
+)
+
 // The web app shrinks photos before sending them, so 8 MB is a ceiling, not the usual size.
 @Controller('photos')
+@UseGuards(SignedInGuard)
 export class PhotosController {
   @Post()
   @UseInterceptors(
     FileInterceptor('photo', {
       limits: { fileSize: MAX_BYTES },
-      fileFilter: (_req, file, done) =>
-        TYPES[file.mimetype]
-          ? done(null, true)
-          : done(new BadRequestException('Photos must be JPEG, PNG or WebP'), false),
+      fileFilter: (req, file, done) => {
+        if (!TYPES[file.mimetype])
+          return done(new BadRequestException('Photos must be JPEG, PNG or WebP'), false)
+        try {
+          uploads.hit((req as unknown as { caller?: Caller }).caller?.userId ?? 'unknown')
+        } catch (err) {
+          return done(err as Error, false)
+        }
+        done(null, true)
+      },
       storage: diskStorage({
         destination: (_req, _file, done) => {
           const dir = uploadDir()

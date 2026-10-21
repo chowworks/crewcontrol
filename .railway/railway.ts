@@ -42,21 +42,29 @@ export default defineRailway((ctx) => {
     Postgres.networking = { privateNetworkEndpoint: 'postgres', tcpProxies: { '5432': {} } }
     const apiDev = service('api-dev', {
       build,
-      // The seed puts the three demo trips back in their starting shape on every deploy (prisma/seed.ts).
-      start: 'npx prisma migrate deploy && npm run db:seed && node dist/main.js',
+      // Migrations as the owner, then the restricted role kept in step with this deploy (scripts/ensure-app-role.ts),
+      // then the seed puts the three demo trips back in their starting shape (prisma/seed.ts).
+      start:
+        'npx prisma migrate deploy && npm run role:ensure && npm run db:seed && node dist/main.js',
       deploy: { restartPolicyMaxRetries: 3 },
       replicas: { [REGION]: 1 },
       volumeMounts: { [UPLOADS_MOUNT]: uploads() },
       env: {
         NODE_ENV: 'development',
-        DATABASE_URL: '${{Postgres.DATABASE_URL}}',
+        // Row-level security (docs/tenant-isolation.md): the API connects as the restricted role cc_app, set by hand
+        // because it holds the role's password (postgresql://cc_app:<password>@postgres.railway.internal:5432/
+        // railway?sslmode=require); migrations, the seed and role:ensure use the owner.
+        DATABASE_URL: preserve(),
+        SCHEMA_DATABASE_URL: '${{Postgres.DATABASE_URL}}?sslmode=require',
+        REQUIRE_TENANT_RLS: 'on',
         // The web app's address, for CORS: a laptop (http://localhost:5373) or the Vercel project's address.
         FRONTEND_URL: preserve(),
         API_PUBLIC_URL: 'https://${{RAILWAY_PUBLIC_DOMAIN}}',
         UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
-        SUPPORT_EMAIL: 'support@crewcontrol.vacations',
         // Where contact form messages go (logged, not sent, until email is built).
         SUPPORT_EMAIL: 'support@crewcontrol.vacations',
+        // Clerk's secret key for this environment, set by hand in Railway.
+        CLERK_SECRET_KEY: preserve(),
       },
     })
     return project('crewcontrol', { resources: [Postgres, apiDev] })
@@ -83,6 +91,7 @@ export default defineRailway((ctx) => {
       API_PUBLIC_URL: preserve(),
       UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
       SUPPORT_EMAIL: 'support@crewcontrol.vacations',
+      CLERK_SECRET_KEY: preserve(),
     },
   })
 

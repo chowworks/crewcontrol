@@ -13,6 +13,9 @@ async function bootstrap() {
     .map((o) => o.trim())
   app.enableCors({ origin: origins })
   app.setGlobalPrefix('api')
+  // Railway puts one proxy in front of the API: trust that hop, so a request's address is the visitor's, not the
+  // proxy's (the sign-up and contact limits count per visitor). Never `true`, which would let anyone fake it.
+  app.set('trust proxy', 1)
   // Uploaded photos, served outside the /api prefix so their URLs stay short.
   mkdirSync(uploadDir(), { recursive: true })
   app.useStaticAssets(uploadDir(), { prefix: '/uploads/', maxAge: '30d', immutable: true })

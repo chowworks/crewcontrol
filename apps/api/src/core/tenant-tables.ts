@@ -6,7 +6,13 @@ import { Prisma } from '@prisma/client'
  * reach any of them skips the per-query transaction that sets the tenant context. Today that is every table; the
  * list exists so a table without trip data can be added without that cost.
  */
-export const TENANT_TABLES: ReadonlySet<string> = new Set(['Trip', 'TripMember', 'Guest'])
+export const TENANT_TABLES: ReadonlySet<string> = new Set([
+  'Trip',
+  'TripMember',
+  'Guest',
+  'Room',
+  'AccessLog',
+])
 
 type Fields = Map<string, string> // relation field name -> the model it points at
 const relations = new Map<string, Fields>()

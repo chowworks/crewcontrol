@@ -7,13 +7,18 @@ import {
   type PublicTrip,
   type TripInput,
 } from '@cc/types'
-import { ArrowDown, ArrowLeft, ArrowUp, Eye, ImagePlus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Eye, ImagePlus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AccountMenu } from '@/components/AccountMenu'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
+import { Logo } from '@/components/Logo'
 import { TripView } from '@/components/TripView'
 import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
+
+/** The trip link's shape, as the server checks it (parseSlug). */
+const LINK = /^(?=.{3,60}$)[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 const EMPTY: TripInput = {
   name: '',
@@ -31,6 +36,9 @@ const EMPTY: TripInput = {
   photos: [],
   highlights: [],
   keyDates: [],
+  maxGuests: null,
+  payFirst: false,
+  refundPledge: false,
 }
 
 const field =
@@ -44,7 +52,10 @@ function previewOf(trip: TripInput, slug: string, guests: Guest[]): PublicTrip {
     ...trip,
     slug,
     isSample: false,
+    paymentInstructions: trip.payFirst ? trip.paymentInstructions : null,
+    rooms: [],
     goingCount: approved.length,
+    spotsTaken: approved.length,
     interestedCount: guests.length - approved.length,
     guestNames: trip.showGuestNames
       ? approved.map((g) =>
@@ -72,6 +83,8 @@ export function EditTripPage() {
   const navigate = useNavigate()
   const [trip, setTrip] = useState<TripInput>(EMPTY)
   const [slug, setSlug] = useState('')
+  // The trip link as typed; saved only when it differs from `slug`.
+  const [link, setLink] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
   const [loading, setLoading] = useState(Boolean(id))
   const [saving, setSaving] = useState(false)
@@ -87,6 +100,7 @@ export function EditTripPage() {
         const { slug, guests } = loaded
         setTrip(toInput(loaded))
         setSlug(slug)
+        setLink(slug)
         setGuests(guests)
       })
       .catch(() => setMessage({ kind: 'error', text: 'This trip could not be loaded.' }))
@@ -96,18 +110,33 @@ export function EditTripPage() {
   const set = <K extends keyof TripInput>(key: K, value: TripInput[K]) =>
     setTrip((t) => ({ ...t, [key]: value }))
 
+  // Problems the screen can see before saving, shown beside their fields; the server checks everything again.
+  const linkProblem =
+    link.trim() && link.trim() !== slug && !LINK.test(link.trim().toLowerCase())
+      ? 'Use 3 to 60 lowercase letters, numbers and single hyphens, like mv-2027.'
+      : null
+  const pledgeProblem =
+    trip.payFirst && !trip.refundPledge ? 'Tick this to have guests pay before registering.' : null
+
   async function save() {
+    if (linkProblem || pledgeProblem) {
+      setMessage({ kind: 'error', text: 'Fix the fields marked below.' })
+      return
+    }
     setSaving(true)
     setMessage(null)
     try {
+      const chosen = link.trim() && link.trim() !== slug ? link.trim() : undefined
       if (id) {
-        await api.updateTrip(id, trip)
+        const saved = await api.updateTrip(id, trip, chosen)
+        setSlug(saved.slug)
+        setLink(saved.slug)
         setMessage({
           kind: 'ok',
           text: trip.published ? 'Saved. Guests see the changes now.' : 'Saved as a draft.',
         })
       } else {
-        const created = await api.createTrip(trip)
+        const created = await api.createTrip(trip, chosen)
         navigate(`/organize/${created.id}`, { replace: true })
       }
     } catch (err) {
@@ -152,14 +181,16 @@ export function EditTripPage() {
     <div className="min-h-screen pb-28">
       <div className="sticky top-0 z-10 border-b border-rule bg-ground/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 py-3">
-          <Link
-            to="/organize"
-            className="inline-flex items-center gap-1.5 py-2 text-sm font-semibold text-royal"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Your trips
-          </Link>
-          <div className="flex gap-2">
+          <Logo />
+          <div className="flex flex-wrap items-center gap-2">
+            {id && (
+              <Link
+                to={`/organize/${id}/control`}
+                className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-4 font-semibold text-royal"
+              >
+                Control panel
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setPreview((p) => !p)}
@@ -180,6 +211,7 @@ export function EditTripPage() {
             >
               {saving ? 'Saving…' : id ? 'Save' : 'Create trip'}
             </button>
+            <AccountMenu />
           </div>
         </div>
         {message && (
@@ -195,7 +227,7 @@ export function EditTripPage() {
       </div>
 
       {preview ? (
-        <TripView trip={previewOf(trip, slug, guests)} />
+        <TripView trip={previewOf(trip, slug, guests)} preview />
       ) : (
         <main className="mx-auto flex max-w-[760px] flex-col gap-6 px-5 py-8">
           <h1 className="text-3xl font-extrabold">{id ? 'Edit trip' : 'New trip'}</h1>
@@ -207,6 +239,36 @@ export function EditTripPage() {
               label="Published"
               hint="Guests can open the trip page only once it is published."
             />
+            <label className="flex flex-col gap-1.5 text-sm font-semibold">
+              Trip link
+              <span className="flex items-stretch overflow-hidden rounded-[10px] border border-[#5B6B80] bg-white focus-within:ring-2 focus-within:ring-royal">
+                <span className="flex items-center bg-ground px-3 text-base font-normal text-muted">
+                  /t/
+                </span>
+                <input
+                  className="min-w-0 flex-1 px-3 py-3 text-base font-normal text-ink focus:outline-none"
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  placeholder={id ? '' : 'Made from the trip name if left blank'}
+                  maxLength={60}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </span>
+              {linkProblem ? (
+                <span className="font-semibold text-[#B42318]">{linkProblem}</span>
+              ) : (
+                <span className="font-normal text-muted">
+                  Letters, numbers and hyphens, like mv-2027.
+                </span>
+              )}
+            </label>
+            {id && trip.published && link.trim() && link.trim() !== slug && (
+              <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                Saving changes the link. The old one, /t/{slug}, will stop working, so share the new
+                one with your crew.
+              </p>
+            )}
             {trip.published && guestUrl && (
               <p className="break-all text-sm text-body">
                 Guest link:{' '}
@@ -285,9 +347,46 @@ export function EditTripPage() {
                 placeholder="Zelle or Cash App to me. Put your name and the trip code in the memo."
               />
               <span className="font-normal text-muted">
-                Only approved guests see this. It never appears on the public trip page.
+                {trip.payFirst
+                  ? 'Shown on the trip page, because guests pay before they register.'
+                  : 'Only approved guests see this. It never appears on the public trip page.'}
               </span>
             </label>
+          </Card>
+
+          <Card title="Sign-ups">
+            <Text
+              label="Most people the trip takes"
+              type="number"
+              value={trip.maxGuests ? String(trip.maxGuests) : ''}
+              onChange={(v) => set('maxGuests', v ? Math.max(1, Math.round(Number(v))) : null)}
+              placeholder="No limit"
+            />
+            <Toggle
+              checked={trip.payFirst}
+              onChange={(v) =>
+                setTrip((t) => ({ ...t, payFirst: v, refundPledge: v && t.refundPledge }))
+              }
+              label="Pay to register"
+              hint="Guests send the first installment before they register, and confirm it on the form. Spots go first come, first served, in the order you confirm payments arrived."
+            />
+            {trip.payFirst && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-royal-pale p-4">
+                <input
+                  type="checkbox"
+                  checked={trip.refundPledge}
+                  onChange={(e) => set('refundPledge', e.target.checked)}
+                  className="mt-1 h-5 w-5 accent-royal"
+                />
+                <span className="text-sm text-ink">
+                  {pledgeProblem && (
+                    <span className="block font-semibold text-[#B42318]">{pledgeProblem}</span>
+                  )}
+                  <strong>I&apos;ll refund anyone who pays but doesn&apos;t get a spot</strong>{' '}
+                  because the trip filled up. Guests see this promise on the trip page.
+                </span>
+              </label>
+            )}
           </Card>
 
           <Card title="Photos">

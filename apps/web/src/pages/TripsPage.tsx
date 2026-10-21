@@ -2,6 +2,7 @@ import type { TripSummary } from '@cc/types'
 import { Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
 import { SampleTripBadge } from '@/components/SampleTripBadge'
 import { api } from '@/lib/api'
@@ -15,17 +16,18 @@ export function TripsPage() {
     api
       .listTrips()
       .then(setTrips)
-      .catch(() => setError('Trips could not be loaded. Is the API running?'))
+      .catch((err) =>
+        setError(
+          err instanceof Error ? err.message : 'Trips could not be loaded. Is the API running?'
+        )
+      )
   }, [])
 
   return (
     <div className="min-h-screen">
-      <main className="mx-auto flex max-w-[960px] flex-col gap-6 px-5 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <Logo className="mb-1" />
-            <h1 className="text-3xl font-extrabold">Your trips</h1>
-          </div>
+      <header className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-5 py-4">
+        <Logo />
+        <div className="flex items-center gap-3">
           <Link
             to="/organize/new"
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-royal px-4 font-semibold text-white hover:bg-royal-dark"
@@ -33,7 +35,11 @@ export function TripsPage() {
             <Plus className="h-5 w-5" aria-hidden="true" />
             New trip
           </Link>
+          <AccountMenu />
         </div>
+      </header>
+      <main className="mx-auto flex max-w-[960px] flex-col gap-6 px-5 pb-8">
+        <h1 className="text-3xl font-extrabold">Your trips</h1>
         {error && <p className="rounded-xl bg-white p-4 text-body">{error}</p>}
         {trips && trips.length === 0 && (
           <p className="rounded-xl bg-white p-6 text-body">
@@ -64,11 +70,23 @@ export function TripsPage() {
                   {t.destination} · {dateRange(t.startDate, t.endDate)}
                 </p>
                 <div className="mt-2 flex gap-4 text-sm font-semibold">
-                  <Link to={`/organize/${t.id}`} className="py-2 text-royal hover:text-royal-dark">
+                  <Link
+                    to={`/organize/${t.id}`}
+                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
+                  >
                     Edit
                   </Link>
+                  <Link
+                    to={`/organize/${t.id}/control`}
+                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
+                  >
+                    Control panel
+                  </Link>
                   {t.published && (
-                    <Link to={`/t/${t.slug}`} className="py-2 text-royal hover:text-royal-dark">
+                    <Link
+                      to={`/t/${t.slug}`}
+                      className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
+                    >
                       Guest page
                     </Link>
                   )}

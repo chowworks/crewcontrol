@@ -27,6 +27,13 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
 
 ## The model
 
+- **Rooms** are a trip's, like guests: members read and write them, and a public page reads a published trip's rooms
+  (names, beds, places), never who chose which. It gets how many asked for each room from `public_room_taken`. A
+  guest's room must be on the guest's own trip and have a place left: `Guest_5_room_fits` checks both and locks the
+  room, so two sign-ups can't take its last place.
+- **One sign-up per email per trip** (`Guest_tripId_email_key`, on the lowercased email). The public sign-up inserts
+  with `ON CONFLICT DO NOTHING`, so a repeat looks the same as a first sign-up and the page never reveals who is on
+  a trip. A public sign-up can't carry a confirmed payment.
 - **The tenant is the trip.** A guest belongs to exactly one trip, and so will everything later hung off a trip
   (rooms, payments, messages). Each such row names its trip itself (`tripId`, a real foreign key), so unlike Audit
   Differently there is no copied tenant column and no `_1_set_tenant` trigger.
@@ -73,11 +80,13 @@ reads no guest through the mark; once seated it works on that trip as a member. 
 person, never with `app.system`. In dev the seed remakes the sample trips on every start, so a seat on one lasts
 until the next deploy.
 
-Open follow-up:
-
-- Audit Differently writes an access-log line whenever the admin changes a workspace's people
-  (`Membership_9_admin_logged`). CrewControl has no access log yet; add it before an admin guard ships, since it is
-  the safeguard on the admin seating itself and reading guests.
+Every change the admin makes to a trip's people is logged, as in Audit Differently (`Membership_9_admin_logged`):
+the `TripMember_9_admin_logged` trigger writes an `AccessLog` line (who, which trip, what changed, the old and new
+role). The Admin toolbox seats the admin as an organizer before it opens a trip, and logs every later open of a trip
+it already sits on (`admin_log_open`), so each look from the toolbox leaves a line. A seat stays until someone
+removes it, so a seated admin who goes straight to a trip's address is not logged again. The trip's members can read
+their trip's lines; nobody can write or change one but those functions. Its going and
+interested counts come from `admin_trip_counts()`, counts only, for the admin only.
 
 ## Switching it on
 

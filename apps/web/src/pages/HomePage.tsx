@@ -10,10 +10,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
 import { SampleTripBadge } from '@/components/SampleTripBadge'
 import { SiteFooter } from '@/components/SiteFooter'
 import { api } from '@/lib/api'
+import { useSignedIn } from '@/lib/auth'
 import { FAQ } from '@/lib/faq'
 import { dateRange } from '@/lib/format'
 
@@ -48,6 +50,7 @@ const CHAT = [
 
 export function HomePage() {
   const [trips, setTrips] = useState<TripSummary[]>([])
+  const signedIn = useSignedIn()
 
   useEffect(() => {
     api
@@ -61,12 +64,14 @@ export function HomePage() {
       <header className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-5 py-4">
         <Logo />
         <nav className="flex items-center gap-1 sm:gap-2">
-          <Link
-            to="/organize"
-            className="inline-flex min-h-[44px] items-center whitespace-nowrap rounded-xl px-2 text-[15px] font-semibold text-royal hover:text-royal-dark sm:px-3"
-          >
-            Your trips
-          </Link>
+          {!signedIn && (
+            <Link
+              to="/organize"
+              className="inline-flex min-h-[44px] items-center whitespace-nowrap rounded-xl px-2 text-[15px] font-semibold text-royal hover:text-royal-dark sm:px-3"
+            >
+              Your trips
+            </Link>
+          )}
           <Link
             to="/organize/new"
             className="inline-flex min-h-[44px] items-center gap-1.5 whitespace-nowrap rounded-xl bg-royal px-3 text-[15px] font-semibold text-white hover:bg-royal-dark sm:px-4"
@@ -74,6 +79,7 @@ export function HomePage() {
             <Plus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
             Add trip
           </Link>
+          <AccountMenu />
         </nav>
       </header>
 

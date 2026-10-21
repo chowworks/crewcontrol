@@ -218,6 +218,9 @@ function checkTarget() {
 async function main() {
   checkTarget()
   // Only sample trips are replaced (and their guests, by cascade); every other trip is left alone.
+  // The admin's access-log lines for the old sample trips go with them (the log has no tie to the trip itself).
+  const old = await prisma.trip.findMany({ where: { isSample: true }, select: { id: true } })
+  await prisma.accessLog.deleteMany({ where: { tripId: { in: old.map((t) => t.id) } } })
   await prisma.trip.deleteMany({ where: { isSample: true } })
   for (const { approved, interested, photos, highlights, keyDates, ...trip } of trips) {
     const guests = [

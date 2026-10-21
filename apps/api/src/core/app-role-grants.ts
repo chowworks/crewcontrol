@@ -15,6 +15,14 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'app_is_public()',
   // The public trip page's view of its guests: statuses, and approved guests' names only.
   'public_trip_guests(text)',
+  // A published trip's rooms: how many asked for each, never who.
+  'public_room_taken(text)',
+  // How many spots are taken on a published trip (approved, plus paid on pay-first trips).
+  'public_spots_taken(text)',
+  // The Admin toolbox's going and interested counts (admin only, counts only).
+  'admin_trip_counts()',
+  // A line in the access log each time the admin opens a trip from the Admin toolbox.
+  'admin_log_open(text)',
 ]
 
 /** SQL that gives `role` its table access and exactly the functions above, and nothing else. `role` is a plain identifier. */

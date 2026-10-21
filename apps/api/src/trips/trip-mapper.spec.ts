@@ -17,6 +17,9 @@ const trip: Trip = {
   paymentInstructions: 'Zelle Chris, memo MV2027',
   published: true,
   isSample: false,
+  maxGuests: null,
+  payFirst: false,
+  refundPledge: false,
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],
@@ -33,6 +36,10 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   phone: '555-0100',
   status,
   createdAt: new Date(),
+  paymentSentAt: null,
+  paymentConfirmedAt: null,
+  roomId: null,
+  roomNote: '',
 })
 
 const guests = [
@@ -55,6 +62,41 @@ describe('toPublicTrip', () => {
     expect(view.goingCount).toBe(2)
     expect(view.interestedCount).toBe(1)
     expect(JSON.stringify(view)).not.toContain('Morgan')
+  })
+
+  it('shows payment instructions only on pay-first trips, where guests pay before registering', () => {
+    expect(toPublicTrip({ ...trip, guests }).paymentInstructions).toBeNull()
+    expect(
+      toPublicTrip({ ...trip, payFirst: true, refundPledge: true, guests }).paymentInstructions
+    ).toBe(trip.paymentInstructions)
+  })
+
+  it('shows how many places are left in each room, never who took them', () => {
+    const rooms = [
+      {
+        id: 'r1',
+        tripId: 't1',
+        position: 0,
+        name: 'Primary suite',
+        beds: 'King',
+        capacity: 2,
+        weight: 1.75,
+        bedTypes: ['king'],
+        minPeople: 2,
+      },
+    ]
+    const view = toPublicTrip({ ...trip, guests, rooms, roomTaken: new Map([['r1', 1]]) })
+    expect(view.rooms).toEqual([
+      {
+        id: 'r1',
+        name: 'Primary suite',
+        beds: 'King',
+        bedTypes: ['king'],
+        capacity: 2,
+        minPeople: 2,
+        spotsLeft: 1,
+      },
+    ])
   })
 
   it('hides names when the organizer turns them off', () => {

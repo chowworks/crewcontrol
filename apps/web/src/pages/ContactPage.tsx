@@ -31,7 +31,13 @@ function problem(e: unknown): string {
 export function ContactPage() {
   const [params] = useSearchParams()
   const initialTopic = topicFrom(params)
-  const [form, setForm] = useState({ ...EMPTY, topic: initialTopic })
+  // From the 404 page: the broken address, as a plain path only (never a query string), prefilled in the message.
+  const page = params.get('page')
+  const brokenLink =
+    page && page.length <= 300 && /^\/[\w\-./]*$/.test(page)
+      ? `The link ${page} didn't work.\n\n`
+      : ''
+  const [form, setForm] = useState({ ...EMPTY, topic: initialTopic, message: brokenLink })
   const [busy, setBusy] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

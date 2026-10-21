@@ -3,16 +3,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // The API's connection: the restricted role that row-level security binds (docs/tenant-isolation.md).
+  url       = env("DATABASE_URL")
+  // The database owner, for Prisma's CLI (migrations): the restricted role can't change the schema.
+  directUrl = env("SCHEMA_DATABASE_URL")
 }
 
 // One group trip. The organizer edits it; guests see the published version at /t/<slug>.
 // Photos, highlights and key dates are ordered lists the organizer replaces whole on save,
 // so they live as JSON on the trip rather than as tables of their own.
 model Trip {
-  id                  String   @id @default(cuid())
-  slug                String   @unique
+  id                  String       @id @default(cuid())
+  slug                String       @unique
   name                String
   destination         String
   startDate           String // 'YYYY-MM-DD', a calendar date with no time zone
@@ -20,21 +23,29 @@ model Trip {
   organizerName       String
   description         String
   costPerPersonCents  Int
-  installmentCount    Int      @default(1)
-  galleryTitle        String   @default("Photos")
-  showGuestNames      Boolean  @default(false)
+  installmentCount    Int          @default(1)
+  galleryTitle        String       @default("Photos")
+  showGuestNames      Boolean      @default(false)
   // Shown only to approved guests (passenger portal, slice 3). Never on the public page.
-  paymentInstructions String   @default("")
-  published           Boolean  @default(false)
+  paymentInstructions String       @default("")
+  published           Boolean      @default(false)
   // A demo trip from the seed. The homepage shows only these, and their pages carry a "Sample Trip" badge.
-  isSample            Boolean  @default(false)
-  photos              Json     @default("[]") // TripPhoto[]; the first is the cover
-  highlights          Json     @default("[]") // TripHighlight[]
-  keyDates            Json     @default("[]") // TripKeyDate[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  isSample            Boolean      @default(false)
+  // The most guests the trip takes. Null means no limit.
+  maxGuests           Int?
+  // Pay first: guests confirm they've sent the first installment when they register, and spots go in the
+  // order the organizer confirms payments arrived. Needs the organizer's refund pledge.
+  payFirst            Boolean      @default(false)
+  // The organizer refunds anyone who paid but didn't get a spot because the trip filled.
+  refundPledge        Boolean      @default(false)
+  photos              Json         @default("[]") // TripPhoto[]; the first is the cover
+  highlights          Json         @default("[]") // TripHighlight[]
+  keyDates            Json         @default("[]") // TripKeyDate[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
   guests              Guest[]
   members             TripMember[]
+  rooms               Room[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -54,15 +65,58 @@ model TripMember {
 
 // Someone who registered interest in a trip. The organizer approves them; only then do they pay.
 model Guest {
+  id                 String    @id @default(cuid())
+  tripId             String
+  firstName          String
+  lastName           String
+  email              String
+  phone              String
+  status             String    @default("interested") // 'interested' | 'approved'
+  createdAt          DateTime  @default(now())
+  // When the guest said they sent their first payment (pay-first trips).
+  paymentSentAt      DateTime?
+  // When the organizer confirmed it arrived. Spots on a full pay-first trip go in this order.
+  paymentConfirmedAt DateTime?
+  // The room the guest asked for (the organizer can change it), and who they'd like to share with.
+  roomId             String?
+  roomNote           String    @default("")
+  room               Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  trip               Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
+
+// A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.
+model Room {
   id        String   @id @default(cuid())
   tripId    String
-  firstName String
-  lastName  String
-  email     String
-  phone     String
-  status    String   @default("interested") // 'interested' | 'approved'
-  createdAt DateTime @default(now())
+  position  Int
+  name      String
+  beds      String   @default("")
+  capacity  Int
+  weight    Float    @default(1)
+  // The beds in it, in order (BED_TYPES), for the room pictures guests choose from.
+  bedTypes  String[] @default([])
+  // The fewest people the room is priced for. Fewer than this and they pay for the empty places too.
+  minPeople Int      @default(1)
   trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  guests Guest[]
+
+  @@index([tripId])
+}
+
+// Every change the platform admin makes to a trip's people (seating itself, handing a trip to an owner), written by
+// the TripMember_9_admin_logged trigger, never by the API (migration 20261021070000_rooms_owners_access_log).
+model AccessLog {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId        String
+  actorUserId   String
+  action        String
+  subjectUserId String
+  role          String?
+  oldRole       String?
+  at            DateTime @default(now())
 
   @@index([tripId])
 }

@@ -13,7 +13,8 @@ npm install
 railway link -p crew-control -e dev
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-apps/api/scripts/dev-db-url.sh            # paste the output as DATABASE_URL in apps/api/.env
+apps/api/scripts/dev-db-url.sh --app      # paste as DATABASE_URL in apps/api/.env (the restricted role)
+apps/api/scripts/dev-db-url.sh            # paste as SCHEMA_DATABASE_URL (the owner: migrations, the seed)
 npm run dev                               # api on :3000, web on :5173
 ```
 
@@ -108,12 +109,14 @@ Done for `crew-control` on 2026-10-18; kept here for a rebuild.
 
 ### Every day
 
-Your laptop's API runs against the dev database: `apps/api/scripts/dev-db-url.sh` prints its address for
-`DATABASE_URL` in `apps/api/.env`.
+Your laptop's API runs against the dev database as the restricted role, so row-level security applies exactly as
+on Railway: `apps/api/scripts/dev-db-url.sh --app` prints its address for `DATABASE_URL`, and
+`apps/api/scripts/dev-db-url.sh` the owner's for `SCHEMA_DATABASE_URL` (Prisma's CLI and the seed use that one).
 
 The database is shared, so:
 
-- Apply a new migration with `npm run db:migrate:deploy -w @cc/api` (or deploy `api-dev`, which does it). Never
+- Apply a new migration by deploying `api-dev` (it migrates, then `role:ensure` re-applies the role's grants), or
+  with `npm run db:migrate:deploy -w @cc/api` followed by `npm run role:ensure -w @cc/api`. Never
   `prisma migrate dev` or `migrate reset` against it; write migrations with `prisma migrate diff` (above).
 - Reseeding replaces the demo trips for everyone, so say so first. The seed refuses a database that is not on
   your machine until you name it: `npm run db:seed -w @cc/api -- --confirm-host <host:port>`.
