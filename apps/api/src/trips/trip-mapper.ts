@@ -43,6 +43,7 @@ export function toPublicTrip(row: TripWithGuests): PublicTrip {
     goingCount: approved.length,
     interestedCount: row.guests.length - approved.length,
     guestNames: row.showGuestNames ? approved.map((g) => shortName(g.firstName, g.lastName)) : null,
+    isSample: row.isSample,
   }
 }
 
@@ -91,5 +92,6 @@ export function toTripSummary(row: TripRow): TripSummary {
     endDate: row.endDate,
     published: row.published,
     coverUrl: photos(row)[0]?.url ?? null,
+    isSample: row.isSample,
   }
 }

@@ -37,3 +37,13 @@ export class PublicTripsController {
     return this.trips.getPublic(slug)
   }
 }
+
+@Controller('public/sample-trips')
+export class SampleTripsController {
+  constructor(private readonly trips: TripsService) {}
+
+  @Get()
+  list() {
+    return this.trips.listSamples()
+  }
+}

@@ -49,6 +49,15 @@ export class TripsService {
     return toOrganizerTrip(row)
   }
 
+  /** The seed's demo trips, for the homepage. Real organizers' trips are never listed publicly. */
+  async listSamples(): Promise<TripSummary[]> {
+    const rows = await this.prisma.trip.findMany({
+      where: { isSample: true, published: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    return rows.map(toTripSummary)
+  }
+
   /** Only published trips are visible to guests; a draft reads as not found. */
   async getPublic(slug: string): Promise<PublicTrip> {
     const row = await this.prisma.trip.findUnique({ where: { slug }, include: withGuests })

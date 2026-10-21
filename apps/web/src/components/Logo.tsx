@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 /**
  * The CrewControl mark and wordmark. The mark is a group-chat bubble with a paper plane flying out of it:
  * "Get your trip out the group chat." Same drawing as public/favicon.svg.
@@ -22,13 +24,18 @@ export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
   )
 }
 
+/** The mark and wordmark, linking to the homepage. */
 export function Logo({ className = '' }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
+    <Link
+      to="/"
+      aria-label="CrewControl home"
+      className={`inline-flex items-center gap-2 rounded-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-royal ${className}`}
+    >
       <LogoMark />
       <span className="font-display text-xl font-extrabold tracking-tight text-ink">
         Crew<span className="text-royal">Control</span>
       </span>
-    </span>
+    </Link>
   )
 }

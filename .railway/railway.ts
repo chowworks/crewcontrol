@@ -54,6 +54,9 @@ export default defineRailway((ctx) => {
         FRONTEND_URL: preserve(),
         API_PUBLIC_URL: 'https://${{RAILWAY_PUBLIC_DOMAIN}}',
         UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
+        SUPPORT_EMAIL: 'support@crewcontrol.vacations',
+        // Where contact form messages go (logged, not sent, until email is built).
+        SUPPORT_EMAIL: 'support@crewcontrol.vacations',
       },
     })
     return project('crewcontrol', { resources: [Postgres, apiDev] })
@@ -79,6 +82,7 @@ export default defineRailway((ctx) => {
       // This service's own public address; photo URLs are built from it.
       API_PUBLIC_URL: preserve(),
       UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
+      SUPPORT_EMAIL: 'support@crewcontrol.vacations',
     },
   })
 

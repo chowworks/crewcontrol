@@ -16,6 +16,7 @@ const trip: Trip = {
   showGuestNames: true,
   paymentInstructions: 'Zelle Chris, memo MV2027',
   published: true,
+  isSample: false,
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],

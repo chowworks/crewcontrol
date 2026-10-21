@@ -7,7 +7,11 @@ import { uploadDir } from './photos/upload-dir'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
-  app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' })
+  // FRONTEND_URL may list several web addresses, comma-separated (a laptop, a Vercel preview, production).
+  const origins = (process.env.FRONTEND_URL ?? 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+  app.enableCors({ origin: origins })
   app.setGlobalPrefix('api')
   // Uploaded photos, served outside the /api prefix so their URLs stay short.
   mkdirSync(uploadDir(), { recursive: true })

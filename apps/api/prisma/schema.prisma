@@ -26,6 +26,8 @@ model Trip {
   // Shown only to approved guests (passenger portal, slice 3). Never on the public page.
   paymentInstructions String   @default("")
   published           Boolean  @default(false)
+  // A demo trip from the seed. The homepage shows only these, and their pages carry a "Sample Trip" badge.
+  isSample            Boolean  @default(false)
   photos              Json     @default("[]") // TripPhoto[]; the first is the cover
   highlights          Json     @default("[]") // TripHighlight[]
   keyDates            Json     @default("[]") // TripKeyDate[]

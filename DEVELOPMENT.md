@@ -3,26 +3,30 @@
 ## What you need
 
 - Node 22 (`.nvmrc`) and npm.
-- Docker, for Postgres. Or any Postgres 16 you point `DATABASE_URL` at, such as the shared dev database on
-  Railway (see "The shared dev environment" below).
+- The Railway CLI, signed in with access to the `crew-control` project. There is no local database: the API on
+  your laptop uses the shared dev database on Railway (see "The shared dev environment" below).
 
 ## First run
 
 ```sh
 npm install
-docker compose up -d                      # Postgres 16 on localhost:5432
+railway link -p crew-control -e dev
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-npm run db:migrate -w @cc/api             # local database only
-npm run db:seed -w @cc/api                # the three demo trips
+apps/api/scripts/dev-db-url.sh            # paste the output as DATABASE_URL in apps/api/.env
 npm run dev                               # api on :3000, web on :5173
 ```
+
+The dev database already has the demo trips (`api-dev` seeds them on every deploy), so there is nothing to
+migrate or seed.
 
 Then open:
 
 - http://localhost:5173/t/mv-beach-house-2027 for the house trip as a guest sees it.
 - http://localhost:5173/t/aruba-2028 for the resort trip.
-- http://localhost:5173/ for the organizer's trip list and editor.
+- http://localhost:5173/t/tulum-40th-2027 for the villa trip, with real photos.
+- http://localhost:5173/ for the marketing homepage.
+- http://localhost:5173/organize for the organizer's trip list and editor.
 
 ## Ports
 
@@ -47,9 +51,20 @@ Edit `packages/types/src/index.ts`, then `npm run sync:types -w @cc/api`. The AP
 
 ## Changing the database
 
-Edit `apps/api/prisma/schema.prisma`, then create the migration locally with `npm run db:migrate -w @cc/api`
-(it names and writes `prisma/migrations/<timestamp>_<name>/`). Never run `migrate dev` or `migrate reset`
-against a shared database; production applies migrations with `prisma migrate deploy` on start.
+Edit `apps/api/prisma/schema.prisma`, then write the migration from the difference between the dev database and
+your schema. It only reads the database:
+
+```sh
+cd apps/api
+mkdir -p prisma/migrations/$(date -u +%Y%m%d%H%M%S)_<name>
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script \
+  > prisma/migrations/<that folder>/migration.sql
+```
+
+Never add `--from-migrations` or `--shadow-database-url` pointing at the dev database: Prisma wipes a shadow
+database. Read the SQL, then apply it with `npm run db:migrate:deploy -w @cc/api` (or `deploy-dev.sh`). Never run
+`prisma migrate dev` or `migrate reset`: they need a database of their own and would wipe the shared one.
+Production applies migrations with `prisma migrate deploy` on start.
 
 The dev API (`api-dev`) runs the seed on every start, so check the seed still runs after a schema change.
 Production does not seed.
@@ -78,10 +93,12 @@ against that database, a branch can be tried on Railway before it reaches produc
 
 ### Set it up (once per project)
 
-1. Create the Railway project `crewcontrol` and its `dev` environment: `railway init`, then
+Done for `crew-control` on 2026-10-18; kept here for a rebuild.
+
+1. Create the Railway project `crew-control` and its `dev` environment: `railway init`, then
    `railway environment new dev`. IaC can't create an environment.
 2. From the repository root (after `npm install`, which brings the `railway` SDK):
-   `railway config plan -e dev`, then `railway config apply -e dev`.
+   `railway link -p crew-control -e dev`, `railway config plan`, then `railway config apply --environment dev`.
 3. Give `api-dev` a public domain: `railway domain -s api-dev -e dev`.
 4. Set its one hand-set value, the web app's address for CORS:
    `railway variables -s api-dev -e dev --set FRONTEND_URL=http://localhost:5373` (or the Vercel address).
@@ -91,13 +108,13 @@ against that database, a branch can be tried on Railway before it reaches produc
 
 ### Every day
 
-To run your laptop against the dev database, put its public address in `apps/api/.env`:
-`railway variables -s Postgres -e dev --kv | grep DATABASE_PUBLIC_URL`, as `DATABASE_URL`.
+Your laptop's API runs against the dev database: `apps/api/scripts/dev-db-url.sh` prints its address for
+`DATABASE_URL` in `apps/api/.env`.
 
 The database is shared, so:
 
 - Apply a new migration with `npm run db:migrate:deploy -w @cc/api` (or deploy `api-dev`, which does it). Never
-  `db:migrate` (`prisma migrate dev`) or `db:reset` against it; create migrations against a local database.
+  `prisma migrate dev` or `migrate reset` against it; write migrations with `prisma migrate diff` (above).
 - Reseeding replaces the demo trips for everyone, so say so first. The seed refuses a database that is not on
   your machine until you name it: `npm run db:seed -w @cc/api -- --confirm-host <host:port>`.
 

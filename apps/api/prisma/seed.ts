@@ -30,6 +30,7 @@ const trips: Seed[] = [
     showGuestNames: true,
     paymentInstructions: "Zelle or Cash App to Chris. Include your name and 'MV2027' in the memo.",
     published: true,
+    isSample: true,
     photos: [
       { url: '/seed/mv-front.svg', caption: 'Front of the house' },
       { url: '/seed/mv-deck.svg', caption: 'Deck and ocean view' },
@@ -86,6 +87,7 @@ const trips: Seed[] = [
     showGuestNames: false,
     paymentInstructions: "Zelle to Nia. Memo: your name + 'ARUBA28'.",
     published: true,
+    isSample: true,
     photos: [
       { url: '/seed/aruba-pool.svg', caption: 'Main pool' },
       { url: '/seed/aruba-beach.svg', caption: 'Palm Beach' },
@@ -143,6 +145,7 @@ const trips: Seed[] = [
     showGuestNames: true,
     paymentInstructions: "Zelle or Venmo to Simone. Memo: your name + 'TULUM40'.",
     published: true,
+    isSample: true,
     photos: [
       { url: unsplash('1713878620264-727e6fc497d8'), caption: 'Villa pool' },
       { url: unsplash('1605217074767-688b113d3b43'), caption: 'The beach' },
@@ -213,7 +216,8 @@ function checkTarget() {
 
 async function main() {
   checkTarget()
-  await prisma.trip.deleteMany({ where: { slug: { in: trips.map((t) => t.slug) } } })
+  // Only sample trips are replaced (and their guests, by cascade); every other trip is left alone.
+  await prisma.trip.deleteMany({ where: { isSample: true } })
   for (const { approved, interested, photos, highlights, keyDates, ...trip } of trips) {
     const guests = [
       ...approved.map(([firstName, lastName], i) => ({

@@ -77,9 +77,9 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
 
 ## Prototype limits (say so, don't hide them)
 
-- **No login yet.** The organizer screens and `/api/trips` are open to anyone with the address; every organizer
-  screen shows `PrototypeBanner`. Auth (Clerk, as in Interview and Audit Differently) comes before a real trip
-  runs here. Do not remove the banner until it does.
+- **No login yet.** The organizer screens (`/organize`) and `/api/trips` are open to anyone with the address.
+  Auth (Clerk, as in Interview and Audit Differently) comes before a real trip runs here. The owner had the
+  yellow prototype banner removed (2026-10-18), so say this in demos rather than on screen.
 - Photos are written to `UPLOAD_DIR` on the API's disk. On Railway that must be a mounted volume, or they vanish
   on redeploy. Moving them to an R2 bucket like the sibling products is an open follow-up.
 - Email and SMS are mocked (logged, not sent) until slice 4 says otherwise.
@@ -110,9 +110,10 @@ between them:
 
 ## Local development
 
-- `docker compose up -d` starts Postgres; copy `apps/api/.env.example` to `apps/api/.env`, then
-  `npm run db:migrate -w @cc/api` (local database only) and `npm run db:seed -w @cc/api`. `.claude/launch.json`
-  runs `web` on 5373 and `api` on 3200, beside the other Differently products. Details in `DEVELOPMENT.md`.
+- **No local database** (owner's decision, 2026-10-18): a laptop's API uses the shared dev database on Railway.
+  Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` from `apps/api/scripts/dev-db-url.sh`.
+  `.claude/launch.json` runs `web` on 5373 and `api` on 3200, beside the other Differently products. Details in
+  `DEVELOPMENT.md`.
 - The API keeps a generated copy of `packages/types` (`apps/api/src/trips/trip-types.ts`) because its Railway
   build only has `apps/api`. After changing `packages/types`, run `npm run sync:types -w @cc/api`; a test fails
   CI if they differ.
@@ -121,9 +122,11 @@ between them:
 
 - Migrations live in `apps/api/prisma/migrations/<timestamp>_<name>/migration.sql` and are applied with
   `prisma migrate deploy`. Write them by hand or with `prisma migrate diff`; never run `prisma migrate dev`,
-  `migrate reset` or anything that needs a shadow database against a shared database.
+  `migrate reset` or anything that needs a shadow database against a shared database. Never pass the dev
+  database as `--shadow-database-url` (Prisma wipes the shadow database; this emptied dev once, 2026-10-19).
+  `prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel ...` only reads, so use that.
 - **The dev API runs the seed on every start** (`prisma migrate deploy && npm run db:seed && node dist/main.js`);
-  production does not seed. The seed replaces only the three demo trips by slug, so a failing seed takes `api-dev`
+  production does not seed. The seed replaces only trips marked `isSample` (the three demo trips), so a failing seed takes `api-dev`
   down: run `npm run typecheck` and the seed locally before pushing a change it uses. It refuses any Railway
   environment but `dev`, and a non-local database without `--confirm-host`.
 - No ad-hoc write to a shared database (scripts, Prisma calls, `db execute`, seed re-runs) without saying

@@ -11,7 +11,6 @@ import { ArrowDown, ArrowLeft, ArrowUp, Eye, ImagePlus, Pencil, Plus, Trash2 } f
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
-import { PrototypeBanner } from '@/components/PrototypeBanner'
 import { TripView } from '@/components/TripView'
 import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
@@ -44,6 +43,7 @@ function previewOf(trip: TripInput, slug: string, guests: Guest[]): PublicTrip {
   return {
     ...trip,
     slug,
+    isSample: false,
     goingCount: approved.length,
     interestedCount: guests.length - approved.length,
     guestNames: trip.showGuestNames
@@ -150,11 +150,10 @@ export function EditTripPage() {
 
   return (
     <div className="min-h-screen pb-28">
-      <PrototypeBanner />
       <div className="sticky top-0 z-10 border-b border-rule bg-ground/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 py-3">
           <Link
-            to="/"
+            to="/organize"
             className="inline-flex items-center gap-1.5 py-2 text-sm font-semibold text-royal"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />

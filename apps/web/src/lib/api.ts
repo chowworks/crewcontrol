@@ -1,4 +1,4 @@
-import type { OrganizerTrip, PublicTrip, TripInput, TripSummary } from '@cc/types'
+import type { ContactInput, OrganizerTrip, PublicTrip, TripInput, TripSummary } from '@cc/types'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -18,6 +18,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message
     throw new ApiError(message ?? `Request failed (${res.status})`, res.status)
   }
+  if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
@@ -33,7 +34,9 @@ export const api = {
   createTrip: (input: TripInput) => request<OrganizerTrip>('/trips', json('POST', input)),
   updateTrip: (id: string, input: TripInput) =>
     request<OrganizerTrip>(`/trips/${id}`, json('PUT', input)),
+  listSampleTrips: () => request<TripSummary[]>('/public/sample-trips'),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
+  sendContact: (input: ContactInput) => request<void>('/contact', json('POST', input)),
   uploadPhoto: (file: Blob, name: string) => {
     const form = new FormData()
     form.append('photo', file, name)

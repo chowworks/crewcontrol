@@ -52,6 +52,8 @@ export interface PublicTrip {
   interestedCount: number
   /** Approved guests as "First L.", or null when the organizer hides names. */
   guestNames: string[] | null
+  /** A demo trip from the seed, shown with a "Sample Trip" badge. */
+  isSample: boolean
 }
 
 export type GuestStatus = 'interested' | 'approved'
@@ -100,6 +102,26 @@ export interface TripSummary {
   endDate: string
   published: boolean
   coverUrl: string | null
+  isSample: boolean
 }
 
 export const MAX_TRIP_PHOTOS = 15
+
+// The contact form (POST /api/contact). `?topic=` on /contact prefills one of these.
+export const CONTACT_TOPICS = ['question', 'trip-help', 'privacy', 'feedback'] as const
+export type ContactTopic = (typeof CONTACT_TOPICS)[number]
+export const CONTACT_TOPIC_LABELS: Record<ContactTopic, string> = {
+  question: 'A question about CrewControl',
+  'trip-help': 'Help with a trip',
+  privacy: 'Privacy or my data',
+  feedback: 'Feedback or an idea',
+}
+
+export interface ContactInput {
+  name: string
+  email: string
+  topic: ContactTopic
+  message: string
+  /** Honeypot: hidden from people, so only a bot fills it in. */
+  website?: string
+}

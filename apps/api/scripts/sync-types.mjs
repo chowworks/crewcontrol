@@ -10,7 +10,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-export const HEADER = '// Generated from packages/types/src/index.ts by `npm run sync:types`. Do not edit.\n\n'
+export const HEADER =
+  '// Generated from packages/types/src/index.ts by `npm run sync:types`. Do not edit.\n\n'
 const source = resolve(here, '../../../packages/types/src/index.ts')
 const target = resolve(here, '../src/trips/trip-types.ts')
 

@@ -1,10 +1,12 @@
 import type { PublicTrip } from '@cc/types'
 import { CalendarDays, MapPin } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { dateRange, installmentLine, money, shortDate } from '@/lib/format'
 import { HighlightIcon } from './HighlightIcon'
 import { Logo } from './Logo'
 import { PhotoGallery } from './PhotoGallery'
+import { SampleTripBadge } from './SampleTripBadge'
 
 const h2 = 'text-[26px] font-extrabold'
 
@@ -21,7 +23,8 @@ export function TripView({ trip }: { trip: PublicTrip }) {
 
       <section className="mx-auto max-w-[1120px] px-5">
         <div className="overflow-hidden rounded-[20px] bg-placeholder">
-          <div className="h-56 sm:h-80">
+          <div className="relative h-56 sm:h-80">
+            {trip.isSample && <SampleTripBadge className="absolute left-4 top-4 z-10" />}
             {cover && (
               <img
                 src={cover.url}
@@ -156,7 +159,12 @@ export function TripView({ trip }: { trip: PublicTrip }) {
         <span>
           Planned with <strong className="text-ink">CrewControl</strong>
         </span>
-        <span>Get your trip out the group chat.</span>
+        <span className="flex gap-4">
+          <Link to="/privacy" className="font-semibold hover:text-royal">
+            Privacy
+          </Link>
+          <span>Get your trip out the group chat.</span>
+        </span>
       </footer>
     </div>
   )
