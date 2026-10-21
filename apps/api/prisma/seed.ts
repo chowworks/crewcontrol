@@ -1,6 +1,7 @@
 // Three demo trips: a house trip, a resort vacation, and a villa trip with real photos, so the trip page is seen working for each kind.
 // Every person here is made up. Run with `npm run db:seed --workspace @cc/api`; it replaces the demo trips.
-import 'dotenv/config'
+// The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
+import '../scripts/lib/owner-env'
 import { PrismaClient, type Prisma } from '@prisma/client'
 import type { TripHighlight, TripKeyDate, TripPhoto } from '../src/trips/trip-types'
 

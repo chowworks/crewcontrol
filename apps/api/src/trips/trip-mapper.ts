@@ -12,6 +12,9 @@ import type {
 
 type TripWithGuests = TripRow & { guests: GuestRow[] }
 
+/** What the public page gets of a guest (public_trip_guests): a status, and a name only once approved. */
+export type PublicGuestRow = { status: string; firstName: string | null; lastName: string | null }
+
 const photos = (row: TripRow) => row.photos as unknown as TripPhoto[]
 
 /** "Jordan" + "Price" → "Jordan P.": enough for friends to recognise, not a full name on a public page. */
@@ -24,7 +27,7 @@ export function shortName(firstName: string, lastName: string): string {
  * The guest-facing view. Payment instructions and guest contact details never leave the API this way,
  * and people who only registered interest are counted, never named.
  */
-export function toPublicTrip(row: TripWithGuests): PublicTrip {
+export function toPublicTrip(row: TripRow & { guests: PublicGuestRow[] }): PublicTrip {
   const approved = row.guests.filter((g) => g.status === 'approved')
   return {
     slug: row.slug,
@@ -42,7 +45,9 @@ export function toPublicTrip(row: TripWithGuests): PublicTrip {
     keyDates: row.keyDates as unknown as TripKeyDate[],
     goingCount: approved.length,
     interestedCount: row.guests.length - approved.length,
-    guestNames: row.showGuestNames ? approved.map((g) => shortName(g.firstName, g.lastName)) : null,
+    guestNames: row.showGuestNames
+      ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
+      : null,
     isSample: row.isSample,
   }
 }

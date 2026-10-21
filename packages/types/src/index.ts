@@ -56,6 +56,9 @@ export interface PublicTrip {
 
 export type GuestStatus = 'interested' | 'approved'
 
+/** A person's part in running a trip (TripMember.role): the owner decides who else organizes it. */
+export type TripRole = 'owner' | 'organizer'
+
 export interface Guest {
   id: string
   firstName: string

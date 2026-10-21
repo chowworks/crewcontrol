@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common'
+import { runAsPublic } from '../core/tenant-context'
 import { parseTripInput } from './trip-input'
 import { TripsService } from './trips.service'
 
@@ -34,7 +35,7 @@ export class PublicTripsController {
 
   @Get(':slug')
   get(@Param('slug') slug: string) {
-    return this.trips.getPublic(slug)
+    return runAsPublic(() => this.trips.getPublic(slug))
   }
 }
 
@@ -44,6 +45,6 @@ export class SampleTripsController {
 
   @Get()
   list() {
-    return this.trips.listSamples()
+    return runAsPublic(() => this.trips.listSamples())
   }
 }

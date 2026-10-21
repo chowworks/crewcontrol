@@ -75,6 +75,15 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
 - Passport and flight details are Phase 3 and need the PII research first (what to collect, how long to keep it,
   who may export it). Do not add fields for them before that.
 
+## Trip isolation (row-level security)
+
+The trip is the tenant, as the workspace is in Audit Differently; `docs/tenant-isolation.md` is the full design.
+A trip's people are its `TripMember` rows (`owner` or `organizer`). Postgres policies keep every row to the members
+of its trip, and the API sets the caller on every query (`src/core/tenant-context.ts`, `PrismaService`). A public
+route runs in `runAsPublic`; trusted work in `runAsSystem`, and `trusted-paths.spec.ts` lists both on purpose. A new
+table that holds trip data gets `tripId`, its policies and a `TENANT_TABLES` entry in the same change. It binds only
+when the API connects as the restricted role (`cc_app`); dev still connects as the owner until sign-in sets a caller.
+
 ## Prototype limits (say so, don't hide them)
 
 - **No login yet.** The organizer screens (`/organize`) and `/api/trips` are open to anyone with the address.

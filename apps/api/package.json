@@ -11,10 +11,12 @@
     "start": "prisma migrate deploy && node dist/main",
     "lint": "eslint src prisma scripts",
     "typecheck": "prisma generate && tsc --noEmit",
-    "test": "jest --passWithNoTests",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
-    "sync:types": "node scripts/sync-types.mjs"
+    "sync:types": "node scripts/sync-types.mjs",
+    "role:create": "ts-node scripts/create-app-role.ts",
+    "role:ensure": "ts-node scripts/ensure-app-role.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -29,6 +31,7 @@
     "rxjs": "^7.8.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@eslint/js": "^9.0.0",
     "@nestjs/cli": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
