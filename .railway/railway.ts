@@ -21,7 +21,8 @@ const build = {
   builder: 'NIXPACKS',
 } as const
 
-// Uploaded photos. They are written to UPLOAD_DIR, so it sits on a volume, or they vanish on redeploy.
+// Trip photos now live in R2 (R2_*, below). The volume where they used to be written stays until the photos already
+// on it are copied to R2 and their trips point there; then it and its mount can go.
 const UPLOADS_MOUNT = '/data'
 const uploads = () =>
   volume('uploads', {
@@ -29,6 +30,14 @@ const uploads = () =>
     region: REGION,
     sizeMB: 500,
   })
+
+// Set by hand in each environment: the R2 bucket's keys hold a secret, and each environment has its own bucket.
+const photoBucket = {
+  R2_ACCOUNT_ID: preserve(),
+  R2_ACCESS_KEY_ID: preserve(),
+  R2_SECRET_ACCESS_KEY: preserve(),
+  R2_PHOTOS_BUCKET: preserve(),
+}
 
 export default defineRailway((ctx) => {
   const Postgres = postgres('Postgres', { region: REGION })
@@ -59,8 +68,8 @@ export default defineRailway((ctx) => {
         REQUIRE_TENANT_RLS: 'on',
         // The web app's address, for CORS: a laptop (http://localhost:5373) or the Vercel project's address.
         FRONTEND_URL: preserve(),
-        API_PUBLIC_URL: 'https://${{RAILWAY_PUBLIC_DOMAIN}}',
-        UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
+        // Trip photos: the dev R2 bucket, private; guests get signed links (DEVELOPMENT.md, "Photos").
+        ...photoBucket,
         // Where contact form messages go (logged, not sent, until email is built).
         SUPPORT_EMAIL: 'support@crewcontrol.vacations',
         // Clerk's secret key for this environment, set by hand in Railway.
@@ -87,9 +96,8 @@ export default defineRailway((ctx) => {
       DATABASE_URL: '${{Postgres.DATABASE_URL}}',
       // The web app's address, for CORS.
       FRONTEND_URL: preserve(),
-      // This service's own public address; photo URLs are built from it.
-      API_PUBLIC_URL: preserve(),
-      UPLOAD_DIR: `${UPLOADS_MOUNT}/uploads`,
+      // Trip photos: production's R2 bucket, private; guests get signed links.
+      ...photoBucket,
       SUPPORT_EMAIL: 'support@crewcontrol.vacations',
       CLERK_SECRET_KEY: preserve(),
     },

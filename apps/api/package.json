@@ -16,12 +16,15 @@
     "db:seed": "ts-node prisma/seed.ts",
     "sync:types": "node scripts/sync-types.mjs",
     "role:create": "ts-node scripts/create-app-role.ts",
-    "role:ensure": "ts-node scripts/ensure-app-role.ts"
+    "role:ensure": "ts-node scripts/ensure-app-role.ts",
+    "photos:move-to-r2": "ts-node scripts/move-photos-to-r2.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1155.0",
+    "@aws-sdk/s3-request-presigner": "^3.1155.0",
     "@clerk/backend": "^3.26.0",
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",

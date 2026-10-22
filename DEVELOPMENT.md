@@ -33,7 +33,7 @@ Then open:
 
 `npm run dev` uses the defaults in the `.env.example` files (api 3000, web 5173). `.claude/launch.json` runs
 the same apps on 3200 and 5373 instead, so CrewControl can run beside Interview and Audit Differently. If you
-use those, set `PORT`, `FRONTEND_URL` and `API_PUBLIC_URL` in `apps/api/.env` and `VITE_API_URL` in
+use those, set `PORT` and `FRONTEND_URL` in `apps/api/.env` and `VITE_API_URL` in
 `apps/web/.env` to match.
 
 ## Layout
@@ -72,8 +72,15 @@ Production does not seed.
 
 ## Photos
 
-Uploads are saved to `UPLOAD_DIR` (default `apps/api/storage/uploads`, gitignored) and served from
-`/uploads/`. Seed trips use the placeholder images in `apps/web/public/seed/`.
+Uploads go to a private Cloudflare R2 bucket, one per environment (`R2_*` in `apps/api/.env.example`). A trip keeps
+each photo's reference (`r2:trip-photos/<name>`); the API hands readers signed links that last two hours, and
+browsers load the photos from Cloudflare, never through the API (`src/photos/photo-bucket.ts`). A laptop uses the
+dev bucket's values; without them, uploading a photo says it is not set up. Seed trips use the placeholder images
+in `apps/web/public/seed/`.
+
+To make a bucket: in Cloudflare, create the R2 bucket (for dev, `crewcontrol-photos-dev`) and leave public access
+off, then create an R2 API token with Object Read & Write on that bucket only. Set `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_PHOTOS_BUCKET` on the API service in Railway.
 
 ## The shared dev environment (Railway)
 
@@ -90,7 +97,7 @@ against that database, a branch can be tried on Railway before it reaches produc
   uncommitted changes included.
 - **The seed runs on every `api-dev` start** (`prisma migrate deploy && npm run db:seed && node dist/main.js`), so
   each deploy puts the demo trips back in their starting shape. Edits to other trips are kept.
-- **No secrets.** Every variable but `FRONTEND_URL` is set in `.railway/railway.ts`; photos go to a volume.
+- **No secrets.** Every variable but `FRONTEND_URL` is set in `.railway/railway.ts`; photos go to the dev R2 bucket.
 
 ### Set it up (once per project)
 

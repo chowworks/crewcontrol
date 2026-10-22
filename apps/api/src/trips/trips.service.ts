@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { runAsSystem } from '../core/tenant-context'
+import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
 import { toOrganizerTrip, toPublicTrip, toTripSummary, type PublicGuestRow } from './trip-mapper'
 import type {
@@ -60,7 +61,7 @@ export class TripsService {
       where: { members: { some: { userId: caller.userId } } },
       orderBy: { startDate: 'asc' },
     })
-    return rows.map(toTripSummary)
+    return Promise.all(rows.map((r) => withCoverLink(toTripSummary(r))))
   }
 
   /** A trip the caller works on; anyone else's reads as not found. An admin seats itself first (Admin toolbox). */
@@ -70,7 +71,7 @@ export class TripsService {
       include: withGuests,
     })
     if (!row) throw new NotFoundException('Trip not found')
-    return toOrganizerTrip(row)
+    return withPhotoLinks(toOrganizerTrip(row))
   }
 
   /**
@@ -92,7 +93,7 @@ export class TripsService {
         })
       )
     )
-    return toOrganizerTrip(row)
+    return withPhotoLinks(toOrganizerTrip(row))
   }
 
   async update(
@@ -109,7 +110,7 @@ export class TripsService {
         include: withGuests,
       })
     )
-    return toOrganizerTrip(row)
+    return withPhotoLinks(toOrganizerTrip(row))
   }
 
   /** The seed's demo trips, for the homepage. Real organizers' trips are never listed publicly. */
@@ -118,7 +119,7 @@ export class TripsService {
       where: { isSample: true, published: true },
       orderBy: { createdAt: 'asc' },
     })
-    return rows.map(toTripSummary)
+    return Promise.all(rows.map((r) => withCoverLink(toTripSummary(r))))
   }
 
   /** Only published trips are visible to guests; a draft reads as not found. Runs as a public page. */
@@ -138,12 +139,14 @@ export class TripsService {
     const [{ spots }] = await this.prisma.$queryRaw<{ spots: number }[]>(
       Prisma.sql`SELECT "public_spots_taken"(${row.id}) AS spots`
     )
-    return toPublicTrip({
-      ...row,
-      guests,
-      roomTaken: new Map(taken.map((t) => [t.roomId, t.taken])),
-      spotsTaken: spots,
-    })
+    return withPhotoLinks(
+      toPublicTrip({
+        ...row,
+        guests,
+        roomTaken: new Map(taken.map((t) => [t.roomId, t.taken])),
+        spotsTaken: spots,
+      })
+    )
   }
 
   async getRooms(id: string, caller: Caller): Promise<TripRoom[]> {
@@ -280,18 +283,20 @@ export class TripsService {
           else c.interested += g._count._all
           return out
         }, [])
-    return rows.map(({ members, ...row }) => {
-      const c = counts.find((x) => x.tripId === row.id) ?? { going: 0, interested: 0 }
-      return {
-        ...toTripSummary(row),
-        ownerIds: members.map((m) => m.userId),
-        guestCount: c.going + c.interested,
-        goingCount: c.going,
-        interestedCount: c.interested,
-        maxGuests: row.maxGuests,
-        payFirst: row.payFirst,
-      }
-    })
+    return Promise.all(
+      rows.map(({ members, ...row }) => {
+        const c = counts.find((x) => x.tripId === row.id) ?? { going: 0, interested: 0 }
+        return withCoverLink({
+          ...toTripSummary(row),
+          ownerIds: members.map((m) => m.userId),
+          guestCount: c.going + c.interested,
+          goingCount: c.going,
+          interestedCount: c.interested,
+          maxGuests: row.maxGuests,
+          payFirst: row.payFirst,
+        })
+      })
+    )
   }
 
   /**

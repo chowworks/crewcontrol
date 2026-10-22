@@ -1,9 +1,7 @@
 import 'dotenv/config'
 import { NestFactory } from '@nestjs/core'
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { mkdirSync } from 'node:fs'
 import { AppModule } from './app.module'
-import { uploadDir } from './photos/upload-dir'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
@@ -16,9 +14,6 @@ async function bootstrap() {
   // Railway puts one proxy in front of the API: trust that hop, so a request's address is the visitor's, not the
   // proxy's (the sign-up and contact limits count per visitor). Never `true`, which would let anyone fake it.
   app.set('trust proxy', 1)
-  // Uploaded photos, served outside the /api prefix so their URLs stay short.
-  mkdirSync(uploadDir(), { recursive: true })
-  app.useStaticAssets(uploadDir(), { prefix: '/uploads/', maxAge: '30d', immutable: true })
   const port = process.env.PORT ?? 3000
   await app.listen(port)
   console.log(`API running on port ${port}`)

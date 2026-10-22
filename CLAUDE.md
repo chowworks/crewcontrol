@@ -97,8 +97,10 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   `docs/tenant-isolation.md`). Admins (Clerk public metadata `{"role": "admin"}`) see every trip in the Admin
   toolbox; opening one seats them on it as an organizer, and the database logs every seat (`AccessLog`). Sample
   trips have no owner. Guests never sign in.
-- Photos are written to `UPLOAD_DIR` on the API's disk. On Railway that must be a mounted volume, or they vanish
-  on redeploy. Moving them to an R2 bucket like the sibling products is an open follow-up.
+- Photos go to a private Cloudflare R2 bucket per environment, as Audit Differently's documents do. A trip stores each
+  photo's reference (`r2:trip-photos/<name>`), never a link; the API signs links that last two hours when it hands a
+  trip out (`src/photos/photo-bucket.ts`), and browsers load them from Cloudflare, so a trip page view costs no
+  Railway traffic. Anything more sensitive later uses the same private, signed pattern.
 - Email and SMS are mocked (logged, not sent) until slice 4 says otherwise.
 
 ## Design

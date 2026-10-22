@@ -24,7 +24,6 @@
       "runtimeArgs": [
         "PORT=3200",
         "FRONTEND_URL=http://localhost:5373",
-        "API_PUBLIC_URL=http://localhost:3200",
         "npm",
         "run",
         "dev",

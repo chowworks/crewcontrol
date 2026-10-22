@@ -2,18 +2,18 @@ import {
   BadRequestException,
   Controller,
   Post,
+  ServiceUnavailableException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, openSync, readSync, closeSync, unlinkSync } from 'node:fs'
-import { diskStorage } from 'multer'
+import { memoryStorage } from 'multer'
 import type { Caller } from '../auth/caller'
 import { SignedInGuard } from '../auth/signed-in.guard'
 import { RateLimiter } from '../core/rate-limit'
-import { uploadDir } from './upload-dir'
+import { photoBucket } from './photo-bucket'
 
 const TYPES: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -32,18 +32,7 @@ export function looksLikeImage(head: Buffer): boolean {
   return jpeg || png || webp
 }
 
-function readHead(path: string): Buffer {
-  const head = Buffer.alloc(12)
-  const fd = openSync(path, 'r')
-  try {
-    readSync(fd, head, 0, 12, 0)
-  } finally {
-    closeSync(fd)
-  }
-  return head
-}
-
-// Per signed-in organizer, checked before anything is written to disk: enough for a trip's photos, not a flood.
+// Per signed-in organizer, checked before the photo is read in: enough for a trip's photos, not a flood.
 const uploads = new RateLimiter(
   60,
   60 * 60 * 1000,
@@ -54,6 +43,8 @@ const uploads = new RateLimiter(
 @Controller('photos')
 @UseGuards(SignedInGuard)
 export class PhotosController {
+  private readonly bucket = photoBucket()
+
   @Post()
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -68,23 +59,21 @@ export class PhotosController {
         }
         done(null, true)
       },
-      storage: diskStorage({
-        destination: (_req, _file, done) => {
-          const dir = uploadDir()
-          mkdirSync(dir, { recursive: true })
-          done(null, dir)
-        },
-        filename: (_req, file, done) => done(null, `${randomUUID()}${TYPES[file.mimetype]}`),
-      }),
+      storage: memoryStorage(),
     })
   )
-  upload(@UploadedFile() file: Express.Multer.File | undefined) {
+  async upload(@UploadedFile() file: Express.Multer.File | undefined) {
     if (!file) throw new BadRequestException('Attach a photo as the "photo" field')
-    if (!looksLikeImage(readHead(file.path))) {
-      unlinkSync(file.path)
+    if (!looksLikeImage(file.buffer))
       throw new BadRequestException('That file is not a JPEG, PNG or WebP photo')
-    }
-    const base = process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`
-    return { url: `${base}/uploads/${file.filename}` }
+    if (!this.bucket)
+      throw new ServiceUnavailableException('Photo uploads are not set up here (R2_* variables)')
+    const ref = await this.bucket.put(
+      `${randomUUID()}${TYPES[file.mimetype]}`,
+      file.buffer,
+      file.mimetype
+    )
+    // A signed link, so the editor can show the photo; saving the trip turns it back into the reference.
+    return { url: await this.bucket.sign(ref) }
   }
 }

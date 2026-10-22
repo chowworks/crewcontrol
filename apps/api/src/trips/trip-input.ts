@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common'
+import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import {
   HIGHLIGHT_ICONS,
   BED_TYPES,
@@ -62,8 +63,11 @@ function list(body: Body, key: string, max: number): Body[] {
 }
 
 function photo(item: Body): TripPhoto {
-  const url = text(item, 'url', 2000)
-  if (!/^(https?:\/\/|\/(?!\/))/.test(url)) fail('A photo URL must start with http(s):// or /')
+  const given = text(item, 'url', 2000)
+  // The editor sends back the signed links it was given; the trip keeps the photo's reference, not the link.
+  const url = isPhotoRef(given) ? given : (photoBucket()?.refFrom(given) ?? given)
+  if (!isPhotoRef(url) && !/^(https?:\/\/|\/(?!\/))/.test(url))
+    fail('A photo URL must start with http(s):// or /')
   return { url, caption: text(item, 'caption', 120, false) }
 }
 
