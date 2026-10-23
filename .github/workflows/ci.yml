@@ -33,9 +33,10 @@ jobs:
   # RAILWAY_TOKEN is a project token for ONE Railway environment (dev for now), so the config apply and the deploy
   # touch only that environment, and the repository variable RAILWAY_API_SERVICE names the API service in it
   # (api-dev now, crewcontrol-api for production).
+  # The web app goes out after the API it calls, so a new page never reaches guests before its API does.
   deploy-web:
     name: Deploy Web (Vercel)
-    needs: [ci]
+    needs: [ci, deploy-api]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +45,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install
-      - run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+      - run: npx vercel@63.1.2 deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
