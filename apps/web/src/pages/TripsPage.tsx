@@ -1,15 +1,13 @@
-import type { TripSummary } from '@cc/types'
 import { Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
-import { SampleTripBadge } from '@/components/SampleTripBadge'
-import { api } from '@/lib/api'
-import { dateRange } from '@/lib/format'
+import { rowButton, TripList } from '@/components/TripList'
+import { api, type ListedTrip } from '@/lib/api'
 
 export function TripsPage() {
-  const [trips, setTrips] = useState<TripSummary[] | null>(null)
+  const [trips, setTrips] = useState<ListedTrip[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -25,7 +23,7 @@ export function TripsPage() {
 
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-5 py-4">
+      <header className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-5 py-4">
         <Logo />
         <div className="flex items-center gap-3">
           <Link
@@ -38,63 +36,34 @@ export function TripsPage() {
           <AccountMenu />
         </div>
       </header>
-      <main className="mx-auto flex max-w-[960px] flex-col gap-6 px-5 pb-8">
-        <h1 className="text-3xl font-extrabold">Your trips</h1>
+      <main className="mx-auto flex max-w-[1120px] flex-col px-5 pb-8">
+        <h1 className="mb-5 mt-2 text-3xl font-extrabold">Your trips</h1>
         {error && <p className="rounded-xl bg-white p-4 text-body">{error}</p>}
         {trips && trips.length === 0 && (
           <p className="rounded-xl bg-white p-6 text-body">
             No trips yet. Start one with New trip.
           </p>
         )}
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-          {trips?.map((t) => (
-            <li key={t.id} className="overflow-hidden rounded-2xl bg-white shadow-card">
-              <div className="relative h-36 bg-placeholder">
-                {t.isSample && <SampleTripBadge className="absolute left-3 top-3 z-10" />}
-                {t.coverUrl && (
-                  <img src={t.coverUrl} alt="" className="h-full w-full object-cover" />
+        {trips && trips.length > 0 && (
+          <TripList
+            trips={trips}
+            actions={(t) => (
+              <>
+                <Link to={`/organize/${t.id}/control`} className={rowButton(true)}>
+                  Control panel
+                </Link>
+                <Link to={`/organize/${t.id}`} className={rowButton()}>
+                  Edit
+                </Link>
+                {t.published && (
+                  <Link to={`/t/${t.slug}`} className={rowButton()}>
+                    Guest page
+                  </Link>
                 )}
-              </div>
-              <div className="flex flex-col gap-1 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="text-lg font-extrabold leading-tight">{t.name}</h2>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      t.published ? 'bg-royal-pale text-royal' : 'bg-ground text-muted'
-                    }`}
-                  >
-                    {t.published ? 'Published' : 'Draft'}
-                  </span>
-                </div>
-                <p className="text-sm text-muted">
-                  {t.destination} · {dateRange(t.startDate, t.endDate)}
-                </p>
-                <div className="mt-2 flex gap-4 text-sm font-semibold">
-                  <Link
-                    to={`/organize/${t.id}`}
-                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
-                  >
-                    Edit
-                  </Link>
-                  <Link
-                    to={`/organize/${t.id}/control`}
-                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
-                  >
-                    Control panel
-                  </Link>
-                  {t.published && (
-                    <Link
-                      to={`/t/${t.slug}`}
-                      className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-3 text-royal hover:bg-royal-pale"
-                    >
-                      Guest page
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </>
+            )}
+          />
+        )}
       </main>
     </div>
   )

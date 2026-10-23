@@ -56,12 +56,21 @@ export class TripsService {
    * The trips the caller works on (their TripMember rows). Row-level security draws the same line in the database;
    * the filter here keeps it while the API still connects as the owner. Admins see every trip in the Admin toolbox.
    */
-  async list(caller: Caller): Promise<TripSummary[]> {
+  /** The caller's trips, listed the way the Admin toolbox lists every trip: owners and sign-up counts. */
+  async list(caller: Caller) {
     const rows = await this.prisma.trip.findMany({
       where: { members: { some: { userId: caller.userId } } },
       orderBy: { startDate: 'asc' },
+      include: ownerIds,
     })
-    return Promise.all(rows.map((r) => withCoverLink(toTripSummary(r))))
+    // The caller is a member of each, so it reads their guests itself.
+    return withCounts(
+      rows,
+      await countGuests(
+        this.prisma,
+        rows.map((r) => r.id)
+      )
+    )
   }
 
   /** A trip the caller works on; anyone else's reads as not found. An admin seats itself first (Admin toolbox). */
@@ -267,36 +276,14 @@ export class TripsService {
   async listAll() {
     const rows = await this.prisma.trip.findMany({
       orderBy: { startDate: 'asc' },
-      include: { members: { where: { role: 'owner' }, select: { userId: true } } },
+      include: ownerIds,
     })
-    // Connected as the owner (row-level security off) the admin mark isn't set, so count directly.
+    // The admin reads no guest row, so its counts come from admin_trip_counts. Connected as the owner (row-level
+    // security off) the admin mark isn't set, so count directly.
     const counts = rlsActive()
-      ? await this.prisma.$queryRaw<{ tripId: string; going: number; interested: number }[]>(
-          Prisma.sql`SELECT * FROM "admin_trip_counts"()`
-        )
-      : (
-          await this.prisma.guest.groupBy({ by: ['tripId', 'status'], _count: { _all: true } })
-        ).reduce<{ tripId: string; going: number; interested: number }[]>((out, g) => {
-          let c = out.find((x) => x.tripId === g.tripId)
-          if (!c) out.push((c = { tripId: g.tripId, going: 0, interested: 0 }))
-          if (g.status === 'approved') c.going += g._count._all
-          else c.interested += g._count._all
-          return out
-        }, [])
-    return Promise.all(
-      rows.map(({ members, ...row }) => {
-        const c = counts.find((x) => x.tripId === row.id) ?? { going: 0, interested: 0 }
-        return withCoverLink({
-          ...toTripSummary(row),
-          ownerIds: members.map((m) => m.userId),
-          guestCount: c.going + c.interested,
-          goingCount: c.going,
-          interestedCount: c.interested,
-          maxGuests: row.maxGuests,
-          payFirst: row.payFirst,
-        })
-      })
-    )
+      ? await this.prisma.$queryRaw<GuestCounts[]>(Prisma.sql`SELECT * FROM "admin_trip_counts"()`)
+      : await countGuests(this.prisma)
+    return withCounts(rows, counts)
   }
 
   /**
@@ -360,4 +347,53 @@ async function roomFull<T>(write: () => Promise<T>): Promise<T> {
       throw new BadRequestException('That room is not on this trip')
     throw err
   }
+}
+
+interface GuestCounts {
+  tripId: string
+  going: number
+  interested: number
+}
+
+const ownerIds = { members: { where: { role: 'owner' }, select: { userId: true } } } as const
+
+/** Going and interested per trip, for the trips the caller can read (or `tripIds` of them). */
+async function countGuests(prisma: PrismaService, tripIds?: string[]): Promise<GuestCounts[]> {
+  const groups = await prisma.guest.groupBy({
+    by: ['tripId', 'status'],
+    where: tripIds ? { tripId: { in: tripIds } } : undefined,
+    _count: { _all: true },
+  })
+  return groups.reduce<GuestCounts[]>((out, g) => {
+    let c = out.find((x) => x.tripId === g.tripId)
+    if (!c) out.push((c = { tripId: g.tripId, going: 0, interested: 0 }))
+    if (g.status === 'approved') c.going += g._count._all
+    else c.interested += g._count._all
+    return out
+  }, [])
+}
+
+/** A trip list's rows: the summary, its owners' ids (the controller names them), and its sign-up counts. */
+function withCounts(
+  rows: (Parameters<typeof toTripSummary>[0] & {
+    maxGuests: number | null
+    payFirst: boolean
+    members: { userId: string }[]
+  })[],
+  counts: GuestCounts[]
+) {
+  return Promise.all(
+    rows.map(({ members, ...row }) => {
+      const c = counts.find((x) => x.tripId === row.id) ?? { going: 0, interested: 0 }
+      return withCoverLink({
+        ...toTripSummary(row),
+        ownerIds: members.map((m) => m.userId),
+        guestCount: c.going + c.interested,
+        goingCount: c.going,
+        interestedCount: c.interested,
+        maxGuests: row.maxGuests,
+        payFirst: row.payFirst,
+      })
+    })
+  )
 }

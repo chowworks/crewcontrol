@@ -17,11 +17,14 @@ import { TripsService } from './trips.service'
 @Controller('trips')
 @UseGuards(SignedInGuard)
 export class TripsController {
-  constructor(private readonly trips: TripsService) {}
+  constructor(
+    private readonly trips: TripsService,
+    private readonly clerk: ClerkService
+  ) {}
 
   @Get()
-  list(@CurrentCaller() caller: Caller) {
-    return this.trips.list(caller)
+  async list(@CurrentCaller() caller: Caller) {
+    return withOwnerNames(await this.trips.list(caller), this.clerk)
   }
 
   @Post()
@@ -109,14 +112,7 @@ export class AdminController {
 
   @Get('trips')
   async allTrips() {
-    const trips = await this.trips.listAll()
-    const names = await this.clerk.names([...new Set(trips.flatMap((t) => t.ownerIds))])
-    return trips.map(({ ownerIds, ...t }) => ({
-      ...t,
-      ownerName: ownerIds.length
-        ? ownerIds.map((id) => names.get(id) ?? 'Unknown').join(', ')
-        : null,
-    }))
+    return withOwnerNames(await this.trips.listAll(), this.clerk)
   }
 
   @Post('trips/:id/seat')
@@ -124,4 +120,13 @@ export class AdminController {
     const asOwner = (body as { asOwner?: unknown } | null)?.asOwner === true
     return this.trips.seat(id, caller, asOwner)
   }
+}
+
+/** A trip list with its owners' names from Clerk in place of their ids (Your trips and Trip admin alike). */
+async function withOwnerNames<T extends { ownerIds: string[] }>(trips: T[], clerk: ClerkService) {
+  const names = await clerk.names([...new Set(trips.flatMap((t) => t.ownerIds))])
+  return trips.map(({ ownerIds, ...t }) => ({
+    ...t,
+    ownerName: ownerIds.length ? ownerIds.map((id) => names.get(id) ?? 'Unknown').join(', ') : null,
+  }))
 }

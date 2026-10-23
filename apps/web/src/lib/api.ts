@@ -11,8 +11,8 @@ import type {
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
-/** A trip as the Admin toolbox lists it. */
-export interface AdminTrip extends TripSummary {
+/** A trip as Your trips and the Admin toolbox list it: who runs it and how many have signed up. */
+export interface ListedTrip extends TripSummary {
   ownerName: string | null
   guestCount: number
   goingCount: number
@@ -69,7 +69,7 @@ const json = (method: string, body: unknown): RequestInit => ({
 })
 
 export const api = {
-  listTrips: () => request<TripSummary[]>('/trips'),
+  listTrips: () => request<ListedTrip[]>('/trips'),
   getTrip: (id: string) => request<OrganizerTrip>(`/trips/${id}`),
   createTrip: (input: TripInput, slug?: string) =>
     request<OrganizerTrip>('/trips', json('POST', { ...input, slug })),
@@ -83,7 +83,7 @@ export const api = {
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}`, json('PATCH', update)),
   register: (slug: string, input: RegistrationInput) =>
     request<{ status: string }>(`/public/trips/${slug}/register`, json('POST', input)),
-  adminTrips: () => request<AdminTrip[]>('/admin/trips'),
+  adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   seatOnTrip: (id: string, asOwner = false) =>
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
