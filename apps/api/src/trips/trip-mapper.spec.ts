@@ -23,6 +23,7 @@ const trip: Trip = {
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],
+  options: { roomChoice: true },
   createdAt: new Date(),
   updatedAt: new Date(),
 }
@@ -99,8 +100,33 @@ describe('toPublicTrip', () => {
     ])
   })
 
-  it('hides names when the organizer turns them off', () => {
-    expect(toPublicTrip({ ...trip, showGuestNames: false, guests }).guestNames).toBeNull()
+  it('hides names when the organizer turns them off and guests choose no room', () => {
+    const view = toPublicTrip({ ...trip, showGuestNames: false, options: {}, guests })
+    expect(view.guestNames).toBeNull()
+  })
+
+  it('shows names while guests choose rooms, so they can see who to share with', () => {
+    const view = toPublicTrip({ ...trip, showGuestNames: false, guests })
+    expect(view.guestNames).toEqual(['Jordan P.', 'Avery L.'])
+  })
+
+  it('shows no rooms when room choice is off', () => {
+    const rooms = [
+      {
+        id: 'r1',
+        tripId: 't1',
+        position: 0,
+        name: 'Bunk room',
+        beds: '',
+        capacity: 4,
+        weight: 1,
+        bedTypes: [],
+        minPeople: 1,
+      },
+    ]
+    const view = toPublicTrip({ ...trip, options: {}, guests, rooms })
+    expect(view.rooms).toEqual([])
+    expect(view.options).toEqual({ roomChoice: false, roomRequired: false, signupNote: '' })
   })
 })
 

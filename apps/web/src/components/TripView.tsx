@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, api } from '@/lib/api'
+import { defaultSignupNote } from '@/lib/signups'
 import { dateRange, installmentLine, money, shortDate } from '@/lib/format'
 import { Dialog } from './Dialog'
 import { HighlightIcon } from './HighlightIcon'
@@ -101,25 +102,6 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
                 ? `First come, first served${trip.maxGuests ? ` for ${trip.maxGuests} spots` : ''}. Send your first payment, then register. If the trip fills first, ${trip.organizerName} refunds you in full.`
                 : `Nothing to pay today. ${trip.organizerName} reviews who’s interested, approves the crew, then shares how to pay.`}
             </p>
-            <button
-              type="button"
-              onClick={openJoin}
-              disabled={joined || full}
-              className="block rounded-xl bg-royal px-5 py-[15px] text-center text-[17px] font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
-            >
-              {joined
-                ? 'You’re on the list'
-                : full
-                  ? 'This trip is full'
-                  : trip.payFirst
-                    ? 'Register'
-                    : 'Register interest'}
-            </button>
-            {!trip.payFirst && (
-              <p className="text-center text-[13px] text-muted">
-                Free to register. It doesn&apos;t commit you.
-              </p>
-            )}
           </div>
           <WantInTile trip={trip} joined={joined} full={full} onOpen={openJoin} />
         </aside>
@@ -244,12 +226,17 @@ const EMPTY_DRAFT: Draft = {
 }
 
 /** Every problem with the sign-up form, by field, so they show at once beside their fields. */
-export function signupProblems(d: Draft, payFirst: boolean): Partial<Record<string, string>> {
+export function signupProblems(
+  d: Draft,
+  payFirst: boolean,
+  roomRequired = false
+): Partial<Record<string, string>> {
   const out: Partial<Record<string, string>> = {}
   if (!d.form.name.trim()) out.name = 'Add your name.'
   if (d.form.phone.replace(/\D/g, '').length < 7) out.phone = 'Add a phone number we can text.'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.form.email.trim())) out.email = 'Add an email address.'
   if (payFirst && !d.paymentSent) out.paymentSent = 'Send your first payment, then tick this.'
+  if (roomRequired && !d.roomId) out.roomId = 'Pick a room.'
   return out
 }
 
@@ -291,7 +278,7 @@ function WantInTile({
     <div className="relative overflow-hidden rounded-2xl bg-royal p-6 text-white shadow-card">
       <svg
         viewBox="0 0 200 120"
-        className="pointer-events-none absolute -right-6 -top-4 h-36 w-auto opacity-90"
+        className="pointer-events-none absolute -right-4 -top-3 h-20 w-auto opacity-90"
         aria-hidden="true"
       >
         <path
@@ -312,14 +299,13 @@ function WantInTile({
         <h2 className="font-display text-[28px] font-extrabold leading-tight">
           {joined ? 'You’re on the list' : full ? 'This trip is full' : 'Want in?'}
         </h2>
-        <p className="max-w-[22ch] text-[15px] text-white/85">
+        <p className="max-w-[22ch] whitespace-pre-line text-[15px] text-white/85">
           {joined
             ? `${trip.organizerName} has your details and will be in touch.`
             : full
               ? `Every spot is taken. Ask ${trip.organizerName} to keep you in mind if one opens up.`
-              : trip.payFirst
-                ? 'Send your first payment, then grab your spot.'
-                : `Tell ${trip.organizerName} you’re interested. It’s free and doesn’t commit you.`}
+              : trip.options.signupNote.trim() ||
+                defaultSignupNote(trip.organizerName, trip.payFirst)}
         </p>
         {(faces.length > 0 || spotsLeft !== null) && (
           <div className="flex items-center gap-3">
@@ -385,7 +371,11 @@ function JoinDialog({
   const firstPayment = Math.floor(trip.costPerPersonCents / Math.max(1, trip.installmentCount))
   const set = (key: keyof Draft['form']) => (e: ChangeEvent<HTMLInputElement>) =>
     setDraft((d) => ({ ...d, form: { ...d.form, [key]: e.target.value } }))
-  const problems = signupProblems(draft, trip.payFirst)
+  const problems = signupProblems(
+    draft,
+    trip.payFirst,
+    trip.options.roomRequired && trip.rooms.length > 0
+  )
   const shown = tried ? problems : {}
 
   useEffect(() => {
@@ -440,6 +430,9 @@ function JoinDialog({
           <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
             This is a preview: the form works as guests see it, but nobody is signed up.
           </p>
+        )}
+        {trip.options.signupNote.trim() && (
+          <p className="whitespace-pre-line font-semibold text-ink">{trip.options.signupNote}</p>
         )}
         <p className="text-muted">
           {trip.payFirst
@@ -505,6 +498,7 @@ function JoinDialog({
           {trip.rooms.length > 0 && (
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1.5 text-sm font-semibold">Which room would you like?</legend>
+              {shown.roomId && <FieldProblem>{shown.roomId}</FieldProblem>}
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {trip.rooms.map((r) => (
                   <RoomCard
@@ -514,23 +508,25 @@ function JoinDialog({
                     onChange={() => setRoomId(r.id)}
                   />
                 ))}
-                <label
-                  className={`flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border-2 p-3 text-sm ${
-                    roomId === '' ? 'border-royal bg-royal-pale' : 'border-rule bg-white'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="room"
-                    checked={roomId === ''}
-                    onChange={() => setRoomId('')}
-                    className="h-4 w-4 accent-royal"
-                  />
-                  <span>
-                    <span className="block font-semibold text-ink">No preference</span>
-                    <span className="text-muted">{trip.organizerName} will place you.</span>
-                  </span>
-                </label>
+                {!trip.options.roomRequired && (
+                  <label
+                    className={`flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border-2 p-3 text-sm ${
+                      roomId === '' ? 'border-royal bg-royal-pale' : 'border-rule bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="room"
+                      checked={roomId === ''}
+                      onChange={() => setRoomId('')}
+                      className="h-4 w-4 accent-royal"
+                    />
+                    <span>
+                      <span className="block font-semibold text-ink">No preference</span>
+                      <span className="text-muted">{trip.organizerName} will place you.</span>
+                    </span>
+                  </label>
+                )}
               </div>
               <label className="mt-1 flex flex-col gap-1.5 text-sm font-semibold">
                 Anyone you&apos;d like to share with? (optional)

@@ -41,6 +41,9 @@ model Trip {
   photos              Json         @default("[]") // TripPhoto[]; the first is the cover
   highlights          Json         @default("[]") // TripHighlight[]
   keyDates            Json         @default("[]") // TripKeyDate[]
+  // TripOptions: settings that only change what the pages show (room choice, the sign-up lines). A setting the
+  // database must enforce gets its own column instead.
+  options             Json         @default("{}")
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   guests              Guest[]

@@ -3,11 +3,13 @@ import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import {
   HIGHLIGHT_ICONS,
   BED_TYPES,
+  DEFAULT_TRIP_OPTIONS,
   MAX_TRIP_PHOTOS,
   MAX_TRIP_ROOMS,
   type HighlightIcon,
   type TripHighlight,
   type TripInput,
+  type TripOptions,
   type TripKeyDate,
   type TripPhoto,
   type TripRoom,
@@ -122,6 +124,22 @@ export function parseTripInput(raw: unknown): TripInput {
     maxGuests,
     payFirst,
     refundPledge,
+    options: parseOptions(body.options),
+  }
+}
+
+/** The trip's options: known keys only, each checked; a missing one takes its default. */
+export function parseOptions(raw: unknown): TripOptions {
+  if (raw === undefined || raw === null) return { ...DEFAULT_TRIP_OPTIONS }
+  if (typeof raw !== 'object' || Array.isArray(raw)) fail('options must be an object')
+  const body = raw as Body
+  const flag = (key: keyof TripOptions) =>
+    body[key] === undefined ? (DEFAULT_TRIP_OPTIONS[key] as boolean) : bool(body, key)
+  const roomChoice = flag('roomChoice')
+  return {
+    roomChoice,
+    roomRequired: roomChoice && flag('roomRequired'),
+    signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
   }
 }
 

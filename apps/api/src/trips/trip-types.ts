@@ -58,8 +58,10 @@ export interface PublicTrip {
   payFirst: boolean
   /** How to pay the organizer: shown publicly only on pay-first trips, where guests pay before registering. */
   paymentInstructions: string | null
-  /** Rooms guests can ask for, with how many places are still open. */
+  /** Rooms guests can ask for, with how many places are still open; empty unless room choice is on. */
   rooms: PublicRoom[]
+  /** Room choice, whether a room is required, and the lines beside the sign-up button. */
+  options: TripOptions
   /** Spots taken against maxGuests: approved guests, and on pay-first trips also guests who say they've paid. */
   spotsTaken: number
 }
@@ -86,6 +88,25 @@ export interface Guest {
 }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
+/**
+ * Trip settings that only change what the pages show, kept together in one field (Trip.options) so a new one needs
+ * no database change. A setting the database must enforce (pay to register) stays its own column.
+ */
+export interface TripOptions {
+  /** Guests pick a room when they sign up, from the trip's rooms. */
+  roomChoice: boolean
+  /** With roomChoice: a guest can't sign up without picking a room. */
+  roomRequired: boolean
+  /** A few lines guests read beside the sign-up button. */
+  signupNote: string
+}
+
+export const DEFAULT_TRIP_OPTIONS: TripOptions = {
+  roomChoice: false,
+  roomRequired: false,
+  signupNote: '',
+}
+
 export interface TripInput {
   name: string
   destination: string
@@ -108,6 +129,7 @@ export interface TripInput {
   payFirst: boolean
   /** The organizer refunds anyone who paid but didn't get a spot because the trip filled. */
   refundPledge: boolean
+  options: TripOptions
 }
 
 export interface OrganizerTrip extends TripInput {

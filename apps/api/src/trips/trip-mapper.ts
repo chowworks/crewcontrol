@@ -1,14 +1,16 @@
 import type { Guest as GuestRow, Room as RoomRow, Trip as TripRow } from '@prisma/client'
-import type {
-  BedType,
-  Guest,
-  GuestStatus,
-  OrganizerTrip,
-  PublicTrip,
-  TripHighlight,
-  TripKeyDate,
-  TripPhoto,
-  TripSummary,
+import {
+  DEFAULT_TRIP_OPTIONS,
+  type BedType,
+  type Guest,
+  type GuestStatus,
+  type OrganizerTrip,
+  type PublicTrip,
+  type TripHighlight,
+  type TripKeyDate,
+  type TripOptions,
+  type TripPhoto,
+  type TripSummary,
 } from './trip-types'
 
 type TripWithGuests = TripRow & { guests: GuestRow[]; rooms?: RoomRow[] }
@@ -17,6 +19,12 @@ type TripWithGuests = TripRow & { guests: GuestRow[]; rooms?: RoomRow[] }
 export type PublicGuestRow = { status: string; firstName: string | null; lastName: string | null }
 
 const photos = (row: TripRow) => row.photos as unknown as TripPhoto[]
+
+/** The trip's options as stored, with a default for any the trip was saved without. */
+export const optionsOf = (row: TripRow): TripOptions => ({
+  ...DEFAULT_TRIP_OPTIONS,
+  ...(row.options as Partial<TripOptions> | null),
+})
 
 /** "Jordan" + "Price" → "Jordan P.": enough for friends to recognise, not a full name on a public page. */
 export function shortName(firstName: string, lastName: string): string {
@@ -39,6 +47,7 @@ export function toPublicTrip(
   }
 ): PublicTrip {
   const approved = row.guests.filter((g) => g.status === 'approved')
+  const options = optionsOf(row)
   return {
     slug: row.slug,
     name: row.name,
@@ -56,16 +65,19 @@ export function toPublicTrip(
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
     interestedCount: row.guests.length - approved.length,
-    guestNames: row.showGuestNames
-      ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
-      : null,
+    // With room choice on, guests see who's going, so they can choose who to share with.
+    guestNames:
+      row.showGuestNames || options.roomChoice
+        ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
+        : null,
     isSample: row.isSample,
     maxGuests: row.maxGuests,
     payFirst: row.payFirst,
     // Pay-first guests pay before they register, so they need to know how. Otherwise approved guests only.
     paymentInstructions: row.payFirst ? row.paymentInstructions : null,
     // Places left counts everyone who asked for the room; the organizer can move people.
-    rooms: (row.rooms ?? []).map((r) => ({
+    options,
+    rooms: (options.roomChoice ? (row.rooms ?? []) : []).map((r) => ({
       id: r.id,
       name: r.name,
       beds: r.beds,
@@ -115,6 +127,7 @@ export function toOrganizerTrip(row: TripWithGuests): OrganizerTrip {
     maxGuests: row.maxGuests,
     payFirst: row.payFirst,
     refundPledge: row.refundPledge,
+    options: optionsOf(row),
     guests: row.guests.map(toGuest),
     updatedAt: row.updatedAt.toISOString(),
   }

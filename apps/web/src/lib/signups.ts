@@ -10,3 +10,10 @@ export function signupOrder(guests: Guest[]): Guest[] {
   const key = (g: Guest) => g.paymentConfirmedAt ?? g.createdAt
   return [...guests].sort((a, b) => rank(a) - rank(b) || key(a).localeCompare(key(b)))
 }
+
+/** What guests read by the sign-up button when the organizer hasn't written their own lines. */
+export function defaultSignupNote(organizerName: string, payFirst: boolean): string {
+  return payFirst
+    ? 'Send your first payment, then grab your spot.'
+    : `Tell ${organizerName || 'the host'} you’re interested. It’s free and doesn’t commit you.`
+}

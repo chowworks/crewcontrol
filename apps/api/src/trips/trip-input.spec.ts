@@ -45,3 +45,29 @@ describe('parseTripInput', () => {
     expect(() => parseTripInput({ ...valid, ...patch })).toThrow(BadRequestException)
   })
 })
+
+describe('trip options', () => {
+  it('defaults every option when none are sent', () => {
+    expect(parseTripInput(valid).options).toEqual({
+      roomChoice: false,
+      roomRequired: false,
+      signupNote: '',
+    })
+  })
+
+  it('keeps known options, drops unknown ones, and requires a room only with room choice', () => {
+    const options = { roomChoice: false, roomRequired: true, signupNote: ' Bring a towel ', x: 1 }
+    expect(parseTripInput({ ...valid, options }).options).toEqual({
+      roomChoice: false,
+      roomRequired: false,
+      signupNote: 'Bring a towel',
+    })
+  })
+
+  it.each([
+    ['a non-object', 'yes'],
+    ['a non-boolean flag', { roomChoice: 'on' }],
+  ])('rejects %s', (_label, options) => {
+    expect(() => parseTripInput({ ...valid, options })).toThrow(BadRequestException)
+  })
+})

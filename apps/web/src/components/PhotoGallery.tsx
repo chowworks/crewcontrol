@@ -85,9 +85,15 @@ function Lightbox({
       className="fixed inset-0 z-50 flex flex-col bg-ink/95 text-white"
     >
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-sm">
-          {index + 1} of {photos.length}
-          {photo.caption && ` · ${photo.caption}`}
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
+            {index + 1} of {photos.length}
+          </span>
+          {photo.caption && (
+            <span className="font-display text-lg font-extrabold leading-tight sm:text-2xl">
+              {photo.caption}
+            </span>
+          )}
         </span>
         <button
           type="button"

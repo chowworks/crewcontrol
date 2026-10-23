@@ -9,7 +9,13 @@ import type { Caller } from '../auth/caller'
 import { runAsSystem } from '../core/tenant-context'
 import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
-import { toOrganizerTrip, toPublicTrip, toTripSummary, type PublicGuestRow } from './trip-mapper'
+import {
+  optionsOf,
+  toOrganizerTrip,
+  toPublicTrip,
+  toTripSummary,
+  type PublicGuestRow,
+} from './trip-mapper'
 import type {
   BedType,
   GuestUpdate,
@@ -45,6 +51,7 @@ function data(input: TripInput) {
     photos: input.photos as unknown as Prisma.InputJsonValue,
     highlights: input.highlights as unknown as Prisma.InputJsonValue,
     keyDates: input.keyDates as unknown as Prisma.InputJsonValue,
+    options: input.options as unknown as Prisma.InputJsonValue,
   }
 }
 
@@ -208,11 +215,14 @@ export class TripsService {
     if (!trip || !trip.published) throw new NotFoundException('Trip not found')
     if (trip.payFirst && !input.paymentSent)
       throw new BadRequestException('Confirm you’ve sent your first payment to register')
-    if (input.roomId) {
-      const room = await this.prisma.room.findFirst({
-        where: { id: input.roomId, tripId: trip.id },
-      })
+    const { roomChoice, roomRequired } = optionsOf(trip)
+    // A room is asked for only when the trip lets guests choose one.
+    const roomId = roomChoice ? (input.roomId ?? null) : null
+    if (roomId) {
+      const room = await this.prisma.room.findFirst({ where: { id: roomId, tripId: trip.id } })
       if (!room) throw new BadRequestException('That room is not on this trip')
+    } else if (roomRequired && (await this.prisma.room.count({ where: { tripId: trip.id } })) > 0) {
+      throw new BadRequestException('Pick a room to sign up')
     }
     const [firstName, lastName] = splitName(input.name)
     // One step the database checks: a repeat email is skipped (the reply is the same either way, so the page never
@@ -228,8 +238,8 @@ export class TripsService {
           phone: input.phone,
           // Only a pay-first trip asks for the first payment before sign-up.
           paymentSentAt: trip.payFirst && input.paymentSent ? new Date() : null,
-          roomId: input.roomId ?? null,
-          roomNote: input.roomNote ?? '',
+          roomId,
+          roomNote: roomChoice ? (input.roomNote ?? '') : '',
         },
       })
     )
