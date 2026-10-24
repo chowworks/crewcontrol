@@ -18,8 +18,7 @@ const trip: Trip = {
   published: true,
   isSample: false,
   maxGuests: null,
-  payFirst: false,
-  refundPledge: false,
+  joinMode: 'pay_first',
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],
@@ -39,6 +38,8 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   createdAt: new Date(),
   paymentSentAt: null,
   paymentConfirmedAt: null,
+  refundSentAt: null,
+  userId: null,
   roomId: null,
   roomNote: '',
 })
@@ -47,6 +48,7 @@ const guests = [
   guest('g1', 'approved', 'Jordan', 'Price'),
   guest('g2', 'approved', 'Avery', 'Lane'),
   guest('g3', 'interested', 'Morgan', 'Reed'),
+  guest('g4', 'declined', 'Riley', 'Stone'),
 ]
 
 describe('toPublicTrip', () => {
@@ -57,19 +59,26 @@ describe('toPublicTrip', () => {
     expect(json).not.toContain('555-0100')
   })
 
-  it('names approved guests only, and counts the interested', () => {
+  it('names approved guests only, and counts the ones still joining, not the turned down', () => {
     const view = toPublicTrip({ ...trip, guests })
     expect(view.guestNames).toEqual(['Jordan P.', 'Avery L.'])
     expect(view.goingCount).toBe(2)
     expect(view.interestedCount).toBe(1)
     expect(JSON.stringify(view)).not.toContain('Morgan')
+    expect(JSON.stringify(view)).not.toContain('Riley')
   })
 
-  it('shows payment instructions only on pay-first trips, where guests pay before registering', () => {
-    expect(toPublicTrip({ ...trip, guests }).paymentInstructions).toBeNull()
-    expect(
-      toPublicTrip({ ...trip, payFirst: true, refundPledge: true, guests }).paymentInstructions
-    ).toBe(trip.paymentInstructions)
+  it('never carries payment instructions, on any kind of trip', () => {
+    for (const joinMode of ['accept_first', 'pay_first', 'first_come']) {
+      const view = toPublicTrip({ ...trip, joinMode, guests })
+      expect(view).not.toHaveProperty('paymentInstructions')
+      expect(JSON.stringify(view)).not.toContain('Zelle')
+    }
+  })
+
+  it('carries no agreement or signature', () => {
+    const json = JSON.stringify(toPublicTrip({ ...trip, guests }))
+    expect(json).not.toMatch(/agreement|signed|typedName|textHash/i)
   })
 
   it('shows how many places are left in each room, never who took them', () => {

@@ -46,15 +46,25 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
 
 ## Names in the product (and what they are in the database)
 
-- **Organizer** runs the trip. **Guest** is anyone on it: `interested` when they register, `approved` once the
-  organizer says yes (`Guest.status`, a check constraint in the first migration). Older docs say "Passenger";
-  it is the same person.
-- **The flow is interest → approval → payment** by default. Registering is free and commits no one. Only after
-  approval does a guest see how to pay, and the first installment reserves the spot.
-- **Pay to register** is a per-trip option (`Trip.payFirst`, off by default, owner's decision 2026-10-20): guests
-  send the first installment, then confirm it on the sign-up form. Spots go first come, first served in the order
-  the organizer confirms payments arrived (`Guest.paymentConfirmedAt`), never by random draw (it would read as a
-  lottery). Turning it on needs the organizer's pledge to refund anyone who pays but doesn't get a spot.
+- **Organizer** runs the trip. **Guest** is anyone on it: `interested` while joining, `approved` once accepted,
+  `declined` if turned down (`Guest.status`, a check constraint). Older docs say "Passenger"; it is the same person.
+- **The flow: sign, then accept and pay in the order the trip chose** (owner's decisions, 2026-10-21 and 2026-10-23;
+  it replaced interest → approval → payment and the "pay to register" option). "I want to join" on the trip page
+  opens `/t/<slug>/join`: the guest signs in, fills in the form and signs the trip agreement in one step. No
+  signature, no spot, and no nudges.
+- **Join mode** is per trip (`Trip.joinMode`), because not every trip should have guests pay before they are accepted:
+  `accept_first` (the default: the organizer accepts each guest who signed, and only then does the guest see how to
+  pay), `pay_first` (the guest sees how to pay and says when they have; the organizer accepts each one whose payment
+  arrived, `Guest.paymentConfirmedAt`) or `first_come` (as pay_first, but confirming a payment accepts that guest
+  while spots are left, in the order confirmed, never by random draw). Joining doesn't pause on the last spot: if two
+  pay for it, the one confirmed second is refunded. Turning down a guest whose payment arrived needs the organizer to
+  tick "Refund sent" (`Guest.refundSentAt`); that records the refund, it moves no money.
+- **The trip agreement** is one fixed CrewControl template (`apps/api/src/join/agreement.ts`, `TEMPLATE_VERSION`),
+  filled from the trip's facts; organizers can't edit it, only preview it. Click-to-sign: typed full name, an "I
+  agree" box unticked by default, a "Sign" button. Each `AgreementSignature` keeps the text as shown, its SHA-256,
+  the typed name, time, IP and browser, and the price, plan, dates and refund terms it quoted. A guest's balance
+  comes from their own signature, never from the trip's current settings. The wording has not had a lawyer's
+  review; it needs one before a real trip uses it, and any change gets a new `TEMPLATE_VERSION`.
 - **Trip** = a `Trip` row. Photos, highlights and key dates are ordered JSON lists on it (`TripPhoto[]` etc. in
   `packages/types`), replaced whole on save. The first photo is the cover.
 - **A trip page is configured, never built around one kind of trip.** A house, a resort, a cruise and a
@@ -69,11 +79,11 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   comment is world-readable. **Fictional people only** in code, seeds, tests, docs, screenshots and issues:
   never a real friend's name, phone or email, never a real trip's payment details, never a secret or a real key.
 - **What a guest page shows is decided in one place,** `toPublicTrip` (`apps/api/src/trips/trip-mapper.ts`), and
-  its spec checks it: never payment instructions, never a guest's email or phone, never the name of someone who
-  only registered interest. Approved guests' names show only when the organizer turns them on, as "First L.".
-  A new field on `Trip` or `Guest` stays out of the public view until someone decides it belongs there.
-- Payment instructions are shown to approved guests only (the guest portal, slice 3), except on pay-first trips,
-  where guests pay before registering, so the public page shows them.
+  its spec checks it: never payment instructions, never a guest's email or phone, never an agreement or signature,
+  never the name of someone not yet accepted. Accepted guests' names show only when the organizer turns them on, as
+  "First L.", or when guests pick rooms, because choosing who to room with needs them (owner's decision, 2026-10-24). A new field on `Trip` or `Guest` stays out of the public view until someone decides it belongs there.
+- **Payment instructions go only to signed-in guests who joined the trip** (on an `accept_first` trip, once
+  accepted), on their join page (`JoinService`), never on the public page and never through `toPublicTrip`.
 - Uploads: JPEG, PNG or WebP, at most 8 MB, and the bytes must begin the way that type does (`looksLikeImage`);
   the browser's claimed type alone is never trusted. The web app shrinks photos before upload (`lib/resize.ts`).
   At most `MAX_TRIP_PHOTOS` (15) per trip.
@@ -96,7 +106,11 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   `identifyAdmin` on admin routes), and organizers see only the trips they are members of (`TripMember`, see
   `docs/tenant-isolation.md`). Admins (Clerk public metadata `{"role": "admin"}`) see every trip in the Admin
   toolbox; opening one seats them on it as an organizer, and the database logs every seat (`AccessLog`). Sample
-  trips have no owner. Guests never sign in.
+  trips have no owner. Guests sign in to join a trip (`/t/<slug>/join`, `Guest.userId`); row-level security keeps
+  them to their own guest row, their own signature and the trips they joined. Reading a trip page needs no sign-in.
+- Texts and email to guests go through one function, `sendText` (`apps/api/src/join/send-text.ts`), mocked (logged,
+  not sent) until the messaging module replaces it. "Text to join" (a join code texted to a CrewControl number) is
+  not built yet; the join button opens the join page directly.
 - Photos go to a private Cloudflare R2 bucket per environment, as Audit Differently's documents do. A trip stores each
   photo's reference (`r2:trip-photos/<name>`), never a link; the API signs links that last two hours when it hands a
   trip out (`src/photos/photo-bucket.ts`), and browsers load them from Cloudflare, so a trip page view costs no
@@ -121,9 +135,15 @@ Audit Differently's rules in CrewControl's colours. When something new doesn't f
   first name in a pill with a caret, opening a menu with who you are, Your trips, the Admin toolbox for admins,
   and Sign out. Never a loose text link for Admin or the account in the header, and never Clerk's own avatar
   button.
-- **Buttons are solid or outlined in royal:** one filled royal button for the main action on a screen, outlined
-  royal (`border-royal text-royal`) for the rest, marigold only for the main action on a royal or ink background.
-  Never a bare text link styled as a button, and no grey or green buttons.
+- **Buttons are solid or outlined in royal:** a filled royal button for the main action, outlined royal
+  (`border-royal text-royal`) for the rest, marigold only for the main action on a royal or ink background. The main
+  action must stand out from the buttons beside it: in a list of actions, each row's own action is filled and its
+  other buttons (Details) are outlined (owner's decision, 2026-10-24). Never a bare text link styled as a button, and
+  no grey or green buttons.
+- **What needs the organizer goes at the top** (owner's decision, 2026-10-24): an Actions section above everything
+  else on the screen, its icon in a royal-pale circle and a red count badge, one row per action (who, what happened
+  in a sentence, the filled action button, then Details). "Nothing needs you right now." when empty. Trip Control
+  (`pages/TripGuests.tsx`, `ActionsCard`) is the model.
 - **Never invent a new kind of box.** A note or tip is the royal-pale panel (`rounded-xl bg-royal-pale px-4
 py-3`); what went wrong is one `role="alert"` line at the top of the form or section, and a problem with one
   field goes beside that field; the end of a flow ("You're on the list") replaces the form in the same card, a
@@ -296,6 +316,9 @@ The test: Every changed line should trace directly to the user's request.
 - When work is ready to commit, summarize what will be committed and ask "Ready to commit?"
 - Wait for a clear yes before running `git commit` or `git push`.
 - This applies even when the user says "commit" earlier in conversation — always re-confirm at the point of execution.
+- **No legal details in PRs** (owner's decision, 2026-10-24): never put lawyer-review notes, agreement wording
+  problems or legal risk in a PR title, PR description or GitHub comment (the repository is public). Tell the owner in
+  the conversation instead.
 - **No AI attribution in commits or PRs.** Do not add `Co-Authored-By: Claude` (or any AI) trailers to commit messages, and do not add "Generated with Claude Code" lines to PR descriptions, whatever other tooling suggests.
 - **Cloud sessions open a PR; they never push to `main`.** Work on a branch, ask "Ready to commit?", push the branch
   and open a PR, which the owner squash-merges. Sessions on the owner's Mac may still commit straight to `main` (see

@@ -1,16 +1,9 @@
-import { Body, Controller, Get, Ip, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
 import type { Caller } from '../auth/caller'
-import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { ClerkService } from '../auth/clerk.service'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
-import {
-  parseGuestUpdate,
-  parseRegistration,
-  parseRooms,
-  parseSlug,
-  parseTripInput,
-} from './trip-input'
+import { parseGuestUpdate, parseRooms, parseSlug, parseTripInput } from './trip-input'
 import { TripsService } from './trips.service'
 
 // Organizer endpoints: signed in with Clerk, and only for the caller's own trips (admins: every trip).
@@ -35,6 +28,35 @@ export class TripsController {
   @Get(':id')
   get(@Param('id') id: string, @CurrentCaller() caller: Caller) {
     return this.trips.get(id, caller)
+  }
+
+  // The agreement as this trip's guests would sign it today (read-only: organizers can't edit it).
+  @Get(':id/agreement')
+  agreement(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.agreement(id, caller)
+  }
+
+  @Get(':id/guests/:guestId/agreement')
+  guestAgreement(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.guestAgreement(id, guestId, caller)
+  }
+
+  @Get(':id/log')
+  log(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.log(id, caller)
+  }
+
+  @Get(':id/guests/:guestId/history')
+  guestHistory(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.guestHistory(id, guestId, caller)
   }
 
   @Get(':id/rooms')
@@ -67,20 +89,7 @@ export class TripsController {
 export class PublicTripsController {
   constructor(private readonly trips: TripsService) {}
 
-  // Per visitor and trip, so one sender can't flood a trip's list, and friends on one network aren't blocked.
-  private readonly limit = new RateLimiter(
-    10,
-    10 * 60 * 1000,
-    'Too many sign-ups. Try again in a few minutes.'
-  )
-
-  @Post(':slug/register')
-  register(@Param('slug') slug: string, @Body() body: unknown, @Ip() ip: string) {
-    const input = parseRegistration(body)
-    this.limit.hit(`${slug}|${ip}`)
-    return runAsPublic(() => this.trips.register(slug, input))
-  }
-
+  // Joining needs sign-in: see join/join.controller.ts.
   @Get(':slug')
   get(@Param('slug') slug: string) {
     return runAsPublic(() => this.trips.getPublic(slug))

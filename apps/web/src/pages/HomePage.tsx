@@ -30,13 +30,13 @@ const STEPS = [
   },
   {
     icon: Users,
-    title: 'Approve the crew',
-    body: 'Friends register interest for free, with phone and email. You decide who is in.',
+    title: 'Take in the crew',
+    body: 'Friends sign the trip agreement. You accept who is in, before or after they pay you, or let spots go first come, first served.',
   },
   {
     icon: CircleDollarSign,
     title: 'Track who has paid',
-    body: 'Approved guests see how to pay you and their installment plan. You log it, everyone sees their balance.',
+    body: 'Guests who signed see how to pay you and their installment plan. You log it, everyone sees their balance.',
   },
 ]
 
@@ -302,7 +302,7 @@ function HeroVisual() {
         </div>
       </div>
       <div className="absolute -left-2 top-6 flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold shadow-card sm:-left-8">
-        <Users className="h-4 w-4 text-royal" aria-hidden="true" />7 going · 2 interested
+        <Users className="h-4 w-4 text-royal" aria-hidden="true" />7 going · 2 joining
       </div>
       <div className="absolute bottom-0 right-0 flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-card">
         <span className="grid h-9 w-9 place-items-center rounded-full bg-royal-pale text-royal">

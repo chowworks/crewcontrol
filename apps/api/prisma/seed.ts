@@ -3,6 +3,7 @@
 // The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
 import '../scripts/lib/owner-env'
 import { PrismaClient, type Prisma } from '@prisma/client'
+import { agreementPreview, refundTerms, TEMPLATE_VERSION } from '../src/join/agreement'
 import type { TripHighlight, TripKeyDate, TripPhoto } from '../src/trips/trip-types'
 
 const prisma = new PrismaClient()
@@ -31,6 +32,7 @@ const trips: Seed[] = [
     showGuestNames: true,
     paymentInstructions: "Zelle or Cash App to Chris. Include your name and 'MV2027' in the memo.",
     published: true,
+    joinMode: 'accept_first',
     isSample: true,
     photos: [
       { url: '/seed/mv-front.svg', caption: 'Front of the house' },
@@ -51,7 +53,7 @@ const trips: Seed[] = [
     keyDates: [
       {
         date: '2026-11-01',
-        label: 'First $300 installment due for approved guests. This reserves your spot.',
+        label: 'First $300 installment due once you’re accepted',
       },
       { date: '2027-03-01', label: 'Ferry tickets open' },
       { date: '2027-05-01', label: 'Final payment due' },
@@ -88,6 +90,9 @@ const trips: Seed[] = [
     showGuestNames: false,
     paymentInstructions: "Zelle to Nia. Memo: your name + 'ARUBA28'.",
     published: true,
+    // The first come, first served sample: confirming a payment takes the next spot.
+    joinMode: 'first_come',
+    maxGuests: 10,
     isSample: true,
     photos: [
       { url: '/seed/aruba-pool.svg', caption: 'Main pool' },
@@ -109,7 +114,7 @@ const trips: Seed[] = [
     keyDates: [
       {
         date: '2027-08-01',
-        label: 'First $300 installment due for approved guests. This reserves your spot.',
+        label: 'First $300 installment due. Sign, pay it, and it holds your spot.',
       },
       { date: '2027-12-01', label: 'Send your flight details' },
       { date: '2028-03-01', label: 'Final payment due' },
@@ -146,6 +151,7 @@ const trips: Seed[] = [
     showGuestNames: true,
     paymentInstructions: "Zelle or Venmo to Simone. Memo: your name + 'TULUM40'.",
     published: true,
+    joinMode: 'pay_first',
     isSample: true,
     photos: [
       { url: unsplash('1713878620264-727e6fc497d8'), caption: 'Villa pool' },
@@ -163,7 +169,7 @@ const trips: Seed[] = [
     keyDates: [
       {
         date: '2026-11-15',
-        label: 'First $400 installment due for approved guests. This reserves your spot.',
+        label: 'First $400 installment due. Sign and pay it to ask for a spot.',
       },
       { date: '2026-12-15', label: 'Send your flight details' },
       { date: '2027-01-15', label: 'Final payment due' },
@@ -223,21 +229,36 @@ async function main() {
   await prisma.accessLog.deleteMany({ where: { tripId: { in: old.map((t) => t.id) } } })
   await prisma.trip.deleteMany({ where: { isSample: true } })
   for (const { approved, interested, photos, highlights, keyDates, ...trip } of trips) {
+    // Everyone has signed. Where guests pay first, the accepted have paid and been confirmed, and of the rest the
+    // first says they've paid. Where the organizer accepts first, nobody waiting has paid, and the last guest
+    // accepted hasn't paid yet.
+    const acceptFirst = trip.joinMode === 'accept_first'
+    const paid = new Date('2026-10-20T15:00:00Z')
+    // Each guest joined and signed in the same step, a minute apart, before anyone paid.
+    const joined = (n: number) => new Date(Date.parse('2026-10-20T14:00:00Z') + n * 60_000)
     const guests = [
-      ...approved.map(([firstName, lastName], i) => ({
-        firstName,
-        lastName,
-        status: 'approved',
-        ...contact(firstName, lastName, i),
-      })),
+      ...approved.map(([firstName, lastName], i) => {
+        const hasPaid = !acceptFirst || i < approved.length - 1
+        return {
+          firstName,
+          lastName,
+          status: 'approved',
+          createdAt: joined(i),
+          paymentSentAt: hasPaid ? paid : null,
+          paymentConfirmedAt: hasPaid ? new Date(paid.getTime() + (i + 1) * 3600_000) : null,
+          ...contact(firstName, lastName, i),
+        }
+      }),
       ...interested.map(([firstName, lastName], i) => ({
         firstName,
         lastName,
         status: 'interested',
+        createdAt: joined(approved.length + i),
+        paymentSentAt: i === 0 && !acceptFirst ? paid : null,
         ...contact(firstName, lastName, 50 + i),
       })),
     ]
-    await prisma.trip.create({
+    const created = await prisma.trip.create({
       data: {
         ...trip,
         photos: photos as unknown as Prisma.InputJsonValue,
@@ -245,6 +266,26 @@ async function main() {
         keyDates: keyDates as unknown as Prisma.InputJsonValue,
         guests: { create: guests },
       },
+      include: { guests: true },
+    })
+    const agreement = agreementPreview(created)
+    await prisma.agreementSignature.createMany({
+      data: created.guests.map((g) => ({
+        tripId: created.id,
+        guestId: g.id,
+        templateVersion: TEMPLATE_VERSION,
+        text: agreement.text,
+        textHash: agreement.textHash,
+        priceCents: created.costPerPersonCents,
+        installmentCount: created.installmentCount,
+        startDate: created.startDate,
+        endDate: created.endDate,
+        refundTerms: refundTerms(created.organizerName, created.joinMode),
+        typedName: `${g.firstName} ${g.lastName}`,
+        signedAt: g.createdAt,
+        ipAddress: '192.0.2.10',
+        userAgent: 'Seed data',
+      })),
     })
     console.log(`Seeded ${trip.name} → /t/${trip.slug}`)
   }

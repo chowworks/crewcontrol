@@ -2,6 +2,7 @@ import {
   DEFAULT_TRIP_OPTIONS,
   HIGHLIGHT_ICONS,
   MAX_TRIP_PHOTOS,
+  type AgreementPreview,
   type Guest,
   type HighlightIcon,
   type OrganizerTrip,
@@ -25,6 +26,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { Dialog } from '@/components/Dialog'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
 import { Logo } from '@/components/Logo'
 import { PriceSimulator } from '@/components/PriceSimulator'
@@ -55,8 +57,7 @@ const EMPTY: TripInput = {
   highlights: [],
   keyDates: [],
   maxGuests: null,
-  payFirst: false,
-  refundPledge: false,
+  joinMode: 'accept_first',
   options: DEFAULT_TRIP_OPTIONS,
 }
 
@@ -82,7 +83,6 @@ function previewOf(trip: TripInput, slug: string, guests: Guest[], rooms: TripRo
     ...trip,
     slug,
     isSample: false,
-    paymentInstructions: trip.payFirst ? trip.paymentInstructions : null,
     rooms: trip.options.roomChoice
       ? rooms
           .filter((r) => r.id)
@@ -98,7 +98,7 @@ function previewOf(trip: TripInput, slug: string, guests: Guest[], rooms: TripRo
       : [],
     goingCount: approved.length,
     spotsTaken: approved.length,
-    interestedCount: guests.length - approved.length,
+    interestedCount: guests.filter((g) => g.status === 'interested').length,
     guestNames:
       trip.showGuestNames || trip.options.roomChoice
         ? approved.map((g) =>
@@ -206,14 +206,12 @@ export function EditTripPage() {
     link.trim() && link.trim() !== slug && !LINK.test(link.trim().toLowerCase())
       ? 'Use 3 to 60 lowercase letters, numbers and single hyphens, like mv-2027.'
       : null
-  const pledgeProblem =
-    trip.payFirst && !trip.refundPledge ? 'Tick this to have guests pay before registering.' : null
 
   /** Saves the trip and, when they changed, its rooms. True when everything saved. */
   async function save(): Promise<boolean> {
     const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r))
     // A problem can sit on another step than this one: open that step, where it shows beside its field.
-    const problemStep = pledgeProblem ? 2 : roomsBad ? 3 : linkProblem ? 5 : 0
+    const problemStep = roomsBad ? 3 : linkProblem ? 5 : 0
     if (problemStep) {
       show(problemStep)
       setMessage({
@@ -461,13 +459,13 @@ export function EditTripPage() {
                     className={`${field} min-h-[80px]`}
                     value={
                       trip.options.signupNote ||
-                      defaultSignupNote(trip.organizerName, trip.payFirst)
+                      defaultSignupNote(trip.organizerName, trip.joinMode)
                     }
                     maxLength={500}
                     onChange={(e) => {
-                      // Left as the default, it stays empty, so it follows the host's name and pay to register.
+                      // Left as the default, it stays empty, so it follows the host's name and the join mode.
                       const v = e.target.value
-                      const fallback = defaultSignupNote(trip.organizerName, trip.payFirst)
+                      const fallback = defaultSignupNote(trip.organizerName, trip.joinMode)
                       setOption('signupNote', v.trim() === fallback ? '' : v)
                     }}
                   />
@@ -482,31 +480,40 @@ export function EditTripPage() {
                   onChange={(v) => set('maxGuests', v ? Math.max(1, Math.round(Number(v))) : null)}
                   placeholder="No limit"
                 />
-                <Toggle
-                  checked={trip.payFirst}
-                  onChange={(v) =>
-                    setTrip((t) => ({ ...t, payFirst: v, refundPledge: v && t.refundPledge }))
-                  }
-                  label="Pay to register"
-                  hint="Guests send the first installment before they register, and confirm it on the form. Spots go first come, first served, in the order you confirm payments arrived."
-                />
-                {trip.payFirst && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-royal-pale p-4">
-                    <input
-                      type="checkbox"
-                      checked={trip.refundPledge}
-                      onChange={(e) => set('refundPledge', e.target.checked)}
-                      className="mt-1 h-5 w-5 accent-royal"
-                    />
-                    <span className="text-sm text-ink">
-                      {pledgeProblem && (
-                        <span className="block font-semibold text-[#B42318]">{pledgeProblem}</span>
-                      )}
-                      <strong>I&apos;ll refund anyone who pays but doesn&apos;t get a spot</strong>{' '}
-                      because the trip filled up. Guests see this promise on the trip page.
-                    </span>
-                  </label>
-                )}
+                <fieldset className="flex flex-col gap-2.5">
+                  <legend className="mb-1 text-sm font-semibold">Who gets a spot</legend>
+                  <p className="mb-1 text-sm text-muted">
+                    Guests sign in and sign the trip agreement before they get a spot. You choose
+                    whether they pay before or after you accept them.
+                  </p>
+                  {guests.some((g) => g.signedAt) && (
+                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                      Guests have signed under this choice, so it can’t change now.
+                    </p>
+                  )}
+                  {JOIN_MODES.map((m) => (
+                    <label
+                      key={m.value}
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
+                        trip.joinMode === m.value ? 'border-royal bg-royal-pale' : 'border-rule'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="joinMode"
+                        checked={trip.joinMode === m.value}
+                        disabled={guests.some((g) => g.signedAt)}
+                        onChange={() => set('joinMode', m.value)}
+                        className="mt-1 h-4 w-4 accent-royal"
+                      />
+                      <span className="flex flex-col gap-0.5">
+                        <span className="font-semibold">{m.label}</span>
+                        <span className="text-sm text-muted">{m.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                <AgreementButton tripId={id} />
                 {trip.options.roomChoice && (
                   <Toggle
                     checked={trip.options.roomRequired}
@@ -521,16 +528,16 @@ export function EditTripPage() {
                   checked={trip.showGuestNames || trip.options.roomChoice}
                   disabled={trip.options.roomChoice}
                   onChange={(v) => set('showGuestNames', v)}
-                  label="Show approved guests' names on the trip page"
+                  label="Show accepted guests' names on the trip page"
                   hint={
                     trip.options.roomChoice
                       ? 'Always on while guests choose their room, so they can see who to share with.'
-                      : 'Shown as first name and last initial. People who only registered interest are never listed.'
+                      : 'Shown as first name and last initial. People not yet accepted are never listed.'
                   }
                 />
                 <p className="text-sm text-muted">
-                  {guests.filter((g) => g.status === 'approved').length} approved ·{' '}
-                  {guests.filter((g) => g.status === 'interested').length} interested
+                  {guests.filter((g) => g.status === 'approved').length} accepted ·{' '}
+                  {guests.filter((g) => g.status === 'interested').length} joining
                 </p>
               </Card>
               <Card title="Photos">
@@ -766,9 +773,9 @@ export function EditTripPage() {
                     placeholder="Zelle or Cash App to me. Put your name and the trip code in the memo."
                   />
                   <span className="font-normal text-muted">
-                    {trip.payFirst
-                      ? 'Shown on the trip page, because guests pay before they register.'
-                      : 'Only approved guests see this. It never appears on the public trip page.'}
+                    {trip.joinMode === 'accept_first'
+                      ? 'Only guests you accepted see this. It never appears on the public trip page.'
+                      : 'Only guests who signed in and signed the trip agreement see this. It never appears on the public trip page.'}
                   </span>
                 </label>
               </Card>
@@ -862,6 +869,73 @@ function Text({
         onChange={(e) => onChange(e.target.value)}
       />
     </label>
+  )
+}
+
+const JOIN_MODES = [
+  {
+    value: 'accept_first',
+    label: 'You accept, then they pay',
+    hint: 'Once a guest has signed, you accept them or turn them down. Only then do they see how to pay you.',
+  },
+  {
+    value: 'pay_first',
+    label: 'They pay, then you accept',
+    hint: 'Guests sign and pay first. Once their payment arrived, you accept them or turn them down and refund them.',
+  },
+  {
+    value: 'first_come',
+    label: 'First come, first served',
+    hint: 'Confirming a payment gives that guest the next spot. Turning down a paid guest means refunding them.',
+  },
+] as const
+
+/**
+ * The agreement guests sign, read-only: CrewControl writes it and fills in the trip's saved facts, and organizers
+ * can't edit it. A new trip has nothing saved to fill it with yet.
+ */
+function AgreementButton({ tripId }: { tripId?: string }) {
+  const [agreement, setAgreement] = useState<AgreementPreview | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const open = () => {
+    if (!tripId) return
+    setError(null)
+    api
+      .getAgreement(tripId)
+      .then(setAgreement)
+      .catch(() => setError('The agreement could not be loaded.'))
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={open}
+        disabled={!tripId}
+        className="inline-flex min-h-[44px] items-center self-start rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50"
+      >
+        Preview the guest agreement
+      </button>
+      <span className="text-sm text-muted">
+        {tripId
+          ? 'CrewControl writes it from the trip’s saved details. You can’t edit it, and guests who already signed keep the version they signed.'
+          : 'Save the trip first: the agreement is filled in from its saved details.'}
+      </span>
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-[#B42318]">
+          {error}
+        </p>
+      )}
+      {agreement && (
+        <Dialog title="The guest agreement" onClose={() => setAgreement(null)}>
+          <p className="mb-3 text-sm text-muted">
+            As guests see it today, filled in from the saved trip.
+          </p>
+          <div className="whitespace-pre-line rounded-xl bg-ground p-4 text-[15px] text-body">
+            {agreement.text}
+          </div>
+        </Dialog>
+      )}
+    </div>
   )
 }
 

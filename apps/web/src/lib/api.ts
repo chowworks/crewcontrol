@@ -1,10 +1,16 @@
 import type {
+  AgreementPreview,
   ContactInput,
+  GuestEvent,
   GuestUpdate,
+  JoinInput,
+  JoinMode,
+  JoinView,
   OrganizerTrip,
   PublicTrip,
-  RegistrationInput,
+  SignedAgreement,
   TripInput,
+  TripLogEntry,
   TripRoom,
   TripSummary,
 } from '@cc/types'
@@ -18,7 +24,7 @@ export interface ListedTrip extends TripSummary {
   goingCount: number
   interestedCount: number
   maxGuests: number | null
-  payFirst: boolean
+  joinMode: JoinMode
 }
 
 export class ApiError extends Error {
@@ -30,7 +36,7 @@ export class ApiError extends Error {
   }
 }
 
-// Set by the auth provider once Clerk loads; organizer requests carry the signed-in user's token.
+// Set by the auth provider once Clerk loads; organizer and join requests carry the signed-in user's token.
 let getToken: () => Promise<string | null> = async () => null
 export function setTokenGetter(fn: () => Promise<string | null>) {
   getToken = fn
@@ -81,8 +87,16 @@ export const api = {
     request<TripRoom[]>(`/trips/${id}/rooms`, json('PUT', { rooms })),
   updateGuest: (id: string, guestId: string, update: GuestUpdate) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}`, json('PATCH', update)),
-  register: (slug: string, input: RegistrationInput) =>
-    request<{ status: string }>(`/public/trips/${slug}/register`, json('POST', input)),
+  getAgreement: (id: string) => request<AgreementPreview>(`/trips/${id}/agreement`),
+  getGuestAgreement: (id: string, guestId: string) =>
+    request<SignedAgreement>(`/trips/${id}/guests/${guestId}/agreement`),
+  getTripLog: (id: string) => request<TripLogEntry[]>(`/trips/${id}/log`),
+  getGuestHistory: (id: string, guestId: string) =>
+    request<GuestEvent[]>(`/trips/${id}/guests/${guestId}/history`),
+  // The join page: a signed-in guest's own place on a trip.
+  getJoin: (slug: string) => request<JoinView>(`/join/${slug}`),
+  join: (slug: string, input: JoinInput) => request<JoinView>(`/join/${slug}`, json('POST', input)),
+  markPaid: (slug: string) => request<JoinView>(`/join/${slug}/paid`, json('POST', {})),
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   seatOnTrip: (id: string, asOwner = false) =>
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),

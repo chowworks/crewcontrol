@@ -45,7 +45,7 @@ function TokenBridge() {
   return null
 }
 
-/** Organizer screens: signed-out visitors go to sign-in first. */
+/** Organizer screens and the join page: signed-out visitors go to sign-in first, then come back. */
 export function RequireSignIn({ children }: { children: ReactNode }) {
   if (!authConfigured)
     return (

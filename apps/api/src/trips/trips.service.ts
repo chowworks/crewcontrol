@@ -9,24 +9,27 @@ import type { Caller } from '../auth/caller'
 import { runAsSystem } from '../core/tenant-context'
 import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
+import { agreementPreview } from '../join/agreement'
 import {
-  optionsOf,
   toOrganizerTrip,
   toPublicTrip,
+  toSignedAgreement,
   toTripSummary,
   type PublicGuestRow,
 } from './trip-mapper'
 import type {
+  AgreementPreview,
   BedType,
+  GuestEvent,
   GuestUpdate,
   OrganizerTrip,
   PublicTrip,
-  RegistrationInput,
+  SignedAgreement,
   TripInput,
+  TripLogEntry,
   TripRoom,
   TripSummary,
 } from './trip-types'
-import { splitName } from './trip-input'
 import { makeSlug } from './slug'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
@@ -41,7 +44,7 @@ async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
 }
 
 const withGuests = {
-  guests: { orderBy: { createdAt: 'asc' } },
+  guests: { orderBy: { createdAt: 'asc' }, include: { agreement: true } },
   rooms: { orderBy: { position: 'asc' } },
 } satisfies Prisma.TripInclude
 
@@ -118,7 +121,12 @@ export class TripsService {
     caller: Caller,
     slug?: string
   ): Promise<OrganizerTrip> {
-    await this.get(id, caller)
+    const current = await this.get(id, caller)
+    // Each guest who signed agreed to the trip's way of giving spots; changing it would break that promise.
+    if (input.joinMode !== current.joinMode && current.guests.some((g) => g.signedAt))
+      throw new BadRequestException(
+        'Guests have signed under the current rules, so who gets a spot can’t change now.'
+      )
     const row = await uniqueSlug(() =>
       this.prisma.trip.update({
         where: { id },
@@ -205,77 +213,231 @@ export class TripsService {
     return this.getRooms(id, caller)
   }
 
-  /**
-   * A guest registers interest from the trip page, as a public page: it reads no guest row (the database answers
-   * the two questions it needs) and writes the sign-up with createMany, which reads nothing back. Pay-first trips
-   * need the guest to confirm the first payment.
-   */
-  async register(slug: string, input: RegistrationInput): Promise<{ status: 'interested' }> {
-    const trip = await this.prisma.trip.findUnique({ where: { slug } })
-    if (!trip || !trip.published) throw new NotFoundException('Trip not found')
-    if (trip.payFirst && !input.paymentSent)
-      throw new BadRequestException('Confirm you’ve sent your first payment to register')
-    const { roomChoice, roomRequired } = optionsOf(trip)
-    // A room is asked for only when the trip lets guests choose one.
-    const roomId = roomChoice ? (input.roomId ?? null) : null
-    if (roomId) {
-      const room = await this.prisma.room.findFirst({ where: { id: roomId, tripId: trip.id } })
-      if (!room) throw new BadRequestException('That room is not on this trip')
-    } else if (roomRequired && (await this.prisma.room.count({ where: { tripId: trip.id } })) > 0) {
-      throw new BadRequestException('Pick a room to sign up')
-    }
-    const [firstName, lastName] = splitName(input.name)
-    // One step the database checks: a repeat email is skipped (the reply is the same either way, so the page never
-    // says who has signed up), and the room trigger refuses a room with no place left (Guest_5_room_fits).
-    await roomFull(() =>
-      this.prisma.guest.createMany({
-        skipDuplicates: true,
-        data: {
-          tripId: trip.id,
-          firstName,
-          lastName,
-          email: input.email,
-          phone: input.phone,
-          // Only a pay-first trip asks for the first payment before sign-up.
-          paymentSentAt: trip.payFirst && input.paymentSent ? new Date() : null,
-          roomId,
-          roomNote: roomChoice ? (input.roomNote ?? '') : '',
-        },
-      })
-    )
-    return { status: 'interested' }
+  /** The agreement as guests of this trip would sign it today, for the organizer's preview. */
+  async agreement(id: string, caller: Caller): Promise<AgreementPreview> {
+    return agreementPreview(await this.get(id, caller))
   }
 
-  /** The organizer approves a guest or confirms their payment arrived (which sets their place in line). */
+  /** The agreement one guest signed, exactly as they saw it, with when and from where. */
+  async guestAgreement(id: string, guestId: string, caller: Caller): Promise<SignedAgreement> {
+    await this.get(id, caller)
+    const sig = await this.prisma.agreementSignature.findFirst({ where: { guestId, tripId: id } })
+    if (!sig) throw new NotFoundException('This guest has not signed the agreement')
+    return toSignedAgreement(sig)
+  }
+
+  /** Everything that happened to one guest, oldest first, with room ids turned into names. */
+  async guestHistory(id: string, guestId: string, caller: Caller): Promise<GuestEvent[]> {
+    const trip = await this.get(id, caller)
+    if (!trip.guests.some((g) => g.id === guestId)) throw new NotFoundException('Guest not found')
+    return (await this.events(id, guestId)).map((e) => e.event)
+  }
+
+  /** A guest's history lines (or every guest's on the trip), oldest first, with room ids turned into names. */
+  private async events(tripId: string, guestId?: string) {
+    const [events, rooms] = await Promise.all([
+      this.prisma.guestEvent.findMany({
+        where: { tripId, ...(guestId ? { guestId } : {}) },
+        orderBy: [{ at: 'asc' }, { n: 'asc' }],
+      }),
+      this.prisma.room.findMany({ where: { tripId }, select: { id: true, name: true } }),
+    ])
+    const roomName = (roomId: string | null) => rooms.find((r) => r.id === roomId)?.name ?? null
+    // Joining and signing happen in one step; at the same moment, they come first.
+    const rank = (kind: string) => (kind === 'joined' ? 0 : kind === 'signed' ? 1 : 2)
+    events.sort((a, b) => a.at.getTime() - b.at.getTime() || rank(a.kind) - rank(b.kind))
+    return events.map((e) => ({
+      guestId: e.guestId,
+      event: {
+        at: e.at.toISOString(),
+        kind: e.kind as GuestEvent['kind'],
+        actor: e.actor as GuestEvent['actor'],
+        fromRoom: roomName(e.fromRoomId),
+        toRoom: roomName(e.toRoomId),
+        fields: (e.fields ? e.fields.split(',') : []) as GuestEvent['fields'],
+      } satisfies GuestEvent,
+    }))
+  }
+
+  /**
+   * The trip log, newest first: joins refused because the email is already on the trip (who tried, from where), the
+   * admin's seats and opens, and, if asked, every guest's history.
+   */
+  async log(id: string, caller: Caller): Promise<TripLogEntry[]> {
+    const trip = await this.get(id, caller)
+    const [refused, access, events] = await Promise.all([
+      this.prisma.tripLog.findMany({ where: { tripId: id } }),
+      this.prisma.accessLog.findMany({ where: { tripId: id } }),
+      this.events(id),
+    ])
+    const name = (guestId: string) => {
+      const g = trip.guests.find((x) => x.id === guestId)
+      return g ? `${g.firstName} ${g.lastName}` : 'A guest'
+    }
+    const entries: TripLogEntry[] = [
+      ...refused.map((r) => ({
+        kind: 'email_refused' as const,
+        at: r.at.toISOString(),
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        ipAddress: r.ipAddress,
+        userAgent: r.userAgent,
+        blocked: r.blocked,
+      })),
+      ...access.map((a) => ({
+        kind: 'admin' as const,
+        at: a.at.toISOString(),
+        action: a.action as Extract<TripLogEntry, { kind: 'admin' }>['action'],
+      })),
+      ...events.map((e) => ({
+        kind: 'guest' as const,
+        at: e.event.at,
+        guestId: e.guestId,
+        guestName: name(e.guestId),
+        event: e.event,
+      })),
+    ]
+    // Newest first; within one moment, the order things happened in reverse.
+    return entries
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => b.e.at.localeCompare(a.e.at) || b.i - a.i)
+      .map((x) => x.e)
+  }
+
+  /**
+   * The organizer's changes to a guest from Trip Control. A guest takes a spot only once they've signed. On an
+   * accept-first trip the organizer accepts them before they pay; on the other two the organizer must first confirm
+   * their payment arrived, and on a first come, first served trip that confirmation accepts them while spots are
+   * left. Turning down a guest whose payment arrived needs the organizer to say the refund went out (owner's
+   * decision, 2026-10-21): CrewControl records it and moves no money.
+   */
   async updateGuest(
     id: string,
     guestId: string,
     update: GuestUpdate,
     caller: Caller
   ): Promise<OrganizerTrip> {
-    await this.get(id, caller)
-    const guest = await this.prisma.guest.findFirst({ where: { id: guestId, tripId: id } })
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.id === guestId)
     if (!guest) throw new NotFoundException('Guest not found')
     if (update.roomId) {
       const room = await this.prisma.room.findFirst({ where: { id: update.roomId, tripId: id } })
       if (!room) throw new BadRequestException('That room is not on this trip')
     }
-    await roomFull(() =>
+    const payFirst = trip.joinMode !== 'accept_first'
+    const confirmed =
+      update.paymentConfirmed === undefined
+        ? Boolean(guest.paymentConfirmedAt)
+        : update.paymentConfirmed
+    const spotsLeft =
+      trip.maxGuests === null
+        ? Infinity
+        : trip.maxGuests -
+          trip.guests.filter((g) => g.status === 'approved' && g.id !== guestId).length
+    let status = update.status ?? guest.status
+    // First come, first served goes in the order payments were confirmed: a waiting guest whose payment was confirmed
+    // earlier (and not refunded) is ahead of this one.
+    const confirmedAt = guest.paymentConfirmedAt ?? new Date().toISOString()
+    const ahead =
+      trip.joinMode === 'first_come'
+        ? trip.guests.find(
+            (g) =>
+              g.id !== guestId &&
+              g.status === 'interested' &&
+              g.signedAt &&
+              g.paymentConfirmedAt &&
+              !g.refundSentAt &&
+              g.paymentConfirmedAt < confirmedAt
+          )
+        : undefined
+    // First come, first served: the payment confirmed is the acceptance, while a spot is left.
+    const autoAccept =
+      update.paymentConfirmed &&
+      !guest.paymentConfirmedAt &&
+      trip.joinMode === 'first_come' &&
+      guest.status === 'interested' &&
+      update.status === undefined &&
+      Boolean(guest.signedAt) &&
+      spotsLeft > 0 &&
+      !ahead
+    if (autoAccept) status = 'approved'
+    // On an accept-first trip a guest sees how to pay only once accepted, so there is nothing to confirm before then.
+    if (update.paymentConfirmed && !guest.paymentConfirmedAt && !payFirst && status !== 'approved')
+      throw new BadRequestException(
+        `Accept ${guest.firstName} first. They see how to pay you once you do.`
+      )
+    if (update.refundSent && status !== 'declined')
+      throw new BadRequestException('Tick “Refund sent” only when turning a guest down')
+    // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
+    const restart = guest.status === 'declined' && status === 'interested' && guest.refundSentAt
+    if (status === 'approved' && guest.status !== 'approved') {
+      if (guest.refundSentAt)
+        throw new BadRequestException(
+          `${guest.firstName}’s payment was refunded. Put them back to waiting so they can pay again.`
+        )
+      if (!guest.signedAt)
+        throw new BadRequestException(`${guest.firstName} hasn’t signed the trip agreement yet`)
+      if (payFirst && !confirmed)
+        throw new BadRequestException(`Confirm ${guest.firstName}’s payment arrived first`)
+      if (spotsLeft <= 0) throw new ConflictException('Every spot is taken')
+      if (ahead)
+        throw new ConflictException(
+          `${ahead.firstName}’s payment was confirmed first, so the next spot is theirs.`
+        )
+    }
+    // Where the payment earned the spot, undoing it needs the spot given back first (guests accepted before signing
+    // existed have no payment to undo, so only the undo itself is refused).
+    if (payFirst && status === 'approved' && update.paymentConfirmed === false)
+      throw new BadRequestException(
+        `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
+      )
+    const refundSent = update.refundSent ?? Boolean(guest.refundSentAt)
+    if (status === 'declined' && guest.status !== 'declined' && confirmed && !refundSent)
+      throw new BadRequestException(
+        `${guest.firstName} paid. Send their refund and tick “Refund sent” to turn them down.`
+      )
+    const write = (status: string) =>
       this.prisma.guest.update({
         where: { id: guestId },
         data: {
-          ...(update.status ? { status: update.status } : {}),
-          ...(update.roomId === undefined ? {} : { roomId: update.roomId }),
+          status,
+          // A guest turned down gives up the room they asked for.
+          ...(status === 'declined'
+            ? { roomId: null }
+            : update.roomId === undefined
+              ? {}
+              : { roomId: update.roomId }),
           ...(update.paymentConfirmed === undefined
             ? {}
             : {
                 paymentConfirmedAt: update.paymentConfirmed
-                  ? (guest.paymentConfirmedAt ?? new Date())
+                  ? guest.paymentConfirmedAt
+                    ? new Date(guest.paymentConfirmedAt)
+                    : new Date()
                   : null,
               }),
+          ...(update.refundSent === undefined
+            ? {}
+            : {
+                refundSentAt: update.refundSent
+                  ? guest.refundSentAt
+                    ? new Date(guest.refundSentAt)
+                    : new Date()
+                  : null,
+              }),
+          ...(restart ? { paymentSentAt: null, paymentConfirmedAt: null, refundSentAt: null } : {}),
         },
       })
-    )
+    try {
+      await roomFull(() => write(status))
+    } catch (err) {
+      // Another organizer took the last spot a moment ago: the payment still arrived, so record it (that guest is
+      // the one refunded).
+      if (!(autoAccept && err instanceof ConflictException && /Every spot/.test(err.message)))
+        throw err
+      await roomFull(() => write(guest.status))
+    }
     return this.get(id, caller)
   }
 
@@ -346,10 +508,12 @@ export class TripsService {
 }
 
 /** The room trigger's "no place left" (Guest_5_room_fits) as a 409 the page can show. */
-async function roomFull<T>(write: () => Promise<T>): Promise<T> {
+export async function roomFull<T>(write: () => Promise<T>): Promise<T> {
   try {
     return await write()
   } catch (err) {
+    if (/trip_full/.test(String((err as Error).message)))
+      throw new ConflictException('Every spot is taken')
     const name = /room_full:([^"\n]*)/.exec(String((err as Error).message))?.[1]
     if (name !== undefined)
       throw new ConflictException(`${name.trim()} is full. Pick another room.`)
@@ -378,7 +542,7 @@ async function countGuests(prisma: PrismaService, tripIds?: string[]): Promise<G
     let c = out.find((x) => x.tripId === g.tripId)
     if (!c) out.push((c = { tripId: g.tripId, going: 0, interested: 0 }))
     if (g.status === 'approved') c.going += g._count._all
-    else c.interested += g._count._all
+    else if (g.status === 'interested') c.interested += g._count._all
     return out
   }, [])
 }
@@ -387,7 +551,7 @@ async function countGuests(prisma: PrismaService, tripIds?: string[]): Promise<G
 function withCounts(
   rows: (Parameters<typeof toTripSummary>[0] & {
     maxGuests: number | null
-    payFirst: boolean
+    joinMode: string
     members: { userId: string }[]
   })[],
   counts: GuestCounts[]
@@ -402,7 +566,7 @@ function withCounts(
         goingCount: c.going,
         interestedCount: c.interested,
         maxGuests: row.maxGuests,
-        payFirst: row.payFirst,
+        joinMode: row.joinMode,
       })
     })
   )

@@ -6,24 +6,29 @@ const g = (
   id: string,
   createdAt: string,
   sent: string | null,
-  confirmed: string | null
+  confirmed: string | null,
+  status: Guest['status'] = 'interested'
 ): Guest => ({
   id,
   firstName: id,
   lastName: '',
   email: `${id}@example.com`,
   phone: '555-0100',
-  status: 'interested',
+  status,
   createdAt,
   paymentSentAt: sent,
   paymentConfirmedAt: confirmed,
+  refundSentAt: null,
   roomId: null,
   roomNote: '',
+  signedAt: createdAt,
+  terms: null,
 })
 
 describe('signupOrder', () => {
-  it('puts confirmed payments first, in confirmation order, then paid, then the rest', () => {
+  it('puts confirmed payments first, in confirmation order, then paid, then the rest, then the turned down', () => {
     const list = [
+      g('turned-down', '2026-10-01T00:00:00Z', null, '2026-10-02T00:00:00Z', 'declined'),
       g(
         'late-signup-confirmed-first',
         '2026-11-03T00:00:00Z',
@@ -44,6 +49,7 @@ describe('signupOrder', () => {
       'early-signup-confirmed-second',
       'paid-unconfirmed',
       'no-payment',
+      'turned-down',
     ])
   })
 })

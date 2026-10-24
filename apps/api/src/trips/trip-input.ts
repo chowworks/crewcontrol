@@ -15,7 +15,8 @@ import {
   type TripRoom,
   type BedType,
   type GuestUpdate,
-  type RegistrationInput,
+  type JoinInput,
+  type JoinMode,
 } from './trip-types'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -97,12 +98,9 @@ export function parseTripInput(raw: unknown): TripInput {
   if (endDate < startDate) fail('endDate must be on or after startDate')
   const maxGuests =
     body.maxGuests === null || body.maxGuests === undefined ? null : int(body, 'maxGuests', 1, 200)
-  const payFirst = body.payFirst === undefined ? false : bool(body, 'payFirst')
-  const refundPledge = body.refundPledge === undefined ? false : bool(body, 'refundPledge')
-  if (payFirst && !refundPledge)
-    fail(
-      'To have guests pay before registering, agree to refund anyone who pays but doesn’t get a spot'
-    )
+  const joinMode = body.joinMode === undefined ? 'accept_first' : body.joinMode
+  if (!JOIN_MODES.includes(joinMode as JoinMode))
+    fail('joinMode must be accept_first, pay_first or first_come')
   return {
     name: text(body, 'name', 80),
     destination: text(body, 'destination', 80),
@@ -122,8 +120,7 @@ export function parseTripInput(raw: unknown): TripInput {
       .map(keyDate)
       .sort((a, b) => a.date.localeCompare(b.date)),
     maxGuests,
-    payFirst,
-    refundPledge,
+    joinMode: joinMode as JoinMode,
     options: parseOptions(body.options),
   }
 }
@@ -142,6 +139,8 @@ export function parseOptions(raw: unknown): TripOptions {
     signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
   }
 }
+
+const JOIN_MODES: JoinMode[] = ['accept_first', 'pay_first', 'first_come']
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -193,8 +192,15 @@ export function parseRooms(raw: unknown): TripRoom[] {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Checks a sign-up from the trip page. Messages say what to fix, because the form shows them as they are. */
-export function parseRegistration(raw: unknown): RegistrationInput {
+/** "  Jordan   Price " → "jordan price": how a typed signature is compared with the name on the form. */
+export const sameName = (a: string, b: string): boolean =>
+  a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
+
+/**
+ * Checks a join from the join page: the guest's details and their signature. Messages say what to fix, because the
+ * page shows them as they are.
+ */
+export function parseJoin(raw: unknown): JoinInput {
   if (!raw || typeof raw !== 'object') fail('Send the form as JSON')
   const body = raw as Body
   const name = text(body, 'name', 120)
@@ -204,13 +210,19 @@ export function parseRegistration(raw: unknown): RegistrationInput {
   if (!EMAIL.test(email)) fail('Email must be an email address')
   const roomId = typeof body.roomId === 'string' && body.roomId ? body.roomId : null
   const roomNote = body.roomNote === undefined ? '' : text(body, 'roomNote', 200, false)
+  const typedName = text(body, 'typedName', 120)
+  if (!sameName(typedName, name)) fail('Type your full name exactly as you wrote it above')
+  if (body.agreed !== true) fail('Tick “I agree” to sign')
+  const agreementHash = text(body, 'agreementHash', 64)
   return {
     name,
     phone,
     email: email.toLowerCase(),
-    paymentSent: body.paymentSent === true,
     roomId,
     roomNote,
+    typedName: typedName.replace(/\s+/g, ' '),
+    agreed: true,
+    agreementHash,
   }
 }
 
@@ -225,11 +237,12 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
   const body = raw as Body
   const update: GuestUpdate = {}
   if (body.status !== undefined) {
-    if (body.status !== 'interested' && body.status !== 'approved')
-      fail('status must be interested or approved')
+    if (body.status !== 'interested' && body.status !== 'approved' && body.status !== 'declined')
+      fail('status must be interested, approved or declined')
     update.status = body.status
   }
   if (body.paymentConfirmed !== undefined) update.paymentConfirmed = bool(body, 'paymentConfirmed')
+  if (body.refundSent !== undefined) update.refundSent = bool(body, 'refundSent')
   if (body.roomId !== undefined) {
     if (body.roomId !== null && typeof body.roomId !== 'string')
       fail('roomId must be a room or null')

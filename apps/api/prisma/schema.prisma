@@ -14,8 +14,8 @@ datasource db {
 // Photos, highlights and key dates are ordered lists the organizer replaces whole on save,
 // so they live as JSON on the trip rather than as tables of their own.
 model Trip {
-  id                  String       @id @default(cuid())
-  slug                String       @unique
+  id                  String               @id @default(cuid())
+  slug                String               @unique
   name                String
   destination         String
   startDate           String // 'YYYY-MM-DD', a calendar date with no time zone
@@ -23,32 +23,33 @@ model Trip {
   organizerName       String
   description         String
   costPerPersonCents  Int
-  installmentCount    Int          @default(1)
-  galleryTitle        String       @default("Photos")
-  showGuestNames      Boolean      @default(false)
-  // Shown only to approved guests (passenger portal, slice 3). Never on the public page.
-  paymentInstructions String       @default("")
-  published           Boolean      @default(false)
+  installmentCount    Int                  @default(1)
+  galleryTitle        String               @default("Photos")
+  showGuestNames      Boolean              @default(false)
+  // Shown only to signed-in guests who joined the trip (their join page). Never on the public page.
+  paymentInstructions String               @default("")
+  published           Boolean              @default(false)
   // A demo trip from the seed. The homepage shows only these, and their pages carry a "Sample Trip" badge.
-  isSample            Boolean      @default(false)
+  isSample            Boolean              @default(false)
   // The most guests the trip takes. Null means no limit.
   maxGuests           Int?
-  // Pay first: guests confirm they've sent the first installment when they register, and spots go in the
-  // order the organizer confirms payments arrived. Needs the organizer's refund pledge.
-  payFirst            Boolean      @default(false)
-  // The organizer refunds anyone who paid but didn't get a spot because the trip filled.
-  refundPledge        Boolean      @default(false)
-  photos              Json         @default("[]") // TripPhoto[]; the first is the cover
-  highlights          Json         @default("[]") // TripHighlight[]
-  keyDates            Json         @default("[]") // TripKeyDate[]
+  // How guests who signed get in: 'accept_first' (the organizer accepts each one, then they pay), 'pay_first' (they
+  // pay, then the organizer accepts each one whose payment arrived) or 'first_come' (they pay, and confirming a
+  // payment accepts them while spots are left).
+  joinMode            String               @default("accept_first")
+  photos              Json                 @default("[]") // TripPhoto[]; the first is the cover
+  highlights          Json                 @default("[]") // TripHighlight[]
+  keyDates            Json                 @default("[]") // TripKeyDate[]
   // TripOptions: settings that only change what the pages show (room choice, the sign-up lines). A setting the
   // database must enforce gets its own column instead.
-  options             Json         @default("{}")
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  options             Json                 @default("{}")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   guests              Guest[]
   members             TripMember[]
   rooms               Room[]
+  log                 TripLog[]
+  agreements          AgreementSignature[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -66,26 +67,85 @@ model TripMember {
   @@index([userId])
 }
 
-// Someone who registered interest in a trip. The organizer approves them; only then do they pay.
+// Someone joining a trip. They sign in, sign the agreement and pay the organizer; then the organizer accepts them
+// (or, on a first come, first served trip, confirming their payment does).
 model Guest {
-  id                 String    @id @default(cuid())
+  id                 String              @id @default(cuid())
   tripId             String
+  // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in.
+  userId             String?
   firstName          String
   lastName           String
   email              String
   phone              String
-  status             String    @default("interested") // 'interested' | 'approved'
-  createdAt          DateTime  @default(now())
-  // When the guest said they sent their first payment (pay-first trips).
+  status             String              @default("interested") // 'interested' | 'approved' | 'declined'
+  createdAt          DateTime            @default(now())
+  // When the guest said they sent their first payment.
   paymentSentAt      DateTime?
-  // When the organizer confirmed it arrived. Spots on a full pay-first trip go in this order.
+  // When the organizer confirmed it arrived. On a first come, first served trip spots go in this order.
   paymentConfirmedAt DateTime?
+  // When the organizer, turning a paid guest down, said the refund went out. Records it; moves no money.
+  refundSentAt       DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
   roomId             String?
-  roomNote           String    @default("")
-  room               Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  trip               Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  roomNote           String              @default("")
+  room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  trip               Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  agreement          AgreementSignature?
+  events             GuestEvent[]
 
+  @@unique([tripId, userId])
+  @@unique([id, tripId])
+  @@index([tripId])
+  @@index([userId])
+}
+
+// The trip agreement a guest signed, never changed once written (migration 20261023020000_join_and_agreements): the
+// text exactly as shown and its SHA-256, the terms it quoted (the guest's balance comes from these, not the trip's
+// current settings), the name they typed, and when and from where they signed.
+model AgreementSignature {
+  id               String   @id @default(cuid())
+  tripId           String
+  guestId          String   @unique
+  templateVersion  String
+  text             String
+  textHash         String
+  priceCents       Int
+  installmentCount Int
+  startDate        String
+  endDate          String
+  refundTerms      String
+  typedName        String
+  signedAt         DateTime @default(now())
+  ipAddress        String
+  userAgent        String
+  trip             Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest            Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@unique([guestId, tripId])
+  @@index([tripId])
+}
+
+// One line of a guest's history, written only by the database's triggers (migration 20261024010000_guest_history):
+// what happened, when, and who did it. Members of the trip read it; nobody writes, changes or deletes a line.
+model GuestEvent {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId      String
+  guestId     String
+  at          DateTime @default(now())
+  // 'joined' | 'signed' | 'said_paid' | 'payment_confirmed' | 'payment_undone' | 'accepted' | 'turned_down' |
+  // 'put_back' | 'refund_sent' | 'refund_undone' | 'room_changed' | 'contact_changed'
+  kind        String
+  actorUserId String?
+  actor       String // 'guest' | 'organizer' | 'system'
+  fromRoomId  String?
+  toRoomId    String?
+  // For contact_changed: which details changed ('name', 'email', 'phone'), never their values.
+  fields      String?
+  n           Int      @default(autoincrement())
+  guest       Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@index([guestId, at, n])
   @@index([tripId])
 }
 
@@ -111,6 +171,26 @@ model Room {
 
 // Every change the platform admin makes to a trip's people (seating itself, handing a trip to an owner), written by
 // the TripMember_9_admin_logged trigger, never by the API (migration 20261021070000_rooms_owners_access_log).
+// What the trip's organizers should know beyond a guest's own history (migration 20261024020000_trip_log): for now,
+// joins refused because the email is already on the trip, with what was typed and from where. Written only by
+// log_refused_email; members read it.
+model TripLog {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId      String
+  at          DateTime @default(now())
+  kind        String // 'email_refused'
+  actorUserId String?
+  name        String   @default("")
+  email       String   @default("")
+  phone       String   @default("")
+  ipAddress   String   @default("")
+  userAgent   String   @default("")
+  blocked     Boolean  @default(false)
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, at])
+}
+
 model AccessLog {
   id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   tripId        String

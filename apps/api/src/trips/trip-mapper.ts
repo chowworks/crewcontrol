@@ -1,11 +1,19 @@
-import type { Guest as GuestRow, Room as RoomRow, Trip as TripRow } from '@prisma/client'
+import type {
+  AgreementSignature as SignatureRow,
+  Guest as GuestRow,
+  Room as RoomRow,
+  Trip as TripRow,
+} from '@prisma/client'
+import { termsOf } from '../join/agreement'
 import {
   DEFAULT_TRIP_OPTIONS,
   type BedType,
   type Guest,
   type GuestStatus,
+  type JoinMode,
   type OrganizerTrip,
   type PublicTrip,
+  type SignedAgreement,
   type TripHighlight,
   type TripKeyDate,
   type TripOptions,
@@ -13,7 +21,8 @@ import {
   type TripSummary,
 } from './trip-types'
 
-type TripWithGuests = TripRow & { guests: GuestRow[]; rooms?: RoomRow[] }
+type GuestWithAgreement = GuestRow & { agreement?: SignatureRow | null }
+type TripWithGuests = TripRow & { guests: GuestWithAgreement[]; rooms?: RoomRow[] }
 
 /** What the public page gets of a guest (public_trip_guests): a status, and a name only once approved. */
 export type PublicGuestRow = { status: string; firstName: string | null; lastName: string | null }
@@ -33,8 +42,9 @@ export function shortName(firstName: string, lastName: string): string {
 }
 
 /**
- * The guest-facing view. Payment instructions and guest contact details never leave the API this way,
- * and people who only registered interest are counted, never named.
+ * The guest-facing view. Payment instructions and guest contact details never leave the API this way (a guest who
+ * joined gets the instructions on their own join page, never here), and people not yet accepted are counted, never
+ * named.
  */
 export function toPublicTrip(
   row: TripRow & {
@@ -64,7 +74,7 @@ export function toPublicTrip(
     keyDates: row.keyDates as unknown as TripKeyDate[],
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
-    interestedCount: row.guests.length - approved.length,
+    interestedCount: row.guests.filter((g) => g.status === 'interested').length,
     // With room choice on, guests see who's going, so they can choose who to share with.
     guestNames:
       row.showGuestNames || options.roomChoice
@@ -72,9 +82,7 @@ export function toPublicTrip(
         : null,
     isSample: row.isSample,
     maxGuests: row.maxGuests,
-    payFirst: row.payFirst,
-    // Pay-first guests pay before they register, so they need to know how. Otherwise approved guests only.
-    paymentInstructions: row.payFirst ? row.paymentInstructions : null,
+    joinMode: row.joinMode as JoinMode,
     // Places left counts everyone who asked for the room; the organizer can move people.
     options,
     rooms: (options.roomChoice ? (row.rooms ?? []) : []).map((r) => ({
@@ -89,7 +97,19 @@ export function toPublicTrip(
   }
 }
 
-function toGuest(row: GuestRow): Guest {
+export function toSignedAgreement(sig: SignatureRow): SignedAgreement {
+  return {
+    text: sig.text,
+    textHash: sig.textHash,
+    templateVersion: sig.templateVersion,
+    typedName: sig.typedName,
+    signedAt: sig.signedAt.toISOString(),
+    ipAddress: sig.ipAddress,
+    userAgent: sig.userAgent,
+  }
+}
+
+function toGuest(row: GuestWithAgreement): Guest {
   return {
     id: row.id,
     firstName: row.firstName,
@@ -100,8 +120,11 @@ function toGuest(row: GuestRow): Guest {
     createdAt: row.createdAt.toISOString(),
     paymentSentAt: row.paymentSentAt?.toISOString() ?? null,
     paymentConfirmedAt: row.paymentConfirmedAt?.toISOString() ?? null,
+    refundSentAt: row.refundSentAt?.toISOString() ?? null,
     roomId: row.roomId,
     roomNote: row.roomNote,
+    signedAt: row.agreement?.signedAt.toISOString() ?? null,
+    terms: row.agreement ? termsOf(row.agreement, row.paymentConfirmedAt) : null,
   }
 }
 
@@ -125,8 +148,7 @@ export function toOrganizerTrip(row: TripWithGuests): OrganizerTrip {
     highlights: row.highlights as unknown as TripHighlight[],
     keyDates: row.keyDates as unknown as TripKeyDate[],
     maxGuests: row.maxGuests,
-    payFirst: row.payFirst,
-    refundPledge: row.refundPledge,
+    joinMode: row.joinMode as JoinMode,
     options: optionsOf(row),
     guests: row.guests.map(toGuest),
     updatedAt: row.updatedAt.toISOString(),
