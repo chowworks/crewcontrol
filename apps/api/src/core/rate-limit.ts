@@ -13,6 +13,13 @@ export class RateLimiter {
     private readonly message: string
   ) {}
 
+  /** Refuses, without counting a hit, when `key` already has `max` recent hits. */
+  check(key: string): void {
+    const now = Date.now()
+    if ((this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs).length >= this.max)
+      throw new HttpException(this.message, HttpStatus.TOO_MANY_REQUESTS)
+  }
+
   hit(key: string): void {
     const now = Date.now()
     if (this.hits.size > 5000) {

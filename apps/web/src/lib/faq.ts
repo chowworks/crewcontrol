@@ -2,7 +2,7 @@
 export const FAQ: { q: string; a: string }[] = [
   {
     q: 'Do my friends need to download anything?',
-    a: 'No. They tap your link, register with their name, phone and email, and see the whole trip. No app, no account to set up.',
+    a: 'No app. They tap your link and see the whole trip. To join, they sign in and sign the trip agreement, and they see how to pay you when your trip says so.',
   },
   {
     q: 'Does CrewControl hold our money?',

@@ -8,6 +8,7 @@ import { EditTripPage } from './pages/EditTripPage'
 import { FaqPage } from './pages/FaqPage'
 import { GuestTripPage } from './pages/GuestTripPage'
 import { HomePage } from './pages/HomePage'
+import { JoinPage } from './pages/JoinPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { SignInPage } from './pages/SignInPage'
@@ -29,6 +30,14 @@ export default function App() {
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/t/:slug" element={<GuestTripPage />} />
+      <Route
+        path="/t/:slug/join"
+        element={
+          <RequireSignIn>
+            <JoinPage />
+          </RequireSignIn>
+        }
+      />
       <Route
         path="/organize/new"
         element={

@@ -40,9 +40,19 @@ export function PrivacyPage() {
               settings.
             </li>
             <li>
-              <strong>Guests:</strong> the name, phone number and email you give when you register
-              interest, whether the organizer has approved you, and the messages and reminders the
-              trip sends you.
+              <strong>Guests:</strong> your sign-in details, the name, phone number and email you
+              give when you join a trip, whether the organizer has accepted you, and the messages
+              and reminders the trip sends you.
+            </li>
+            <li>
+              <strong>Trip agreements:</strong> the agreement you signed, exactly as you saw it,
+              with the name you typed, when you signed, and the internet address and browser you
+              signed from, so it can be shown later what you agreed to.
+            </li>
+            <li>
+              <strong>Refused joins:</strong> if you try to join a trip with an email that
+              can&apos;t be used, what you typed, your account, and the internet address and browser
+              you used, shown to that trip&apos;s organizers.
             </li>
             <li>
               <strong>Payment records:</strong> what the organizer logs about who paid, how much,
@@ -59,17 +69,17 @@ export function PrivacyPage() {
         <Section title="Who sees it">
           <ul className="list-disc pl-5">
             <li>
-              <strong>The organizer</strong> sees their trip&apos;s guest list, contact details and
-              payment records, and no other organizer&apos;s.
+              <strong>The organizer</strong> sees their trip&apos;s guest list, contact details,
+              signed agreements and payment records, and no other organizer&apos;s.
             </li>
             <li>
-              <strong>Each guest</strong> sees the trip page and, once approved, their own plan,
-              payments and balance. Guests never see each other&apos;s phone numbers, emails or
-              balances.
+              <strong>Each guest</strong> sees the trip page and, once they join, their own signed
+              agreement, plan, payments and balance. Guests never see each other&apos;s phone
+              numbers, emails or balances.
             </li>
             <li>
               <strong>The public trip page</strong> never shows phone numbers, emails or money owed.
-              If the organizer turns on &ldquo;who&apos;s going&rdquo;, it shows approved guests by
+              If the organizer turns on &ldquo;who&apos;s going&rdquo;, it shows accepted guests by
               first name and last initial.
             </li>
             <li>

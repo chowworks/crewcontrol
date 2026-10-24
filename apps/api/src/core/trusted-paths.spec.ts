@@ -10,6 +10,7 @@ const TRUSTED_CALL_SITES = [
   'trips/trips.service.ts', // a new trip and its owner row, as one step
 ]
 const PUBLIC_CALL_SITES = [
+  'join/join.service.ts', // the join page reads the published trip it shows a signed-in guest
   'trips/trips.controller.ts', // the guest trip page and the homepage's sample trips
 ]
 

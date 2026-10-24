@@ -31,9 +31,18 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
   (names, beds, places), never who chose which. It gets how many asked for each room from `public_room_taken`. A
   guest's room must be on the guest's own trip and have a place left: `Guest_5_room_fits` checks both and locks the
   room, so two sign-ups can't take its last place.
-- **One sign-up per email per trip** (`Guest_tripId_email_key`, on the lowercased email). The public sign-up inserts
-  with `ON CONFLICT DO NOTHING`, so a repeat looks the same as a first sign-up and the page never reveals who is on
-  a trip. A public sign-up can't carry a confirmed payment.
+- **One sign-up per email per trip** (`Guest_tripId_email_key`, on the lowercased email) and one per signed-in
+  person per trip (`Guest_tripId_userId_key`).
+- **Guests sign in to join** (migration `20261023020000_join_and_agreements`). A guest is no trip's member, so the
+  policies give a signed-in person only what is theirs: their own `Guest` rows (`userId`), their own
+  `AgreementSignature`, and the trips they joined (`app_guest_trip_ids`, where the payment instructions are). They
+  may add themselves to a published trip (`trip_is_published`, since they can't read the trip row before joining)
+  only as `interested` with no payment said, confirmed or refunded, and change their row only while waiting or
+  accepted with no payment confirmed and no refund (an accepted guest on an accept-first trip still says they paid):
+  they can say they paid and, until accepted, change their room wish, never confirm a payment, accept themselves or
+  record a refund. A
+  signature is never changed or deleted; it names its guest and trip together (a composite foreign key), so it can't
+  point at a guest of another trip. The join page reads the published trip itself as a public page.
 - **The tenant is the trip.** A guest belongs to exactly one trip, and so will everything later hung off a trip
   (rooms, payments, messages). Each such row names its trip itself (`tripId`, a real foreign key), so unlike Audit
   Differently there is no copied tenant column and no `_1_set_tenant` trigger.
@@ -68,9 +77,9 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
 (and its first owner) needs it today. `src/core/trusted-paths.spec.ts` lists every call site; a new one is a review
 item.
 
-**The public pages** (`runAsPublic`, `app.public`, no person) read published trips, get their guests through
-`public_trip_guests`, and add an `interested` guest to a published trip (a sign-up, written with `createMany`
-because they cannot read it back). They change nothing else and see no `TripMember` or `Guest` row.
+**The public pages** (`runAsPublic`, `app.public`, no person) read published trips and get their guests through
+`public_trip_guests`. They change nothing and see no `TripMember`, `Guest` or `AgreementSignature` row. Joining
+needs sign-in, so a public page signs nobody up.
 `trusted-paths.spec.ts` lists those call sites too.
 
 **The platform admin** (`app.admin`) is a person whose Clerk `publicMetadata.role` is `admin`, working at the trip
@@ -87,6 +96,12 @@ it already sits on (`admin_log_open`), so each look from the toolbox leaves a li
 removes it, so a seated admin who goes straight to a trip's address is not logged again. The trip's members can read
 their trip's lines; nobody can write or change one but those functions. Its going and
 interested counts come from `admin_trip_counts()`, counts only, for the admin only.
+
+A guest's history is logged the same way (migration `20261024010000_guest_history`): the `Guest_9_logged` and
+`AgreementSignature_9_logged` triggers write a `GuestEvent` line for each step (joined, signed, said they paid,
+payment confirmed or undone, accepted, put back, turned down, refund, room change), with who did it (the guest, an
+organizer, or trusted work). Only the trip's members read the lines; the guest does not, and nobody writes, changes
+or deletes one but the triggers.
 
 ## Switching it on
 

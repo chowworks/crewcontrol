@@ -10,5 +10,6 @@ import { TripsService } from './trips.service'
 @Module({
   controllers: [TripsController, PublicTripsController, SampleTripsController, AdminController],
   providers: [TripsService],
+  exports: [TripsService],
 })
 export class TripsModule {}

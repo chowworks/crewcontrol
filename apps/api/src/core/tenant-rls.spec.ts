@@ -52,6 +52,8 @@ suite('trip isolation', () => {
   const ids = async (table: string) =>
     (await db.query<{ id: string }>(`SELECT id FROM "${table}" ORDER BY id`)).rows.map((r) => r.id)
   const refused = expect.stringMatching(/row-level security/)
+  // A guest's change to the organizer's fields: the self-limits trigger or the policy, whichever refuses first.
+  const guestRefused = expect.stringMatching(/row-level security|only say they paid/)
 
   afterAll(() => db.close())
 
@@ -336,19 +338,16 @@ suite('trip isolation', () => {
     })
   })
 
-  it('shows a public page published trips, no guest row, and takes a sign-up it cannot read back', async () => {
+  it('shows a public page published trips and no guest row, and signs nobody up', async () => {
     await as({ public: true }, async () => {
       expect(await ids('Trip')).toEqual(['S', 'T1'])
       expect(await ids('Guest')).toEqual([])
       expect(await ids('TripMember')).toEqual([])
+      expect(await ids('AgreementSignature')).toEqual([])
+      // Joining needs sign-in now: a public page adds no guest at all.
       expect(
         await attempt(
           `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-new', 'T1', 'a', 'b', 'c', 'd')`
-        )
-      ).toEqual({ rows: 1 })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-new2', 'T1', 'a', 'b', 'c', 'd') RETURNING id`
         )
       ).toEqual({ error: refused })
     })
@@ -367,18 +366,8 @@ suite('trip isolation', () => {
     })
   })
 
-  it('lets a public page change nothing and sign up nobody to a draft or as approved', async () => {
+  it('lets a public page change nothing', async () => {
     await as({ public: true }, async () => {
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-x', 'T2', 'a', 'b', 'c', 'd')`
-        )
-      ).toEqual({ error: refused })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, status) VALUES ('G-x', 'T1', 'a', 'b', 'c', 'd', 'approved')`
-        )
-      ).toEqual({ error: refused })
       expect(await attempt(`UPDATE "Guest" SET status = 'approved'`)).toEqual({ rows: 0 })
       expect(await attempt(`DELETE FROM "Guest"`)).toEqual({ rows: 0 })
       expect(await attempt(`UPDATE "Trip" SET published = true`)).toEqual({ rows: 0 })
@@ -469,39 +458,203 @@ suite('trip isolation', () => {
     })
   })
 
-  it('takes a public sign-up only once per email, never with a confirmed payment, and only into a room with a place', async () => {
-    await as({ public: true }, async () => {
+  it('lets a signed-in person join a published trip as themselves, once, never accepted or paid, into a room with a place', async () => {
+    const join = (id: string, cols: string, vals: string) =>
+      attempt(
+        `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone${cols}) VALUES ('${id}', 'T1', 'a', 'b', '${id}@example.com', 'p'${vals}) RETURNING id`
+      )
+    await as(await person('g1'), async () => {
+      // Not yet a guest: no trip row to read, but the trip takes their sign-up.
+      expect(await ids('Trip')).toEqual([])
+      expect(await join('G-j1', ', "userId"', ", 'g1'")).toEqual({ rows: 1 })
+      expect(await ids('Guest')).toEqual(['G-j1'])
+      expect(await ids('Trip')).toEqual(['T1'])
+      // Once per person per trip, and once per email.
+      expect(await join('G-j2', ', "userId"', ", 'g1'")).toEqual({
+        error: expect.stringMatching(/Guest_tripId_userId_key/),
+      })
       expect(
         await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-dup', 'T1', 'a', 'b', 'New@example.com', 'p') ON CONFLICT DO NOTHING`
-        )
-      ).toEqual({ rows: 1 })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-dup2', 'T1', 'a', 'b', 'new@EXAMPLE.com', 'p') ON CONFLICT DO NOTHING`
-        )
-      ).toEqual({ rows: 0 })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "paymentConfirmedAt") VALUES ('G-paid', 'T1', 'a', 'b', 'paid@example.com', 'p', now())`
+          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone) VALUES ('G-j3', 'T1', 'a', 'b', 'G-J1@example.com', 'p')`
         )
       ).toEqual({ error: refused })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "roomId") VALUES ('G-r1', 'T1', 'a', 'b', 'r1@example.com', 'p', 'R-T1')`
-        )
-      ).toEqual({ rows: 1 })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "roomId") VALUES ('G-r2', 'T1', 'a', 'b', 'r2@example.com', 'p', 'R-T1')`
-        )
-      ).toEqual({ error: expect.stringMatching(/room_full:King/) })
-      expect(
-        await attempt(
-          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "roomId") VALUES ('G-r3', 'T1', 'a', 'b', 'r3@example.com', 'p', 'R-T2')`
-        )
-      ).toEqual({ error: expect.stringMatching(/not on this trip/) })
     })
+    await as(await person('g2'), async () => {
+      expect(await join('G-j4', ', "userId"', ", 'someone-else'")).toEqual({ error: refused })
+      expect(await join('G-j4', ', "userId", status', ", 'g2', 'approved'")).toEqual({
+        error: refused,
+      })
+      expect(await join('G-j4', ', "userId", "paymentConfirmedAt"', ", 'g2', now()")).toEqual({
+        error: refused,
+      })
+      expect(await join('G-j4', ', "userId", "paymentSentAt"', ", 'g2', now()")).toEqual({
+        error: refused,
+      })
+      expect(
+        await attempt(
+          `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId") VALUES ('G-j4', 'T2', 'a', 'b', 'x@example.com', 'p', 'g2')`
+        )
+      ).toEqual({ error: refused })
+      // T1's king room has one place left (its approved guest has the other).
+      expect(await join('G-r1', ', "userId", "roomId"', ", 'g2', 'R-T1'")).toEqual({ rows: 1 })
+    })
+    // With the king room's last place taken, nobody else gets it.
+    await db.query(
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "roomId") VALUES ('G-fill', 'T1', 'a', 'b', 'fill@example.com', 'p', 'R-T1')`
+    )
+    try {
+      await as(await person('g3'), async () => {
+        expect(await join('G-r2', ', "userId", "roomId"', ", 'g3', 'R-T1'")).toEqual({
+          error: expect.stringMatching(/room_full:King/),
+        })
+        expect(await join('G-r3', ', "userId", "roomId"', ", 'g3', 'R-T2'")).toEqual({
+          error: expect.stringMatching(/not on this trip/),
+        })
+      })
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-fill'`)
+    }
+  })
+
+  it('keeps a guest to their own row and signature, and lets them say they paid but not confirm or accept it', async () => {
+    // A pay-first trip, where a waiting guest pays (on an accept-first trip they wait to be accepted).
+    await db.query(`UPDATE "Trip" SET "joinMode" = 'pay_first' WHERE id = 'T1'`)
+    await db.query(
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId") VALUES ('G-me', 'T1', 'Mo', 'Me', 'me@example.com', 'p', 'g9')`
+    )
+    try {
+      await as(await person('g9'), async () => {
+        expect(await ids('Guest')).toEqual(['G-me'])
+        expect(await ids('TripMember')).toEqual([])
+        expect(await ids('Trip')).toEqual(['T1'])
+        // Their signature, and nobody else's.
+        const sign = (id: string, guest: string, trip: string) =>
+          attempt(
+            `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
+             VALUES ('${id}', '${trip}', '${guest}', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Mo Me', 'ip', 'ua') RETURNING id`
+          )
+        expect(await sign('A-me', 'G-me', 'T1')).toEqual({ rows: 1 })
+        expect(await sign('A-x', 'G-T1-i', 'T1')).toEqual({ error: refused })
+        expect(await ids('AgreementSignature')).toEqual(['A-me'])
+        expect(await attempt(`UPDATE "AgreementSignature" SET text = 'changed'`)).toEqual({
+          rows: 0,
+        })
+        expect(await attempt(`DELETE FROM "AgreementSignature"`)).toEqual({ rows: 0 })
+        // Saying they paid is theirs; confirming it, accepting or refunding is the organizer's.
+        expect(await attempt(`UPDATE "Guest" SET "paymentSentAt" = now()`)).toEqual({ rows: 1 })
+        expect(await attempt(`UPDATE "Guest" SET "paymentConfirmedAt" = now()`)).toEqual({
+          error: guestRefused,
+        })
+        expect(await attempt(`UPDATE "Guest" SET status = 'approved'`)).toEqual({
+          error: guestRefused,
+        })
+        expect(await attempt(`UPDATE "Guest" SET "refundSentAt" = now()`)).toEqual({
+          error: guestRefused,
+        })
+        expect(await attempt(`UPDATE "Guest" SET "firstName" = 'Not me'`)).toEqual({
+          error: expect.stringMatching(/only say they paid/),
+        })
+        expect(await attempt(`UPDATE "Guest" SET "roomNote" = 'with Sam'`)).toEqual({ rows: 1 })
+        expect(await attempt(`UPDATE "Guest" SET "userId" = 'g8'`)).toEqual({
+          error: expect.stringMatching(/cannot be changed/),
+        })
+        expect(await attempt(`UPDATE "Guest" SET status = 'approved' WHERE id = 'G-T1-i'`)).toEqual(
+          { rows: 0 }
+        )
+        expect(await attempt(`DELETE FROM "Guest"`)).toEqual({ rows: 0 })
+      })
+      // The trip's members read the signature; another trip's owner does not.
+      await db.query(
+        `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
+         VALUES ('A-me', 'T1', 'G-me', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Mo Me', 'ip', 'ua')`
+      )
+      await as(await person('u1'), async () => {
+        expect(await ids('AgreementSignature')).toEqual(['A-me'])
+        expect(await attempt(`UPDATE "AgreementSignature" SET text = 'changed'`)).toEqual({
+          rows: 0,
+        })
+      })
+      await as(await person('u2'), async () => {
+        expect(await ids('AgreementSignature')).toEqual([])
+      })
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-me'`)
+      await db.query(`UPDATE "Trip" SET "joinMode" = 'accept_first' WHERE id = 'T1'`)
+    }
+  })
+
+  it("never lets a guest undo the organizer's decision", async () => {
+    await db.query(
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId", status, "paymentConfirmedAt", "refundSentAt") VALUES
+       ('G-no', 'T1', 'No', 'Pe', 'no@example.com', 'p', 'g7', 'declined', now(), now()),
+       ('G-in', 'T1', 'In', 'Ok', 'in@example.com', 'p', 'g6', 'approved', now(), NULL)`
+    )
+    try {
+      await as(await person('g7'), async () => {
+        expect(await ids('Guest')).toEqual(['G-no'])
+        expect(
+          await attempt(
+            `UPDATE "Guest" SET status = 'interested', "paymentConfirmedAt" = NULL, "refundSentAt" = NULL`
+          )
+        ).toEqual({ rows: 0 })
+      })
+      await as(await person('g6'), async () => {
+        expect(await attempt(`UPDATE "Guest" SET status = 'interested'`)).toEqual({ rows: 0 })
+        expect(await attempt(`UPDATE "Guest" SET "paymentConfirmedAt" = NULL`)).toEqual({ rows: 0 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id IN ('G-no', 'G-in')`)
+    }
+  })
+
+  it('lets an accepted guest who has not paid say they paid, and nothing else', async () => {
+    await db.query(
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId", status) VALUES
+       ('G-ok', 'T1', 'Ok', 'Go', 'ok@example.com', 'p', 'g5', 'approved')`
+    )
+    try {
+      await as(await person('g5'), async () => {
+        expect(await attempt(`UPDATE "Guest" SET "roomNote" = 'with Sam'`)).toEqual({
+          error: expect.stringMatching(/only say they paid/),
+        })
+        expect(await attempt(`UPDATE "Guest" SET status = 'interested'`)).toEqual({
+          error: guestRefused,
+        })
+        expect(await attempt(`UPDATE "Guest" SET "paymentSentAt" = now()`)).toEqual({ rows: 1 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-ok'`)
+    }
+  })
+
+  it('never accepts more guests than the trip takes', async () => {
+    await as(await person('u1'), async () => {
+      expect(await attempt(`UPDATE "Trip" SET "maxGuests" = 1 WHERE id = 'T1'`)).toEqual({
+        rows: 1,
+      })
+      expect(await attempt(`UPDATE "Guest" SET status = 'approved' WHERE id = 'G-T1-i'`)).toEqual({
+        error: expect.stringMatching(/trip_full/),
+      })
+      // Changing an accepted guest's other details is not a new spot.
+      expect(await attempt(`UPDATE "Guest" SET "roomNote" = 'x' WHERE id = 'G-T1-a'`)).toEqual({
+        rows: 1,
+      })
+      expect(await attempt(`UPDATE "Trip" SET "maxGuests" = 2 WHERE id = 'T1'`)).toEqual({
+        rows: 1,
+      })
+      expect(await attempt(`UPDATE "Guest" SET status = 'approved' WHERE id = 'G-T1-i'`)).toEqual({
+        rows: 1,
+      })
+    })
+  })
+
+  it("keeps a signature with its guest's own trip", async () => {
+    await expect(
+      db.query(
+        `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
+         VALUES ('A-bad', 'T2', 'G-T1-a', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'n', 'ip', 'ua')`
+      )
+    ).rejects.toThrow(/AgreementSignature_guestId_tripId_fkey/)
   })
 
   it("logs every change the admin makes to a trip's people, and lets nobody write the log", async () => {
@@ -541,6 +694,147 @@ suite('trip isolation', () => {
       expect(await attempt(`SELECT "admin_log_open"('T1')`)).toEqual({
         error: expect.stringMatching(/Admins only/),
       })
+    })
+  })
+
+  it("logs every change to a guest, who made it, to the trip's members only, and lets nobody write the log", async () => {
+    const kinds = async (guest: string) =>
+      (
+        await db.query<{
+          kind: string
+          actor: string
+          fromRoomId: string | null
+          toRoomId: string | null
+        }>(
+          `SELECT kind, actor, "fromRoomId", "toRoomId" FROM "GuestEvent" WHERE "guestId" = $1 ORDER BY at, n`,
+          [guest]
+        )
+      ).rows
+    await db.query(
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId") VALUES ('G-log', 'T1', 'Lo', 'Gg', 'log@example.com', 'p', 'g4')`
+    )
+    try {
+      // The guest signs and says they paid; the organizer confirms, accepts and moves their room.
+      await db.query(
+        `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
+         VALUES ('A-log', 'T1', 'G-log', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Lo Gg', 'ip', 'ua')`
+      )
+      // All as the restricted role, one transaction, switching who is calling between steps.
+      await as(await person('g4'), async () => {
+        const become = async (user: string) => {
+          const { trips = [] } = await person(user)
+          await db.query(
+            `SELECT set_config('app.user_id', $1, true), set_config('app.trip_ids', $2, true)`,
+            [user, trips.join(',')]
+          )
+        }
+        const run = (sql: string) => attempt(sql.replace(/;$/, ''))
+        // On an accept-first trip the guest pays only once accepted.
+        expect(await run(`UPDATE "Guest" SET "paymentSentAt" = now() WHERE id = 'G-log'`)).toEqual({
+          error: expect.stringMatching(/pays once accepted/),
+        })
+        await become('o1')
+        expect(
+          await run(`UPDATE "Guest" SET status = 'approved', "roomId" = 'R-T1' WHERE id = 'G-log'`)
+        ).toEqual({ rows: 1 })
+        await become('g4')
+        expect(await run(`UPDATE "Guest" SET "paymentSentAt" = now() WHERE id = 'G-log'`)).toEqual({
+          rows: 1,
+        })
+        // A guest never reads the log, their own lines included.
+        expect(await ids('GuestEvent')).toEqual([])
+        await become('o1')
+        expect(
+          await run(`UPDATE "Guest" SET "paymentConfirmedAt" = now() WHERE id = 'G-log'`)
+        ).toEqual({ rows: 1 })
+        expect(
+          await run(
+            `UPDATE "Guest" SET status = 'declined', "refundSentAt" = now() WHERE id = 'G-log'`
+          )
+        ).toEqual({ rows: 1 })
+        // Putting them back clears their payment and refund: one line, not an undone refund.
+        expect(
+          await run(
+            `UPDATE "Guest" SET status = 'interested', "paymentSentAt" = NULL, "paymentConfirmedAt" = NULL, "refundSentAt" = NULL WHERE id = 'G-log'`
+          )
+        ).toEqual({ rows: 1 })
+        // A contact change is logged by which detail changed, never its value.
+        expect(await run(`UPDATE "Guest" SET phone = 'p2' WHERE id = 'G-log'`)).toEqual({ rows: 1 })
+        // The trip's members read it; nobody writes, changes or deletes a line.
+        await become('u1')
+        expect(
+          (await db.query(`SELECT 1 FROM "GuestEvent" WHERE "guestId" = 'G-log'`)).rows
+        ).toHaveLength(10)
+        expect(
+          await run(
+            `INSERT INTO "GuestEvent" ("tripId", "guestId", kind, actor) VALUES ('T1', 'G-log', 'accepted', 'organizer')`
+          )
+        ).toEqual({ error: refused })
+        expect(await run(`UPDATE "GuestEvent" SET kind = 'turned_down'`)).toEqual({ rows: 0 })
+        expect(await run(`DELETE FROM "GuestEvent"`)).toEqual({ rows: 0 })
+        // Another trip's owner reads none of it.
+        await become('u2')
+        expect((await db.query(`SELECT 1 FROM "GuestEvent" WHERE "tripId" = 'T1'`)).rows).toEqual(
+          []
+        )
+        await db.exec('RESET ROLE')
+        expect(await kinds('G-log')).toEqual(
+          [
+            ['joined', 'system'],
+            ['signed', 'system'],
+            ['accepted', 'organizer'],
+            ['room_changed', 'organizer', 'R-T1'],
+            ['said_paid', 'guest'],
+            ['payment_confirmed', 'organizer'],
+            ['turned_down', 'organizer'],
+            ['refund_sent', 'organizer'],
+            ['put_back', 'organizer'],
+            ['contact_changed', 'organizer'],
+          ].map(([kind, actor, toRoomId = null]) => ({ kind, actor, fromRoomId: null, toRoomId }))
+        )
+        const contact = await db.query(
+          `SELECT fields FROM "GuestEvent" WHERE "guestId" = 'G-log' AND kind = 'contact_changed'`
+        )
+        expect(contact.rows).toEqual([{ fields: 'phone' }])
+      })
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-log'`)
+    }
+    expect(await kinds('G-log')).toEqual([])
+  })
+
+  it("logs a refused join as the person who tried it, to the trip's members only", async () => {
+    await as(await person('g3'), async () => {
+      expect(
+        await attempt(
+          `SELECT "log_refused_email"('t1', 'Pat Probe', 'ann-T1@example.com', '555', '192.0.2.9', 'ua', true)`
+        )
+      ).not.toHaveProperty('error')
+      // A draft trip takes no sign-ups, so nothing is logged for it.
+      await attempt(`SELECT "log_refused_email"('t2', 'n', 'e', 'p', 'ip', 'ua', false)`)
+      // The person who tried reads nothing, and nobody writes the table directly.
+      expect(await ids('TripLog')).toEqual([])
+      expect(
+        await attempt(`INSERT INTO "TripLog" ("tripId", kind) VALUES ('T1', 'email_refused')`)
+      ).toEqual({ error: refused })
+      await db.query(
+        `SELECT set_config('app.user_id', 'u1', true), set_config('app.trip_ids', 'T1', true)`
+      )
+      const rows = await db.query(`SELECT "tripId", "actorUserId", email, blocked FROM "TripLog"`)
+      expect(rows.rows).toEqual([
+        { tripId: 'T1', actorUserId: 'g3', email: 'ann-T1@example.com', blocked: true },
+      ])
+      expect(await attempt(`UPDATE "TripLog" SET email = 'x'`)).toEqual({ rows: 0 })
+      expect(await attempt(`DELETE FROM "TripLog"`)).toEqual({ rows: 0 })
+      await db.query(
+        `SELECT set_config('app.user_id', 'u2', true), set_config('app.trip_ids', 'T2', true)`
+      )
+      expect(await ids('TripLog')).toEqual([])
+    })
+    await as({}, async () => {
+      expect(
+        await attempt(`SELECT "log_refused_email"('t1', 'n', 'e', 'p', 'ip', 'ua', false)`)
+      ).toEqual({ error: expect.stringMatching(/Sign in first/) })
     })
   })
 

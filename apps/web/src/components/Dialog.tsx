@@ -35,7 +35,11 @@ export function Dialog({
       if (list.length === 0) return
       const first = list[0]
       const last = list[list.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
+      // A button that did its job can disappear (Accept becomes "Accepted"); focus comes back inside.
+      if (!panel.current?.contains(document.activeElement)) {
+        e.preventDefault()
+        first.focus()
+      } else if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -49,7 +53,8 @@ export function Dialog({
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = overflow
-      opener?.focus()
+      // What opened it may be gone (an action row that was done): then nothing is focused, rather than the page top.
+      if (opener?.isConnected) opener.focus()
     }
   }, [])
 

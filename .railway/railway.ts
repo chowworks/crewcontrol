@@ -87,13 +87,18 @@ export default defineRailway((ctx) => {
       rootDirectory: '/apps/api',
     }),
     build: { ...build, watchPatterns: ['apps/api/**', 'packages/types/**'] },
-    start: 'npx prisma migrate deploy && node dist/main.js',
+    // As in dev: migrations as the owner, then the restricted role kept in step (scripts/ensure-app-role.ts). No seed.
+    start: 'npx prisma migrate deploy && npm run role:ensure && node dist/main.js',
     deploy: { restartPolicyMaxRetries: 3 },
     replicas: { [REGION]: 1 },
     volumeMounts: { [UPLOADS_MOUNT]: uploads() },
     env: {
       NODE_ENV: 'production',
-      DATABASE_URL: '${{Postgres.DATABASE_URL}}',
+      // Row-level security, as in dev: the API connects as the restricted role cc_app, set by hand because it holds
+      // the role's password; migrations and role:ensure use the owner.
+      DATABASE_URL: preserve(),
+      SCHEMA_DATABASE_URL: '${{Postgres.DATABASE_URL}}?sslmode=require',
+      REQUIRE_TENANT_RLS: 'on',
       // The web app's address, for CORS.
       FRONTEND_URL: preserve(),
       // Trip photos: production's R2 bucket, private; guests get signed links.

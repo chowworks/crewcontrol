@@ -32,6 +32,11 @@ export interface TripKeyDate {
   label: string
 }
 
+/** How a trip takes its crew once guests have signed: the organizer accepts each one and then they pay
+ * (accept_first), they pay and then the organizer accepts each one (pay_first), or they pay and confirming a payment
+ * accepts them while spots are left (first_come). */
+export type JoinMode = 'accept_first' | 'pay_first' | 'first_come'
+
 /** What a guest sees on the public trip page. Never carries payment instructions or contact details. */
 export interface PublicTrip {
   slug: string
@@ -55,18 +60,17 @@ export interface PublicTrip {
   /** A demo trip from the seed, shown with a "Sample Trip" badge. */
   isSample: boolean
   maxGuests: number | null
-  payFirst: boolean
-  /** How to pay the organizer: shown publicly only on pay-first trips, where guests pay before registering. */
-  paymentInstructions: string | null
+  joinMode: JoinMode
   /** Rooms guests can ask for, with how many places are still open; empty unless room choice is on. */
   rooms: PublicRoom[]
   /** Room choice, whether a room is required, and the lines beside the sign-up button. */
   options: TripOptions
-  /** Spots taken against maxGuests: approved guests, and on pay-first trips also guests who say they've paid. */
+  /** Spots taken against maxGuests: accepted guests. */
   spotsTaken: number
 }
 
-export type GuestStatus = 'interested' | 'approved'
+/** Joining, then accepted, or turned down by the organizer. */
+export type GuestStatus = 'interested' | 'approved' | 'declined'
 
 /** A person's part in running a trip (TripMember.role): the owner decides who else organizes it. */
 export type TripRole = 'owner' | 'organizer'
@@ -78,19 +82,93 @@ export interface Guest {
   email: string
   phone: string
   status: GuestStatus
-  /** ISO times: registered, said they sent the first payment, organizer confirmed it arrived. */
+  /** ISO times: joined, said they sent the first payment, organizer confirmed it arrived, refund sent. */
   createdAt: string
   paymentSentAt: string | null
   paymentConfirmedAt: string | null
+  refundSentAt: string | null
   roomId: string | null
   /** Who they'd like to share with, in their words. */
   roomNote: string
+  /** When they signed the trip agreement, or null if they haven't (guests from before signing). */
+  signedAt: string | null
+  /** The terms their signed agreement quoted, which their balance uses; null if unsigned. */
+  terms: GuestTerms | null
 }
+
+/** What a guest's signed agreement holds them and the organizer to. Trip changes after signing never touch it. */
+export interface GuestTerms {
+  priceCents: number
+  installmentCount: number
+  startDate: string
+  endDate: string
+  refundTerms: string
+  /** The first installment, which holds the spot. */
+  firstInstallmentCents: number
+  /** What is left to pay: the price less the payments the organizer has confirmed. */
+  balanceCents: number
+}
+
+/** A signed agreement, as the guest who signed it and the trip's organizers see it. */
+export interface SignedAgreement {
+  text: string
+  /** SHA-256 of the text, hex. */
+  textHash: string
+  templateVersion: string
+  typedName: string
+  signedAt: string
+  ipAddress: string
+  userAgent: string
+}
+
+/** One line of a guest's history in Trip Control, oldest first. The database writes these; nobody edits them. */
+export interface GuestEvent {
+  at: string
+  kind:
+    | 'joined'
+    | 'signed'
+    | 'said_paid'
+    | 'payment_confirmed'
+    | 'payment_undone'
+    | 'accepted'
+    | 'turned_down'
+    | 'put_back'
+    | 'refund_sent'
+    | 'refund_undone'
+    | 'room_changed'
+    | 'contact_changed'
+  /** Who did it: the guest, one of the trip's organizers, or CrewControl itself (a sample trip's setup). */
+  actor: 'guest' | 'organizer' | 'system'
+  /** For room_changed: the rooms' names, null for no room or a room since removed. */
+  fromRoom: string | null
+  toRoom: string | null
+  /** For contact_changed: which details changed, never their values. */
+  fields: ('name' | 'email' | 'phone')[]
+}
+
+/**
+ * One line of the trip log in Trip Control, newest first: a join refused because the email is already on the trip
+ * (what was typed, from where, and whether it hit the limit of three every ten minutes), the admin seating
+ * themselves on or opening the trip, or a line of a guest's history.
+ */
+export type TripLogEntry =
+  | {
+      kind: 'email_refused'
+      at: string
+      name: string
+      email: string
+      phone: string
+      ipAddress: string
+      userAgent: string
+      blocked: boolean
+    }
+  | { kind: 'admin'; at: string; action: 'insert' | 'update' | 'delete' | 'open' }
+  | { kind: 'guest'; at: string; guestId: string; guestName: string; event: GuestEvent }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**
  * Trip settings that only change what the pages show, kept together in one field (Trip.options) so a new one needs
- * no database change. A setting the database must enforce (pay to register) stays its own column.
+ * no database change. A setting the database must enforce (the join mode) stays its own column.
  */
 export interface TripOptions {
   /** Guests pick a room when they sign up, from the trip's rooms. */
@@ -125,10 +203,7 @@ export interface TripInput {
   keyDates: TripKeyDate[]
   /** The most guests the trip takes; null for no limit. */
   maxGuests: number | null
-  /** Guests confirm they've sent the first installment when they register. Needs refundPledge. */
-  payFirst: boolean
-  /** The organizer refunds anyone who paid but didn't get a spot because the trip filled. */
-  refundPledge: boolean
+  joinMode: JoinMode
   options: TripOptions
 }
 
@@ -219,22 +294,58 @@ export interface PublicRoom {
   spotsLeft: number
 }
 
-/** What a guest sends from the trip page's sign-up form. */
-export interface RegistrationInput {
+/** What a signed-in guest sends from the join page: their details, and their signature on the agreement. */
+export interface JoinInput {
   name: string
   phone: string
   email: string
-  /** Required on pay-first trips: the guest confirms they've sent the first installment. */
-  paymentSent: boolean
   /** Optional: the room they'd like, and who they'd share with. */
   roomId?: string | null
   roomNote?: string
+  /** Their full name, typed as their signature. */
+  typedName: string
+  /** The "I agree" box, unticked until they tick it. */
+  agreed: boolean
+  /** The SHA-256 of the agreement they were shown, so a trip changed in the meantime is never signed unseen. */
+  agreementHash: string
+}
+
+/** The trip agreement as it stands for a trip today, before anyone signs it. */
+export interface AgreementPreview {
+  text: string
+  textHash: string
+  templateVersion: string
+}
+
+/** The signed-in guest's own place on a trip, as their join page shows it. */
+export interface MyGuest {
+  status: GuestStatus
+  firstName: string
+  lastName: string
+  paymentSentAt: string | null
+  paymentConfirmedAt: string | null
+  refundSentAt: string | null
+  roomId: string | null
+  terms: GuestTerms | null
+  agreement: SignedAgreement | null
+  /** How to pay the organizer. Only ever sent to a guest who joined (on an accept_first trip, once accepted). */
+  paymentInstructions: string
+}
+
+/** The join page: the trip, the agreement to sign, and the guest's own place once they've joined. */
+export interface JoinView {
+  trip: PublicTrip
+  agreement: AgreementPreview
+  me: MyGuest | null
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
 export interface GuestUpdate {
+  /** Accept, turn down, or put back to waiting. */
   status?: GuestStatus
   paymentConfirmed?: boolean
+  /** Turning down a guest whose payment arrived needs this: the organizer says the refund went out. */
+  refundSent?: boolean
   /** Move the guest to a room, or null for no room. */
   roomId?: string | null
 }

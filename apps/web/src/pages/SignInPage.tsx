@@ -2,7 +2,7 @@ import { SignIn, SignUp } from '@clerk/clerk-react'
 import { Logo } from '@/components/Logo'
 import { authConfigured } from '@/lib/auth'
 
-/** Sign-in and sign-up for organizers. Guests never need an account. */
+/** Sign-in and sign-up, for organizers and for guests joining a trip (who come back to the join page after). */
 export function SignInPage({ mode = 'sign-in' }: { mode?: 'sign-in' | 'sign-up' }) {
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -19,7 +19,9 @@ export function SignInPage({ mode = 'sign-in' }: { mode?: 'sign-in' | 'sign-up' 
         ) : (
           <SignIn routing="path" path="/sign-in" fallbackRedirectUrl="/organize" />
         )}
-        <p className="text-sm text-muted">For trip organizers. Your crew never needs an account.</p>
+        <p className="text-sm text-muted">
+          Organizers run trips here. Guests sign in to join a trip and sign its agreement.
+        </p>
       </main>
     </div>
   )
