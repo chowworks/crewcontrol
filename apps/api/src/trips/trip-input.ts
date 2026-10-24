@@ -190,7 +190,8 @@ export function parseRooms(raw: unknown): TripRoom[] {
   })
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Domain parts split at each dot, so no two parts of the pattern can match the same text (no slow backtracking).
+const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/
 
 /** "  Jordan   Price " → "jordan price": how a typed signature is compared with the name on the form. */
 export const sameName = (a: string, b: string): boolean =>

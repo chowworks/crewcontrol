@@ -116,7 +116,7 @@ export function joinProblems(d: Draft, roomRequired = false): Partial<Record<key
   const out: Partial<Record<keyof Draft, string>> = {}
   if (!d.name.trim()) out.name = 'Add your name.'
   if (d.phone.replace(/\D/g, '').length < 7) out.phone = 'Add a phone number we can text.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) out.email = 'Add an email address.'
+  if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(d.email.trim())) out.email = 'Add an email address.'
   if (!d.typedName.trim()) out.typedName = 'Type your full name to sign.'
   else if (d.name.trim() && !sameName(d.typedName, d.name))
     out.typedName = 'Type your name exactly as you wrote it above.'
