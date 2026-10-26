@@ -20,6 +20,7 @@ const trip: Trip = {
   isSample: false,
   maxGuests: null,
   joinMode: 'pay_first',
+  refundPolicy: 'spot_filled',
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],

@@ -35,6 +35,13 @@ export interface TripKeyDate {
  * accepts them while spots are left (first_come). */
 export type JoinMode = 'accept_first' | 'pay_first' | 'first_come'
 
+/**
+ * How refunds work when a guest drops out after they're accepted, as the trip agreement words it. Presets only, never
+ * free text (owner's decision, 2026-10-26): 'spot_filled' gives money back only if the organizer fills the spot, as
+ * much as the new guest pays; 'first_payment_kept' keeps the first payment and treats the rest as 'spot_filled'.
+ */
+export type RefundPolicy = 'spot_filled' | 'first_payment_kept'
+
 /** What a guest sees on the public trip page. Never carries payment instructions or contact details. */
 export interface PublicTrip {
   slug: string
@@ -59,6 +66,8 @@ export interface PublicTrip {
   isSample: boolean
   maxGuests: number | null
   joinMode: JoinMode
+  /** The trip agreement quotes it, so the join page needs it (terms, not anything private). */
+  refundPolicy: RefundPolicy
   /** Rooms guests can ask for, with how many places are still open; empty unless room choice is on. */
   rooms: PublicRoom[]
   /** Room choice, whether a room is required, and the lines beside the sign-up button. */
@@ -300,6 +309,7 @@ export interface TripInput {
   /** The most guests the trip takes; null for no limit. */
   maxGuests: number | null
   joinMode: JoinMode
+  refundPolicy: RefundPolicy
   options: TripOptions
 }
 
@@ -643,4 +653,23 @@ export interface MyActions {
     /** 'organizer' for a trip they run; 'guest' for one they joined (something to pay). */
     as: 'organizer' | 'guest'
   }[]
+}
+
+/** An organizer asking for something CrewControl doesn't do yet (for now, other refund terms). */
+export interface OrganizerRequestInput {
+  kind: 'refund_terms'
+  /** The trip they were setting up, if it's saved. */
+  tripId?: string
+  text: string
+}
+
+/** A request as the Admin toolbox lists it. */
+export interface OrganizerRequest {
+  id: string
+  kind: 'refund_terms'
+  /** Who asked, by name (from sign-in), and the trip they were setting up. */
+  userName: string
+  tripName: string
+  text: string
+  createdAt: string
 }

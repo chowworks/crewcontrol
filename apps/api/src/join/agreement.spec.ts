@@ -16,6 +16,7 @@ const trip = {
   costPerPersonCents: 120000,
   installmentCount: 4,
   joinMode: 'pay_first',
+  refundPolicy: 'spot_filled',
 }
 
 describe('the trip agreement', () => {
@@ -36,6 +37,21 @@ describe('the trip agreement', () => {
     )
     expect(text).toContain('You pay nothing until Chris accepts you')
     expect(text).not.toContain('by the time your payment is confirmed')
+  })
+
+  it('words the refund policy the organizer picked', () => {
+    expect(agreementText(trip)).toContain(
+      'If you drop out after you are accepted, money you paid comes back only if Chris fills your spot'
+    )
+    const kept = agreementText({ ...trip, refundPolicy: 'first_payment_kept' })
+    expect(kept).toContain('your first payment ($300) is not refunded')
+    expect(kept).toContain('Money you paid after it comes back only if Chris fills your spot')
+    // Turned down or removed: a full refund, whatever the policy.
+    expect(kept).toContain('Chris refunds everything you paid, in full')
+    expect(kept).toContain('If Chris removes you from the trip, Chris refunds everything you paid')
+    expect(agreementPreview({ ...trip, refundPolicy: 'first_payment_kept' }).textHash).not.toBe(
+      agreementPreview(trip).textHash
+    )
   })
 
   it('says how spots go on a first come, first served trip', () => {

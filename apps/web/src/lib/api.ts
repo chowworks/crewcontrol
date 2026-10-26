@@ -10,6 +10,8 @@ import {
   type JoinView,
   type MyActions,
   type MyTerms,
+  type OrganizerRequest,
+  type OrganizerRequestInput,
   type OrganizerTrip,
   type PaymentDecision,
   type PaymentLog,
@@ -125,6 +127,8 @@ export const api = {
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   getSettings: () => request<SystemSettings>('/admin/settings'),
+  adminRequests: () => request<OrganizerRequest[]>('/admin/requests'),
+  addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
   setSettings: (settings: SystemSettings) =>
     request<SystemSettings>('/admin/settings', json('PUT', settings)),
   seatOnTrip: (id: string, asOwner = false) =>

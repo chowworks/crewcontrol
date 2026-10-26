@@ -60,7 +60,9 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   pay for it, the one confirmed second is refunded. Turning down a guest whose payment arrived needs the organizer to
   tick "Refund sent" (`Guest.refundSentAt`); that records the refund, it moves no money.
 - **The trip agreement** is one fixed CrewControl template (`apps/api/src/join/agreement.ts`, `TEMPLATE_VERSION`),
-  filled from the trip's facts; organizers can't edit it, only preview it. Click-to-sign: typed full name, an "I
+  filled from the trip's facts; organizers can't edit it, only preview it, and pick its refund policy from presets
+  (`Trip.refundPolicy`: `spot_filled` or `first_payment_kept`, owner's decision 2026-10-26; never free text, and
+  organizers ask for other terms with "Suggest other refund terms", listed in the Admin toolbox). Click-to-sign: typed full name, an "I
   agree" box unticked by default, a "Sign" button. Each `AgreementSignature` keeps the text as shown, its SHA-256,
   the typed name, time, IP and browser, and the price, plan, dates and refund terms it quoted. A guest's balance
   comes from their own signature, never from the trip's current settings. The wording has not had a lawyer's

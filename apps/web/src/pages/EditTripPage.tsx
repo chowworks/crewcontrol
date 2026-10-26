@@ -26,12 +26,13 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Dialog } from '@/components/Dialog'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
 import { Logo } from '@/components/Logo'
+import { useToast } from '@/components/Toast'
 import { PriceSimulator } from '@/components/PriceSimulator'
 import { RoomsEditor, roomProblem } from '@/components/RoomsEditor'
 import { TripView } from '@/components/TripView'
@@ -62,6 +63,7 @@ const EMPTY: TripInput = {
   keyDates: [],
   maxGuests: null,
   joinMode: 'accept_first',
+  refundPolicy: 'spot_filled',
   options: DEFAULT_TRIP_OPTIONS,
 }
 
@@ -121,7 +123,14 @@ function previewOf(
 
 /** The editable part of a loaded trip (drops id, slug, guests and updatedAt). */
 function toInput(trip: OrganizerTrip): TripInput {
-  const { id: _id, slug: _slug, guests: _guests, updatedAt: _updatedAt, ...input } = trip
+  const {
+    id: _id,
+    slug: _slug,
+    guests: _guests,
+    updatedAt: _updatedAt,
+    waitlistBufferPercent: _buffer,
+    ...input
+  } = trip
   return input
 }
 
@@ -510,6 +519,41 @@ export function EditTripPage() {
                       </span>
                     </label>
                   ))}
+                </fieldset>
+                <fieldset className="flex flex-col gap-2.5">
+                  <legend className="mb-1 text-sm font-semibold">
+                    Refunds when someone drops out
+                  </legend>
+                  <p className="mb-1 text-sm text-muted">
+                    Whatever you pick, anyone you turn down or remove gets everything back.
+                  </p>
+                  {guests.some((g) => g.signedAt) && (
+                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                      Guests have signed under these terms, so they can’t change now.
+                    </p>
+                  )}
+                  {REFUND_POLICIES.map((r) => (
+                    <label
+                      key={r.value}
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
+                        trip.refundPolicy === r.value ? 'border-royal bg-royal-pale' : 'border-rule'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="refundPolicy"
+                        checked={trip.refundPolicy === r.value}
+                        disabled={guests.some((g) => g.signedAt)}
+                        onChange={() => set('refundPolicy', r.value)}
+                        className="mt-1 h-4 w-4 accent-royal"
+                      />
+                      <span className="flex flex-col gap-0.5">
+                        <span className="font-semibold">{r.label}</span>
+                        <span className="text-sm text-muted">{r.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                  <SuggestTerms tripId={id} />
                 </fieldset>
                 <AgreementButton tripId={id} />
               </Card>
@@ -970,6 +1014,97 @@ function PaymentMethodsEditor({
         </button>
       )}
     </div>
+  )
+}
+
+// The refund presets organizers pick from (owner's decision, 2026-10-26: presets only, and a way to ask for others).
+// The agreement's wording for each is in apps/api/src/join/agreement.ts (refundTerms).
+const REFUND_POLICIES = [
+  {
+    value: 'spot_filled',
+    label: 'Refund only if you fill their spot',
+    hint: 'If a guest drops out, they get back what the person who takes their spot pays. If nobody does, they get nothing back.',
+  },
+  {
+    value: 'first_payment_kept',
+    label: 'Keep the first payment',
+    hint: 'The first payment isn’t refunded (for deposits you can’t get back). Anything paid after it comes back only if you fill their spot.',
+  },
+] as const
+
+/**
+ * "Suggest other refund terms": organizers who need terms we don't offer say what they want, so we learn what to add
+ * (owner's decision, 2026-10-26). It goes to the CrewControl team; the Admin toolbox lists them.
+ */
+function SuggestTerms({ tripId }: { tripId?: string }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [tried, setTried] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
+  const problem = text.trim() ? null : 'Say what terms you need.'
+  async function send(e: FormEvent) {
+    e.preventDefault()
+    setTried(true)
+    if (problem || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.addRequest({ kind: 'refund_terms', tripId, text: text.trim() })
+      setOpen(false)
+      setText('')
+      setTried(false)
+      toast({ text: 'Thanks. We read every suggestion.' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That didn’t send. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex min-h-[44px] items-center self-start rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
+      >
+        Suggest other refund terms
+      </button>
+      {open && (
+        <Dialog title="Suggest other refund terms" onClose={() => setOpen(false)}>
+          <form onSubmit={send} noValidate className="flex flex-col gap-4">
+            {error && (
+              <p role="alert" className="font-semibold text-[#B42318]">
+                {error}
+              </p>
+            )}
+            <p className="text-body">
+              Tell us the refund terms your trip needs. We’ll use it to decide which to add.
+            </p>
+            <label className="flex flex-col gap-1.5 text-sm font-semibold">
+              The terms you need
+              <textarea
+                className={`${field} min-h-[120px] font-normal`}
+                value={text}
+                maxLength={2000}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="For example: a full refund until 60 days before the trip."
+                aria-invalid={Boolean(tried && problem)}
+              />
+              {tried && problem && <span className="font-semibold text-[#B42318]">{problem}</span>}
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex min-h-[44px] items-center self-start rounded-xl bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
+            >
+              Send suggestion
+            </button>
+          </form>
+        </Dialog>
+      )}
+    </>
   )
 }
 

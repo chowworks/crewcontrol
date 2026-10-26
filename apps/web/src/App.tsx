@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
+import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
 import { ContactPage } from './pages/ContactPage'
@@ -87,6 +88,14 @@ export default function App() {
         element={
           <RequireSignIn>
             <AdminTripsPage />
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/requests"
+        element={
+          <RequireSignIn>
+            <AdminRequestsPage />
           </RequireSignIn>
         }
       />

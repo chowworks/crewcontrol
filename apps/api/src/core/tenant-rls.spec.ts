@@ -937,6 +937,30 @@ suite('trip isolation', () => {
     )
   })
 
+  it("keeps organizers' requests to the admin, and lets each person add only their own", async () => {
+    const add = (user: string) =>
+      attempt(
+        `INSERT INTO "OrganizerRequest" (kind, "userId", text) VALUES ('refund_terms', '${user}', 'Full refund before May')`
+      )
+    await as(await person('u1'), async () => {
+      expect(await add('u1')).toEqual({ rows: 1 })
+      expect(await add('u2')).toEqual({ error: refused })
+      expect(await ids('OrganizerRequest')).toEqual([])
+    })
+    await db.query(
+      `INSERT INTO "OrganizerRequest" (id, kind, "userId", text) VALUES ('R1', 'refund_terms', 'u1', 'x')`
+    )
+    try {
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('OrganizerRequest')).toEqual(['R1'])
+        expect(await attempt(`UPDATE "OrganizerRequest" SET text = 'y'`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "OrganizerRequest"`)).toEqual({ rows: 0 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "OrganizerRequest"`)
+    }
+  })
+
   it('lets everyone read the system settings and only the admin change them', async () => {
     const set = (pct: number) =>
       attempt(`UPDATE "SystemSettings" SET "waitlistBufferPercent" = ${pct}`)

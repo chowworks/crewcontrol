@@ -24,6 +24,7 @@ import {
   type PaymentMethodKind,
   type PaymentReport,
   type SystemSettings,
+  type OrganizerRequestInput,
 } from './trip-types'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -121,6 +122,9 @@ export function parseTripInput(raw: unknown): TripInput {
   const maxGuests =
     body.maxGuests === null || body.maxGuests === undefined ? null : int(body, 'maxGuests', 1, 200)
   const joinMode = body.joinMode === undefined ? 'accept_first' : body.joinMode
+  const refundPolicy = body.refundPolicy === undefined ? 'spot_filled' : body.refundPolicy
+  if (refundPolicy !== 'spot_filled' && refundPolicy !== 'first_payment_kept')
+    fail('refundPolicy must be spot_filled or first_payment_kept')
   if (!JOIN_MODES.includes(joinMode as JoinMode))
     fail('joinMode must be accept_first, pay_first or first_come')
   return {
@@ -145,6 +149,7 @@ export function parseTripInput(raw: unknown): TripInput {
       .sort((a, b) => a.date.localeCompare(b.date)),
     maxGuests,
     joinMode: joinMode as JoinMode,
+    refundPolicy,
     options: parseOptions(body.options),
   }
 }
@@ -326,4 +331,15 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
 export function parseSystemSettings(raw: unknown): SystemSettings {
   if (!raw || typeof raw !== 'object') fail('Expected settings')
   return { waitlistBufferPercent: int(raw as Body, 'waitlistBufferPercent', 0, 100) }
+}
+
+export function parseOrganizerRequest(raw: unknown): OrganizerRequestInput {
+  if (!raw || typeof raw !== 'object') fail('Expected a request')
+  const body = raw as Body
+  if (body.kind !== 'refund_terms') fail('kind must be refund_terms')
+  return {
+    kind: 'refund_terms',
+    tripId: typeof body.tripId === 'string' && body.tripId ? body.tripId : undefined,
+    text: text(body, 'text', 2000),
+  }
 }

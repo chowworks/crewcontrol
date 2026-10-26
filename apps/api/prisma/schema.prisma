@@ -40,6 +40,9 @@ model Trip {
   // pay, then the organizer accepts each one whose payment arrived) or 'first_come' (they pay, and confirming a
   // payment accepts them while spots are left).
   joinMode            String               @default("accept_first")
+  // How refunds work when a guest drops out (RefundPolicy): 'spot_filled' or 'first_payment_kept'. Presets only, and
+  // fixed once a guest has signed (migration 20261026040000_refund_policy).
+  refundPolicy        String               @default("spot_filled")
   photos              Json                 @default("[]") // TripPhoto[]; the first is the cover
   highlights          Json                 @default("[]") // TripHighlight[]
   keyDates            Json                 @default("[]") // TripKeyDate[]
@@ -271,4 +274,18 @@ model SystemSettings {
   waitlistBufferPercent Int      @default(10)
   updatedAt             DateTime @default(now())
   updatedByUserId       String?
+}
+
+// What organizers ask CrewControl for that it doesn't do yet (for now, other refund terms), in their words. Anyone
+// signed in adds their own; only the platform admin reads them (migration 20261026040000_refund_policy).
+model OrganizerRequest {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  kind      String // 'refund_terms'
+  userId    String
+  tripId    String?
+  tripName  String   @default("")
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

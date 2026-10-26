@@ -23,7 +23,13 @@ import {
   type PaymentReport,
 } from '../trips/trip-types'
 import { roomFull, TripsService } from '../trips/trips.service'
-import { agreementPreview, refundTerms, TEMPLATE_VERSION, termsOf } from './agreement'
+import {
+  agreementPreview,
+  firstInstallmentCents,
+  refundTerms,
+  TEMPLATE_VERSION,
+  termsOf,
+} from './agreement'
 import { sendText } from './send-text'
 
 /** Where guests open the web app, for links in texts: the first of FRONTEND_URL's addresses. */
@@ -156,7 +162,12 @@ export class JoinService {
               installmentCount: trip.installmentCount,
               startDate: trip.startDate,
               endDate: trip.endDate,
-              refundTerms: refundTerms(trip.organizerName, trip.joinMode),
+              refundTerms: refundTerms(
+                trip.organizerName,
+                trip.joinMode,
+                trip.refundPolicy,
+                firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
+              ),
               typedName: input.typedName,
               ipAddress: from.ip.slice(0, 64),
               userAgent: from.userAgent.slice(0, 500),

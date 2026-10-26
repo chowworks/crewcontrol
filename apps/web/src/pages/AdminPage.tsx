@@ -1,4 +1,4 @@
-import { Luggage, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import { Luggage, MessageSquareText, SlidersHorizontal, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -24,6 +24,14 @@ const TOOLS: {
     text: 'Every trip on CrewControl: who runs it, who has signed up, and a way into its Trip Control panel.',
     sub: 'Every trip, with a way into each one’s Trip Control panel.',
     how: 'Opening a trip’s Trip Control panel or editor seats you on it as an organizer, so you see its guests; every seat is written to the trip’s access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears seats on them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
+  },
+  {
+    to: '/admin/requests',
+    icon: MessageSquareText,
+    title: 'Organizer requests',
+    text: 'What organizers asked for that CrewControl doesn’t do yet, like other refund terms.',
+    sub: 'What organizers asked for, newest first.',
+    how: 'Organizers send these from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. Each shows who asked, the trip they were setting up, and their words. Nobody can change or delete one.',
   },
   {
     to: '/admin/settings',

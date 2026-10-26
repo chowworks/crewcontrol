@@ -1,13 +1,19 @@
 import { createHash } from 'node:crypto'
-import type { AgreementPreview, GuestTerms, JoinMode, Payment } from '../trips/trip-types'
+import type {
+  AgreementPreview,
+  GuestTerms,
+  JoinMode,
+  Payment,
+  RefundPolicy,
+} from '../trips/trip-types'
 
 /**
  * CrewControl's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
- * decision, 2026-10-21). Change the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it:
+ * decision, 2026-10-21); they pick a refund policy from presets this file words (owner's decision, 2026-10-26). Change the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it:
  * this first version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-24'
+export const TEMPLATE_VERSION = '2026-10-26'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -19,6 +25,7 @@ export interface AgreementFacts {
   costPerPersonCents: number
   installmentCount: number
   joinMode: string
+  refundPolicy: string
 }
 
 /** 120000 → "$1,200"; 120050 → "$1,200.50" (as the web app's money()). */
@@ -35,19 +42,30 @@ export function firstInstallmentCents(priceCents: number, installmentCount: numb
   return installmentCount <= 1 ? priceCents : Math.floor(priceCents / installmentCount)
 }
 
-/** The refund promise. Turning a paid guest down needs the organizer to say they sent this refund. */
-export function refundTerms(organizer: string, joinMode: string): string {
+/**
+ * The refund promise. Turning a paid guest down needs the organizer to say they sent this refund. What happens when a
+ * guest drops out follows the trip's refund policy; `firstCents` is the first payment their plan asks for.
+ */
+export function refundTerms(
+  organizer: string,
+  joinMode: string,
+  refundPolicy: string,
+  firstCents: number
+): string {
   const before =
     joinMode === 'accept_first'
       ? `You pay nothing until ${organizer} accepts you. If ${organizer} turns you down after you paid anything, ` +
         `${organizer} refunds it in full.`
       : `If ${organizer} does not accept you, or the trip is full by the time your payment is confirmed, ` +
         `${organizer} refunds everything you paid, in full.`
-  return (
-    `${before} If you drop out after you are accepted, money you paid comes back only if ${organizer} fills your ` +
-    `spot with someone else, and only as much as that person pays for it. If ${organizer} removes you from the ` +
-    `trip, ${organizer} refunds everything you paid.`
-  )
+  const dropOut =
+    (refundPolicy as RefundPolicy) === 'first_payment_kept'
+      ? `If you drop out after you are accepted, your first payment (${money(firstCents)}) is not refunded. Money ` +
+        `you paid after it comes back only if ${organizer} fills your spot with someone else, and only as much as ` +
+        `that person pays for it.`
+      : `If you drop out after you are accepted, money you paid comes back only if ${organizer} fills your spot ` +
+        `with someone else, and only as much as that person pays for it.`
+  return `${before} ${dropOut} If ${organizer} removes you from the trip, ${organizer} refunds everything you paid.`
 }
 
 function spotTerms(organizer: string, joinMode: JoinMode): string {
@@ -80,7 +98,7 @@ export function agreementText(trip: AgreementFacts): string {
     `2. Your price\n${money(trip.costPerPersonCents)} per person, ${plan}. You pay ${o} directly, the way ` +
       `${o}'s payment instructions say.`,
     `3. Your spot\n${spotTerms(o, trip.joinMode as JoinMode)}`,
-    `4. Refunds\n${refundTerms(o, trip.joinMode)}`,
+    `4. Refunds\n${refundTerms(o, trip.joinMode, trip.refundPolicy, first)}`,
     `5. If the trip changes\nIf ${o} changes the trip's dates or destination after you sign, you may leave the ` +
       `trip for a full refund of what you paid, or stay on.`,
     `6. The organizer's role\n${o} collects the group's money and pays the trip's costs on the group's behalf. ` +

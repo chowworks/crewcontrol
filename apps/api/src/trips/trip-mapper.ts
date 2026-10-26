@@ -16,6 +16,7 @@ import {
   type Payment,
   type PaymentMethod,
   type PublicTrip,
+  type RefundPolicy,
   type SignedAgreement,
   type TripHighlight,
   type TripKeyDate,
@@ -92,6 +93,7 @@ export function toPublicTrip(
     isSample: row.isSample,
     maxGuests: row.maxGuests,
     joinMode: row.joinMode as JoinMode,
+    refundPolicy: row.refundPolicy as RefundPolicy,
     // Places left counts everyone who asked for the room; the organizer can move people.
     options,
     rooms: (options.roomChoice ? (row.rooms ?? []) : []).map((r) => ({
@@ -186,6 +188,7 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     keyDates: row.keyDates as unknown as TripKeyDate[],
     maxGuests: row.maxGuests,
     joinMode: row.joinMode as JoinMode,
+    refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
     guests: row.guests.map(toGuest),
     updatedAt: row.updatedAt.toISOString(),

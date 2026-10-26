@@ -28,6 +28,7 @@ import type {
   PaymentDecision,
   PaymentLog,
   PublicTrip,
+  OrganizerRequestInput,
   SignedAgreement,
   SystemSettings,
   TripInput,
@@ -82,6 +83,34 @@ export class TripsService {
       data: { ...input, updatedAt: new Date(), updatedByUserId: caller.userId },
     })
     return this.settings()
+  }
+
+  /**
+   * An organizer asks for something CrewControl doesn't do yet (other refund terms), in their words, with the trip
+   * they were setting up when it's one of theirs. Kept for the CrewControl team; only the admin reads them.
+   */
+  async addRequest(input: OrganizerRequestInput, caller: Caller): Promise<void> {
+    const trip = input.tripId
+      ? await this.prisma.trip.findFirst({
+          where: { id: input.tripId, members: { some: { userId: caller.userId } } },
+          select: { id: true, name: true },
+        })
+      : null
+    // Written without reading it back: only the admin reads requests, and create() would read the new row.
+    await this.prisma.organizerRequest.createMany({
+      data: {
+        kind: input.kind,
+        userId: caller.userId,
+        tripId: trip?.id ?? null,
+        tripName: trip?.name ?? '',
+        text: input.text,
+      },
+    })
+  }
+
+  /** Every request, newest first, for the Admin toolbox (who asked comes from sign-in, by user id). */
+  async listRequests() {
+    return this.prisma.organizerRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })
   }
 
   private async waitlistBufferPercent(): Promise<number> {
@@ -170,6 +199,11 @@ export class TripsService {
     if (input.joinMode !== current.joinMode && current.guests.some((g) => g.signedAt))
       throw new BadRequestException(
         'Guests have signed under the current rules, so who gets a spot can’t change now.'
+      )
+    // The same for refunds: each guest who signed agreed to this policy.
+    if (input.refundPolicy !== current.refundPolicy && current.guests.some((g) => g.signedAt))
+      throw new BadRequestException(
+        'Guests have signed under the current refund terms, so they can’t change now.'
       )
     const row = await uniqueSlug(() =>
       this.prisma.trip.update({

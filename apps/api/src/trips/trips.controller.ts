@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import { RateLimiter } from '../core/rate-limit'
 import type { Caller } from '../auth/caller'
 import { runAsPublic } from '../core/tenant-context'
 import { ClerkService } from '../auth/clerk.service'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import {
   parseGuestUpdate,
+  parseOrganizerRequest,
   parsePaymentDecision,
   parsePaymentLog,
   parseRooms,
@@ -13,6 +15,7 @@ import {
   parseTripInput,
 } from './trip-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
+import type { OrganizerRequest } from './trip-types'
 import { TripsService } from './trips.service'
 
 // Organizer endpoints: signed in with Clerk, the Organizer Terms accepted, and only for the caller's own trips
@@ -162,6 +165,21 @@ export class AdminController {
     return this.trips.seat(id, caller, asOwner)
   }
 
+  // What organizers asked for (other refund terms), newest first, with who asked.
+  @Get('requests')
+  async requests() {
+    const rows = await this.trips.listRequests()
+    const names = await this.clerk.names([...new Set(rows.map((r) => r.userId))])
+    return rows.map((r): OrganizerRequest => ({
+      id: r.id,
+      kind: r.kind as OrganizerRequest['kind'],
+      userName: names.get(r.userId) ?? 'Unknown',
+      tripName: r.tripName,
+      text: r.text,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
   // System Settings: CrewControl-wide values (for now, the waitlist buffer).
   @Get('settings')
   settings() {
@@ -181,4 +199,26 @@ async function withOwnerNames<T extends { ownerIds: string[] }>(trips: T[], cler
     ...t,
     ownerName: ownerIds.length ? ownerIds.map((id) => names.get(id) ?? 'Unknown').join(', ') : null,
   }))
+}
+
+// Organizers asking for what CrewControl doesn't do yet (other refund terms): kept for the CrewControl team.
+@Controller('requests')
+@UseGuards(SignedInGuard)
+export class RequestsController {
+  constructor(private readonly trips: TripsService) {}
+
+  // A few per person every ten minutes is plenty for a suggestion box.
+  private readonly limit = new RateLimiter(
+    5,
+    10 * 60 * 1000,
+    'Too many requests. Try again in a few minutes.'
+  )
+
+  @Post()
+  @HttpCode(204)
+  async add(@Body() body: unknown, @CurrentCaller() caller: Caller) {
+    const input = parseOrganizerRequest(body)
+    this.limit.hit(caller.userId)
+    await this.trips.addRequest(input, caller)
+  }
 }

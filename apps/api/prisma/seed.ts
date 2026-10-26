@@ -177,6 +177,8 @@ const trips: Seed[] = [
     paymentInstructions: "Memo: your name + 'TULUM40'.",
     published: true,
     joinMode: 'pay_first',
+    // A villa booked with a deposit the owner keeps: the first payment isn't refunded.
+    refundPolicy: 'first_payment_kept',
     isSample: true,
     photos: [
       { url: unsplash('1713878620264-727e6fc497d8'), caption: 'Villa pool' },
@@ -337,7 +339,12 @@ async function main() {
         installmentCount: created.installmentCount,
         startDate: created.startDate,
         endDate: created.endDate,
-        refundTerms: refundTerms(created.organizerName, created.joinMode),
+        refundTerms: refundTerms(
+          created.organizerName,
+          created.joinMode,
+          created.refundPolicy,
+          firstInstallmentCents(created.costPerPersonCents, created.installmentCount)
+        ),
         typedName: `${g.firstName} ${g.lastName}`,
         signedAt: g.createdAt,
         ipAddress: '192.0.2.10',
