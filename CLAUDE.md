@@ -157,6 +157,12 @@ Audit Differently's rules in CrewControl's colours. When something new doesn't f
 py-3`); what went wrong is one `role="alert"` line at the top of the form or section, and a problem with one
   field goes beside that field; the end of a flow ("You're on the list") replaces the form in the same card, a
   heading and one line. Keep the words short: one line that says the point, then steps as a list.
+- **Every save or change confirms itself in a toast** (owner's decision, 2026-10-26; `components/Toast.tsx`,
+  `useToast`): a short line at the bottom ("$300 from Kendra confirmed."), with Undo when one step undoes it. A page
+  never shows its own "Saved" line, and a download gets a toast too ("Downloaded Guests & Balances"). What went wrong
+  is not a toast: it stays the `role="alert"` line on the form. A step that's hard to take back asks first in a
+  modal (`components/ConfirmDialog.tsx`), never as text that appears on the page. Older screens (the trip editor,
+  System Settings) still show a "Saved" line; move them to a toast when next touched.
 - **Forms:** say every problem at once, beside its field, before the person presses the button. The server
   checks everything too; its message only covers what the screen could not know.
 - **A focused task opens in a dialog** (a centred panel over a dimmed page, closed by Escape, the close button or
