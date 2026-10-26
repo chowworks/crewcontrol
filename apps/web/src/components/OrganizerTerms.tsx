@@ -14,11 +14,18 @@ import { api, TERMS_REQUIRED_EVENT } from '@/lib/api'
 export function OrganizerTerms({ children }: { children: ReactNode }) {
   const [mine, setMine] = useState<MyTerms | null>(null)
   const [failed, setFailed] = useState(false)
+  // Once the screens behind have been shown, a change of wording puts the Terms over them instead of replacing them,
+  // so an edit in progress survives and can be saved again after accepting.
+  const [shown, setShown] = useState(false)
 
   const load = useCallback(() => {
+    setFailed(false)
     api
       .getMyTerms()
-      .then(setMine)
+      .then((m) => {
+        setMine(m)
+        if (m.organizer.accepted) setShown(true)
+      })
       .catch(() => setFailed(true))
   }, [])
 
@@ -30,13 +37,27 @@ export function OrganizerTerms({ children }: { children: ReactNode }) {
 
   if (failed && !mine)
     return (
-      <p className="mx-auto max-w-md p-8 text-body">
-        This page could not be loaded. Please try again in a moment.
-      </p>
+      <div className="mx-auto flex max-w-md flex-col items-start gap-3 p-8 text-body">
+        <p>This page could not be loaded.</p>
+        <button
+          type="button"
+          onClick={load}
+          className="min-h-[44px] rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
+        >
+          Try again
+        </button>
+      </div>
     )
-  if (!mine) return null
+  if (!mine) return <div className="min-h-screen bg-ground" aria-busy="true" />
   if (mine.organizer.accepted) return <>{children}</>
-  return <TermsScreen mine={mine} onAccepted={setMine} />
+  const screen = <TermsScreen mine={mine} onAccepted={setMine} />
+  if (!shown) return screen
+  return (
+    <>
+      <div aria-hidden="true">{children}</div>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-ground">{screen}</div>
+    </>
+  )
 }
 
 function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTerms) => void }) {
@@ -61,20 +82,35 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
       })
   }, [])
 
-  // Short enough to fit without scrolling: nothing more to read.
+  const checkRead = () => {
+    const el = box.current
+    if (terms && el && el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReadAll(true)
+  }
+
+  // The end already in view (short text, a bigger window, fonts that loaded late): nothing more to read.
   useEffect(() => {
     const el = box.current
-    if (terms && el && el.scrollHeight <= el.clientHeight + 4) setReadAll(true)
+    if (!el || !terms) return
+    checkRead()
+    const watch = new ResizeObserver(checkRead)
+    watch.observe(el)
+    return () => watch.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terms])
-
-  const onScroll = () => {
-    const el = box.current
-    if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReadAll(true)
-  }
 
   const accept = async (e: FormEvent) => {
     e.preventDefault()
-    if (!agreed || busy) return
+    if (busy) return
+    // The box stays tickable (a screen reader can read the Terms without scrolling them); accepting says what's missing.
+    if (!readAll) {
+      setError('Scroll to the end of the Terms first.')
+      box.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return
+    }
+    if (!agreed) {
+      setError('Tick the box to accept the Terms.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -130,20 +166,21 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
           ) : (
             <div
               ref={box}
-              onScroll={onScroll}
+              onScroll={checkRead}
               tabIndex={0}
               aria-label="CrewControl's Terms"
               className="flex max-h-[55vh] flex-col gap-6 overflow-y-auto rounded-xl bg-ground p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-royal"
             >
               {terms && (
                 <>
-                  <TermsText doc={terms.organizer} level={3} />
-                  <TermsText doc={terms.use} level={3} />
+                  <TermsText doc={terms.organizer} level={2} />
+                  <TermsText doc={terms.use} level={2} />
                 </>
               )}
             </div>
           )}
           <p
+            id="terms-read"
             role="status"
             className={`text-sm font-semibold ${readAll ? 'text-royal' : 'text-muted'}`}
           >
@@ -155,7 +192,7 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
             <input
               type="checkbox"
               checked={agreed}
-              disabled={!readAll}
+              aria-describedby="terms-read"
               onChange={(e) => setAgreed(e.target.checked)}
               className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
             />
@@ -164,8 +201,8 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="submit"
-              disabled={!agreed || busy}
-              className="min-h-[52px] rounded-xl bg-royal px-6 text-[17px] font-semibold text-white hover:bg-royal-dark disabled:opacity-50"
+              aria-disabled={!agreed || !readAll || busy}
+              className="min-h-[52px] rounded-xl bg-royal px-6 text-[17px] font-semibold text-white hover:bg-royal-dark aria-disabled:opacity-50"
             >
               {busy ? 'Saving…' : 'Accept and continue'}
             </button>

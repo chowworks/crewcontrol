@@ -158,6 +158,7 @@ export class JoinService {
           if (!termsOfUse.accepted) await this.terms.record(tx, caller.userId, ['use'], from)
         })
       )
+      if (!termsOfUse.accepted) this.terms.remember(caller.userId, ['use'])
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         if (String(err.meta?.target ?? '').includes('userId'))

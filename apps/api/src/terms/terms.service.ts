@@ -55,10 +55,15 @@ export class TermsService {
   async accept(userId: string, input: AcceptTermsInput, from: From): Promise<MyTerms> {
     const kinds = acceptedKinds(input)
     await this.prisma.$transaction((tx) => this.record(tx, userId, kinds, from))
+    this.remember(userId, kinds)
     return this.mine(userId)
   }
 
-  /** Writes the acceptances in a transaction the caller opened (the join step writes the Terms of Use with the signature). */
+  /**
+   * Writes the acceptances in a transaction the caller opened (the join step writes the Terms of Use with the
+   * signature). Remembers nothing: the caller calls `remember` once the transaction committed, so a join that rolled
+   * back (an email already on the trip, a full room) never counts as accepted.
+   */
   async record(
     tx: Prisma.TransactionClient,
     userId: string,
@@ -75,6 +80,10 @@ export class TermsService {
       })),
       skipDuplicates: true,
     })
+  }
+
+  /** After a committed `record`: the next check needs no database read. */
+  remember(userId: string, kinds: TermsKind[]): void {
     for (const kind of kinds) this.accepted.add(`${userId}\n${kind}\n${TERMS[kind].version}`)
   }
 }

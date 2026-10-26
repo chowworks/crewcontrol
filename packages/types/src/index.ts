@@ -402,6 +402,8 @@ export interface JoinInput {
    * the current version is asked). Refused unless it is the current version.
    */
   termsVersion?: string
+  /** The Terms of Use box, ticked; required with `termsVersion`. */
+  termsAgreed?: boolean
 }
 
 /** The trip agreement as it stands for a trip today, before anyone signs it. */

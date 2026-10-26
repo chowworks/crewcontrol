@@ -239,6 +239,8 @@ export function parseJoin(raw: unknown): JoinInput {
   if (body.agreed !== true) fail('Tick “I agree” to sign')
   const agreementHash = text(body, 'agreementHash', 64)
   const termsVersion = body.termsVersion === undefined ? undefined : text(body, 'termsVersion', 64)
+  if (termsVersion !== undefined && body.termsAgreed !== true)
+    fail('Tick the box to agree to CrewControl’s Terms of Use')
   return {
     name,
     phone,
@@ -248,7 +250,7 @@ export function parseJoin(raw: unknown): JoinInput {
     typedName: typedName.replace(/\s+/g, ' '),
     agreed: true,
     agreementHash,
-    ...(termsVersion === undefined ? {} : { termsVersion }),
+    ...(termsVersion === undefined ? {} : { termsVersion, termsAgreed: true }),
   }
 }
 
