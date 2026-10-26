@@ -21,25 +21,8 @@ export function owed(terms: GuestTerms): { left: number; dueNow: number } {
   }
 }
 
-/**
- * What was due when a payment was reported, as the guest saw it then: the first payment, less what they had already
- * reported or had confirmed before this one (payments not received don't count). Zero once the spot was covered.
- */
-export function dueWhenSent(payment: Payment, payments: Payment[], terms: GuestTerms): number {
-  const before = payments
-    .filter((p) => p.reportedAt < payment.reportedAt && p.id !== payment.id)
-    .reduce(
-      (n, p) =>
-        n +
-        (p.status === 'confirmed'
-          ? (p.receivedPaymentAmount ?? 0)
-          : p.status === 'reported'
-            ? p.guestPaymentAmount
-            : 0),
-      0
-    )
-  return Math.max(0, terms.firstInstallmentCents - before)
-}
+// What was due when a payment was reported: shared with the API (packages/types).
+export { dueWhenSent } from '@cc/types'
 
 /** Today as 'YYYY-MM-DD' in the viewer's own time zone. */
 export function today(): string {

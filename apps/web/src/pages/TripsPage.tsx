@@ -28,10 +28,12 @@ export function TripsPage() {
         <div className="flex items-center gap-3">
           <Link
             to="/organize/new"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-royal px-4 font-semibold text-white hover:bg-royal-dark"
+            aria-label="New trip"
+            className="inline-flex min-h-[44px] items-center gap-1.5 whitespace-nowrap rounded-xl bg-royal px-3.5 font-semibold text-white hover:bg-royal-dark sm:gap-2 sm:px-4"
           >
             <Plus className="h-5 w-5" aria-hidden="true" />
-            New trip
+            {/* "New" on a phone, so the header fits on one line beside the logo and the account menu. */}
+            New<span className="hidden sm:inline">&nbsp;trip</span>
           </Link>
           <AccountMenu />
         </div>
@@ -49,8 +51,15 @@ export function TripsPage() {
             trips={trips}
             actions={(t) => (
               <>
-                <Link to={`/organize/${t.id}/control`} className={rowButton(true)}>
+                <Link to={`/organize/${t.id}/control`} className={`${rowButton(true)} gap-2`}>
                   Control panel
+                  {/* What needs you on this trip, as its Actions counts it. */}
+                  {Boolean(t.actionCount) && (
+                    <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
+                      {t.actionCount}
+                      <span className="sr-only"> to do</span>
+                    </span>
+                  )}
                 </Link>
                 <Link to={`/organize/${t.id}`} className={rowButton()}>
                   Edit

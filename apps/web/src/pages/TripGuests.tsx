@@ -1,15 +1,17 @@
 // Trip Control's two sections (owner's choice, 2026-10-24): Actions at the top, counted in a red badge, each with one
 // filled button, and Manage Guests, everyone in line order, one line each. Every change to a guest is in their Details
 // dialog. Payments are a log (owner's decision, 2026-10-24): each payment a guest reports is its own action.
-import type {
-  Guest,
-  GuestEvent,
-  GuestUpdate,
-  OrganizerTrip,
-  Payment,
-  PaymentDecision,
-  PaymentLog,
-  TripRoom,
+import {
+  confirmedCents,
+  guestActions,
+  type Guest,
+  type GuestEvent,
+  type GuestUpdate,
+  type OrganizerTrip,
+  type Payment,
+  type PaymentDecision,
+  type PaymentLog,
+  type TripRoom,
 } from '@cc/types'
 import { Check, Copy, Info, ListChecks, Users, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -17,7 +19,7 @@ import { Dialog } from '@/components/Dialog'
 import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
-import { signupOrder, waitlist, waitlisting } from '@/lib/signups'
+import { signupOrder, waitlist } from '@/lib/signups'
 import { SignedCopy, Spot, UndoConfirm } from './ControlPanelPage'
 
 const day = (iso: string) =>
@@ -54,11 +56,6 @@ function lineOf(trip: OrganizerTrip) {
 /** "Zelle · (555) 010-0177" → "Zelle": the handle is the organizer's own, so the action line leaves it out. */
 const methodName = (p: Payment) => p.method.split(' · ')[0]
 
-const confirmedCents = (g: Guest) =>
-  g.payments
-    .filter((p) => p.status === 'confirmed')
-    .reduce((n, p) => n + (p.receivedPaymentAmount ?? 0), 0)
-
 /** Where a guest stands, in a few words. */
 function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
   const payFirst = trip.joinMode !== 'accept_first'
@@ -87,75 +84,63 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
 }
 
 /**
- * What the organizer does next for a guest (owner's wording, 2026-10-24). Each payment the guest reported is its own
- * action: one that covers what was due is confirmed with a tap (the amount they said is filled in); a short one is
- * reviewed with the guest's note. Then a guest ready to accept, or one owed a refund because the trip filled.
+ * What the organizer does next for a guest (owner's wording, 2026-10-24), in words. The rules are shared with the API
+ * (guestActions in packages/types), so the red counts elsewhere match this list. Each payment the guest reported is
+ * its own action: one that covers what was due is confirmed with a tap; a short one is reviewed with the guest's note.
  */
 type Action =
   | { kind: 'payment'; key: string; text: string; note: string; payment: Payment; short: boolean }
   | { kind: 'accept'; key: string; text: string; update: GuestUpdate }
-  // A spot opened and this guest is next on the waitlist: offer it to them (they then see how to pay).
   | { kind: 'offer'; key: string; text: string; update: GuestUpdate }
-  // Their payment arrived but every spot is taken: they're owed it back. The button opens Details, where turning
-  // them down asks for "Refund sent".
+  // The button opens Details, where turning them down asks for "Refund sent".
   | { kind: 'refund'; key: string; text: string }
 
-function actionsFor(g: Guest, trip: OrganizerTrip, full: boolean): Action[] {
-  if (g.status === 'declined' || !g.signedAt) return []
-  // The waitlist: only the guest next in it, and only once a spot opened (someone joining now wouldn't wait).
-  if (g.status === 'interested' && g.waitlistedAt && !g.offeredAt) {
-    const next = waitlist(trip.guests)[0]?.id === g.id
-    const open = trip.joinMode === 'accept_first' ? !full : !waitlisting(trip, trip.guests)
-    if (!next || !open) return []
-    const text = `On the waitlist since ${day(g.waitlistedAt)}. A spot opened, and they’re next.`
-    return [
-      trip.joinMode === 'accept_first'
-        ? { kind: 'accept', key: `${g.id}-accept`, text, update: { status: 'approved' } }
-        : { kind: 'offer', key: `${g.id}-offer`, text, update: { offerSpot: true } },
-    ]
-  }
-  const payFirst = trip.joinMode !== 'accept_first'
-  const paid = confirmedCents(g)
-  const out: Action[] = g.payments
-    .filter((p) => p.status === 'reported')
-    .map((p) => {
-      const due = g.terms ? dueWhenSent(p, g.payments, g.terms) : 0
-      const short = p.guestPaymentAmount < due
-      const amount = short
-        ? `${money(p.guestPaymentAmount)} of ${money(due)}`
-        : money(p.guestPaymentAmount)
-      return {
-        kind: 'payment',
-        key: p.id,
-        text: `Paid ${amount} by ${methodName(p)} on ${shortDate(p.sentOn)}${!short && due ? ` · due ${money(due)}` : ''}`,
-        note: p.note,
-        payment: p,
-        short,
-      }
-    })
-  if (g.status !== 'interested') return out
+function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
   const first = g.terms ? money(g.terms.firstInstallmentCents) : 'the first payment'
-  if (full) {
-    if (paid && !g.refundSentAt)
-      out.push({
-        kind: 'refund',
-        key: `${g.id}-refund`,
-        text: `Paid ${money(paid)} but the trip is full`,
-      })
-    return out
-  }
-  if (payFirst && !paid) return out
-  out.push({
-    kind: 'accept',
-    key: `${g.id}-accept`,
-    text: !payFirst
-      ? `Requested to join your trip on ${day(g.createdAt)} and signed the trip agreement`
-      : g.spotPaidAt
-        ? `Requested to join your trip on ${day(g.createdAt)} and paid the required ${first}`
-        : `Paid ${money(paid)} of ${first}. Accepting them holds their spot anyway.`,
-    update: { status: 'approved' },
+  return guestActions(g, trip).map((a): Action => {
+    switch (a.kind) {
+      case 'payment': {
+        const p = a.payment
+        const amount = a.short
+          ? `${money(p.guestPaymentAmount)} of ${money(a.due)}`
+          : money(p.guestPaymentAmount)
+        return {
+          kind: 'payment',
+          key: a.key,
+          text: `Paid ${amount} by ${methodName(p)} on ${shortDate(p.sentOn)}${!a.short && a.due ? ` · due ${money(a.due)}` : ''}`,
+          note: p.note,
+          payment: p,
+          short: a.short,
+        }
+      }
+      case 'offer':
+        return {
+          kind: 'offer',
+          key: a.key,
+          text: `On the waitlist since ${day(g.waitlistedAt!)}. A spot opened, and they’re next.`,
+          update: { offerSpot: true },
+        }
+      case 'refund':
+        return {
+          kind: 'refund',
+          key: a.key,
+          text: `Paid ${money(a.paidCents)} but the trip is full`,
+        }
+      case 'accept':
+        return {
+          kind: 'accept',
+          key: a.key,
+          text: a.fromWaitlist
+            ? `On the waitlist since ${day(g.waitlistedAt!)}. A spot opened, and they’re next.`
+            : trip.joinMode === 'accept_first'
+              ? `Requested to join your trip on ${day(g.createdAt)} and signed the trip agreement`
+              : g.spotPaidAt
+                ? `Requested to join your trip on ${day(g.createdAt)} and paid the required ${first}`
+                : `Paid ${money(confirmedCents(g))} of ${first}. Accepting them holds their spot anyway.`,
+          update: { status: 'approved' },
+        }
+    }
   })
-  return out
 }
 
 /** One guest in Manage Guests: name, where they stand, when they joined, how much has arrived, and Details. */
@@ -977,7 +962,7 @@ export function ActionsCard(props: Props) {
   const { trip, onUpdate, onDecide } = props
   const { line, full } = lineOf(trip)
   const { openDetails, openReview, dialogs } = useGuestDialogs(props, full)
-  const todo = line.flatMap((x) => actionsFor(x, trip, full).map((action) => ({ g: x, action })))
+  const todo = line.flatMap((x) => actionsFor(x, trip).map((action) => ({ g: x, action })))
   return (
     <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
