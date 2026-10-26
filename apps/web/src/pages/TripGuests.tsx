@@ -20,7 +20,8 @@ import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
 import { signupOrder, waitlist } from '@/lib/signups'
-import { SignedCopy, Spot, UndoConfirm } from './ControlPanelPage'
+import { SignedCopy, UndoConfirm } from './ControlPanelPage'
+import { GuestDetails } from './GuestDetails'
 
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -514,7 +515,7 @@ function Paid({ terms }: { terms: NonNullable<Guest['terms']> }) {
 }
 
 /** A labelled contact detail with a button that copies it. */
-function Contact({ label, value }: { label: string; value: string }) {
+export function Contact({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
   async function copy() {
     try {
@@ -552,20 +553,7 @@ function Contact({ label, value }: { label: string; value: string }) {
 }
 
 /** Everything about one guest and every change, in a dialog, so the list stays one line per guest. */
-function GuestDetails({
-  g,
-  trip,
-  rooms,
-  full,
-  onUpdate,
-  onDecide,
-  onRead,
-  onHistory,
-  onReview,
-  onLogOpen,
-  onClose,
-  error,
-}: Props & {
+export type DetailsProps = Props & {
   g: Guest
   full: boolean
   onRead: (guest: Guest) => void
@@ -573,135 +561,10 @@ function GuestDetails({
   onReview: (guest: Guest, payment: Payment) => void
   onLogOpen: (guest: Guest) => void
   onClose: () => void
-}) {
-  const label = 'mb-1 block text-sm font-semibold text-muted'
-  return (
-    <Dialog title={`${g.firstName} ${g.lastName}`} onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        {error && (
-          <p role="alert" className="font-semibold text-[#B42318]">
-            {error}
-          </p>
-        )}
-        <dl className="flex flex-col gap-2 text-sm">
-          <Contact label="Phone" value={g.phone} />
-          <Contact label="Email" value={g.email} />
-        </dl>
-        <div>
-          <span className={label}>Payments</span>
-          {g.terms && g.status !== 'declined' && (
-            <>
-              <Paid terms={g.terms} />
-              <span className="mt-1 block text-sm text-muted">
-                {money(g.terms.balanceCents)} left to pay
-              </span>
-            </>
-          )}
-          {g.payments.length > 0 && (
-            <ul className="mt-2">
-              {g.payments.map((p) => (
-                <PaymentLine
-                  key={p.id}
-                  p={p}
-                  onReview={() => {
-                    onClose()
-                    onReview(g, p)
-                  }}
-                  g={g}
-                  onDecide={onDecide}
-                />
-              ))}
-            </ul>
-          )}
-          {g.status === 'declined' ? null : trip.joinMode === 'accept_first' &&
-            g.status !== 'approved' ? (
-            <span className="block text-sm">They see how to pay you once you accept them.</span>
-          ) : (
-            g.signedAt && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose()
-                  onLogOpen(g)
-                }}
-                className={`${outlined} mt-2`}
-              >
-                Log a payment
-              </button>
-            )
-          )}
-        </div>
-        <div className="text-sm text-body">
-          <div>Joined {day(g.createdAt)}</div>
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              onHistory(g)
-            }}
-            className={`${outlined} mt-2`}
-          >
-            History
-          </button>
-        </div>
-        {rooms.length > 0 && (
-          <div>
-            <span className={label}>Room</span>
-            <select
-              className="min-h-[44px] w-full rounded-lg border border-rule bg-white px-2"
-              value={g.roomId ?? ''}
-              onChange={(e) => onUpdate(g, { roomId: e.target.value || null })}
-              aria-label={`Room for ${g.firstName}`}
-              disabled={g.status === 'declined'}
-            >
-              <option value="">No room yet</option>
-              {rooms
-                .filter((r) => r.id)
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({trip.guests.filter((x) => x.roomId === r.id).length}/{r.capacity})
-                  </option>
-                ))}
-            </select>
-            {g.roomNote && (
-              <span className="mt-1 block text-sm text-muted">Share with: {g.roomNote}</span>
-            )}
-          </div>
-        )}
-        <div>
-          <span className={label}>Trip agreement</span>
-          {g.signedAt ? (
-            <button
-              type="button"
-              onClick={() => {
-                onClose()
-                onRead(g)
-              }}
-              className={outlined}
-            >
-              Read what they signed ({day(g.signedAt)})
-            </button>
-          ) : (
-            <span className="text-sm">Not signed</span>
-          )}
-        </div>
-        <div>
-          <span className={label}>Spot</span>
-          <Spot
-            key={g.status}
-            guest={g}
-            full={full}
-            payFirst={trip.joinMode !== 'accept_first'}
-            onUpdate={onUpdate}
-          />
-        </div>
-      </div>
-    </Dialog>
-  )
 }
 
 /** One payment in a guest's Details: amount, how, when, where it stands, and the organizer's next step on it. */
-function PaymentLine({
+export function PaymentLine({
   p,
   g,
   onReview,
@@ -759,14 +622,6 @@ function PaymentLine({
     </li>
   )
 }
-
-const at = (iso: string) =>
-  new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
 
 /** One history line in plain words. Payment lines say how much: what the guest said they sent, or what arrived. */
 export function eventText(e: GuestEvent): string {
@@ -829,6 +684,25 @@ function GuestHistory({
   }, [tripId, guest.id])
   const by = (e: GuestEvent) =>
     e.actor === 'guest' ? guest.firstName : e.actor === 'organizer' ? 'An organizer' : 'CrewControl'
+  // Newest first, under a heading for each day, as a timeline: money and the guest's spot in royal, the rest quieter.
+  const days = new Map<string, GuestEvent[]>()
+  for (const e of [...(events ?? [])].reverse()) {
+    const d = new Date(e.at).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    days.set(d, [...(days.get(d) ?? []), e])
+  }
+  const key = (k: GuestEvent['kind']) =>
+    k.startsWith('payment') ||
+    k === 'said_paid' ||
+    k === 'accepted' ||
+    k === 'turned_down' ||
+    k === 'refund_sent'
+  const time = (iso: string) =>
+    new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   return (
     <Dialog title={`${guest.firstName}’s history`} onClose={onClose}>
       {error && (
@@ -837,25 +711,36 @@ function GuestHistory({
         </p>
       )}
       {events && events.length === 0 && <p className="text-body">Nothing recorded yet.</p>}
-      {events && events.length > 0 && (
-        <ol className="flex flex-col">
-          {events.map((e, i) => (
-            <li key={i} className="border-t border-rule py-2.5 first:border-t-0">
-              <div className="font-semibold">{eventText(e)}</div>
-              <div className="text-sm text-muted">
-                {at(e.at)} · {by(e)}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
+      <div className="flex flex-col gap-5">
+        {[...days].map(([d, list]) => (
+          <section key={d}>
+            <h3 className="mb-2 text-sm font-semibold text-muted">{d}</h3>
+            <ol className="relative ml-2 border-l-2 border-rule">
+              {list.map((e, i) => (
+                <li key={i} className="relative pb-3 pl-5 last:pb-0">
+                  <span
+                    aria-hidden="true"
+                    className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full ring-2 ring-white ${
+                      key(e.kind) ? 'bg-royal' : 'bg-rule'
+                    }`}
+                  />
+                  <div className="font-semibold leading-snug">{eventText(e)}</div>
+                  <div className="text-sm text-muted">
+                    {time(e.at)} · {by(e)}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ))}
+      </div>
     </Dialog>
   )
 }
 
 /**
  * The dialogs both sections open for a guest: Details, and from it the signed copy, the history, reviewing a payment
- * and logging one. One at a time: Details closes before the others open.
+ * and logging one. One at a time: Details closes before the others open, and comes back when they close.
  */
 function useGuestDialogs(props: Props, full: boolean) {
   const { trip } = props
@@ -864,6 +749,14 @@ function useGuestDialogs(props: Props, full: boolean) {
   const [history, setHistory] = useState<Guest | null>(null)
   const [review, setReview] = useState<{ guestId: string; paymentId: string } | null>(null)
   const [logging, setLogging] = useState<string | null>(null)
+  // The guest whose Details opened the dialog on screen: closing it goes back to their Details (owner's decision,
+  // 2026-10-26), not to the page.
+  const [back, setBack] = useState<string | null>(null)
+  const done = (close: () => void) => () => {
+    close()
+    if (back) setOpen(back)
+    setBack(null)
+  }
   const find = (id: string | null | undefined) => trip.guests.find((x) => x.id === id)
   const g = find(open)
   const reviewing = find(review?.guestId)
@@ -876,23 +769,37 @@ function useGuestDialogs(props: Props, full: boolean) {
           {...props}
           g={g}
           full={full}
-          onRead={setReading}
-          onHistory={setHistory}
-          onReview={(x, p) => setReview({ guestId: x.id, paymentId: p.id })}
-          onLogOpen={(x) => setLogging(x.id)}
+          onRead={(x) => {
+            setBack(x.id)
+            setReading(x)
+          }}
+          onHistory={(x) => {
+            setBack(x.id)
+            setHistory(x)
+          }}
+          onReview={(x, p) => {
+            setBack(x.id)
+            setReview({ guestId: x.id, paymentId: p.id })
+          }}
+          onLogOpen={(x) => {
+            setBack(x.id)
+            setLogging(x.id)
+          }}
           onClose={() => setOpen(null)}
         />
       )}
-      {reading && <SignedCopy tripId={trip.id} guest={reading} onClose={() => setReading(null)} />}
+      {reading && (
+        <SignedCopy tripId={trip.id} guest={reading} onClose={done(() => setReading(null))} />
+      )}
       {history && (
-        <GuestHistory tripId={trip.id} guest={history} onClose={() => setHistory(null)} />
+        <GuestHistory tripId={trip.id} guest={history} onClose={done(() => setHistory(null))} />
       )}
       {reviewing && reviewed && (
         <ReviewPayment
           g={reviewing}
           payment={reviewed}
           onDecide={props.onDecide}
-          onClose={() => setReview(null)}
+          onClose={done(() => setReview(null))}
           error={props.error}
         />
       )}
@@ -900,7 +807,7 @@ function useGuestDialogs(props: Props, full: boolean) {
         <LogPayment
           g={logFor}
           onLog={props.onLog}
-          onClose={() => setLogging(null)}
+          onClose={done(() => setLogging(null))}
           error={props.error}
         />
       )}

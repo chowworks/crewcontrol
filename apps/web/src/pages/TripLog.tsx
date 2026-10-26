@@ -1,7 +1,8 @@
 import type { OrganizerTrip, TripLogEntry } from '@cc/types'
-import { ScrollText } from 'lucide-react'
+import { Download, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { eventText, IconCircle } from './TripGuests'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
@@ -63,6 +64,28 @@ function Line({ e }: { e: TripLogEntry }) {
   )
 }
 
+/** One log line for the spreadsheet: when, what happened, the guest, who did it, and for a refused join its details. */
+function row(e: TripLogEntry): (string | null)[] {
+  if (e.kind === 'email_refused')
+    return [
+      stamp(e.at),
+      `Someone tried an email that can’t be used${e.blocked ? ' (blocked for 10 minutes)' : ''}`,
+      null,
+      'Someone joining',
+      [e.name, e.email, e.phone].filter(Boolean).join(' · '),
+      e.ipAddress || null,
+      e.userAgent || null,
+    ]
+  if (e.kind === 'admin') return [stamp(e.at), ADMIN[e.action], null, 'An admin', null, null, null]
+  const who =
+    e.event.actor === 'guest'
+      ? e.guestName
+      : e.event.actor === 'organizer'
+        ? 'An organizer'
+        : 'CrewControl'
+  return [stamp(e.at), eventText(e.event), e.guestName, who, null, null, null]
+}
+
 /** The trip log, reloaded whenever the trip changes so a change just made shows up. */
 export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const [entries, setEntries] = useState<TripLogEntry[] | null>(null)
@@ -78,10 +101,28 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const shown = (entries ?? []).filter((e) => guests || e.kind !== 'guest')
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-card sm:p-6">
-      <h2 className="flex items-center gap-3 text-xl font-extrabold">
-        <IconCircle icon={ScrollText} />
-        Trip log
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-3 text-xl font-extrabold">
+          <IconCircle icon={ScrollText} />
+          Trip log
+        </h2>
+        {/* Every line, guest activity included, whatever the box below shows (owner's decision, 2026-10-26). */}
+        {entries && entries.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              downloadCsv(`${fileSlug(trip.name)}-trip-log`, [
+                ['When', 'What happened', 'Guest', 'Who', 'Typed', 'From', 'Browser'],
+                ...entries.map(row),
+              ])
+            }
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Export
+          </button>
+        )}
+      </div>
       <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-semibold">
         <input
           type="checkbox"

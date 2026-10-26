@@ -11,6 +11,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
@@ -18,6 +19,7 @@ import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { ActionsCard, GuestsCard } from './TripGuests'
 import { TripLogCard } from './TripLog'
+import { MoneyCard } from './TripMoney'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
 // trip editor (steps 3 and 4).
@@ -144,6 +146,7 @@ export function ControlPanelPage() {
           </p>
         )}
         <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         <TripLogCard trip={trip} />
       </main>
@@ -168,37 +171,26 @@ export function Spot({
   full,
   payFirst,
   onUpdate,
+  row = false,
 }: {
   guest: Guest
   full: boolean
   payFirst: boolean
   onUpdate: (guest: Guest, update: GuestUpdate) => void
+  /** Buttons side by side (the Details layouts under review), not stacked. */
+  row?: boolean
 }) {
-  if (g.status === 'declined')
-    return (
-      <span className="flex flex-col items-start gap-1 text-sm">
-        <span className="font-semibold">Turned down</span>
-        {g.refundSentAt && <span className="text-muted">Refund sent {when(g.refundSentAt)}</span>}
-        <button
-          type="button"
-          onClick={() => onUpdate(g, { status: 'interested' })}
-          className={smallOutlined}
-        >
-          Undo
-        </button>
-      </span>
-    )
-  if (g.status === 'approved')
-    return (
-      <span className="flex flex-col items-start gap-1 text-sm">
-        <span className="font-semibold text-royal">Accepted</span>
-        <PutBack onPutBack={() => onUpdate(g, { status: 'interested' })} />
-        <TurnDown guest={g} onUpdate={onUpdate} />
-      </span>
-    )
-  // A spot opens to any guest who signed and, where guests pay first, whose payment arrived: on a first come trip
-  // that is someone put back to waiting, or waiting when a spot freed up.
+  // Where they stand (a label, with a word on their payment), then the buttons that change it (owner's decision,
+  // 2026-10-26: the status never sits among the buttons as if it were one).
   const paid = g.payments.some((p) => p.status === 'confirmed')
+  const reported = g.payments.some((p) => p.status === 'reported')
+  const payment = g.spotPaidAt
+    ? `Paid ${when(g.spotPaidAt)}`
+    : reported
+      ? 'Says they paid'
+      : paid
+        ? 'Part paid'
+        : 'Waiting on payment'
   const waiting = !g.signedAt
     ? 'Not signed'
     : payFirst && !paid
@@ -208,46 +200,85 @@ export function Spot({
           ? 'Trip full: refund them'
           : 'Trip full'
         : null
+  const [label, detail, actions] =
+    g.status === 'declined'
+      ? [
+          'Turned down',
+          g.refundSentAt ? `Refund sent ${when(g.refundSentAt)}` : null,
+          <button
+            type="button"
+            onClick={() => onUpdate(g, { status: 'interested' })}
+            className={smallOutlined}
+          >
+            Undo
+          </button>,
+        ]
+      : g.status === 'approved'
+        ? [
+            'Accepted',
+            payment,
+            <>
+              <PutBack name={g.firstName} onPutBack={() => onUpdate(g, { status: 'interested' })} />
+              <TurnDown guest={g} onUpdate={onUpdate} />
+            </>,
+          ]
+        : [
+            // A spot opens to any guest who signed and, where guests pay first, whose payment arrived: on a first
+            // come trip that is someone put back to waiting, or waiting when a spot freed up.
+            'Waiting',
+            g.refundSentAt ? `Refund sent ${when(g.refundSentAt)}` : waiting,
+            <>
+              {!waiting && (
+                <button
+                  type="button"
+                  onClick={() => onUpdate(g, { status: 'approved' })}
+                  className={smallOutlined}
+                >
+                  Accept
+                </button>
+              )}
+              <TurnDown guest={g} onUpdate={onUpdate} />
+            </>,
+          ]
   return (
-    <span className="flex flex-col items-start gap-1 text-sm">
-      {g.refundSentAt && <span className="text-muted">Refund sent {when(g.refundSentAt)}</span>}
-      {waiting ? (
-        <span>{waiting}</span>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onUpdate(g, { status: 'approved' })}
-          className={smallOutlined}
-        >
-          Accept
-        </button>
-      )}
-      <TurnDown guest={g} onUpdate={onUpdate} />
+    <span className="flex flex-col items-start gap-2 text-sm">
+      <span>
+        <span className={`font-semibold ${g.status === 'approved' ? 'text-royal' : 'text-ink'}`}>
+          {label}
+        </span>
+        {detail && <span className="text-muted"> · {detail}</span>}
+      </span>
+      <span
+        className={`flex ${row ? 'flex-row flex-wrap items-start gap-2' : 'flex-col items-start gap-1'}`}
+      >
+        {actions}
+      </span>
     </span>
   )
 }
 
-/** Taking an accepted guest's spot away takes a second tap. */
-function PutBack({ onPutBack }: { onPutBack: () => void }) {
+/** Taking an accepted guest's spot away asks first, in a modal. */
+function PutBack({ name, onPutBack }: { name: string; onPutBack: () => void }) {
   const [asking, setAsking] = useState(false)
-  if (!asking)
-    return (
-      <button type="button" onClick={() => setAsking(true)} className={smallOutlined}>
-        Put back
-      </button>
-    )
   return (
-    <span className="flex flex-col gap-1">
-      <span>They lose their spot and go back to waiting.</span>
-      <span className="flex gap-2">
-        <button type="button" onClick={onPutBack} className={smallOutlined}>
-          Put back
-        </button>
-        <button type="button" onClick={() => setAsking(false)} className={smallOutlined}>
-          Keep
-        </button>
-      </span>
-    </span>
+    <>
+      <button type="button" onClick={() => setAsking(true)} className={smallOutlined}>
+        Move back to waiting
+      </button>
+      {asking && (
+        <ConfirmDialog
+          title={`Move ${name} back to waiting?`}
+          confirmLabel="Move back to waiting"
+          onConfirm={() => {
+            setAsking(false)
+            onPutBack()
+          }}
+          onCancel={() => setAsking(false)}
+        >
+          <p>They lose their spot. Their payments stay recorded.</p>
+        </ConfirmDialog>
+      )}
+    </>
   )
 }
 
@@ -266,49 +297,53 @@ function TurnDown({
   const [refunded, setRefunded] = useState(false)
   const paid = g.payments.some((p) => p.status === 'confirmed')
   const reported = g.payments.some((p) => p.status === 'reported')
-  if (!asking)
-    return (
+  return (
+    <>
       <button type="button" onClick={() => setAsking(true)} className={smallOutlined}>
         Turn down
       </button>
-    )
-  return (
-    <span className="flex max-w-[220px] flex-col gap-1.5">
-      {paid ? (
-        <label className="flex cursor-pointer items-start gap-2">
-          <input
-            type="checkbox"
-            checked={refunded}
-            onChange={(e) => setRefunded(e.target.checked)}
-            className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
-          />
-          <span>
-            Refund sent. {g.firstName} paid, so they get everything back
-            {g.terms ? ` (${money(g.terms.paidCents)} so far)` : ''}.
-          </span>
-        </label>
-      ) : reported ? (
-        <span>
-          {g.firstName} says they paid. If it arrived, confirm it first so the refund is recorded.
-          Turn them down?
-        </span>
-      ) : (
-        <span>Turn {g.firstName} down?</span>
-      )}
-      <span className="flex gap-2">
-        <button
-          type="button"
+      {asking && (
+        <ConfirmDialog
+          title={`Turn ${g.firstName} down?`}
+          confirmLabel="Turn down"
           disabled={paid && !refunded}
-          onClick={() => onUpdate(g, { status: 'declined', ...(paid ? { refundSent: true } : {}) })}
-          className={`${smallOutlined} disabled:opacity-50`}
+          onConfirm={() => {
+            setAsking(false)
+            onUpdate(g, { status: 'declined', ...(paid ? { refundSent: true } : {}) })
+          }}
+          onCancel={() => {
+            setAsking(false)
+            setRefunded(false)
+          }}
         >
-          Turn down
-        </button>
-        <button type="button" onClick={() => setAsking(false)} className={smallOutlined}>
-          Keep
-        </button>
-      </span>
-    </span>
+          {paid ? (
+            <>
+              <p>
+                {g.firstName} paid
+                {g.terms ? ` ${money(g.terms.paidCents)}` : ''}, so they get everything back. Send
+                the refund first, then tick the box.
+              </p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-royal-pale px-4 py-3 text-ink">
+                <input
+                  type="checkbox"
+                  checked={refunded}
+                  onChange={(e) => setRefunded(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
+                />
+                <span>Refund sent</span>
+              </label>
+            </>
+          ) : reported ? (
+            <p>
+              {g.firstName} says they paid. If it arrived, confirm it first so the refund is
+              recorded.
+            </p>
+          ) : (
+            <p>They come off the trip. You can undo this.</p>
+          )}
+        </ConfirmDialog>
+      )}
+    </>
   )
 }
 
@@ -330,6 +365,9 @@ export function SignedCopy({
       .then(setCopy)
       .catch(() => setError('The signed copy could not be loaded.'))
   }, [tripId, guest.id])
+  // The agreement's text is a title, then sections ("1. The trip", a line break, its words) between blank lines.
+  const blocks = (copy?.text ?? '').split(/\n\n+/)
+  const proof = 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm'
   return (
     <Dialog title={`${guest.firstName}’s signed agreement`} onClose={onClose}>
       {error && (
@@ -338,18 +376,49 @@ export function SignedCopy({
         </p>
       )}
       {copy && (
-        <div className="flex flex-col gap-3">
-          <div className="whitespace-pre-line rounded-xl bg-ground p-4 text-[15px] text-body">
-            {copy.text}
-          </div>
-          <div className="grid gap-1 text-sm text-muted">
-            <div>
-              Signed &ldquo;{copy.typedName}&rdquo; on {when(copy.signedAt)}
-            </div>
-            <div>From {copy.ipAddress || 'an unknown address'}</div>
-            <div className="break-all">{copy.userAgent || 'Unknown browser'}</div>
-            <div className="break-all">Fingerprint (SHA-256): {copy.textHash}</div>
-          </div>
+        <div className="flex flex-col gap-4">
+          <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            Signed by typing <strong>&ldquo;{copy.typedName}&rdquo;</strong> on{' '}
+            {when(copy.signedAt)}.
+          </p>
+          <article className="flex flex-col gap-3 rounded-xl border border-rule p-4 text-[15px] text-body">
+            {blocks.map((b, i) => {
+              const [first, ...rest] = b.split('\n')
+              if (i === 0)
+                return (
+                  <h3 key={i} className="font-display text-lg font-extrabold text-ink">
+                    {first}
+                  </h3>
+                )
+              return /^\d+\.\s/.test(first) && rest.length ? (
+                <section key={i}>
+                  <h4 className="font-semibold text-ink">{first}</h4>
+                  <p className="whitespace-pre-line">{rest.join('\n')}</p>
+                </section>
+              ) : (
+                <p key={i} className="whitespace-pre-line">
+                  {b}
+                </p>
+              )
+            })}
+          </article>
+          <section className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            <h3 className="mb-2 text-sm font-semibold">Proof of signing</h3>
+            <dl className={proof}>
+              <dt className="text-muted">Signed</dt>
+              <dd>{when(copy.signedAt)}</dd>
+              <dt className="text-muted">Name typed</dt>
+              <dd>{copy.typedName}</dd>
+              <dt className="text-muted">From</dt>
+              <dd className="break-all">{copy.ipAddress || 'An unknown address'}</dd>
+              <dt className="text-muted">Browser</dt>
+              <dd className="break-all">{copy.userAgent || 'Unknown'}</dd>
+              <dt className="text-muted">Version</dt>
+              <dd>{copy.templateVersion}</dd>
+              <dt className="text-muted">Fingerprint</dt>
+              <dd className="break-all font-mono text-xs">{copy.textHash}</dd>
+            </dl>
+          </section>
         </div>
       )}
     </Dialog>
@@ -368,8 +437,8 @@ export function UndoConfirm({
   warning?: string
 }) {
   const [asking, setAsking] = useState(false)
-  if (!asking)
-    return (
+  return (
+    <>
       <button
         type="button"
         onClick={() => setAsking(true)}
@@ -377,26 +446,19 @@ export function UndoConfirm({
       >
         Undo
       </button>
-    )
-  return (
-    <span className="flex flex-col gap-1">
-      <span className="text-[#B42318]">{warning}</span>
-      <span className="flex gap-2">
-        <button
-          type="button"
-          onClick={onUndo}
-          className="inline-flex min-h-[44px] items-center rounded-lg bg-royal px-3 text-sm font-semibold text-white hover:bg-royal-dark"
+      {asking && (
+        <ConfirmDialog
+          title="Undo this payment?"
+          confirmLabel="Undo payment"
+          onConfirm={() => {
+            setAsking(false)
+            onUndo()
+          }}
+          onCancel={() => setAsking(false)}
         >
-          Undo payment
-        </button>
-        <button
-          type="button"
-          onClick={() => setAsking(false)}
-          className="inline-flex min-h-[44px] items-center rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
-        >
-          Keep
-        </button>
-      </span>
-    </span>
+          <p>{warning}</p>
+        </ConfirmDialog>
+      )}
+    </>
   )
 }
