@@ -238,6 +238,7 @@ export function parseJoin(raw: unknown): JoinInput {
   if (!sameName(typedName, name)) fail('Type your full name exactly as you wrote it above')
   if (body.agreed !== true) fail('Tick “I agree” to sign')
   const agreementHash = text(body, 'agreementHash', 64)
+  const termsVersion = body.termsVersion === undefined ? undefined : text(body, 'termsVersion', 64)
   return {
     name,
     phone,
@@ -247,6 +248,7 @@ export function parseJoin(raw: unknown): JoinInput {
     typedName: typedName.replace(/\s+/g, ' '),
     agreed: true,
     agreementHash,
+    ...(termsVersion === undefined ? {} : { termsVersion }),
   }
 }
 

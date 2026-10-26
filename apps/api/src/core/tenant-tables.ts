@@ -3,8 +3,9 @@ import { Prisma } from '@prisma/client'
 /**
  * The tables that carry row-level security (the ones with a `tenant_read` policy, see
  * prisma/migrations/20261021050000_trip_rls). A spec keeps this list equal to the database. A query that cannot
- * reach any of them skips the per-query transaction that sets the tenant context. Today that is every table; the
- * list exists so a table without trip data can be added without that cost.
+ * reach any of them skips the per-query transaction that sets the tenant context. Today that is every table (the
+ * Terms acceptances hold no trip data, but their policy needs the caller's id); the list exists so a table without
+ * either can be added without that cost.
  */
 export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'Trip',
@@ -16,6 +17,7 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'GuestEvent',
   'TripLog',
   'Payment',
+  'TermsAcceptance',
 ])
 
 type Fields = Map<string, string> // relation field name -> the model it points at

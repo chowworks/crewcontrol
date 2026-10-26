@@ -21,6 +21,11 @@ describe('parseJoin', () => {
     })
   })
 
+  it('keeps the Terms of Use version the guest ticked, when sent', () => {
+    expect(parseJoin({ ...ok, termsVersion: 'abc123' }).termsVersion).toBe('abc123')
+    expect(parseJoin(ok)).not.toHaveProperty('termsVersion')
+  })
+
   it.each([
     [{ ...ok, phone: '123' }, 'Phone must be a phone number'],
     [{ ...ok, email: 'nope' }, 'Email must be an email address'],
@@ -29,6 +34,7 @@ describe('parseJoin', () => {
     [{ ...ok, agreed: false }, 'Tick “I agree” to sign'],
     [{ ...ok, agreed: 'yes' }, 'Tick “I agree” to sign'],
     [{ ...ok, agreementHash: undefined }, 'agreementHash must be text'],
+    [{ ...ok, termsVersion: 7 }, 'termsVersion must be text'],
   ])('rejects %o', (body, message) => {
     expect(() => parseJoin(body)).toThrow(new BadRequestException(message))
   })

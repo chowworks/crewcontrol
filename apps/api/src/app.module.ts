@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module'
 import { JoinModule } from './join/join.module'
 import { PhotosModule } from './photos/photos.module'
 import { PrismaModule } from './prisma/prisma.module'
+import { TermsModule } from './terms/terms.module'
 import { TripsModule } from './trips/trips.module'
 
 @Module({
@@ -17,6 +18,7 @@ import { TripsModule } from './trips/trips.module'
     JoinModule,
     PhotosModule,
     ContactModule,
+    TermsModule,
   ],
 })
 export class AppModule implements NestModule {

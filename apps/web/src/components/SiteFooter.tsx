@@ -16,6 +16,9 @@ export function SiteFooter() {
         <Link to="/privacy" className="py-2 hover:text-royal">
           Privacy
         </Link>
+        <Link to="/terms" className="py-2 hover:text-royal">
+          Terms
+        </Link>
         <Link to="/contact" className="py-2 hover:text-royal">
           Contact us
         </Link>

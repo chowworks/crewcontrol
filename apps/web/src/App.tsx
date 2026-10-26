@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
@@ -12,6 +13,7 @@ import { JoinPage } from './pages/JoinPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { SignInPage } from './pages/SignInPage'
+import { TermsPage } from './pages/TermsPage'
 import { TripsPage } from './pages/TripsPage'
 
 export default function App() {
@@ -22,11 +24,14 @@ export default function App() {
         path="/organize"
         element={
           <RequireSignIn>
-            <TripsPage />
+            <OrganizerTerms>
+              <TripsPage />
+            </OrganizerTerms>
           </RequireSignIn>
         }
       />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/t/:slug" element={<GuestTripPage />} />
@@ -42,7 +47,9 @@ export default function App() {
         path="/organize/new"
         element={
           <RequireSignIn>
-            <EditTripPage />
+            <OrganizerTerms>
+              <EditTripPage />
+            </OrganizerTerms>
           </RequireSignIn>
         }
       />
@@ -50,7 +57,9 @@ export default function App() {
         path="/organize/:id"
         element={
           <RequireSignIn>
-            <EditTripPage />
+            <OrganizerTerms>
+              <EditTripPage />
+            </OrganizerTerms>
           </RequireSignIn>
         }
       />
@@ -58,7 +67,9 @@ export default function App() {
         path="/organize/:id/control"
         element={
           <RequireSignIn>
-            <ControlPanelPage />
+            <OrganizerTerms>
+              <ControlPanelPage />
+            </OrganizerTerms>
           </RequireSignIn>
         }
       />

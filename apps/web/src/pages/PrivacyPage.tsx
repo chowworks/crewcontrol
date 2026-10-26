@@ -50,6 +50,11 @@ export function PrivacyPage() {
               signed from, so it can be shown later what you agreed to.
             </li>
             <li>
+              <strong>Terms you accepted:</strong> which version of CrewControl&apos;s Terms of Use
+              (and, for organizers, the Organizer Terms) you accepted, when, and the internet
+              address and browser you accepted them from.
+            </li>
+            <li>
               <strong>Refused joins:</strong> if you try to join a trip with an email that
               can&apos;t be used, what you typed, your account, and the internet address and browser
               you used, shown to that trip&apos;s organizers.

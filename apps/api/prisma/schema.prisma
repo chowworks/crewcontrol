@@ -244,3 +244,17 @@ model AccessLog {
 
   @@index([tripId])
 }
+
+/// One person accepting one version of one of CrewControl's own documents (src/terms/terms-text.ts): 'use', the Terms of
+/// Use, or 'organizer', the Organizer Terms. Only ever added. No relation to a trip: acceptance is the person's.
+model TermsAcceptance {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String // 'use' | 'organizer'
+  fingerprint String
+  acceptedAt  DateTime @default(now())
+  ipAddress   String
+  userAgent   String
+
+  @@unique([userId, kind, fingerprint])
+}
