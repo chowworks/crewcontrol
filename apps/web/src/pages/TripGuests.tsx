@@ -17,7 +17,7 @@ import { Dialog } from '@/components/Dialog'
 import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
-import { signupOrder } from '@/lib/signups'
+import { signupOrder, waitlist, waitlisting } from '@/lib/signups'
 import { SignedCopy, Spot, UndoConfirm } from './ControlPanelPage'
 
 const day = (iso: string) =>
@@ -73,6 +73,12 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
     return 'Accepted · waiting on payment'
   }
   if (!g.signedAt) return 'Hasn’t signed'
+  if (g.waitlistedAt && !g.offeredAt) {
+    const n = waitlist(trip.guests).findIndex((x) => x.id === g.id) + 1
+    return `Waitlist #${n} since ${day(g.waitlistedAt)}`
+  }
+  if (g.offeredAt && !paid && !reported)
+    return `Offered a spot ${day(g.offeredAt)} · waiting on payment`
   if (!payFirst) return `Signed ${day(g.signedAt)}${full ? ' · trip full' : ''}`
   if (g.spotPaidAt) return `Spot paid ${day(g.spotPaidAt)}${full ? ' · trip full: refund' : ''}`
   if (reported) return `Says they paid ${shortDate(reported.sentOn)}`
@@ -88,12 +94,26 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
 type Action =
   | { kind: 'payment'; key: string; text: string; note: string; payment: Payment; short: boolean }
   | { kind: 'accept'; key: string; text: string; update: GuestUpdate }
+  // A spot opened and this guest is next on the waitlist: offer it to them (they then see how to pay).
+  | { kind: 'offer'; key: string; text: string; update: GuestUpdate }
   // Their payment arrived but every spot is taken: they're owed it back. The button opens Details, where turning
   // them down asks for "Refund sent".
   | { kind: 'refund'; key: string; text: string }
 
 function actionsFor(g: Guest, trip: OrganizerTrip, full: boolean): Action[] {
   if (g.status === 'declined' || !g.signedAt) return []
+  // The waitlist: only the guest next in it, and only once a spot opened (someone joining now wouldn't wait).
+  if (g.status === 'interested' && g.waitlistedAt && !g.offeredAt) {
+    const next = waitlist(trip.guests)[0]?.id === g.id
+    const open = trip.joinMode === 'accept_first' ? !full : !waitlisting(trip, trip.guests)
+    if (!next || !open) return []
+    const text = `On the waitlist since ${day(g.waitlistedAt)}. A spot opened, and they’re next.`
+    return [
+      trip.joinMode === 'accept_first'
+        ? { kind: 'accept', key: `${g.id}-accept`, text, update: { status: 'approved' } }
+        : { kind: 'offer', key: `${g.id}-offer`, text, update: { offerSpot: true } },
+    ]
+  }
   const payFirst = trip.joinMode !== 'accept_first'
   const paid = confirmedCents(g)
   const out: Action[] = g.payments
@@ -201,7 +221,9 @@ function ActionRow({
         : 'Confirm payment'
       : action.kind === 'accept'
         ? 'Accept trip guest'
-        : 'Refund and turn down'
+        : action.kind === 'offer'
+          ? 'Offer the spot'
+          : 'Refund and turn down'
   async function act() {
     if (action.kind === 'refund') return onDetails()
     if (action.kind === 'payment' && action.short) return onReview(action.payment)
@@ -767,6 +789,10 @@ export function eventText(e: GuestEvent): string {
   switch (e.kind) {
     case 'joined':
       return 'Joined the trip'
+    case 'waitlisted':
+      return 'Joined the waitlist (the trip was full)'
+    case 'offered':
+      return 'Offered a spot that opened'
     case 'signed':
       return 'Signed the trip agreement'
     case 'said_paid':

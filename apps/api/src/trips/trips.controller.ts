@@ -9,6 +9,7 @@ import {
   parsePaymentLog,
   parseRooms,
   parseSlug,
+  parseSystemSettings,
   parseTripInput,
 } from './trip-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
@@ -159,6 +160,17 @@ export class AdminController {
   seat(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     const asOwner = (body as { asOwner?: unknown } | null)?.asOwner === true
     return this.trips.seat(id, caller, asOwner)
+  }
+
+  // System Settings: CrewControl-wide values (for now, the waitlist buffer).
+  @Get('settings')
+  settings() {
+    return this.trips.settings()
+  }
+
+  @Put('settings')
+  setSettings(@Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.trips.setSettings(parseSystemSettings(body), caller)
   }
 }
 

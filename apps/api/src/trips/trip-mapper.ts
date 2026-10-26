@@ -60,6 +60,8 @@ export function toPublicTrip(
     roomTaken?: Map<string, number>
     /** Spots taken against the limit (public_spots_taken); approved guests when not given. */
     spotsTaken?: number
+    /** Whether joining now goes on the waitlist (public_trip_waitlisting). */
+    waitlisting?: boolean
   }
 ): PublicTrip {
   const approved = row.guests.filter((g) => g.status === 'approved')
@@ -80,6 +82,7 @@ export function toPublicTrip(
     keyDates: row.keyDates as unknown as TripKeyDate[],
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
+    waitlisting: row.waitlisting ?? false,
     interestedCount: row.guests.filter((g) => g.status === 'interested').length,
     // With room choice on, guests see who's going, so they can choose who to share with.
     guestNames:
@@ -150,6 +153,8 @@ function toGuest(row: GuestWithAgreement): Guest {
     createdAt: row.createdAt.toISOString(),
     spotPaidAt: row.spotPaidAt?.toISOString() ?? null,
     refundSentAt: row.refundSentAt?.toISOString() ?? null,
+    waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
+    offeredAt: row.offeredAt?.toISOString() ?? null,
     payments,
     roomId: row.roomId,
     roomNote: row.roomNote,
@@ -158,7 +163,8 @@ function toGuest(row: GuestWithAgreement): Guest {
   }
 }
 
-export function toOrganizerTrip(row: TripWithGuests): OrganizerTrip {
+/** `waitlistBufferPercent` is the system setting (SystemSettings), handed along for Trip Control's waitlist. */
+export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: number): OrganizerTrip {
   return {
     id: row.id,
     slug: row.slug,
@@ -183,6 +189,7 @@ export function toOrganizerTrip(row: TripWithGuests): OrganizerTrip {
     options: optionsOf(row),
     guests: row.guests.map(toGuest),
     updatedAt: row.updatedAt.toISOString(),
+    waitlistBufferPercent,
   }
 }
 

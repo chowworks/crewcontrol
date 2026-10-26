@@ -10,6 +10,7 @@ import { runAsSystem } from '../core/tenant-context'
 import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
 import { agreementPreview } from '../join/agreement'
+import { sendText } from '../join/send-text'
 import {
   toOrganizerTrip,
   toPublicTrip,
@@ -28,6 +29,7 @@ import type {
   PaymentLog,
   PublicTrip,
   SignedAgreement,
+  SystemSettings,
   TripInput,
   TripLogEntry,
   TripRoom,
@@ -66,6 +68,25 @@ function data(input: TripInput) {
 export class TripsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** The system settings (one row), as the Admin toolbox's System Settings shows them. */
+  async settings(): Promise<SystemSettings> {
+    const row = await this.prisma.systemSettings.findUnique({ where: { id: 1 } })
+    return { waitlistBufferPercent: row?.waitlistBufferPercent ?? 10 }
+  }
+
+  /** The admin changes the system settings; the database refuses anyone else (SystemSettings policies). */
+  async setSettings(input: SystemSettings, caller: Caller): Promise<SystemSettings> {
+    await this.prisma.systemSettings.update({
+      where: { id: 1 },
+      data: { ...input, updatedAt: new Date(), updatedByUserId: caller.userId },
+    })
+    return this.settings()
+  }
+
+  private async waitlistBufferPercent(): Promise<number> {
+    return (await this.settings()).waitlistBufferPercent
+  }
+
   /**
    * The trips the caller works on (their TripMember rows). Row-level security draws the same line in the database;
    * the filter here keeps it while the API still connects as the owner. Admins see every trip in the Admin toolbox.
@@ -94,7 +115,7 @@ export class TripsService {
       include: withGuests,
     })
     if (!row) throw new NotFoundException('Trip not found')
-    return withPhotoLinks(toOrganizerTrip(row))
+    return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
   }
 
   /**
@@ -116,7 +137,7 @@ export class TripsService {
         })
       )
     )
-    return withPhotoLinks(toOrganizerTrip(row))
+    return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
   }
 
   async update(
@@ -138,7 +159,7 @@ export class TripsService {
         include: withGuests,
       })
     )
-    return withPhotoLinks(toOrganizerTrip(row))
+    return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
   }
 
   /** The seed's demo trips, for the homepage. Real organizers' trips are never listed publicly. */
@@ -164,8 +185,10 @@ export class TripsService {
     const taken = await this.prisma.$queryRaw<{ roomId: string; taken: number }[]>(
       Prisma.sql`SELECT * FROM "public_room_taken"(${row.id})`
     )
-    const [{ spots }] = await this.prisma.$queryRaw<{ spots: number }[]>(
-      Prisma.sql`SELECT "public_spots_taken"(${row.id}) AS spots`
+    const [{ spots, waitlisting }] = await this.prisma.$queryRaw<
+      { spots: number; waitlisting: boolean }[]
+    >(
+      Prisma.sql`SELECT "public_spots_taken"(${row.id}) AS spots, "public_trip_waitlisting"(${row.id}) AS waitlisting`
     )
     return withPhotoLinks(
       toPublicTrip({
@@ -173,6 +196,7 @@ export class TripsService {
         guests,
         roomTaken: new Map(taken.map((t) => [t.roomId, t.taken])),
         spotsTaken: spots,
+        waitlisting,
       })
     )
   }
@@ -334,6 +358,14 @@ export class TripsService {
     // Money that arrived and wasn't sent back.
     const paid = guest.payments.some((p) => p.status === 'confirmed')
     const status = update.status ?? guest.status
+    // Offering a waitlisted guest the spot that opened lets them see how to pay. On an accept-first trip accepting them
+    // is the offer.
+    if (update.offerSpot) {
+      if (!guest.waitlistedAt || guest.offeredAt || guest.status !== 'interested')
+        throw new BadRequestException(`${guest.firstName} isn’t waiting on the waitlist`)
+      if (trip.joinMode === 'accept_first')
+        throw new BadRequestException(`Accept ${guest.firstName} to give them the spot`)
+    }
     if (update.refundSent && status !== 'declined')
       throw new BadRequestException('Tick “Refund sent” only when turning a guest down')
     // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
@@ -381,6 +413,7 @@ export class TripsService {
                   refundSentAt: update.refundSent ? refundAt : null,
                 }),
             ...(restart ? { refundSentAt: null } : {}),
+            ...(update.offerSpot ? { offeredAt: new Date() } : {}),
           },
         })
         // The refund sends back what arrived, so those payments stop counting; undoing it counts them again. A guest
@@ -398,6 +431,13 @@ export class TripsService {
           })
       })
     )
+    // Email and texts are mocked until slice 4.
+    if (update.offerSpot)
+      await sendText(
+        guest.phone,
+        `A spot opened on ${trip.name}. Pay ${trip.organizerName} to take it: ` +
+          `${(process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()}/t/${trip.slug}/join`
+      )
     return this.get(id, caller)
   }
 

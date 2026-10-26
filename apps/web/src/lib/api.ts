@@ -16,6 +16,7 @@ import {
   type PublicTerms,
   type PublicTrip,
   type SignedAgreement,
+  type SystemSettings,
   type TripInput,
   type TripLogEntry,
   type TripRoom,
@@ -119,6 +120,9 @@ export const api = {
   logPayment: (id: string, guestId: string, log: PaymentLog) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
+  getSettings: () => request<SystemSettings>('/admin/settings'),
+  setSettings: (settings: SystemSettings) =>
+    request<SystemSettings>('/admin/settings', json('PUT', settings)),
   seatOnTrip: (id: string, asOwner = false) =>
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),

@@ -37,7 +37,7 @@ import { RoomsEditor, roomProblem } from '@/components/RoomsEditor'
 import { TripView } from '@/components/TripView'
 import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
-import { defaultSignupNote } from '@/lib/signups'
+import { defaultSignupNote, waitlisting } from '@/lib/signups'
 import { StepsFrame } from './EditTripSteps'
 
 /** The trip link's shape, as the server checks it (parseSlug). */
@@ -81,7 +81,13 @@ const STEPS = [
 ]
 
 /** What a guest would see for the trip as edited, before it is saved. */
-function previewOf(trip: TripInput, slug: string, guests: Guest[], rooms: TripRoom[]): PublicTrip {
+function previewOf(
+  trip: TripInput,
+  slug: string,
+  guests: Guest[],
+  rooms: TripRoom[],
+  waitlistBufferPercent: number
+): PublicTrip {
   const approved = guests.filter((g) => g.status === 'approved')
   return {
     ...trip,
@@ -102,6 +108,7 @@ function previewOf(trip: TripInput, slug: string, guests: Guest[], rooms: TripRo
       : [],
     goingCount: approved.length,
     spotsTaken: approved.length,
+    waitlisting: waitlisting({ ...trip, waitlistBufferPercent }, guests),
     interestedCount: guests.filter((g) => g.status === 'interested').length,
     guestNames:
       trip.showGuestNames || trip.options.roomChoice
@@ -133,6 +140,8 @@ export function EditTripPage() {
   // The trip link as typed; saved only when it differs from `slug`.
   const [link, setLink] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
+  // The system's waitlist buffer, for the preview's "Join the waitlist" (a new trip uses the default until saved).
+  const [buffer, setBuffer] = useState(10)
   const [loading, setLoading] = useState(Boolean(id))
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -188,6 +197,7 @@ export function EditTripPage() {
         setSlug(slug)
         setLink(slug)
         setGuests(guests)
+        setBuffer(loaded.waitlistBufferPercent)
       })
       .catch(() => setMessage({ kind: 'error', text: 'This trip could not be loaded.' }))
       .finally(() => setLoading(false))
@@ -334,7 +344,7 @@ export function EditTripPage() {
       </div>
 
       {preview ? (
-        <TripView trip={previewOf(trip, slug, guests, rooms)} preview />
+        <TripView trip={previewOf(trip, slug, guests, rooms, buffer)} preview />
       ) : (
         <StepsFrame title={id ? 'Edit trip' : 'New trip'} steps={STEPS} step={step} onStep={goTo}>
           {step === 1 && (

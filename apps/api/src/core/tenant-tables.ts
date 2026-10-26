@@ -18,6 +18,8 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'TripLog',
   'Payment',
   'TermsAcceptance',
+  // Not trip data: one row of system settings, read by all and changed by the admin, so its writes carry the admin mark.
+  'SystemSettings',
 ])
 
 type Fields = Map<string, string> // relation field name -> the model it points at

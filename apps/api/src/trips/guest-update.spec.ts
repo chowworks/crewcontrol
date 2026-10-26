@@ -60,6 +60,8 @@ function guest(id: string, extra: Record<string, unknown> = {}) {
     createdAt: at,
     spotPaidAt: null as Date | null,
     refundSentAt: null as Date | null,
+    waitlistedAt: null as Date | null,
+    offeredAt: null as Date | null,
     roomId: null,
     roomNote: '',
     payments: [] as PaymentRow[],
@@ -124,6 +126,7 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
   const prisma = {
     trip: { findFirst: async () => row },
     room: { findFirst: async () => null },
+    systemSettings: { findUnique: async () => ({ waitlistBufferPercent: 10 }) },
     guest: {
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         writes.push(data)
@@ -410,5 +413,25 @@ describe('a guest’s spot in Trip Control', () => {
       caller
     )
     expect(guests[0].payments[0]).toMatchObject({ status: 'confirmed', receivedPaymentAmount: 450 })
+  })
+
+  it('offers a waitlisted guest the spot that opened, and only them', async () => {
+    const { service, writes } = setup({ maxGuests: 2 }, [
+      paidGuest('in', { status: 'approved' }),
+      guest('wait', { waitlistedAt: at }),
+      guest('plain'),
+    ])
+    await expect(service.updateGuest('t1', 'plain', { offerSpot: true }, caller)).rejects.toThrow(
+      /isn’t waiting on the waitlist/
+    )
+    await service.updateGuest('t1', 'wait', { offerSpot: true }, caller)
+    expect(writes[0]).toMatchObject({ status: 'interested', offeredAt: expect.any(Date) })
+  })
+
+  it('on an accept-first trip, gives a waitlisted guest the spot by accepting them', async () => {
+    const { service } = setup({ joinMode: 'accept_first' }, [guest('wait', { waitlistedAt: at })])
+    await expect(service.updateGuest('t1', 'wait', { offerSpot: true }, caller)).rejects.toThrow(
+      /Accept wait to give them the spot/
+    )
   })
 })

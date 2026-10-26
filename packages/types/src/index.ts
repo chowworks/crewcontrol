@@ -65,6 +65,8 @@ export interface PublicTrip {
   options: TripOptions
   /** Spots taken against maxGuests: accepted guests. */
   spotsTaken: number
+  /** Someone joining now goes on the waitlist: the trip is full (or, where guests pay first, enough people can pay). */
+  waitlisting: boolean
 }
 
 /** Joining, then accepted, or turned down by the organizer. */
@@ -84,6 +86,9 @@ export interface Guest {
   createdAt: string
   spotPaidAt: string | null
   refundSentAt: string | null
+  /** When they joined onto the waitlist (the trip was full), and when an organizer offered them a spot. */
+  waitlistedAt: string | null
+  offeredAt: string | null
   /** Every payment they reported or the organizer logged, oldest first. */
   payments: Payment[]
   roomId: string | null
@@ -209,6 +214,8 @@ export interface GuestEvent {
   at: string
   kind:
     | 'joined'
+    | 'waitlisted'
+    | 'offered'
     | 'signed'
     | 'said_paid'
     | 'payment_confirmed'
@@ -300,6 +307,8 @@ export interface OrganizerTrip extends TripInput {
   id: string
   slug: string
   guests: Guest[]
+  /** The system's waitlist buffer (System Settings), so Trip Control can tell when a spot opened as the database does. */
+  waitlistBufferPercent: number
   updatedAt: string
 }
 
@@ -420,6 +429,9 @@ export interface MyGuest {
   lastName: string
   spotPaidAt: string | null
   refundSentAt: string | null
+  /** On the waitlist, and whether an organizer offered them a spot. */
+  waitlistedAt: string | null
+  offeredAt: string | null
   roomId: string | null
   terms: GuestTerms | null
   agreement: SignedAgreement | null
@@ -445,6 +457,8 @@ export interface JoinView {
 export interface GuestUpdate {
   /** Accept, turn down, or put back to waiting. */
   status?: GuestStatus
+  /** Offer a waitlisted guest the spot that opened (on the pay-first trips; accepting does it on the others). */
+  offerSpot?: boolean
   /** Turning down a guest whose payment arrived needs this: the organizer says the refund went out. */
   refundSent?: boolean
   /** Move the guest to a room, or null for no room. */
@@ -497,3 +511,12 @@ export interface AcceptTermsInput {
 
 /** The code on a 403 from an organizer route while the person hasn't accepted the current Organizer Terms. */
 export const TERMS_REQUIRED_CODE = 'terms_required'
+
+/** CrewControl-wide values the platform admin sets in the Admin toolbox (System Settings). */
+export interface SystemSettings {
+  /**
+   * On the trips where guests pay before they're accepted, joining goes to the waitlist once the guests who can see
+   * how to pay fill the spots left plus this percent of them, rounded up. 0 to 100.
+   */
+  waitlistBufferPercent: number
+}
