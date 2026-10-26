@@ -38,6 +38,8 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   status,
   createdAt: new Date(),
   spotPaidAt: null,
+  waitlistedAt: null,
+  offeredAt: null,
   refundSentAt: null,
   userId: null,
   roomId: null,

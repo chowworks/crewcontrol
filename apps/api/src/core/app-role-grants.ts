@@ -19,6 +19,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'public_room_taken(text)',
   // How many spots are taken on a published trip (accepted guests).
   'public_spots_taken(text)',
+  // Whether someone joining a published trip now goes on its waitlist (yes or no, never who).
+  'public_trip_waitlisting(text)',
   // A signed-in guest's own guest rows and the trips they joined, and whether a trip takes sign-ups.
   'app_guest_ids()',
   'app_guest_trip_ids()',

@@ -15,8 +15,8 @@ const h2 = 'text-[26px] font-extrabold'
 export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?: boolean }) {
   const cover = trip.photos[0]
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
-  // A trip with no spots left must not ask anyone to sign up and send money.
-  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+  // A full trip keeps taking sign-ups onto its waitlist, where nobody is asked to send money.
+  const full = trip.waitlisting
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -178,7 +178,7 @@ function initials(name: string) {
 
 /**
  * "I want to join": opens the join page, where guests sign in, sign the agreement and see how to pay. Inert in the
- * organizer's preview. On a full trip it still leads there, for guests who joined and come back for their place.
+ * organizer's preview. On a full trip it leads to the waitlist, and back to their place for guests who joined.
  */
 function JoinLink({
   trip,
@@ -201,7 +201,7 @@ function JoinLink({
     )
   return (
     <Link to={`/t/${trip.slug}/join`} className={className}>
-      {full ? 'Already joined? See your place' : children}
+      {full ? 'Join the waitlist' : children}
     </Link>
   )
 }
@@ -241,11 +241,11 @@ function WantInTile({
       </svg>
       <div className="relative flex flex-col gap-3">
         <h2 className="font-display text-[28px] font-extrabold leading-tight">
-          {full ? 'This trip is full' : 'Want in?'}
+          {full ? 'Join the waitlist' : 'Want in?'}
         </h2>
         <p className="max-w-[22ch] whitespace-pre-line text-[15px] text-white/85">
           {full
-            ? `Every spot is taken. Ask ${trip.organizerName} to keep you in mind if one opens up.`
+            ? `Every spot is spoken for. Join the waitlist and ${trip.organizerName} will text you if one opens. You pay nothing until then.`
             : trip.options.signupNote.trim() ||
               defaultSignupNote(trip.organizerName, trip.joinMode)}
         </p>

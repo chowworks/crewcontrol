@@ -161,23 +161,12 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
     ? problems
     : Object.fromEntries(Object.entries(problems).filter(([k]) => left[k as keyof Draft]))
   const leave = (key: keyof Draft) => () => setLeft((l) => ({ ...l, [key]: true }))
-  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
 
   useEffect(() => {
     if (error) alertRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [error])
-
-  if (full)
-    return (
-      <>
-        <h2 className="text-xl font-extrabold">This trip is full</h2>
-        <p className="text-body">
-          Every spot is taken. Ask {trip.organizerName} to keep you in mind if one opens up.
-        </p>
-      </>
-    )
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -223,19 +212,30 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <h2 className="text-xl font-extrabold">Join the trip</h2>
+      <h2 className="text-xl font-extrabold">
+        {trip.waitlisting ? 'Join the waitlist' : 'Join the trip'}
+      </h2>
+      {trip.waitlisting && (
+        <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+          Every spot is spoken for. Sign to join the waitlist: {trip.organizerName} texts you if a
+          spot opens, and you pay nothing until then.
+        </p>
+      )}
       {trip.options.signupNote.trim() && (
         <p className="whitespace-pre-line font-semibold text-ink">{trip.options.signupNote}</p>
       )}
-      <p className="text-body">
-        {trip.joinMode === 'accept_first'
-          ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you pay your first installment.`
-          : `Sign the trip agreement, then pay ${trip.organizerName} your first installment. ${
-              trip.joinMode === 'first_come'
-                ? 'Spots go first come, first served, in the order payments are confirmed.'
-                : `${trip.organizerName} accepts the crew once payments arrive.`
-            } If you don’t get a spot, you get a full refund.`}
-      </p>
+      {/* On the waitlist there's nothing to pay yet, so the usual "sign, then pay" line would mislead. */}
+      {!trip.waitlisting && (
+        <p className="text-body">
+          {trip.joinMode === 'accept_first'
+            ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you pay your first installment.`
+            : `Sign the trip agreement, then pay ${trip.organizerName} your first installment. ${
+                trip.joinMode === 'first_come'
+                  ? 'Spots go first come, first served, in the order payments are confirmed.'
+                  : `${trip.organizerName} accepts the crew once payments arrive.`
+              } If you don’t get a spot, you get a full refund.`}
+        </p>
+      )}
       {(error || (tried && Object.keys(problems).length > 0)) && (
         <p ref={alertRef} role="alert" className="font-semibold text-[#B42318]">
           {error ?? 'Fix the fields marked below.'}
@@ -395,9 +395,12 @@ function MyPlace({
   // On an accept-first trip a guest pays once accepted; on the other two, before the organizer decides.
   // A guest still waiting on a trip that filled has nothing to pay for (they're owed back what they sent).
   const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+  // On the waitlist with no spot offered yet: nothing to pay.
+  const waiting = me.status === 'interested' && Boolean(me.waitlistedAt) && !me.offeredAt
   const canPay =
     me.status !== 'declined' &&
     !me.refundSentAt &&
+    !waiting &&
     !(me.status === 'interested' && full) &&
     (trip.joinMode !== 'accept_first' || me.status === 'approved')
   const { left, dueNow } = me.terms ? owed(me.terms) : { left: 0, dueNow: 0 }
@@ -427,25 +430,40 @@ function MyPlace({
                   ? `${o} accepted you. Payment sent: ${o} will confirm it arrived.`
                   : `${o} accepted you. Now pay ${o} ${dueNow ? money(dueNow) : first}.`,
           ]
-        : trip.joinMode === 'accept_first'
+        : waiting
           ? [
-              'Signed. Your copy is below',
-              `${o} accepts the crew next. Once you’re in, you’ll see how to pay.`,
+              'You’re on the waitlist',
+              `${o} will text you if a spot opens. You pay nothing until then.`,
             ]
-          : me.refundSentAt
-            ? ['Payment refunded', `${o} sent your money back on ${day(me.refundSentAt)}.`]
-            : me.spotPaidAt
-              ? full
-                ? ['The trip filled first', `${o} confirmed your payment and refunds you in full.`]
-                : ['Payment confirmed', `${o} accepts the crew next. You’ll hear either way.`]
-              : reported
-                ? ['Payment sent', `${o} will confirm it arrived.`]
-                : paidCents > 0
+          : trip.joinMode === 'accept_first'
+            ? [
+                'Signed. Your copy is below',
+                `${o} accepts the crew next. Once you’re in, you’ll see how to pay.`,
+              ]
+            : me.refundSentAt
+              ? ['Payment refunded', `${o} sent your money back on ${day(me.refundSentAt)}.`]
+              : me.spotPaidAt
+                ? full
                   ? [
-                      'Part paid',
-                      `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more holds your spot.`,
+                      'The trip filled first',
+                      `${o} confirmed your payment and refunds you in full.`,
                     ]
-                  : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
+                  : ['Payment confirmed', `${o} accepts the crew next. You’ll hear either way.`]
+                : reported
+                  ? ['Payment sent', `${o} will confirm it arrived.`]
+                  : paidCents > 0
+                    ? [
+                        'Part paid',
+                        `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more holds your spot.`,
+                      ]
+                    : me.offeredAt
+                      ? ['A spot opened', `${o} offered you a spot. Pay ${first} to take it.`]
+                      : full
+                        ? [
+                            'The trip filled up',
+                            `Every spot is taken. ${o} will text you if one opens. Don’t send money until then.`,
+                          ]
+                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
 
   return (
     <div className="flex flex-col gap-4">

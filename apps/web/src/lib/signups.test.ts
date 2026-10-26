@@ -17,6 +17,8 @@ const g = (
   status,
   createdAt,
   spotPaidAt: confirmed,
+  waitlistedAt: null,
+  offeredAt: null,
   refundSentAt: null,
   payments: sent
     ? [

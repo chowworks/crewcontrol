@@ -23,6 +23,7 @@ import {
   type PaymentMethod,
   type PaymentMethodKind,
   type PaymentReport,
+  type SystemSettings,
 } from './trip-types'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -266,6 +267,7 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
     update.status = body.status
   }
   if (body.refundSent !== undefined) update.refundSent = bool(body, 'refundSent')
+  if (body.offerSpot !== undefined) update.offerSpot = bool(body, 'offerSpot')
   if (body.roomId !== undefined) {
     if (body.roomId !== null && typeof body.roomId !== 'string')
       fail('roomId must be a room or null')
@@ -315,4 +317,9 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
   }
+}
+
+export function parseSystemSettings(raw: unknown): SystemSettings {
+  if (!raw || typeof raw !== 'object') fail('Expected settings')
+  return { waitlistBufferPercent: int(raw as Body, 'waitlistBufferPercent', 0, 100) }
 }

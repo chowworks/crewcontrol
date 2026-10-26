@@ -36,11 +36,16 @@ const emailRefusals = new RateLimiter(
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
 
 /**
- * Whether a guest may see how to pay and report a payment: never once turned down, and on an accept-first trip only once
- * accepted (a guest on the other two pays before the organizer decides).
+ * Whether a guest may see how to pay and report a payment: never once turned down, never while on the waitlist without
+ * an offer, and on an accept-first trip only once accepted (a guest on the other two pays before the organizer decides).
  */
-const canPay = (joinMode: string, status: string) =>
-  status !== 'declined' && (joinMode !== 'accept_first' || status === 'approved')
+const canPay = (
+  joinMode: string,
+  g: { status: string; waitlistedAt: Date | string | null; offeredAt: Date | string | null }
+) =>
+  g.status !== 'declined' &&
+  (g.status === 'approved' || !g.waitlistedAt || Boolean(g.offeredAt)) &&
+  (joinMode !== 'accept_first' || g.status === 'approved')
 
 /**
  * Joining a trip, for a signed-in guest: read the agreement, sign it with the form, then report their payments. The trip
@@ -67,13 +72,15 @@ export class JoinService {
       },
     })
     const payments = paymentsOf(row?.payments)
-    const pay = row !== null && canPay(trip.joinMode, row.status)
+    const pay = row !== null && canPay(trip.joinMode, row)
     const me: MyGuest | null = row && {
       status: row.status as MyGuest['status'],
       firstName: row.firstName,
       lastName: row.lastName,
       spotPaidAt: row.spotPaidAt?.toISOString() ?? null,
       refundSentAt: row.refundSentAt?.toISOString() ?? null,
+      waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
+      offeredAt: row.offeredAt?.toISOString() ?? null,
       roomId: row.roomId,
       terms: row.agreement ? termsOf(row.agreement, payments) : null,
       agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
@@ -99,8 +106,7 @@ export class JoinService {
       throw new ConflictException(
         'The trip’s details changed since you opened this page. Read the agreement again, then sign.'
       )
-    if (trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests)
-      throw new ConflictException('Every spot on this trip is taken')
+    // A full trip keeps taking sign-ups: the database puts them on the waitlist (guest_waitlist).
     if (input.roomId && !trip.rooms.some((r) => r.id === input.roomId))
       throw new BadRequestException('That room is not on this trip')
     if (!input.roomId && trip.options.roomRequired && trip.rooms.length > 0)
@@ -165,15 +171,18 @@ export class JoinService {
       throw err
     }
     // The copy of record (the guest's join page keeps it too). Email is mocked until slice 4.
+    const joined = await this.view(slug, caller)
     await sendText(
       input.phone,
       `You signed the trip agreement for ${trip.name}. ` +
-        (trip.joinMode === 'accept_first'
-          ? `Your copy, and how to pay ${trip.organizerName} once you're accepted: `
-          : `Your copy and how to pay ${trip.organizerName}: `) +
+        (joined.me?.waitlistedAt
+          ? `The trip is full, so you're on the waitlist. ${trip.organizerName} will text you if a spot opens: `
+          : trip.joinMode === 'accept_first'
+            ? `Your copy, and how to pay ${trip.organizerName} once you're accepted: `
+            : `Your copy and how to pay ${trip.organizerName}: `) +
         `${webUrl()}/t/${slug}/join`
     )
-    return this.view(slug, caller)
+    return joined
   }
 
   /**
@@ -183,7 +192,7 @@ export class JoinService {
   async reportPayment(slug: string, input: PaymentReport, caller: Caller): Promise<JoinView> {
     const { trip, me } = await this.view(slug, caller)
     if (!me) throw new NotFoundException('Join the trip first')
-    if (!canPay(trip.joinMode, me.status) || me.refundSentAt)
+    if (!canPay(trip.joinMode, me) || me.refundSentAt)
       throw new BadRequestException('You can pay once you’re accepted')
     if (!me.terms) throw new BadRequestException('Sign the trip agreement first')
     // A guest still waiting on a trip that filled has no spot to pay for (they're owed back what they sent).

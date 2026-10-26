@@ -88,6 +88,10 @@ model Guest {
   // (kept by the database from Payment, migration 20261025010000_payment_log). On a first come, first served trip
   // spots go in this order.
   spotPaidAt         DateTime?
+  // When they joined onto the waitlist (the trip was full), and when an organizer offered them a spot that opened
+  // (migration 20261026020000_waitlist). Waitlisted and not offered: no way to pay shown, and no payment taken.
+  waitlistedAt       DateTime?
+  offeredAt          DateTime?
   // When the organizer, turning a paid guest down, said the refund went out. Records it; moves no money.
   refundSentAt       DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
@@ -243,4 +247,14 @@ model AccessLog {
   at            DateTime @default(now())
 
   @@index([tripId])
+}
+
+// CrewControl-wide values the platform admin sets in the Admin toolbox ("System Settings"), one row (id 1). Everyone
+// reads them; only the admin changes them (migration 20261026030000_system_settings).
+model SystemSettings {
+  id                    Int      @id @default(1)
+  // On the pay-first trips, joining goes to the waitlist once those who can pay fill the spots left plus this percent.
+  waitlistBufferPercent Int      @default(10)
+  updatedAt             DateTime @default(now())
+  updatedByUserId       String?
 }

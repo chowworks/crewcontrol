@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
+import { AdminSettingsPage } from './pages/AdminSettingsPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
 import { ContactPage } from './pages/ContactPage'
 import { ControlPanelPage } from './pages/ControlPanelPage'
@@ -75,6 +76,14 @@ export default function App() {
         element={
           <RequireSignIn>
             <AdminTripsPage />
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <RequireSignIn>
+            <AdminSettingsPage />
           </RequireSignIn>
         }
       />

@@ -149,7 +149,9 @@ suite('trip isolation', () => {
 
   it('shows nothing with no context', async () => {
     await as({}, async () => {
-      for (const t of TENANT_TABLES) expect([t, await ids(t)]).toEqual([t, []])
+      // System settings are read by everyone; every table of trip data shows nothing.
+      for (const t of TENANT_TABLES)
+        if (t !== 'SystemSettings') expect([t, await ids(t)]).toEqual([t, []])
     })
   })
 
@@ -894,6 +896,22 @@ suite('trip isolation', () => {
       expect(
         await attempt(`SELECT "log_refused_email"('t1', 'n', 'e', 'p', 'ip', 'ua', false)`)
       ).toEqual({ error: expect.stringMatching(/Sign in first/) })
+    })
+  })
+
+  it('lets everyone read the system settings and only the admin change them', async () => {
+    const set = (pct: number) =>
+      attempt(`UPDATE "SystemSettings" SET "waitlistBufferPercent" = ${pct}`)
+    await as(await person('u1'), async () => {
+      expect(await ids('SystemSettings')).toEqual([1])
+      expect(await set(20)).toEqual({ rows: 0 })
+    })
+    await as(await person('a1', { admin: true }), async () => {
+      expect(await set(20)).toEqual({ rows: 1 })
+      expect(await set(101)).toEqual({
+        error: expect.stringMatching(/waitlistBufferPercent_check/),
+      })
+      expect(await attempt(`DELETE FROM "SystemSettings"`)).toEqual({ rows: 0 })
     })
   })
 

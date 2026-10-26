@@ -287,6 +287,12 @@ async function main() {
         lastName,
         status: 'interested',
         createdAt: joined(approved.length + i),
+        // On the first come trip the last one joined when it looked full: they wait on the waitlist, and a spot is
+        // open for them to be offered.
+        waitlistedAt:
+          trip.joinMode === 'first_come' && i === interested.length - 1
+            ? joined(approved.length + i)
+            : null,
         ...contact(firstName, lastName, 50 + i),
         payment: acceptFirst
           ? null
@@ -311,6 +317,7 @@ async function main() {
             lastName: g.lastName,
             status: g.status,
             createdAt: g.createdAt,
+            waitlistedAt: 'waitlistedAt' in g ? g.waitlistedAt : null,
             email: g.email,
             phone: g.phone,
           })),
