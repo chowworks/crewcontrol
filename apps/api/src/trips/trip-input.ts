@@ -17,6 +17,12 @@ import {
   type GuestUpdate,
   type JoinInput,
   type JoinMode,
+  PAYMENT_METHOD_KINDS,
+  type PaymentDecision,
+  type PaymentLog,
+  type PaymentMethod,
+  type PaymentMethodKind,
+  type PaymentReport,
 } from './trip-types'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -85,6 +91,21 @@ function highlight(item: Body): TripHighlight {
   }
 }
 
+function paymentMethod(item: Body): PaymentMethod {
+  const kind = item.kind
+  if (!PAYMENT_METHOD_KINDS.some((k) => k.kind === kind))
+    fail(
+      `A payment method's kind must be one of ${PAYMENT_METHOD_KINDS.map((k) => k.kind).join(', ')}`
+    )
+  const custom = kind === 'custom'
+  return {
+    kind: kind as PaymentMethodKind,
+    label: custom ? text(item, 'label', 40) : '',
+    // A custom method may be just its name ("Pay in person").
+    handle: text(item, 'handle', 120, !custom),
+  }
+}
+
 function keyDate(item: Body): TripKeyDate {
   return { date: date(item, 'date'), label: text(item, 'label', 160) }
 }
@@ -112,6 +133,8 @@ export function parseTripInput(raw: unknown): TripInput {
     installmentCount: int(body, 'installmentCount', 1, 24),
     galleryTitle: text(body, 'galleryTitle', 40, false) || 'Photos',
     showGuestNames: bool(body, 'showGuestNames'),
+    paymentMethods:
+      body.paymentMethods === undefined ? [] : list(body, 'paymentMethods', 8).map(paymentMethod),
     paymentInstructions: text(body, 'paymentInstructions', 1000, false),
     published: bool(body, 'published'),
     photos: list(body, 'photos', MAX_TRIP_PHOTOS).map(photo),
@@ -242,7 +265,6 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
       fail('status must be interested, approved or declined')
     update.status = body.status
   }
-  if (body.paymentConfirmed !== undefined) update.paymentConfirmed = bool(body, 'paymentConfirmed')
   if (body.refundSent !== undefined) update.refundSent = bool(body, 'refundSent')
   if (body.roomId !== undefined) {
     if (body.roomId !== null && typeof body.roomId !== 'string')
@@ -250,4 +272,47 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
     update.roomId = body.roomId || null
   }
   return update
+}
+
+/** Up to $100,000 in whole cents, as trip prices go. */
+const cents = (body: Body, key: string) => int(body, key, 1, 100_000_00)
+
+/** A guest reporting a payment. The amount against what is due is checked where the guest's balance is known. */
+export function parsePaymentReport(raw: unknown): PaymentReport {
+  if (!raw || typeof raw !== 'object') fail('Expected a payment')
+  const body = raw as Body
+  if (body.certified !== true) fail('Tick "I sent this payment" to report it')
+  return {
+    guestPaymentAmount: cents(body, 'guestPaymentAmount'),
+    // Null when the trip lists no ways to pay (its note says how).
+    methodIndex: body.methodIndex === null ? null : int(body, 'methodIndex', 0, 7),
+    sentOn: date(body, 'sentOn'),
+    note: text(body, 'note', 500, false),
+    certified: true,
+  }
+}
+
+export function parsePaymentDecision(raw: unknown): PaymentDecision {
+  if (!raw || typeof raw !== 'object') fail('Expected a decision')
+  const body = raw as Body
+  if (body.status !== 'confirmed' && body.status !== 'not_received' && body.status !== 'reported')
+    fail('status must be confirmed, not_received or reported')
+  if (body.status !== 'confirmed' || body.receivedPaymentAmount === undefined)
+    return { status: body.status }
+  return {
+    status: 'confirmed',
+    // Nothing arrived is "not received", never a confirmation of $0.
+    receivedPaymentAmount: cents(body, 'receivedPaymentAmount'),
+  }
+}
+
+export function parsePaymentLog(raw: unknown): PaymentLog {
+  if (!raw || typeof raw !== 'object') fail('Expected a payment')
+  const body = raw as Body
+  return {
+    receivedPaymentAmount: cents(body, 'receivedPaymentAmount'),
+    method: text(body, 'method', 160),
+    sentOn: date(body, 'sentOn'),
+    note: text(body, 'note', 500, false),
+  }
 }

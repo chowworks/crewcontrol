@@ -2,10 +2,13 @@ import {
   DEFAULT_TRIP_OPTIONS,
   HIGHLIGHT_ICONS,
   MAX_TRIP_PHOTOS,
+  PAYMENT_METHOD_KINDS,
   type AgreementPreview,
   type Guest,
   type HighlightIcon,
   type OrganizerTrip,
+  type PaymentMethod,
+  type PaymentMethodKind,
   type PublicTrip,
   type TripInput,
   type TripOptions,
@@ -51,6 +54,7 @@ const EMPTY: TripInput = {
   installmentCount: 1,
   galleryTitle: 'Photos',
   showGuestNames: false,
+  paymentMethods: [],
   paymentInstructions: '',
   published: false,
   photos: [],
@@ -210,8 +214,9 @@ export function EditTripPage() {
   /** Saves the trip and, when they changed, its rooms. True when everything saved. */
   async function save(): Promise<boolean> {
     const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r))
+    const methodsBad = trip.paymentMethods.some((m) => methodProblem(m))
     // A problem can sit on another step than this one: open that step, where it shows beside its field.
-    const problemStep = roomsBad ? 3 : linkProblem ? 5 : 0
+    const problemStep = roomsBad ? 3 : methodsBad ? 4 : linkProblem ? 5 : 0
     if (problemStep) {
       show(problemStep)
       setMessage({
@@ -334,23 +339,6 @@ export function EditTripPage() {
         <StepsFrame title={id ? 'Edit trip' : 'New trip'} steps={STEPS} step={step} onStep={goTo}>
           {step === 1 && (
             <>
-              <Card title="How the trip works">
-                <Toggle
-                  checked={trip.options.roomChoice}
-                  onChange={(v) =>
-                    setTrip((t) => ({
-                      ...t,
-                      options: {
-                        ...t.options,
-                        roomChoice: v,
-                        roomRequired: v && t.options.roomRequired,
-                      },
-                    }))
-                  }
-                  label="Guests choose their room"
-                  hint="Guests pick from the trip's rooms when they sign up (you set the rooms in step 3), and the trip page shows who's going."
-                />
-              </Card>
               <Card title="The basics">
                 <Text
                   label="Trip name"
@@ -514,14 +502,6 @@ export function EditTripPage() {
                   ))}
                 </fieldset>
                 <AgreementButton tripId={id} />
-                {trip.options.roomChoice && (
-                  <Toggle
-                    checked={trip.options.roomRequired}
-                    onChange={(v) => setOption('roomRequired', v)}
-                    label="Guests must pick a room"
-                    hint="Without one, the sign-up form won't send. Off: guests can choose no preference."
-                  />
-                )}
               </Card>
               <Card title="Who's going">
                 <Toggle
@@ -732,20 +712,36 @@ export function EditTripPage() {
             </>
           )}
 
-          {step === 3 &&
-            (id ? (
-              <>
-                {!trip.options.roomChoice && (
-                  <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
-                    Guests won&apos;t see these rooms: they set the price in step 4. To let guests
-                    pick one, turn on “Guests choose their room” in step 1.
-                  </p>
+          {step === 3 && (
+            <>
+              <Card title="Room choice">
+                <Toggle
+                  checked={trip.options.roomChoice}
+                  onChange={(v) =>
+                    setTrip((t) => ({
+                      ...t,
+                      options: {
+                        ...t.options,
+                        roomChoice: v,
+                        roomRequired: v && t.options.roomRequired,
+                      },
+                    }))
+                  }
+                  label="Guests choose their room"
+                  hint="Guests pick from the rooms below when they sign up, and the trip page shows who's going. Off: the rooms only set the price in step 4."
+                />
+                {trip.options.roomChoice && (
+                  <Toggle
+                    checked={trip.options.roomRequired}
+                    onChange={(v) => setOption('roomRequired', v)}
+                    label="Guests must pick a room"
+                    hint="Without one, the sign-up form won't send. Off: guests can choose no preference."
+                  />
                 )}
-                <RoomsEditor rooms={rooms} setRooms={setRooms} />
-              </>
-            ) : (
-              <NeedsTrip />
-            ))}
+              </Card>
+              {id ? <RoomsEditor rooms={rooms} setRooms={setRooms} /> : <NeedsTrip />}
+            </>
+          )}
 
           {step === 4 && (
             <>
@@ -764,20 +760,24 @@ export function EditTripPage() {
                 <NeedsTrip />
               )}
               <Card title="How to pay">
+                <PaymentMethodsEditor
+                  methods={trip.paymentMethods}
+                  onChange={(v) => set('paymentMethods', v)}
+                />
                 <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                  How guests pay you
+                  Anything else about paying (optional)
                   <textarea
-                    className={`${field} min-h-[80px]`}
+                    className={`${field} min-h-[80px] font-normal`}
                     value={trip.paymentInstructions}
                     onChange={(e) => set('paymentInstructions', e.target.value)}
-                    placeholder="Zelle or Cash App to me. Put your name and the trip code in the memo."
+                    placeholder="Put your name and the trip code in the memo."
                   />
-                  <span className="font-normal text-muted">
-                    {trip.joinMode === 'accept_first'
-                      ? 'Only guests you accepted see this. It never appears on the public trip page.'
-                      : 'Only guests who signed in and signed the trip agreement see this. It never appears on the public trip page.'}
-                  </span>
                 </label>
+                <span className="text-sm text-muted">
+                  {trip.joinMode === 'accept_first'
+                    ? 'Only guests you accepted see these. They never appear on the public trip page.'
+                    : 'Only guests who signed in and signed the trip agreement see these. They never appear on the public trip page.'}
+                </span>
               </Card>
             </>
           )}
@@ -872,21 +872,114 @@ function Text({
   )
 }
 
+/** What's missing from a way to pay, if anything: a fixed kind needs its handle, a custom one its name. */
+function methodProblem(m: PaymentMethod): string | null {
+  if (m.kind === 'custom') return m.label.trim() ? null : 'Give it a name, like “Pay in person”.'
+  return m.handle.trim() ? null : 'Add where to send it.'
+}
+
+/**
+ * The ways guests can pay the organizer (owner's decision, 2026-10-24): fixed kinds CrewControl knows by name, each with
+ * its handle, and free-form ones ("Pay in person"). A guest picks one when they report a payment.
+ */
+function PaymentMethodsEditor({
+  methods,
+  onChange,
+}: {
+  methods: PaymentMethod[]
+  onChange: (methods: PaymentMethod[]) => void
+}) {
+  const put = (i: number, m: PaymentMethod) => onChange(methods.map((x, j) => (j === i ? m : x)))
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-sm font-semibold">Ways guests can pay you</span>
+      {methods.length === 0 && (
+        <p className="text-sm text-muted">
+          Add each way you take money. Guests pick one when they tell you they’ve paid.
+        </p>
+      )}
+      {methods.map((m, i) => {
+        const kind = PAYMENT_METHOD_KINDS.find((k) => k.kind === m.kind)!
+        const problem = methodProblem(m)
+        return (
+          <div key={i} className="flex flex-col gap-2 rounded-xl border border-rule p-3">
+            <div className="flex flex-wrap gap-2">
+              <select
+                className={`${field} min-w-[150px] flex-1`}
+                value={m.kind}
+                aria-label="Way to pay"
+                onChange={(e) =>
+                  put(i, { ...m, kind: e.target.value as PaymentMethodKind, label: '' })
+                }
+              >
+                {PAYMENT_METHOD_KINDS.map((k) => (
+                  <option key={k.kind} value={k.kind}>
+                    {k.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => onChange(methods.filter((_, j) => j !== i))}
+                aria-label={`Remove ${kind.name}`}
+                className="grid h-11 w-11 place-items-center rounded-lg border border-royal text-royal hover:bg-royal-pale"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            {m.kind === 'custom' && (
+              <input
+                className={field}
+                value={m.label}
+                maxLength={40}
+                aria-label="Name"
+                placeholder="Name, like “Pay in person”"
+                onChange={(e) => put(i, { ...m, label: e.target.value })}
+              />
+            )}
+            <input
+              className={field}
+              value={m.handle}
+              maxLength={120}
+              aria-label={m.kind === 'custom' ? 'How to pay' : `${kind.name} handle`}
+              placeholder={kind.handle}
+              onChange={(e) => put(i, { ...m, handle: e.target.value })}
+            />
+            {problem && <span className="text-sm font-semibold text-[#B42318]">{problem}</span>}
+          </div>
+        )
+      })}
+      {methods.length < 8 && (
+        <button
+          type="button"
+          onClick={() => onChange([...methods, { kind: 'zelle', label: '', handle: '' }])}
+          className="inline-flex min-h-[44px] items-center gap-1.5 self-start rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add a way to pay
+        </button>
+      )}
+    </div>
+  )
+}
+
+// What each way of giving spots means, for the organizer choosing one (owner's decision, 2026-10-24: keep all three,
+// each explained).
 const JOIN_MODES = [
   {
     value: 'accept_first',
     label: 'You accept, then they pay',
-    hint: 'Once a guest has signed, you accept them or turn them down. Only then do they see how to pay you.',
+    hint: 'You pick who comes. Once a guest has signed, you accept them or turn them down, and only then do they see how to pay you. Nobody sends money without a spot. Best when you want to choose your crew.',
   },
   {
     value: 'pay_first',
     label: 'They pay, then you accept',
-    hint: 'Guests sign and pay first. Once their payment arrived, you accept them or turn them down and refund them.',
+    hint: 'Everyone who wants in signs and pays first, then you choose. You see who’s serious, but anyone you turn down after paying gets a full refund from you.',
   },
   {
     value: 'first_come',
-    label: 'First come, first served',
-    hint: 'Confirming a payment gives that guest the next spot. Turning down a paid guest means refunding them.',
+    label: 'First to pay gets in',
+    hint: 'Spots go in the order you confirm payments arrived. You don’t choose; the money does. Best for popular trips where fairness matters more than picking. Anyone who pays after the trip fills gets a full refund.',
   },
 ] as const
 

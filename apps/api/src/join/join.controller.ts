@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, Ip, Param, Post, UseGuards } from '@nes
 import type { Caller } from '../auth/caller'
 import { CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import { RateLimiter } from '../core/rate-limit'
-import { parseJoin } from '../trips/trip-input'
+import { parseJoin, parsePaymentReport } from '../trips/trip-input'
 import { JoinService } from './join.service'
 
 // The join page's endpoints: a signed-in guest's own place on a trip (/t/<slug>/join on the web app).
@@ -36,8 +36,10 @@ export class JoinController {
     return this.join.join(slug, input, caller, { ip: ip ?? '', userAgent: userAgent ?? '' })
   }
 
-  @Post(':slug/paid')
-  paid(@Param('slug') slug: string, @CurrentCaller() caller: Caller) {
-    return this.join.markPaid(slug, caller)
+  @Post(':slug/payments')
+  report(@Param('slug') slug: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    const input = parsePaymentReport(body)
+    this.limit.hit(`${slug}|${caller.userId}`)
+    return this.join.reportPayment(slug, input, caller)
   }
 }

@@ -3,12 +3,27 @@
 // The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
 import '../scripts/lib/owner-env'
 import { PrismaClient, type Prisma } from '@prisma/client'
-import { agreementPreview, refundTerms, TEMPLATE_VERSION } from '../src/join/agreement'
-import type { TripHighlight, TripKeyDate, TripPhoto } from '../src/trips/trip-types'
+import {
+  agreementPreview,
+  firstInstallmentCents,
+  refundTerms,
+  TEMPLATE_VERSION,
+} from '../src/join/agreement'
+import {
+  paymentMethodLabel,
+  type PaymentMethod,
+  type TripHighlight,
+  type TripKeyDate,
+  type TripPhoto,
+} from '../src/trips/trip-types'
 
 const prisma = new PrismaClient()
 
-type Seed = Omit<Prisma.TripCreateInput, 'photos' | 'highlights' | 'keyDates' | 'guests'> & {
+type Seed = Omit<
+  Prisma.TripCreateInput,
+  'photos' | 'highlights' | 'keyDates' | 'guests' | 'paymentMethods'
+> & {
+  paymentMethods: PaymentMethod[]
   photos: TripPhoto[]
   highlights: TripHighlight[]
   keyDates: TripKeyDate[]
@@ -30,7 +45,12 @@ const trips: Seed[] = [
     installmentCount: 4,
     galleryTitle: 'The house',
     showGuestNames: true,
-    paymentInstructions: "Zelle or Cash App to Chris. Include your name and 'MV2027' in the memo.",
+    paymentMethods: [
+      { kind: 'zelle', label: '', handle: '(555) 010-0142' },
+      { kind: 'cashapp', label: '', handle: '$ChrisMV2027' },
+      { kind: 'custom', label: 'Pay in person', handle: 'Cash at the Woods Hole ferry' },
+    ],
+    paymentInstructions: "Include your name and 'MV2027' in the memo.",
     published: true,
     joinMode: 'accept_first',
     isSample: true,
@@ -88,7 +108,8 @@ const trips: Seed[] = [
     installmentCount: 8,
     galleryTitle: 'The resort',
     showGuestNames: false,
-    paymentInstructions: "Zelle to Nia. Memo: your name + 'ARUBA28'.",
+    paymentMethods: [{ kind: 'zelle', label: '', handle: 'nia.aruba@example.com' }],
+    paymentInstructions: "Memo: your name + 'ARUBA28'.",
     published: true,
     // The first come, first served sample: confirming a payment takes the next spot.
     joinMode: 'first_come',
@@ -149,7 +170,11 @@ const trips: Seed[] = [
     installmentCount: 4,
     galleryTitle: 'The villa',
     showGuestNames: true,
-    paymentInstructions: "Zelle or Venmo to Simone. Memo: your name + 'TULUM40'.",
+    paymentMethods: [
+      { kind: 'zelle', label: '', handle: '(555) 010-0177' },
+      { kind: 'venmo', label: '', handle: '@simone-tulum40' },
+    ],
+    paymentInstructions: "Memo: your name + 'TULUM40'.",
     published: true,
     joinMode: 'pay_first',
     isSample: true,
@@ -228,10 +253,18 @@ async function main() {
   const old = await prisma.trip.findMany({ where: { isSample: true }, select: { id: true } })
   await prisma.accessLog.deleteMany({ where: { tripId: { in: old.map((t) => t.id) } } })
   await prisma.trip.deleteMany({ where: { isSample: true } })
-  for (const { approved, interested, photos, highlights, keyDates, ...trip } of trips) {
+  for (const {
+    approved,
+    interested,
+    photos,
+    highlights,
+    keyDates,
+    paymentMethods,
+    ...trip
+  } of trips) {
     // Everyone has signed. Where guests pay first, the accepted have paid and been confirmed, and of the rest the
-    // first says they've paid. Where the organizer accepts first, nobody waiting has paid, and the last guest
-    // accepted hasn't paid yet.
+    // first has reported their payment and the second reported less than due, with a note. Where the organizer
+    // accepts first, nobody waiting has paid, and the last guest accepted hasn't paid yet.
     const acceptFirst = trip.joinMode === 'accept_first'
     const paid = new Date('2026-10-20T15:00:00Z')
     // Each guest joined and signed in the same step, a minute apart, before anyone paid.
@@ -244,9 +277,9 @@ async function main() {
           lastName,
           status: 'approved',
           createdAt: joined(i),
-          paymentSentAt: hasPaid ? paid : null,
-          paymentConfirmedAt: hasPaid ? new Date(paid.getTime() + (i + 1) * 3600_000) : null,
           ...contact(firstName, lastName, i),
+          payment: hasPaid ? ('confirmed' as const) : null,
+          confirmedAt: new Date(paid.getTime() + (i + 1) * 3600_000),
         }
       }),
       ...interested.map(([firstName, lastName], i) => ({
@@ -254,8 +287,15 @@ async function main() {
         lastName,
         status: 'interested',
         createdAt: joined(approved.length + i),
-        paymentSentAt: i === 0 && !acceptFirst ? paid : null,
         ...contact(firstName, lastName, 50 + i),
+        payment: acceptFirst
+          ? null
+          : i === 0
+            ? ('reported' as const)
+            : i === 1
+              ? ('short' as const)
+              : null,
+        confirmedAt: paid,
       })),
     ]
     const created = await prisma.trip.create({
@@ -264,7 +304,17 @@ async function main() {
         photos: photos as unknown as Prisma.InputJsonValue,
         highlights: highlights as unknown as Prisma.InputJsonValue,
         keyDates: keyDates as unknown as Prisma.InputJsonValue,
-        guests: { create: guests },
+        paymentMethods: paymentMethods as unknown as Prisma.InputJsonValue,
+        guests: {
+          create: guests.map((g) => ({
+            firstName: g.firstName,
+            lastName: g.lastName,
+            status: g.status,
+            createdAt: g.createdAt,
+            email: g.email,
+            phone: g.phone,
+          })),
+        },
       },
       include: { guests: true },
     })
@@ -287,6 +337,36 @@ async function main() {
         userAgent: 'Seed data',
       })),
     })
+    // Their payments: the first installment, by the trip's first way to pay.
+    const first = firstInstallmentCents(created.costPerPersonCents, created.installmentCount)
+    const method = paymentMethods[0]
+    for (const [i, g] of guests.entries()) {
+      if (!g.payment) continue
+      const confirmed = g.payment === 'confirmed'
+      const amount = g.payment === 'short' ? Math.round(first * 0.4) : first
+      await prisma.payment.create({
+        data: {
+          tripId: created.id,
+          guestId: created.guests.find((c) => c.email === g.email)!.id,
+          guestPaymentAmount: amount,
+          receivedPaymentAmount: confirmed ? amount : null,
+          method: paymentMethodLabel(method),
+          methodKind: method.kind,
+          sentOn: paid.toISOString().slice(0, 10),
+          note: g.payment === 'short' ? 'The rest on Friday, after payday.' : '',
+          status: confirmed ? 'confirmed' : 'reported',
+          reportedAt: new Date(paid.getTime() + i * 60_000),
+          decidedAt: confirmed ? g.confirmedAt : null,
+        },
+      })
+      // Where guests pay first, the organizer accepted them once their payment arrived. The guest's history wrote
+      // "accepted" when the row was made (before the payment existed), so it moves to just after the confirmation.
+      if (!acceptFirst && confirmed && g.status === 'approved')
+        await prisma.guestEvent.updateMany({
+          where: { guestId: created.guests.find((c) => c.email === g.email)!.id, kind: 'accepted' },
+          data: { at: new Date(g.confirmedAt.getTime() + 60_000) },
+        })
+    }
     console.log(`Seeded ${trip.name} → /t/${trip.slug}`)
   }
 }

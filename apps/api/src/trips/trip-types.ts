@@ -82,11 +82,12 @@ export interface Guest {
   email: string
   phone: string
   status: GuestStatus
-  /** ISO times: joined, said they sent the first payment, organizer confirmed it arrived, refund sent. */
+  /** ISO times: joined; when confirmed payments first covered the first payment due (the spot is paid); refund sent. */
   createdAt: string
-  paymentSentAt: string | null
-  paymentConfirmedAt: string | null
+  spotPaidAt: string | null
   refundSentAt: string | null
+  /** Every payment they reported or the organizer logged, oldest first. */
+  payments: Payment[]
   roomId: string | null
   /** Who they'd like to share with, in their words. */
   roomNote: string
@@ -105,8 +106,92 @@ export interface GuestTerms {
   refundTerms: string
   /** The first installment, which holds the spot. */
   firstInstallmentCents: number
+  /** What the organizer has confirmed arrived, in all. */
+  paidCents: number
+  /** Reported by the guest, waiting for the organizer. */
+  pendingCents: number
   /** What is left to pay: the price less the payments the organizer has confirmed. */
   balanceCents: number
+}
+
+/** The ways guests can pay an organizer that CrewControl knows by name, and a free-form one ("Pay in person"). */
+export const PAYMENT_METHOD_KINDS = [
+  { kind: 'cashapp', name: 'Cash App', handle: '$cashtag or phone number' },
+  { kind: 'zelle', name: 'Zelle', handle: 'Phone number or email' },
+  { kind: 'venmo', name: 'Venmo', handle: '@username' },
+  { kind: 'paypal', name: 'PayPal', handle: 'Phone number, email or @username' },
+  { kind: 'applecash', name: 'Apple Cash', handle: 'Phone number or email' },
+  {
+    kind: 'custom',
+    name: 'Something else',
+    handle: 'How to pay, for example "Hand it to me at dinner"',
+  },
+] as const
+export type PaymentMethodKind = (typeof PAYMENT_METHOD_KINDS)[number]['kind']
+
+/** One way to pay the organizer, as they listed it on the trip. */
+export interface PaymentMethod {
+  kind: PaymentMethodKind
+  /** For a custom method only: its name ("Pay in person"). */
+  label: string
+  /** The handle (a $cashtag, phone, email or @username), or for a custom method how to do it. */
+  handle: string
+}
+
+/** A payment method in one line: "Zelle · (555) 010-0199", "Pay in person · Hand it to me at dinner". */
+export function paymentMethodLabel(m: PaymentMethod): string {
+  const name =
+    m.kind === 'custom'
+      ? m.label.trim() || 'Other'
+      : (PAYMENT_METHOD_KINDS.find((k) => k.kind === m.kind)?.name ?? 'Other')
+  return m.handle.trim() ? `${name} · ${m.handle.trim()}` : name
+}
+
+/** One payment a guest sent the organizer, for any installment. Amounts are whole cents. */
+export interface Payment {
+  id: string
+  /** What the guest says they sent. */
+  guestPaymentAmount: number
+  /** What the organizer confirmed arrived; null until they do. */
+  receivedPaymentAmount: number | null
+  /** How it was paid, as picked ("Zelle · (555) 010-0199"). */
+  method: string
+  methodKind: PaymentMethodKind | 'other'
+  /** 'YYYY-MM-DD', the day the guest says they sent it. */
+  sentOn: string
+  /** Why it was less than due, in the guest's words. */
+  note: string
+  status: 'reported' | 'confirmed' | 'not_received' | 'refunded'
+  loggedBy: 'guest' | 'organizer'
+  reportedAt: string
+  decidedAt: string | null
+}
+
+/** A guest reporting a payment from their join page. */
+export interface PaymentReport {
+  guestPaymentAmount: number
+  /** Which of the trip's payment methods, by position; null when the trip lists none (its note says how). */
+  methodIndex: number | null
+  sentOn: string
+  /** Required when the amount is less than due now. */
+  note: string
+  /** "I sent this payment": the guest certifies it. */
+  certified: boolean
+}
+
+/** The organizer's decision on a reported payment: it arrived (with how much), it didn't, or undo the decision. */
+export interface PaymentDecision {
+  status: 'confirmed' | 'not_received' | 'reported'
+  /** With confirmed: what arrived. Left out, it is what the guest said they sent. */
+  receivedPaymentAmount?: number
+}
+
+/** The organizer logging a payment handed over in person: it is confirmed as it is logged. */
+export interface PaymentLog {
+  receivedPaymentAmount: number
+  method: string
+  sentOn: string
+  note: string
 }
 
 /** A signed agreement, as the guest who signed it and the trip's organizers see it. */
@@ -129,6 +214,7 @@ export interface GuestEvent {
     | 'signed'
     | 'said_paid'
     | 'payment_confirmed'
+    | 'payment_not_received'
     | 'payment_undone'
     | 'accepted'
     | 'turned_down'
@@ -144,6 +230,8 @@ export interface GuestEvent {
   toRoom: string | null
   /** For contact_changed: which details changed, never their values. */
   fields: ('name' | 'email' | 'phone')[]
+  /** For the payment kinds: what the guest said they sent, or with payment_confirmed what arrived (whole cents). */
+  amount: number | null
 }
 
 /**
@@ -196,6 +284,9 @@ export interface TripInput {
   installmentCount: number
   galleryTitle: string
   showGuestNames: boolean
+  /** How guests can pay the organizer; a guest picks one when they report a payment. */
+  paymentMethods: PaymentMethod[]
+  /** Anything else about paying, beside the methods. */
   paymentInstructions: string
   published: boolean
   photos: TripPhoto[]
@@ -322,13 +413,17 @@ export interface MyGuest {
   status: GuestStatus
   firstName: string
   lastName: string
-  paymentSentAt: string | null
-  paymentConfirmedAt: string | null
+  spotPaidAt: string | null
   refundSentAt: string | null
   roomId: string | null
   terms: GuestTerms | null
   agreement: SignedAgreement | null
-  /** How to pay the organizer. Only ever sent to a guest who joined (on an accept_first trip, once accepted). */
+  payments: Payment[]
+  /**
+   * How to pay the organizer: the methods and the note. Only ever sent to a guest who joined (on an accept_first
+   * trip, once accepted); empty otherwise.
+   */
+  paymentMethods: PaymentMethod[]
   paymentInstructions: string
 }
 
@@ -343,7 +438,6 @@ export interface JoinView {
 export interface GuestUpdate {
   /** Accept, turn down, or put back to waiting. */
   status?: GuestStatus
-  paymentConfirmed?: boolean
   /** Turning down a guest whose payment arrived needs this: the organizer says the refund went out. */
   refundSent?: boolean
   /** Move the guest to a room, or null for no room. */

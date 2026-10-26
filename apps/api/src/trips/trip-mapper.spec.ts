@@ -14,6 +14,7 @@ const trip: Trip = {
   installmentCount: 4,
   galleryTitle: 'The house',
   showGuestNames: true,
+  paymentMethods: [{ kind: 'cashapp', label: '', handle: '$chrisMV' }],
   paymentInstructions: 'Zelle Chris, memo MV2027',
   published: true,
   isSample: false,
@@ -36,8 +37,7 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   phone: '555-0100',
   status,
   createdAt: new Date(),
-  paymentSentAt: null,
-  paymentConfirmedAt: null,
+  spotPaidAt: null,
   refundSentAt: null,
   userId: null,
   roomId: null,
@@ -55,6 +55,7 @@ describe('toPublicTrip', () => {
   it('never exposes payment instructions or guest contact details', () => {
     const json = JSON.stringify(toPublicTrip({ ...trip, guests }))
     expect(json).not.toContain('Zelle')
+    expect(json).not.toContain('chrisMV')
     expect(json).not.toContain('@example.com')
     expect(json).not.toContain('555-0100')
   })

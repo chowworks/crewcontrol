@@ -3,7 +3,14 @@ import type { Caller } from '../auth/caller'
 import { runAsPublic } from '../core/tenant-context'
 import { ClerkService } from '../auth/clerk.service'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
-import { parseGuestUpdate, parseRooms, parseSlug, parseTripInput } from './trip-input'
+import {
+  parseGuestUpdate,
+  parsePaymentDecision,
+  parsePaymentLog,
+  parseRooms,
+  parseSlug,
+  parseTripInput,
+} from './trip-input'
 import { TripsService } from './trips.service'
 
 // Organizer endpoints: signed in with Clerk, and only for the caller's own trips (admins: every trip).
@@ -77,6 +84,28 @@ export class TripsController {
     @CurrentCaller() caller: Caller
   ) {
     return this.trips.updateGuest(id, guestId, parseGuestUpdate(body), caller)
+  }
+
+  // A reported payment: it arrived, it didn't, or undo that.
+  @Patch(':id/payments/:paymentId')
+  decidePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.decidePayment(id, paymentId, parsePaymentDecision(body), caller)
+  }
+
+  // A payment the organizer saw arrive (handed over in person), logged as confirmed.
+  @Post(':id/guests/:guestId/payments')
+  logPayment(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.logPayment(id, guestId, parsePaymentLog(body), caller)
   }
 
   @Put(':id')

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { AgreementPreview, GuestTerms, JoinMode } from '../trips/trip-types'
+import type { AgreementPreview, GuestTerms, JoinMode, Payment } from '../trips/trip-types'
 
 /**
  * CrewControl's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
@@ -98,7 +98,7 @@ export function agreementPreview(trip: AgreementFacts): AgreementPreview {
   return { text, textHash: hashOf(text), templateVersion: TEMPLATE_VERSION }
 }
 
-/** The terms a signature saved, with the balance worked out from them and the payment the organizer confirmed. */
+/** The terms a signature saved, with the balance worked out from them and the payments the organizer confirmed. */
 export function termsOf(
   sig: {
     priceCents: number
@@ -107,9 +107,12 @@ export function termsOf(
     endDate: string
     refundTerms: string
   },
-  paymentConfirmedAt: Date | null
+  payments: Pick<Payment, 'status' | 'guestPaymentAmount' | 'receivedPaymentAmount'>[]
 ): GuestTerms {
   const first = firstInstallmentCents(sig.priceCents, sig.installmentCount)
+  const sum = (status: Payment['status'], amount: (p: (typeof payments)[number]) => number) =>
+    payments.filter((p) => p.status === status).reduce((n, p) => n + amount(p), 0)
+  const paid = sum('confirmed', (p) => p.receivedPaymentAmount ?? 0)
   return {
     priceCents: sig.priceCents,
     installmentCount: sig.installmentCount,
@@ -117,6 +120,8 @@ export function termsOf(
     endDate: sig.endDate,
     refundTerms: sig.refundTerms,
     firstInstallmentCents: first,
-    balanceCents: sig.priceCents - (paymentConfirmedAt ? first : 0),
+    paidCents: paid,
+    pendingCents: sum('reported', (p) => p.guestPaymentAmount),
+    balanceCents: sig.priceCents - paid,
   }
 }

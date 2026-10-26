@@ -21,8 +21,11 @@ import type {
   AgreementPreview,
   BedType,
   GuestEvent,
+  Guest,
   GuestUpdate,
   OrganizerTrip,
+  PaymentDecision,
+  PaymentLog,
   PublicTrip,
   SignedAgreement,
   TripInput,
@@ -44,7 +47,7 @@ async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
 }
 
 const withGuests = {
-  guests: { orderBy: { createdAt: 'asc' }, include: { agreement: true } },
+  guests: { orderBy: { createdAt: 'asc' }, include: { agreement: true, payments: true } },
   rooms: { orderBy: { position: 'asc' } },
 } satisfies Prisma.TripInclude
 
@@ -54,6 +57,7 @@ function data(input: TripInput) {
     photos: input.photos as unknown as Prisma.InputJsonValue,
     highlights: input.highlights as unknown as Prisma.InputJsonValue,
     keyDates: input.keyDates as unknown as Prisma.InputJsonValue,
+    paymentMethods: input.paymentMethods as unknown as Prisma.InputJsonValue,
     options: input.options as unknown as Prisma.InputJsonValue,
   }
 }
@@ -255,6 +259,7 @@ export class TripsService {
         fromRoom: roomName(e.fromRoomId),
         toRoom: roomName(e.toRoomId),
         fields: (e.fields ? e.fields.split(',') : []) as GuestEvent['fields'],
+        amount: e.amount,
       } satisfies GuestEvent,
     }))
   }
@@ -326,47 +331,9 @@ export class TripsService {
       if (!room) throw new BadRequestException('That room is not on this trip')
     }
     const payFirst = trip.joinMode !== 'accept_first'
-    const confirmed =
-      update.paymentConfirmed === undefined
-        ? Boolean(guest.paymentConfirmedAt)
-        : update.paymentConfirmed
-    const spotsLeft =
-      trip.maxGuests === null
-        ? Infinity
-        : trip.maxGuests -
-          trip.guests.filter((g) => g.status === 'approved' && g.id !== guestId).length
-    let status = update.status ?? guest.status
-    // First come, first served goes in the order payments were confirmed: a waiting guest whose payment was confirmed
-    // earlier (and not refunded) is ahead of this one.
-    const confirmedAt = guest.paymentConfirmedAt ?? new Date().toISOString()
-    const ahead =
-      trip.joinMode === 'first_come'
-        ? trip.guests.find(
-            (g) =>
-              g.id !== guestId &&
-              g.status === 'interested' &&
-              g.signedAt &&
-              g.paymentConfirmedAt &&
-              !g.refundSentAt &&
-              g.paymentConfirmedAt < confirmedAt
-          )
-        : undefined
-    // First come, first served: the payment confirmed is the acceptance, while a spot is left.
-    const autoAccept =
-      update.paymentConfirmed &&
-      !guest.paymentConfirmedAt &&
-      trip.joinMode === 'first_come' &&
-      guest.status === 'interested' &&
-      update.status === undefined &&
-      Boolean(guest.signedAt) &&
-      spotsLeft > 0 &&
-      !ahead
-    if (autoAccept) status = 'approved'
-    // On an accept-first trip a guest sees how to pay only once accepted, so there is nothing to confirm before then.
-    if (update.paymentConfirmed && !guest.paymentConfirmedAt && !payFirst && status !== 'approved')
-      throw new BadRequestException(
-        `Accept ${guest.firstName} first. They see how to pay you once you do.`
-      )
+    // Money that arrived and wasn't sent back.
+    const paid = guest.payments.some((p) => p.status === 'confirmed')
+    const status = update.status ?? guest.status
     if (update.refundSent && status !== 'declined')
       throw new BadRequestException('Tick “Refund sent” only when turning a guest down')
     // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
@@ -378,67 +345,178 @@ export class TripsService {
         )
       if (!guest.signedAt)
         throw new BadRequestException(`${guest.firstName} hasn’t signed the trip agreement yet`)
-      if (payFirst && !confirmed)
-        throw new BadRequestException(`Confirm ${guest.firstName}’s payment arrived first`)
-      if (spotsLeft <= 0) throw new ConflictException('Every spot is taken')
+      // Accepting a guest holds their spot even when their payments don't cover the first one yet (owner's decision,
+      // 2026-10-24); on the pay-first trips some payment must have arrived.
+      if (payFirst && !paid)
+        throw new BadRequestException(`Confirm a payment from ${guest.firstName} first`)
+      if (spotsLeft(trip, guestId) <= 0) throw new ConflictException('Every spot is taken')
+      const ahead = aheadOf(trip, guestId)
       if (ahead)
         throw new ConflictException(
           `${ahead.firstName}’s payment was confirmed first, so the next spot is theirs.`
         )
     }
-    // Where the payment earned the spot, undoing it needs the spot given back first (guests accepted before signing
-    // existed have no payment to undo, so only the undo itself is refused).
-    if (payFirst && status === 'approved' && update.paymentConfirmed === false)
-      throw new BadRequestException(
-        `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
-      )
     const refundSent = update.refundSent ?? Boolean(guest.refundSentAt)
-    if (status === 'declined' && guest.status !== 'declined' && confirmed && !refundSent)
+    if (status === 'declined' && guest.status !== 'declined' && paid && !refundSent)
       throw new BadRequestException(
         `${guest.firstName} paid. Send their refund and tick “Refund sent” to turn them down.`
       )
-    const write = (status: string) =>
-      this.prisma.guest.update({
-        where: { id: guestId },
-        data: {
-          status,
-          // A guest turned down gives up the room they asked for.
-          ...(status === 'declined'
-            ? { roomId: null }
-            : update.roomId === undefined
+    // The refund's time, kept on the payments it sends back.
+    const refundAt = guest.refundSentAt ? new Date(guest.refundSentAt) : new Date()
+    await roomFull(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.guest.update({
+          where: { id: guestId },
+          data: {
+            status,
+            // A guest turned down gives up the room they asked for.
+            ...(status === 'declined'
+              ? { roomId: null }
+              : update.roomId === undefined
+                ? {}
+                : { roomId: update.roomId }),
+            ...(update.refundSent === undefined
               ? {}
-              : { roomId: update.roomId }),
-          ...(update.paymentConfirmed === undefined
-            ? {}
-            : {
-                paymentConfirmedAt: update.paymentConfirmed
-                  ? guest.paymentConfirmedAt
-                    ? new Date(guest.paymentConfirmedAt)
-                    : new Date()
-                  : null,
-              }),
-          ...(update.refundSent === undefined
-            ? {}
-            : {
-                refundSentAt: update.refundSent
-                  ? guest.refundSentAt
-                    ? new Date(guest.refundSentAt)
-                    : new Date()
-                  : null,
-              }),
-          ...(restart ? { paymentSentAt: null, paymentConfirmedAt: null, refundSentAt: null } : {}),
-        },
+              : {
+                  refundSentAt: update.refundSent ? refundAt : null,
+                }),
+            ...(restart ? { refundSentAt: null } : {}),
+          },
+        })
+        // The refund sends back what arrived, so those payments stop counting; undoing it counts them again. A guest
+        // put back keeps them refunded and pays again.
+        if (update.refundSent === true && !guest.refundSentAt)
+          await tx.payment.updateMany({
+            where: { guestId, status: 'confirmed' },
+            data: { status: 'refunded', refundedAt: refundAt },
+          })
+        if (update.refundSent === false && guest.refundSentAt)
+          // Only the payments this refund covered: money refunded in an earlier round stays refunded.
+          await tx.payment.updateMany({
+            where: { guestId, status: 'refunded', refundedAt: new Date(guest.refundSentAt) },
+            data: { status: 'confirmed', refundedAt: null },
+          })
       })
-    try {
-      await roomFull(() => write(status))
-    } catch (err) {
-      // Another organizer took the last spot a moment ago: the payment still arrived, so record it (that guest is
-      // the one refunded).
-      if (!(autoAccept && err instanceof ConflictException && /Every spot/.test(err.message)))
-        throw err
-      await roomFull(() => write(guest.status))
-    }
+    )
     return this.get(id, caller)
+  }
+
+  /**
+   * The organizer decides a reported payment: it arrived (what the guest said they sent, unless they say otherwise), it
+   * didn't, or undo that. On a first come trip a payment that pays the spot takes the next one.
+   */
+  async decidePayment(
+    id: string,
+    paymentId: string,
+    decision: PaymentDecision,
+    caller: Caller
+  ): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.payments.some((p) => p.id === paymentId))
+    const payment = guest?.payments.find((p) => p.id === paymentId)
+    if (!guest || !payment) throw new NotFoundException('Payment not found')
+    if (payment.status === 'refunded') throw new BadRequestException('That payment was refunded')
+    const confirmed = decision.status === 'confirmed'
+    const received = confirmed
+      ? (decision.receivedPaymentAmount ?? payment.guestPaymentAmount)
+      : null
+    // The same decision again changes nothing, except correcting what arrived on a confirmed payment.
+    if (
+      decision.status === payment.status &&
+      !(confirmed && received !== payment.receivedPaymentAmount)
+    )
+      return trip
+    // A turned-down guest's money is refunded, not confirmed: put them back first.
+    if (confirmed && payment.status !== 'confirmed' && guest.status === 'declined')
+      throw new BadRequestException(
+        `${guest.firstName} was turned down. Put them back to waiting before confirming their payment.`
+      )
+    // A payment the organizer logged was never the guest's word: it can be removed, not put back to waiting.
+    if (decision.status === 'reported' && payment.loggedBy === 'organizer')
+      throw new BadRequestException('Remove a payment you logged instead of undoing it')
+    // Where the payment earned the spot, taking it back needs the spot given back first.
+    if (
+      payment.status === 'confirmed' &&
+      !confirmed &&
+      trip.joinMode !== 'accept_first' &&
+      guest.status === 'approved' &&
+      guest.payments.filter((p) => p.status === 'confirmed').length === 1
+    )
+      throw new BadRequestException(
+        `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
+      )
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: decision.status,
+        receivedPaymentAmount: received,
+        decidedAt: decision.status === 'reported' ? null : new Date(),
+        decidedByUserId: decision.status === 'reported' ? null : caller.userId,
+      },
+    })
+    if (confirmed) await this.firstComeAccept(id, guest.id, caller)
+    return this.get(id, caller)
+  }
+
+  /** The organizer logs a payment handed over in person (or any they saw arrive): confirmed as it is logged. */
+  async logPayment(
+    id: string,
+    guestId: string,
+    input: PaymentLog,
+    caller: Caller
+  ): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.id === guestId)
+    if (!guest) throw new NotFoundException('Guest not found')
+    if (guest.status === 'declined')
+      throw new BadRequestException(`${guest.firstName} was turned down`)
+    const now = new Date()
+    await this.prisma.payment.create({
+      data: {
+        tripId: id,
+        guestId,
+        guestPaymentAmount: input.receivedPaymentAmount,
+        receivedPaymentAmount: input.receivedPaymentAmount,
+        method: input.method,
+        methodKind: 'other',
+        sentOn: input.sentOn,
+        note: input.note,
+        status: 'confirmed',
+        loggedBy: 'organizer',
+        decidedAt: now,
+        decidedByUserId: caller.userId,
+      },
+    })
+    await this.firstComeAccept(id, guestId, caller)
+    return this.get(id, caller)
+  }
+
+  /**
+   * First come, first served: once confirmed payments pay a waiting guest's spot, they take the next one, in the order
+   * spots were paid. When another organizer took the last spot a moment ago, the payment stays recorded and the guest
+   * waits (they are the one refunded).
+   */
+  private async firstComeAccept(id: string, guestId: string, caller: Caller): Promise<void> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.id === guestId)
+    if (
+      trip.joinMode !== 'first_come' ||
+      !guest ||
+      guest.status !== 'interested' ||
+      !guest.signedAt ||
+      !guest.spotPaidAt ||
+      guest.refundSentAt ||
+      spotsLeft(trip, guestId) <= 0 ||
+      aheadOf(trip, guestId)
+    )
+      return
+    try {
+      await roomFull(() =>
+        this.prisma.guest.update({ where: { id: guestId }, data: { status: 'approved' } })
+      )
+    } catch (err) {
+      if (!(err instanceof ConflictException && /Every spot/.test(err.message))) throw err
+    }
   }
 
   /**
@@ -569,5 +647,30 @@ function withCounts(
         joinMode: row.joinMode,
       })
     })
+  )
+}
+
+/** Spots left for this guest: the limit less the other guests accepted. */
+function spotsLeft(trip: OrganizerTrip, guestId: string): number {
+  return trip.maxGuests === null
+    ? Infinity
+    : trip.maxGuests - trip.guests.filter((g) => g.status === 'approved' && g.id !== guestId).length
+}
+
+/**
+ * First come, first served goes in the order spots were paid: a waiting guest whose spot was paid earlier (and not
+ * refunded) is ahead of this one.
+ */
+function aheadOf(trip: OrganizerTrip, guestId: string): Guest | undefined {
+  if (trip.joinMode !== 'first_come') return undefined
+  const paidAt = trip.guests.find((g) => g.id === guestId)?.spotPaidAt ?? new Date().toISOString()
+  return trip.guests.find(
+    (g) =>
+      g.id !== guestId &&
+      g.status === 'interested' &&
+      g.signedAt &&
+      g.spotPaidAt &&
+      !g.refundSentAt &&
+      g.spotPaidAt < paidAt
   )
 }

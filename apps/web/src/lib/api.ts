@@ -7,6 +7,9 @@ import type {
   JoinMode,
   JoinView,
   OrganizerTrip,
+  PaymentDecision,
+  PaymentLog,
+  PaymentReport,
   PublicTrip,
   SignedAgreement,
   TripInput,
@@ -96,7 +99,12 @@ export const api = {
   // The join page: a signed-in guest's own place on a trip.
   getJoin: (slug: string) => request<JoinView>(`/join/${slug}`),
   join: (slug: string, input: JoinInput) => request<JoinView>(`/join/${slug}`, json('POST', input)),
-  markPaid: (slug: string) => request<JoinView>(`/join/${slug}/paid`, json('POST', {})),
+  reportPayment: (slug: string, report: PaymentReport) =>
+    request<JoinView>(`/join/${slug}/payments`, json('POST', report)),
+  decidePayment: (id: string, paymentId: string, decision: PaymentDecision) =>
+    request<OrganizerTrip>(`/trips/${id}/payments/${paymentId}`, json('PATCH', decision)),
+  logPayment: (id: string, guestId: string, log: PaymentLog) =>
+    request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   seatOnTrip: (id: string, asOwner = false) =>
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common'
-import { parseTripInput } from './trip-input'
+import { parsePaymentDecision, parsePaymentReport, parseTripInput } from './trip-input'
 
 const valid = {
   name: ' Aruba 2028 ',
@@ -69,5 +69,53 @@ describe('trip options', () => {
     ['a non-boolean flag', { roomChoice: 'on' }],
   ])('rejects %s', (_label, options) => {
     expect(() => parseTripInput({ ...valid, options })).toThrow(BadRequestException)
+  })
+})
+
+describe('payments', () => {
+  it('keeps payment methods: a fixed kind needs its handle, a custom one its name', () => {
+    const methods = [
+      { kind: 'cashapp', label: 'ignored', handle: ' $nia ' },
+      { kind: 'custom', label: 'Pay in person', handle: '' },
+    ]
+    expect(parseTripInput({ ...valid, paymentMethods: methods }).paymentMethods).toEqual([
+      { kind: 'cashapp', label: '', handle: '$nia' },
+      { kind: 'custom', label: 'Pay in person', handle: '' },
+    ])
+    for (const bad of [
+      { kind: 'zelle', label: '', handle: '' },
+      { kind: 'custom', label: '', handle: 'cash' },
+      { kind: 'wire', label: '', handle: 'x' },
+    ])
+      expect(() => parseTripInput({ ...valid, paymentMethods: [bad] })).toThrow(BadRequestException)
+  })
+
+  it('takes a payment report only when the guest certifies it', () => {
+    const report = { guestPaymentAmount: 50000, methodIndex: 0, sentOn: '2026-10-24', note: ' ' }
+    expect(() => parsePaymentReport(report)).toThrow(/I sent this payment/)
+    expect(parsePaymentReport({ ...report, certified: true })).toEqual({
+      ...report,
+      note: '',
+      certified: true,
+    })
+    expect(() => parsePaymentReport({ ...report, certified: true, guestPaymentAmount: 0 })).toThrow(
+      BadRequestException
+    )
+  })
+
+  it('reads a decision, with what arrived only on a confirmation', () => {
+    expect(parsePaymentDecision({ status: 'confirmed' })).toEqual({ status: 'confirmed' })
+    expect(parsePaymentDecision({ status: 'confirmed', receivedPaymentAmount: 450 })).toEqual({
+      status: 'confirmed',
+      receivedPaymentAmount: 450,
+    })
+    expect(parsePaymentDecision({ status: 'not_received', receivedPaymentAmount: 450 })).toEqual({
+      status: 'not_received',
+    })
+    expect(() => parsePaymentDecision({ status: 'refunded' })).toThrow(BadRequestException)
+    // Nothing arrived is "not received", not a confirmation of $0.
+    expect(() => parsePaymentDecision({ status: 'confirmed', receivedPaymentAmount: 0 })).toThrow(
+      BadRequestException
+    )
   })
 })

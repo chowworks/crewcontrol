@@ -9,9 +9,17 @@ import type { Caller } from '../auth/caller'
 import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
-import { toSignedAgreement } from '../trips/trip-mapper'
+import { paymentMethodsOf, paymentsOf, toSignedAgreement } from '../trips/trip-mapper'
 import { splitName } from '../trips/trip-input'
-import type { JoinInput, JoinView, MyGuest } from '../trips/trip-types'
+import {
+  paymentMethodLabel,
+  type GuestTerms,
+  type JoinInput,
+  type JoinView,
+  type MyGuest,
+  type PaymentMethod,
+  type PaymentReport,
+} from '../trips/trip-types'
 import { roomFull, TripsService } from '../trips/trips.service'
 import { agreementPreview, refundTerms, TEMPLATE_VERSION, termsOf } from './agreement'
 import { sendText } from './send-text'
@@ -28,14 +36,14 @@ const emailRefusals = new RateLimiter(
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
 
 /**
- * Whether a guest may see how to pay and say they did: never once turned down, and on an accept-first trip only once
+ * Whether a guest may see how to pay and report a payment: never once turned down, and on an accept-first trip only once
  * accepted (a guest on the other two pays before the organizer decides).
  */
 const canPay = (joinMode: string, status: string) =>
   status !== 'declined' && (joinMode !== 'accept_first' || status === 'approved')
 
 /**
- * Joining a trip, for a signed-in guest: read the agreement, sign it with the form, then say they've paid. The trip
+ * Joining a trip, for a signed-in guest: read the agreement, sign it with the form, then report their payments. The trip
  * itself is read as a public page (a person who hasn't joined can't read the trip row); everything about the guest
  * is read and written as the guest, whom row-level security keeps to their own rows (migration
  * 20261023020000_join_and_agreements). Payment instructions reach a guest only here, once they've joined (and, on an
@@ -52,19 +60,26 @@ export class JoinService {
     const trip = await runAsPublic(() => this.trips.getPublic(slug))
     const row = await this.prisma.guest.findFirst({
       where: { userId: caller.userId, trip: { slug } },
-      include: { agreement: true, trip: { select: { paymentInstructions: true } } },
+      include: {
+        agreement: true,
+        payments: true,
+        trip: { select: { paymentInstructions: true, paymentMethods: true } },
+      },
     })
+    const payments = paymentsOf(row?.payments)
+    const pay = row !== null && canPay(trip.joinMode, row.status)
     const me: MyGuest | null = row && {
       status: row.status as MyGuest['status'],
       firstName: row.firstName,
       lastName: row.lastName,
-      paymentSentAt: row.paymentSentAt?.toISOString() ?? null,
-      paymentConfirmedAt: row.paymentConfirmedAt?.toISOString() ?? null,
+      spotPaidAt: row.spotPaidAt?.toISOString() ?? null,
       refundSentAt: row.refundSentAt?.toISOString() ?? null,
       roomId: row.roomId,
-      terms: row.agreement ? termsOf(row.agreement, row.paymentConfirmedAt) : null,
+      terms: row.agreement ? termsOf(row.agreement, payments) : null,
       agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
-      paymentInstructions: canPay(trip.joinMode, row.status) ? row.trip.paymentInstructions : '',
+      payments,
+      paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
+      paymentInstructions: pay ? row.trip.paymentInstructions : '',
     }
     return { trip, agreement: agreementPreview(trip), me }
   }
@@ -161,17 +176,66 @@ export class JoinService {
     return this.view(slug, caller)
   }
 
-  /** The guest says they've sent their first payment. The organizer confirms it arrived. */
-  async markPaid(slug: string, caller: Caller): Promise<JoinView> {
-    const row = await this.prisma.guest.findFirst({
-      where: { userId: caller.userId, trip: { slug } },
-      include: { trip: { select: { joinMode: true } } },
-    })
-    if (!row) throw new NotFoundException('Join the trip first')
-    if (!canPay(row.trip.joinMode, row.status))
+  /**
+   * The guest reports a payment they sent: how much, how (one of the trip's methods) and when, certifying it. Less than
+   * is due now needs a note saying why. The organizer confirms what arrived.
+   */
+  async reportPayment(slug: string, input: PaymentReport, caller: Caller): Promise<JoinView> {
+    const { trip, me } = await this.view(slug, caller)
+    if (!me) throw new NotFoundException('Join the trip first')
+    if (!canPay(trip.joinMode, me.status) || me.refundSentAt)
       throw new BadRequestException('You can pay once you’re accepted')
-    if (!row.paymentSentAt && !row.paymentConfirmedAt)
-      await this.prisma.guest.update({ where: { id: row.id }, data: { paymentSentAt: new Date() } })
+    if (!me.terms) throw new BadRequestException('Sign the trip agreement first')
+    // A guest still waiting on a trip that filled has no spot to pay for (they're owed back what they sent).
+    if (me.status === 'interested' && trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests)
+      throw new ConflictException('Every spot on this trip is taken')
+    // A trip that lists no ways to pay says how in its note; the payment records that.
+    const method: PaymentMethod | undefined =
+      input.methodIndex === null
+        ? me.paymentMethods.length === 0
+          ? { kind: 'custom', label: 'As the note says', handle: '' }
+          : undefined
+        : me.paymentMethods[input.methodIndex]
+    if (!method) throw new BadRequestException('Pick how you paid')
+    const { left, dueNow } = owed(me.terms)
+    if (input.guestPaymentAmount > left)
+      throw new BadRequestException('That’s more than what’s left to pay')
+    if (input.guestPaymentAmount < dueNow && !input.note)
+      throw new BadRequestException('Say why it’s less than what’s due')
+    const row = await this.prisma.guest.findFirstOrThrow({
+      where: { userId: caller.userId, trip: { slug } },
+      select: { id: true, tripId: true },
+    })
+    try {
+      await this.prisma.payment.create({
+        data: {
+          tripId: row.tripId,
+          guestId: row.id,
+          guestPaymentAmount: input.guestPaymentAmount,
+          method: paymentMethodLabel(method),
+          methodKind: method.kind,
+          sentOn: input.sentOn,
+          note: input.note,
+        },
+      })
+    } catch (err) {
+      // Another report from the same guest landed first (payment_self_limits counts them one at a time).
+      if (/more_than_left/.test(String(err)))
+        throw new BadRequestException('That’s more than what’s left to pay')
+      throw err
+    }
     return this.view(slug, caller)
+  }
+}
+
+/**
+ * What a guest still owes: `left` is the price less what was confirmed or is waiting to be, and `dueNow` the rest of
+ * the first payment, which holds the spot (nothing once that is covered: later installments have no dates yet).
+ */
+export function owed(terms: GuestTerms): { left: number; dueNow: number } {
+  const counted = terms.paidCents + terms.pendingCents
+  return {
+    left: Math.max(0, terms.priceCents - counted),
+    dueNow: Math.max(0, terms.firstInstallmentCents - counted),
   }
 }

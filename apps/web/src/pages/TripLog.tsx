@@ -22,7 +22,7 @@ const ADMIN: Record<Extract<TripLogEntry, { kind: 'admin' }>['action'], string> 
   open: 'An admin opened the trip',
 }
 
-function Line({ e, trip }: { e: TripLogEntry; trip: OrganizerTrip }) {
+function Line({ e }: { e: TripLogEntry }) {
   if (e.kind === 'email_refused')
     return (
       <>
@@ -45,7 +45,6 @@ function Line({ e, trip }: { e: TripLogEntry; trip: OrganizerTrip }) {
         <div className="text-sm text-muted">{at(e.at)}</div>
       </>
     )
-  const g = trip.guests.find((x) => x.id === e.guestId)
   const who =
     e.event.actor === 'guest'
       ? e.guestName
@@ -55,7 +54,7 @@ function Line({ e, trip }: { e: TripLogEntry; trip: OrganizerTrip }) {
   return (
     <>
       <div className="font-semibold">
-        {e.guestName}: {g ? eventText(e.event, g) : e.event.kind}
+        {e.guestName}: {eventText(e.event)}
       </div>
       <div className="text-sm text-muted">
         {at(e.at)} · {who}
@@ -102,7 +101,7 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
         <ol className="flex flex-col">
           {(all ? shown : shown.slice(0, 30)).map((e, i) => (
             <li key={i} className="border-t border-rule py-2.5 first:border-t-0">
-              <Line e={e} trip={trip} />
+              <Line e={e} />
             </li>
           ))}
         </ol>

@@ -1,4 +1,12 @@
-import type { Guest, GuestUpdate, OrganizerTrip, SignedAgreement, TripRoom } from '@cc/types'
+import type {
+  Guest,
+  GuestUpdate,
+  OrganizerTrip,
+  PaymentDecision,
+  PaymentLog,
+  SignedAgreement,
+  TripRoom,
+} from '@cc/types'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -29,14 +37,24 @@ export function ControlPanelPage() {
       .catch(() => setError('This trip could not be loaded.'))
   }, [id])
 
-  async function updateGuest(guest: Guest, update: GuestUpdate) {
+  /** True when the change saved; otherwise the reason shows on the page and in any open dialog. */
+  async function save(change: () => Promise<OrganizerTrip>): Promise<boolean> {
     setGuestError(null)
     try {
-      setTrip(await api.updateGuest(id, guest.id, update))
+      setTrip(await change())
+      return true
     } catch (err) {
       setGuestError(err instanceof Error ? err.message : 'That change did not save.')
+      return false
     }
   }
+  const updateGuest = (guest: Guest, update: GuestUpdate) =>
+    save(() => api.updateGuest(id, guest.id, update))
+  const decidePayment = (paymentId: string, decision: PaymentDecision) =>
+    save(() => api.decidePayment(id, paymentId, decision))
+  const logPayment = (guest: Guest, log: PaymentLog) =>
+    save(() => api.logPayment(id, guest.id, log))
+  const handlers = { onUpdate: updateGuest, onDecide: decidePayment, onLog: logPayment }
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
@@ -47,11 +65,11 @@ export function ControlPanelPage() {
         <Logo />
         <div className="flex items-center gap-3">
           <Link
-            to={`/organize/${id}`}
+            to="/organize"
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Edit trip
+            Your trips
           </Link>
           <AccountMenu />
         </div>
@@ -68,8 +86,8 @@ export function ControlPanelPage() {
             {guestError}
           </p>
         )}
-        <ActionsCard trip={trip} rooms={rooms} onUpdate={updateGuest} error={guestError} />
-        <GuestsCard trip={trip} rooms={rooms} onUpdate={updateGuest} error={guestError} />
+        <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         <TripLogCard trip={trip} />
       </main>
     </div>
@@ -123,12 +141,13 @@ export function Spot({
     )
   // A spot opens to any guest who signed and, where guests pay first, whose payment arrived: on a first come trip
   // that is someone put back to waiting, or waiting when a spot freed up.
+  const paid = g.payments.some((p) => p.status === 'confirmed')
   const waiting = !g.signedAt
     ? 'Not signed'
-    : payFirst && !g.paymentConfirmedAt
+    : payFirst && !paid
       ? 'Waiting on payment'
       : full
-        ? g.paymentConfirmedAt
+        ? paid
           ? 'Trip full: refund them'
           : 'Trip full'
         : null
@@ -188,7 +207,8 @@ function TurnDown({
 }) {
   const [asking, setAsking] = useState(false)
   const [refunded, setRefunded] = useState(false)
-  const paid = Boolean(g.paymentConfirmedAt)
+  const paid = g.payments.some((p) => p.status === 'confirmed')
+  const reported = g.payments.some((p) => p.status === 'reported')
   if (!asking)
     return (
       <button type="button" onClick={() => setAsking(true)} className={smallOutlined}>
@@ -207,10 +227,10 @@ function TurnDown({
           />
           <span>
             Refund sent. {g.firstName} paid, so they get everything back
-            {g.terms ? ` (${money(g.terms.firstInstallmentCents)} so far)` : ''}.
+            {g.terms ? ` (${money(g.terms.paidCents)} so far)` : ''}.
           </span>
         </label>
-      ) : g.paymentSentAt ? (
+      ) : reported ? (
         <span>
           {g.firstName} says they paid. If it arrived, confirm it first so the refund is recorded.
           Turn them down?
@@ -283,7 +303,13 @@ export function SignedCopy({
  * Undoing a confirmed payment loses the guest's place in line (confirming again stamps a new time), so it takes a
  * second tap that says so.
  */
-export function UndoConfirm({ onUndo }: { onUndo: () => void }) {
+export function UndoConfirm({
+  onUndo,
+  warning = 'They lose their place in line.',
+}: {
+  onUndo: () => void
+  warning?: string
+}) {
   const [asking, setAsking] = useState(false)
   if (!asking)
     return (
@@ -297,7 +323,7 @@ export function UndoConfirm({ onUndo }: { onUndo: () => void }) {
     )
   return (
     <span className="flex flex-col gap-1">
-      <span className="text-[#B42318]">They lose their place in line.</span>
+      <span className="text-[#B42318]">{warning}</span>
       <span className="flex gap-2">
         <button
           type="button"

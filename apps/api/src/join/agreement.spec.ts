@@ -64,9 +64,24 @@ describe('a guest’s terms', () => {
     refundTerms: 'r',
   }
 
-  it('takes the balance from what they signed, less the payment the organizer confirmed', () => {
-    expect(termsOf(sig, null)).toMatchObject({ firstInstallmentCents: 30000, balanceCents: 120000 })
-    expect(termsOf(sig, new Date())).toMatchObject({ balanceCents: 90000 })
+  it('takes the balance from what they signed, less the payments the organizer confirmed', () => {
+    const pay = (
+      status: 'reported' | 'confirmed' | 'refunded',
+      sent: number,
+      received: number | null
+    ) => ({
+      status,
+      guestPaymentAmount: sent,
+      receivedPaymentAmount: received,
+    })
+    expect(termsOf(sig, [])).toMatchObject({ firstInstallmentCents: 30000, balanceCents: 120000 })
+    expect(
+      termsOf(sig, [
+        pay('confirmed', 30000, 25000),
+        pay('reported', 5000, null),
+        pay('refunded', 9, 9),
+      ])
+    ).toMatchObject({ paidCents: 25000, pendingCents: 5000, balanceCents: 95000 })
   })
 
   it('puts odd cents on the last installment, and one payment is the whole price', () => {

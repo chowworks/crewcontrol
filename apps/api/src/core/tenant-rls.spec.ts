@@ -53,7 +53,12 @@ suite('trip isolation', () => {
     (await db.query<{ id: string }>(`SELECT id FROM "${table}" ORDER BY id`)).rows.map((r) => r.id)
   const refused = expect.stringMatching(/row-level security/)
   // A guest's change to the organizer's fields: the self-limits trigger or the policy, whichever refuses first.
-  const guestRefused = expect.stringMatching(/row-level security|only say they paid/)
+  const guestRefused = expect.stringMatching(/row-level security|only change their room wish/)
+  /** A guest's payment, as the join page writes it. */
+  const report = (id: string, guest: string, extra = '', extraVals = '') =>
+    attempt(
+      `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn"${extra}) VALUES ('${id}', 'T1', '${guest}', 100, 'Zelle', 'zelle', '2026-10-24'${extraVals}) RETURNING id`
+    )
 
   afterAll(() => db.close())
 
@@ -62,7 +67,7 @@ suite('trip isolation', () => {
     // The restricted role gets exactly what scripts/create-app-role.ts gives it (src/core/app-role-grants.ts).
     await db.exec(`CREATE ROLE cc_app NOLOGIN;\n${appRoleGrantsSql('cc_app').join(';\n')};`)
     // T1: published, an owner and an organizer. T2: a draft with another owner. S: a published sample nobody owns.
-    await insert(db, 'Trip', { id: 'T1', slug: 't1', published: true })
+    await insert(db, 'Trip', { id: 'T1', slug: 't1', published: true, costPerPersonCents: 1000 })
     await insert(db, 'Trip', { id: 'T2', slug: 't2', published: false })
     await insert(db, 'Trip', { id: 'S', slug: 's', published: true, isSample: true })
     await insert(db, 'TripMember', { id: 'M-T1-owner', tripId: 'T1', userId: 'u1', role: 'owner' })
@@ -484,10 +489,7 @@ suite('trip isolation', () => {
       expect(await join('G-j4', ', "userId", status', ", 'g2', 'approved'")).toEqual({
         error: refused,
       })
-      expect(await join('G-j4', ', "userId", "paymentConfirmedAt"', ", 'g2', now()")).toEqual({
-        error: refused,
-      })
-      expect(await join('G-j4', ', "userId", "paymentSentAt"', ", 'g2', now()")).toEqual({
+      expect(await join('G-j4', ', "userId", "spotPaidAt"', ", 'g2', now()")).toEqual({
         error: refused,
       })
       expect(
@@ -516,7 +518,7 @@ suite('trip isolation', () => {
     }
   })
 
-  it('keeps a guest to their own row and signature, and lets them say they paid but not confirm or accept it', async () => {
+  it('keeps a guest to their own row, signature and payments, and lets them report a payment but not confirm or accept it', async () => {
     // A pay-first trip, where a waiting guest pays (on an accept-first trip they wait to be accepted).
     await db.query(`UPDATE "Trip" SET "joinMode" = 'pay_first' WHERE id = 'T1'`)
     await db.query(
@@ -531,7 +533,7 @@ suite('trip isolation', () => {
         const sign = (id: string, guest: string, trip: string) =>
           attempt(
             `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
-             VALUES ('${id}', '${trip}', '${guest}', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Mo Me', 'ip', 'ua') RETURNING id`
+             VALUES ('${id}', '${trip}', '${guest}', 'v', 't', 'h', 1000, 10, 's', 'e', 'r', 'Mo Me', 'ip', 'ua') RETURNING id`
           )
         expect(await sign('A-me', 'G-me', 'T1')).toEqual({ rows: 1 })
         expect(await sign('A-x', 'G-T1-i', 'T1')).toEqual({ error: refused })
@@ -540,9 +542,21 @@ suite('trip isolation', () => {
           rows: 0,
         })
         expect(await attempt(`DELETE FROM "AgreementSignature"`)).toEqual({ rows: 0 })
-        // Saying they paid is theirs; confirming it, accepting or refunding is the organizer's.
-        expect(await attempt(`UPDATE "Guest" SET "paymentSentAt" = now()`)).toEqual({ rows: 1 })
-        expect(await attempt(`UPDATE "Guest" SET "paymentConfirmedAt" = now()`)).toEqual({
+        // Reporting a payment is theirs; confirming it, accepting or refunding is the organizer's.
+        expect(await report('P-me', 'G-me')).toEqual({ rows: 1 })
+        expect(await report('P-x', 'G-T1-i')).toEqual({ error: refused })
+        expect(
+          await report('P-c', 'G-me', ', status, "receivedPaymentAmount"', ", 'confirmed', 100")
+        ).toEqual({ error: refused })
+        expect(await report('P-o', 'G-me', ', "loggedBy"', ", 'organizer'")).toEqual({
+          error: refused,
+        })
+        expect(await ids('Payment')).toEqual(['P-me'])
+        expect(
+          await attempt(`UPDATE "Payment" SET status = 'confirmed', "receivedPaymentAmount" = 100`)
+        ).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "Payment"`)).toEqual({ rows: 0 })
+        expect(await attempt(`UPDATE "Guest" SET "spotPaidAt" = now()`)).toEqual({
           error: guestRefused,
         })
         expect(await attempt(`UPDATE "Guest" SET status = 'approved'`)).toEqual({
@@ -552,7 +566,7 @@ suite('trip isolation', () => {
           error: guestRefused,
         })
         expect(await attempt(`UPDATE "Guest" SET "firstName" = 'Not me'`)).toEqual({
-          error: expect.stringMatching(/only say they paid/),
+          error: expect.stringMatching(/only change their room wish/),
         })
         expect(await attempt(`UPDATE "Guest" SET "roomNote" = 'with Sam'`)).toEqual({ rows: 1 })
         expect(await attempt(`UPDATE "Guest" SET "userId" = 'g8'`)).toEqual({
@@ -566,16 +580,32 @@ suite('trip isolation', () => {
       // The trip's members read the signature; another trip's owner does not.
       await db.query(
         `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
-         VALUES ('A-me', 'T1', 'G-me', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Mo Me', 'ip', 'ua')`
+         VALUES ('A-me', 'T1', 'G-me', 'v', 't', 'h', 1000, 10, 's', 'e', 'r', 'Mo Me', 'ip', 'ua')`
+      )
+      await db.query(
+        `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-me', 'T1', 'G-me', 100, 'Zelle', 'zelle', '2026-10-24')`
       )
       await as(await person('u1'), async () => {
         expect(await ids('AgreementSignature')).toEqual(['A-me'])
         expect(await attempt(`UPDATE "AgreementSignature" SET text = 'changed'`)).toEqual({
           rows: 0,
         })
+        // The organizer confirms what arrived; the guest's spot is paid once that covers the first payment (1000 in 10 installments: 100).
+        expect(await ids('Payment')).toEqual(['P-me'])
+        expect(
+          await attempt(
+            `UPDATE "Payment" SET status = 'confirmed', "receivedPaymentAmount" = 100, "decidedAt" = now()`
+          )
+        ).toEqual({ rows: 1 })
+        const g = await db.query<{ paid: boolean }>(
+          `SELECT "spotPaidAt" IS NOT NULL AS paid FROM "Guest" WHERE id = 'G-me'`
+        )
+        expect(g.rows[0].paid).toBe(true)
+        expect(await attempt(`DELETE FROM "Payment"`)).toEqual({ rows: 0 })
       })
       await as(await person('u2'), async () => {
         expect(await ids('AgreementSignature')).toEqual([])
+        expect(await ids('Payment')).toEqual([])
       })
     } finally {
       await db.query(`DELETE FROM "Guest" WHERE id = 'G-me'`)
@@ -585,7 +615,7 @@ suite('trip isolation', () => {
 
   it("never lets a guest undo the organizer's decision", async () => {
     await db.query(
-      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId", status, "paymentConfirmedAt", "refundSentAt") VALUES
+      `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId", status, "spotPaidAt", "refundSentAt") VALUES
        ('G-no', 'T1', 'No', 'Pe', 'no@example.com', 'p', 'g7', 'declined', now(), now()),
        ('G-in', 'T1', 'In', 'Ok', 'in@example.com', 'p', 'g6', 'approved', now(), NULL)`
     )
@@ -594,36 +624,54 @@ suite('trip isolation', () => {
         expect(await ids('Guest')).toEqual(['G-no'])
         expect(
           await attempt(
-            `UPDATE "Guest" SET status = 'interested', "paymentConfirmedAt" = NULL, "refundSentAt" = NULL`
+            `UPDATE "Guest" SET status = 'interested', "spotPaidAt" = NULL, "refundSentAt" = NULL`
           )
         ).toEqual({ rows: 0 })
       })
       await as(await person('g6'), async () => {
         expect(await attempt(`UPDATE "Guest" SET status = 'interested'`)).toEqual({ rows: 0 })
-        expect(await attempt(`UPDATE "Guest" SET "paymentConfirmedAt" = NULL`)).toEqual({ rows: 0 })
+        expect(await attempt(`UPDATE "Guest" SET "spotPaidAt" = NULL`)).toEqual({ rows: 0 })
+      })
+      // Turned down: no more payments to report.
+      await as(await person('g7'), async () => {
+        expect(await report('P-no', 'G-no')).toEqual({
+          error: expect.stringMatching(/can't pay yet/),
+        })
       })
     } finally {
       await db.query(`DELETE FROM "Guest" WHERE id IN ('G-no', 'G-in')`)
     }
   })
 
-  it('lets an accepted guest who has not paid say they paid, and nothing else', async () => {
+  it('lets a guest on an accept-first trip report a payment only once accepted', async () => {
     await db.query(
       `INSERT INTO "Guest" (id, "tripId", "firstName", "lastName", email, phone, "userId", status) VALUES
-       ('G-ok', 'T1', 'Ok', 'Go', 'ok@example.com', 'p', 'g5', 'approved')`
+       ('G-ok', 'T1', 'Ok', 'Go', 'ok@example.com', 'p', 'g5', 'approved'),
+       ('G-wait', 'T1', 'Wa', 'It', 'wait@example.com', 'p', 'g4', 'interested')`
     )
     try {
       await as(await person('g5'), async () => {
         expect(await attempt(`UPDATE "Guest" SET "roomNote" = 'with Sam'`)).toEqual({
-          error: expect.stringMatching(/only say they paid/),
+          error: expect.stringMatching(/only change their room wish/),
         })
         expect(await attempt(`UPDATE "Guest" SET status = 'interested'`)).toEqual({
           error: guestRefused,
         })
-        expect(await attempt(`UPDATE "Guest" SET "paymentSentAt" = now()`)).toEqual({ rows: 1 })
+        expect(await report('P-ok', 'G-ok')).toEqual({ rows: 1 })
+        // Never more than is left of the price (1000): 100 reported, so 950 more is too much.
+        expect(
+          await attempt(
+            `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-big', 'T1', 'G-ok', 950, 'Zelle', 'zelle', '2026-10-24')`
+          )
+        ).toEqual({ error: expect.stringMatching(/more_than_left/) })
+      })
+      await as(await person('g4'), async () => {
+        expect(await report('P-wait', 'G-wait')).toEqual({
+          error: expect.stringMatching(/can't pay yet/),
+        })
       })
     } finally {
-      await db.query(`DELETE FROM "Guest" WHERE id = 'G-ok'`)
+      await db.query(`DELETE FROM "Guest" WHERE id IN ('G-ok', 'G-wait')`)
     }
   })
 
@@ -717,7 +765,7 @@ suite('trip isolation', () => {
       // The guest signs and says they paid; the organizer confirms, accepts and moves their room.
       await db.query(
         `INSERT INTO "AgreementSignature" (id, "tripId", "guestId", "templateVersion", text, "textHash", "priceCents", "installmentCount", "startDate", "endDate", "refundTerms", "typedName", "ipAddress", "userAgent")
-         VALUES ('A-log', 'T1', 'G-log', 'v', 't', 'h', 1, 1, 's', 'e', 'r', 'Lo Gg', 'ip', 'ua')`
+         VALUES ('A-log', 'T1', 'G-log', 'v', 't', 'h', 1000, 10, 's', 'e', 'r', 'Lo Gg', 'ip', 'ua')`
       )
       // All as the restricted role, one transaction, switching who is calling between steps.
       await as(await person('g4'), async () => {
@@ -729,33 +777,36 @@ suite('trip isolation', () => {
           )
         }
         const run = (sql: string) => attempt(sql.replace(/;$/, ''))
+        const pay = `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-log', 'T1', 'G-log', 100, 'Zelle', 'zelle', '2026-10-24')`
         // On an accept-first trip the guest pays only once accepted.
-        expect(await run(`UPDATE "Guest" SET "paymentSentAt" = now() WHERE id = 'G-log'`)).toEqual({
-          error: expect.stringMatching(/pays once accepted/),
-        })
+        expect(await run(pay)).toEqual({ error: expect.stringMatching(/can't pay yet/) })
         await become('o1')
         expect(
           await run(`UPDATE "Guest" SET status = 'approved', "roomId" = 'R-T1' WHERE id = 'G-log'`)
         ).toEqual({ rows: 1 })
         await become('g4')
-        expect(await run(`UPDATE "Guest" SET "paymentSentAt" = now() WHERE id = 'G-log'`)).toEqual({
-          rows: 1,
-        })
+        expect(await run(pay)).toEqual({ rows: 1 })
         // A guest never reads the log, their own lines included.
         expect(await ids('GuestEvent')).toEqual([])
         await become('o1')
         expect(
-          await run(`UPDATE "Guest" SET "paymentConfirmedAt" = now() WHERE id = 'G-log'`)
+          await run(
+            `UPDATE "Payment" SET status = 'confirmed', "receivedPaymentAmount" = 90 WHERE id = 'P-log'`
+          )
         ).toEqual({ rows: 1 })
         expect(
           await run(
             `UPDATE "Guest" SET status = 'declined', "refundSentAt" = now() WHERE id = 'G-log'`
           )
         ).toEqual({ rows: 1 })
-        // Putting them back clears their payment and refund: one line, not an undone refund.
+        // The refunded payment adds no line of its own: the refund is the guest's line.
+        expect(await run(`UPDATE "Payment" SET status = 'refunded' WHERE id = 'P-log'`)).toEqual({
+          rows: 1,
+        })
+        // Putting them back clears their refund: one line, not an undone refund.
         expect(
           await run(
-            `UPDATE "Guest" SET status = 'interested', "paymentSentAt" = NULL, "paymentConfirmedAt" = NULL, "refundSentAt" = NULL WHERE id = 'G-log'`
+            `UPDATE "Guest" SET status = 'interested', "refundSentAt" = NULL WHERE id = 'G-log'`
           )
         ).toEqual({ rows: 1 })
         // A contact change is logged by which detail changed, never its value.
@@ -796,6 +847,14 @@ suite('trip isolation', () => {
           `SELECT fields FROM "GuestEvent" WHERE "guestId" = 'G-log' AND kind = 'contact_changed'`
         )
         expect(contact.rows).toEqual([{ fields: 'phone' }])
+        // Payment lines say how much: what the guest said they sent, then what arrived.
+        const amounts = await db.query(
+          `SELECT kind, amount, "paymentId" FROM "GuestEvent" WHERE "guestId" = 'G-log' AND amount IS NOT NULL ORDER BY at, n`
+        )
+        expect(amounts.rows).toEqual([
+          { kind: 'said_paid', amount: 100, paymentId: 'P-log' },
+          { kind: 'payment_confirmed', amount: 90, paymentId: 'P-log' },
+        ])
       })
     } finally {
       await db.query(`DELETE FROM "Guest" WHERE id = 'G-log'`)

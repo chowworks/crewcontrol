@@ -1,5 +1,11 @@
 import { useUser } from '@clerk/clerk-react'
-import type { JoinInput, JoinView, MyGuest, PublicTrip } from '@cc/types'
+import {
+  paymentMethodLabel,
+  type JoinInput,
+  type JoinView,
+  type MyGuest,
+  type PublicTrip,
+} from '@cc/types'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -8,12 +14,13 @@ import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { RoomCard } from '@/components/RoomCard'
 import { ApiError, api } from '@/lib/api'
-import { dateRange, money } from '@/lib/format'
+import { dateRange, money, shortDate } from '@/lib/format'
+import { centsFrom, owed, paymentStatus, today } from '@/lib/payments'
 import { NotFoundPage } from './NotFoundPage'
 
 // The join page, /t/<slug>/join, opened from "I want to join" on the trip page. A signed-in guest fills in their
-// details and signs the trip agreement in one step, then sees how to pay the organizer and says when they have. After
-// that the same card shows where they stand. Payment instructions reach a guest only here.
+// details and signs the trip agreement in one step, then sees how to pay the organizer and reports each payment they
+// send. After that the same card shows where they stand and their payments. Payment instructions reach a guest only here.
 
 const input =
   'rounded-[10px] border border-[#5B6B80] bg-white px-3.5 py-3 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal'
@@ -372,7 +379,7 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
   )
 }
 
-/** Where the guest stands, once they've signed: how to pay, then waiting, accepted or turned down. */
+/** Where the guest stands, once they've signed: how to pay and their payments, then waiting, accepted or turned down. */
 function MyPlace({
   trip,
   me,
@@ -382,28 +389,22 @@ function MyPlace({
   me: MyGuest
   onChange: (v: JoinView) => void
 }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [reading, setReading] = useState(false)
+  const [reporting, setReporting] = useState(false)
   const o = trip.organizerName
-  const first = me.terms ? money(me.terms.firstInstallmentCents) : 'your first installment'
   // On an accept-first trip a guest pays once accepted; on the other two, before the organizer decides.
+  // A guest still waiting on a trip that filled has nothing to pay for (they're owed back what they sent).
+  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   const canPay =
-    me.status !== 'declined' && (trip.joinMode !== 'accept_first' || me.status === 'approved')
-  const toPay = canPay && !me.paymentSentAt && !me.paymentConfirmedAt
-
-  const paid = async () => {
-    if (busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      onChange(await api.markPaid(trip.slug))
-    } catch {
-      setError("That didn't go through. Please try again.")
-    } finally {
-      setBusy(false)
-    }
-  }
+    me.status !== 'declined' &&
+    !me.refundSentAt &&
+    !(me.status === 'interested' && full) &&
+    (trip.joinMode !== 'accept_first' || me.status === 'approved')
+  const { left, dueNow } = me.terms ? owed(me.terms) : { left: 0, dueNow: 0 }
+  const first = me.terms ? money(me.terms.firstInstallmentCents) : 'your first installment'
+  const paidCents = me.terms?.paidCents ?? 0
+  const reported = me.payments.some((p) => p.status === 'reported')
+  const sentAny = paidCents > 0 || reported
 
   const [title, line] =
     me.status === 'declined'
@@ -411,7 +412,7 @@ function MyPlace({
           'Not this time',
           me.refundSentAt
             ? `${o} didn’t take you on this trip and sent your refund on ${day(me.refundSentAt)}.`
-            : me.paymentSentAt || me.paymentConfirmedAt
+            : sentAny
               ? `${o} didn’t take you on this trip and refunds everything you sent, in full.`
               : `${o} didn’t take you on this trip.`,
         ]
@@ -419,27 +420,32 @@ function MyPlace({
         ? [
             'You’re in',
             trip.joinMode !== 'accept_first'
-              ? `${o} confirmed your payment. Your spot is held.`
-              : me.paymentConfirmedAt
+              ? `${o} accepted you. Your spot is held.`
+              : me.spotPaidAt
                 ? `${o} accepted you and confirmed your payment.`
-                : me.paymentSentAt
+                : reported
                   ? `${o} accepted you. Payment sent: ${o} will confirm it arrived.`
-                  : `${o} accepted you. Now pay ${o} ${first}.`,
+                  : `${o} accepted you. Now pay ${o} ${dueNow ? money(dueNow) : first}.`,
           ]
-        : trip.joinMode === 'accept_first' && !me.paymentConfirmedAt
+        : trip.joinMode === 'accept_first'
           ? [
               'Signed. Your copy is below',
               `${o} accepts the crew next. Once you’re in, you’ll see how to pay.`,
             ]
-          : me.paymentConfirmedAt
-            ? me.refundSentAt
-              ? ['Payment refunded', `${o} sent your money back on ${day(me.refundSentAt)}.`]
-              : trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+          : me.refundSentAt
+            ? ['Payment refunded', `${o} sent your money back on ${day(me.refundSentAt)}.`]
+            : me.spotPaidAt
+              ? full
                 ? ['The trip filled first', `${o} confirmed your payment and refunds you in full.`]
                 : ['Payment confirmed', `${o} accepts the crew next. You’ll hear either way.`]
-            : me.paymentSentAt
-              ? ['Payment sent', `${o} will confirm it arrived.`]
-              : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
+              : reported
+                ? ['Payment sent', `${o} will confirm it arrived.`]
+                : paidCents > 0
+                  ? [
+                      'Part paid',
+                      `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more holds your spot.`,
+                    ]
+                  : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
 
   return (
     <div className="flex flex-col gap-4">
@@ -449,23 +455,33 @@ function MyPlace({
         </h2>
         <p className="text-body">{line}</p>
       </div>
-      {error && (
-        <p role="alert" className="font-semibold text-[#B42318]">
-          {error}
-        </p>
-      )}
 
-      {canPay && me.paymentInstructions && (
+      {canPay && (me.paymentMethods.length > 0 || me.paymentInstructions) && (
         <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
           <p className="text-sm font-semibold">How to pay {o}</p>
-          <p className="whitespace-pre-line">{me.paymentInstructions}</p>
+          {me.paymentMethods.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {me.paymentMethods.map((m, i) => (
+                <li key={i}>{paymentMethodLabel(m)}</li>
+              ))}
+            </ul>
+          )}
+          {me.paymentInstructions && (
+            <p className="mt-2 whitespace-pre-line">{me.paymentInstructions}</p>
+          )}
         </div>
       )}
-      {toPay && (
-        <button type="button" onClick={paid} aria-disabled={busy} className={primary}>
-          {busy ? 'Sending…' : `I’ve paid ${first}`}
+      {canPay && left > 0 && me.terms && (
+        // Once a payment is waiting, the main thing is done: another payment is a secondary step.
+        <button
+          type="button"
+          onClick={() => setReporting(true)}
+          className={reported ? `${outlined} self-start` : primary}
+        >
+          {reported ? 'Report another payment' : 'I’ve paid'}
         </button>
       )}
+      {me.payments.length > 0 && <MyPayments payments={me.payments} organizer={o} />}
 
       {me.terms && (
         <dl className="grid grid-cols-2 gap-3 border-t border-rule pt-4 text-sm sm:grid-cols-4">
@@ -498,7 +514,237 @@ function MyPlace({
           </p>
         </Dialog>
       )}
+      {reporting && me.terms && (
+        <ReportPayment
+          trip={trip}
+          me={me}
+          left={left}
+          dueNow={dueNow}
+          onDone={(v) => {
+            setReporting(false)
+            onChange(v)
+          }}
+          onClose={() => setReporting(false)}
+        />
+      )}
     </div>
+  )
+}
+
+/** The guest's payments, newest first, with where each stands. */
+function MyPayments({ payments, organizer }: { payments: MyGuest['payments']; organizer: string }) {
+  return (
+    <div className="border-t border-rule pt-4">
+      <h3 className="text-sm font-semibold text-muted">Your payments</h3>
+      <ul>
+        {[...payments].reverse().map((p) => (
+          <li
+            key={p.id}
+            className="flex flex-wrap justify-between gap-x-3 border-t border-rule py-2 first:border-t-0"
+          >
+            <span>
+              <span className="font-semibold">
+                {money(
+                  p.status === 'confirmed' ? (p.receivedPaymentAmount ?? 0) : p.guestPaymentAmount
+                )}
+              </span>{' '}
+              <span className="text-body">
+                · {p.method} · {shortDate(p.sentOn)}
+              </span>
+            </span>
+            <span
+              className={
+                p.status === 'not_received' ? 'font-semibold text-[#B42318]' : 'text-muted'
+              }
+            >
+              {paymentStatus(p.status, organizer)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Reporting a payment (owner's decision, 2026-10-24): how much they sent, how and when, and that they sent it. Less
+ * than is due now needs a line saying why. Every problem shows beside its field before they press the button.
+ */
+function ReportPayment({
+  trip,
+  me,
+  left,
+  dueNow,
+  onDone,
+  onClose,
+}: {
+  trip: PublicTrip
+  me: MyGuest
+  left: number
+  dueNow: number
+  onDone: (v: JoinView) => void
+  onClose: () => void
+}) {
+  const o = trip.organizerName
+  const methods = me.paymentMethods
+  const [amount, setAmount] = useState('')
+  const [method, setMethod] = useState<number | null>(methods.length === 1 ? 0 : null)
+  const [sentOn, setSentOn] = useState(today())
+  const [note, setNote] = useState('')
+  const [certified, setCertified] = useState(false)
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [tried, setTried] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const cents = centsFrom(amount)
+  const short = cents > 0 && cents < dueNow
+
+  const problems: Record<string, string> = {}
+  if (!cents) problems.amount = 'Enter how much you sent.'
+  else if (cents > left) problems.amount = `That’s more than the ${money(left)} left to pay.`
+  // A trip that lists no ways to pay says how in its note: there's nothing to pick.
+  if (method === null && methods.length > 0) problems.method = 'Pick how you paid.'
+  if (!sentOn) problems.sentOn = 'Enter the day you sent it.'
+  else if (sentOn > today()) problems.sentOn = 'That day hasn’t happened yet.'
+  if (short && !note.trim()) problems.note = 'Say why it’s less than what’s due.'
+  if (!certified) problems.certified = `Tick this to report your payment to ${o}.`
+  const show = (k: string) => (tried || touched[k] ? problems[k] : undefined)
+  const touch = (k: string) => setTouched((t) => ({ ...t, [k]: true }))
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setTried(true)
+    if (Object.keys(problems).length > 0 || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      onDone(
+        await api.reportPayment(trip.slug, {
+          guestPaymentAmount: cents,
+          methodIndex: method,
+          sentOn,
+          note: short ? note.trim() : '',
+          certified: true,
+        })
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "That didn't go through. Please try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title="Report a payment" onClose={onClose}>
+      <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
+        <label className="flex flex-col gap-1.5 font-semibold">
+          Amount you sent
+          <input
+            className={input}
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="$0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={() => touch('amount')}
+            aria-invalid={Boolean(show('amount'))}
+          />
+          <span className="text-sm font-normal text-muted">
+            {dueNow > 0 ? `Due now: ${money(dueNow)}` : `Left to pay: ${money(left)}`}
+          </span>
+          {show('amount') && <Problem>{show('amount')}</Problem>}
+        </label>
+
+        {methods.length > 0 && (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1.5 font-semibold">How you paid</legend>
+            {methods.length === 1 ? (
+              <p className="text-body">{paymentMethodLabel(methods[0])}</p>
+            ) : (
+              methods.map((m, i) => (
+                <label
+                  key={i}
+                  className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border px-3.5 ${
+                    method === i ? 'border-royal bg-royal-pale' : 'border-rule'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="method"
+                    checked={method === i}
+                    onChange={() => {
+                      setMethod(i)
+                      touch('method')
+                    }}
+                    className="h-5 w-5 accent-royal"
+                  />
+                  {paymentMethodLabel(m)}
+                </label>
+              ))
+            )}
+            {show('method') && <Problem>{show('method')}</Problem>}
+          </fieldset>
+        )}
+
+        <label className="flex flex-col gap-1.5 font-semibold">
+          Day you sent it
+          <input
+            type="date"
+            className={input}
+            value={sentOn}
+            max={today()}
+            onChange={(e) => setSentOn(e.target.value)}
+            onBlur={() => touch('sentOn')}
+            aria-invalid={Boolean(show('sentOn'))}
+          />
+          {show('sentOn') && <Problem>{show('sentOn')}</Problem>}
+        </label>
+
+        {short && (
+          <label className="flex flex-col gap-1.5 font-semibold">
+            Why it’s less than {money(dueNow)}
+            <textarea
+              className={`${input} min-h-[80px]`}
+              value={note}
+              maxLength={500}
+              onChange={(e) => setNote(e.target.value)}
+              onBlur={() => touch('note')}
+              placeholder="For example: the rest on Friday, after payday."
+              aria-invalid={Boolean(show('note'))}
+            />
+            {show('note') && <Problem>{show('note')}</Problem>}
+          </label>
+        )}
+
+        <div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={certified}
+              onChange={(e) => {
+                setCertified(e.target.checked)
+                touch('certified')
+              }}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
+            />
+            <span>
+              I sent this payment to {o}
+              {cents ? `: ${money(cents)}` : ''}.
+            </span>
+          </label>
+          {show('certified') && <Problem>{show('certified')}</Problem>}
+        </div>
+
+        <button type="submit" aria-disabled={busy} className={primary}>
+          {busy ? 'Sending…' : 'Report payment'}
+        </button>
+      </form>
+    </Dialog>
   )
 }
 

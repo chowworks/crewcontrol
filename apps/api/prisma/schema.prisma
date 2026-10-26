@@ -27,6 +27,9 @@ model Trip {
   galleryTitle        String               @default("Photos")
   showGuestNames      Boolean              @default(false)
   // Shown only to signed-in guests who joined the trip (their join page). Never on the public page.
+  // How guests can pay the organizer (PaymentMethod[]: a fixed kind with its handle, or a free-form one), and a note
+  // for anything else. A guest picks one of the methods when they report a payment.
+  paymentMethods      Json                 @default("[]")
   paymentInstructions String               @default("")
   published           Boolean              @default(false)
   // A demo trip from the seed. The homepage shows only these, and their pages carry a "Sample Trip" badge.
@@ -50,6 +53,7 @@ model Trip {
   rooms               Room[]
   log                 TripLog[]
   agreements          AgreementSignature[]
+  payments            Payment[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -80,10 +84,10 @@ model Guest {
   phone              String
   status             String              @default("interested") // 'interested' | 'approved' | 'declined'
   createdAt          DateTime            @default(now())
-  // When the guest said they sent their first payment.
-  paymentSentAt      DateTime?
-  // When the organizer confirmed it arrived. On a first come, first served trip spots go in this order.
-  paymentConfirmedAt DateTime?
+  // When the payments the organizer confirmed first added up to the first payment the guest's agreement asked for
+  // (kept by the database from Payment, migration 20261025010000_payment_log). On a first come, first served trip
+  // spots go in this order.
+  spotPaidAt         DateTime?
   // When the organizer, turning a paid guest down, said the refund went out. Records it; moves no money.
   refundSentAt       DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
@@ -93,6 +97,7 @@ model Guest {
   trip               Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
   agreement          AgreementSignature?
   events             GuestEvent[]
+  payments           Payment[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -133,8 +138,8 @@ model GuestEvent {
   tripId      String
   guestId     String
   at          DateTime @default(now())
-  // 'joined' | 'signed' | 'said_paid' | 'payment_confirmed' | 'payment_undone' | 'accepted' | 'turned_down' |
-  // 'put_back' | 'refund_sent' | 'refund_undone' | 'room_changed' | 'contact_changed'
+  // 'joined' | 'signed' | 'said_paid' | 'payment_confirmed' | 'payment_not_received' | 'payment_undone' |
+  // 'accepted' | 'turned_down' | 'put_back' | 'refund_sent' | 'refund_undone' | 'room_changed' | 'contact_changed'
   kind        String
   actorUserId String?
   actor       String // 'guest' | 'organizer' | 'system'
@@ -142,11 +147,47 @@ model GuestEvent {
   toRoomId    String?
   // For contact_changed: which details changed ('name', 'email', 'phone'), never their values.
   fields      String?
+  // For the payment kinds: which payment, and its amount in whole cents (what the guest said they sent, or what the
+  // organizer confirmed arrived).
+  paymentId   String?
+  amount      Int?
   n           Int      @default(autoincrement())
   guest       Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 
   @@index([guestId, at, n])
   @@index([tripId])
+}
+
+// One payment a guest sent the organizer, for any installment (migration 20261025010000_payment_log). The guest
+// reports it (or the organizer logs one handed over in person); the organizer confirms it arrived or says it didn't.
+// Amounts are whole cents. The guest's amount is never changed, so their word stays on record beside what arrived.
+model Payment {
+  id                    String    @id @default(cuid())
+  tripId                String
+  guestId               String
+  // What the guest says they sent.
+  guestPaymentAmount    Int
+  // What the organizer says arrived, set when they confirm it (filled in with the guest's amount unless changed).
+  receivedPaymentAmount Int?
+  // How it was paid, as the guest picked it from the trip's methods ("Zelle · (555) 010-0199"), and its kind.
+  method                String
+  methodKind            String // PaymentMethodKind
+  sentOn                String // 'YYYY-MM-DD', the day the guest says they sent it
+  // Why, when it is less than what was due. Required then.
+  note                  String    @default("")
+  status                String    @default("reported") // 'reported' | 'confirmed' | 'not_received'
+  loggedBy              String    @default("guest") // 'guest' | 'organizer'
+  reportedAt            DateTime  @default(now())
+  decidedAt             DateTime?
+  decidedByUserId       String?
+  // With 'refunded': the refund it went back with (the guest's refundSentAt then), so undoing that refund counts
+  // only these payments again.
+  refundedAt            DateTime?
+  trip                  Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest                 Guest     @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([guestId, reportedAt])
 }
 
 // A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.

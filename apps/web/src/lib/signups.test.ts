@@ -16,9 +16,25 @@ const g = (
   phone: '555-0100',
   status,
   createdAt,
-  paymentSentAt: sent,
-  paymentConfirmedAt: confirmed,
+  spotPaidAt: confirmed,
   refundSentAt: null,
+  payments: sent
+    ? [
+        {
+          id: `p-${id}`,
+          guestPaymentAmount: 500,
+          receivedPaymentAmount: confirmed ? 500 : null,
+          method: 'Zelle',
+          methodKind: 'zelle',
+          sentOn: sent.slice(0, 10),
+          note: '',
+          status: confirmed ? 'confirmed' : 'reported',
+          loggedBy: 'guest',
+          reportedAt: sent,
+          decidedAt: confirmed,
+        },
+      ]
+    : [],
   roomId: null,
   roomNote: '',
   signedAt: createdAt,
@@ -26,7 +42,7 @@ const g = (
 })
 
 describe('signupOrder', () => {
-  it('puts confirmed payments first, in confirmation order, then paid, then the rest, then the turned down', () => {
+  it('puts paid spots first, in the order they were paid, then reported payments, then the rest, then the turned down', () => {
     const list = [
       g('turned-down', '2026-10-01T00:00:00Z', null, '2026-10-02T00:00:00Z', 'declined'),
       g(
