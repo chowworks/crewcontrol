@@ -1,12 +1,19 @@
 import { useClerk, useUser } from '@clerk/clerk-react'
+import type { MyActions } from '@cc/types'
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { useToast } from '@/components/Toast'
+import { api } from '@/lib/api'
 import { authConfigured, useIsAdmin } from '@/lib/auth'
 
 /**
  * The account control at the far right of the header, in the shape of Audit Differently's: an avatar and first
  * name that open a short menu. Page actions (New trip, Add trip) sit to its left as buttons; the menu holds who
  * you are, Your trips, the Admin toolbox for admins, and Sign out. Nothing shows when signed out.
+ *
+ * A red count on the pill says how many things need you across the app (owner's decision, 2026-10-24): on the trips
+ * you run, what each one's Actions lists; on trips you joined, a payment that's due. The menu lists each with its
+ * count and links there.
  */
 export function AccountMenu() {
   if (!authConfigured) return null
@@ -19,6 +26,48 @@ function SignedInMenu() {
   const isAdmin = useIsAdmin()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const [actions, setActions] = useState<MyActions | null>(null)
+  const { pathname } = useLocation()
+  const toast = useToast()
+
+  // Counted again on every page and whenever the tab comes back into view, so a done action drops off.
+  useEffect(() => {
+    if (!isSignedIn) return
+    /**
+     * A guest with a payment due hears it once when they open the app (owner's decision, 2026-10-26), in a toast with a
+     * link to pay: once per visit (this tab), not on every page. Their join page itself already says what's due.
+     */
+    const remind = (a: MyActions) => {
+      const due = a.items.find((i) => i.as === 'guest')
+      if (!due || pathname === due.href) return
+      try {
+        if (sessionStorage.getItem('cc:reminded')) return
+        sessionStorage.setItem('cc:reminded', '1')
+      } catch {
+        // Storage blocked (a private window): remind anyway; at worst it shows again on the next visit.
+      }
+      toast({
+        text: `A payment is due for ${due.name}.`,
+        action: { label: 'Pay now', to: due.href },
+      })
+    }
+    const load = () =>
+      api
+        .myActions()
+        .then((a) => {
+          setActions(a)
+          remind(a)
+        })
+        .catch(() => setActions(null))
+    load()
+    // Trip Control says when something was just done (cc:actions-changed).
+    window.addEventListener('focus', load)
+    window.addEventListener('cc:actions-changed', load)
+    return () => {
+      window.removeEventListener('focus', load)
+      window.removeEventListener('cc:actions-changed', load)
+    }
+  }, [isSignedIn, pathname, toast])
 
   useEffect(() => {
     if (!open) return
@@ -54,16 +103,28 @@ function SignedInMenu() {
           open ? 'bg-ink/10' : 'hover:bg-ink/10'
         }`}
       >
-        {user.hasImage ? (
-          <img className="h-8 w-8 rounded-full object-cover" src={user.imageUrl} alt="" />
-        ) : (
-          <span
-            className="grid h-8 w-8 place-items-center rounded-full bg-marigold text-sm font-extrabold"
-            aria-hidden="true"
-          >
-            {first.charAt(0).toUpperCase()}
-          </span>
-        )}
+        {/* The red count sits on the avatar's corner, so the pill stays as narrow on a phone. */}
+        <span className="relative">
+          {user.hasImage ? (
+            <img className="h-8 w-8 rounded-full object-cover" src={user.imageUrl} alt="" />
+          ) : (
+            <span
+              className="grid h-8 w-8 place-items-center rounded-full bg-marigold text-sm font-extrabold"
+              aria-hidden="true"
+            >
+              {first.charAt(0).toUpperCase()}
+            </span>
+          )}
+          {actions && actions.total > 0 && (
+            <span className="absolute -right-2 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#B42318] px-1 text-xs font-bold text-white ring-2 ring-white">
+              {actions.total}
+              <span className="sr-only">
+                {' '}
+                {actions.total === 1 ? 'thing needs' : 'things need'} you
+              </span>
+            </span>
+          )}
+        </span>
         <span className="hidden sm:inline">{first}</span>
         <span
           className={`mx-0.5 h-[7px] w-[7px] border-b-2 border-r-2 border-current ${
@@ -83,6 +144,23 @@ function SignedInMenu() {
           </div>
           {/* A choice made here closes the menu. */}
           <div onClick={() => setOpen(false)}>
+            {actions && actions.items.length > 0 && (
+              <div className="mb-1.5 border-b border-rule pb-1.5">
+                <span className="block px-3 pb-1 pt-1 text-[13px] font-semibold text-muted">
+                  Needs you
+                </span>
+                {actions.items.map((a) => (
+                  <Link key={a.href} to={a.href} className={`${item} justify-between gap-3`}>
+                    <span className="min-w-0 truncate">
+                      {a.as === 'guest' ? `Pay for ${a.name}` : a.name}
+                    </span>
+                    <span className="grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
+                      {a.count}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
             <Link to="/organize" className={item}>
               Your trips
             </Link>

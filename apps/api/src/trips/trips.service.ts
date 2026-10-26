@@ -36,6 +36,7 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
+import { tripActionCount } from './trip-types'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
 async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
@@ -99,12 +100,30 @@ export class TripsService {
       include: ownerIds,
     })
     // The caller is a member of each, so it reads their guests itself.
-    return withCounts(
+    const actions = await this.actionCounts(caller)
+    const listed = await withCounts(
       rows,
       await countGuests(
         this.prisma,
         rows.map((r) => r.id)
       )
+    )
+    // What needs the caller on each, as Trip Control's Actions counts it (the red count on Your trips).
+    return listed.map((t) => ({ ...t, actionCount: actions.get(t.id)?.count ?? 0 }))
+  }
+
+  /**
+   * What needs the caller on each trip they work on: the same things Trip Control's Actions lists (guestActions in
+   * trip-types), counted, with the trip's name.
+   */
+  async actionCounts(caller: Caller): Promise<Map<string, { name: string; count: number }>> {
+    const rows = await this.prisma.trip.findMany({
+      where: { members: { some: { userId: caller.userId } } },
+      include: withGuests,
+    })
+    const buffer = await this.waitlistBufferPercent()
+    return new Map(
+      rows.map((r) => [r.id, { name: r.name, count: tripActionCount(toOrganizerTrip(r, buffer)) }])
     )
   }
 

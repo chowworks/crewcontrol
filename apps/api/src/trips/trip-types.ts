@@ -522,3 +522,127 @@ export interface SystemSettings {
    */
   waitlistBufferPercent: number
 }
+
+// ── What needs the organizer ─────────────────────────────────────────────────
+// The rules for Trip Control's Actions, shared so the API counts the same things the screen lists (the red count in
+// the account menu and on Your trips). The screen adds the words.
+
+/** One thing the organizer does next for a guest. */
+export type GuestAction =
+  // A payment the guest reported, to confirm (in one tap) or, when it is short of what was due, to review.
+  | { kind: 'payment'; key: string; payment: Payment; due: number; short: boolean }
+  // A guest ready to accept: signed (and on the pay-first trips, some payment arrived), or next on the waitlist of an
+  // accept-first trip with a spot open.
+  | { kind: 'accept'; key: string; fromWaitlist: boolean }
+  // A spot opened and this guest is next on the waitlist of a pay-first trip: offer it to them.
+  | { kind: 'offer'; key: string }
+  // Their payment arrived but every spot is taken: they're owed it back.
+  | { kind: 'refund'; key: string; paidCents: number }
+
+/** Money the organizer confirmed arrived from a guest (refunded payments don't count). */
+export const confirmedCents = (g: Guest): number =>
+  g.payments
+    .filter((p) => p.status === 'confirmed')
+    .reduce((n, p) => n + (p.receivedPaymentAmount ?? 0), 0)
+
+/**
+ * What was due when a payment was reported, as the guest saw it then: the first payment, less what they had already
+ * reported or had confirmed before this one (payments not received don't count). Zero once the spot was covered.
+ */
+export function dueWhenSent(payment: Payment, payments: Payment[], terms: GuestTerms): number {
+  const before = payments
+    .filter((p) => p.reportedAt < payment.reportedAt && p.id !== payment.id)
+    .reduce(
+      (n, p) =>
+        n +
+        (p.status === 'confirmed'
+          ? (p.receivedPaymentAmount ?? 0)
+          : p.status === 'reported'
+            ? p.guestPaymentAmount
+            : 0),
+      0
+    )
+  return Math.max(0, terms.firstInstallmentCents - before)
+}
+
+/** Guests waiting on the waitlist for a spot (not yet offered one), in the order they joined it. */
+export function waitlist(guests: Guest[]): Guest[] {
+  return guests
+    .filter((g) => g.status === 'interested' && g.waitlistedAt && !g.offeredAt)
+    .sort((a, b) => a.waitlistedAt!.localeCompare(b.waitlistedAt!))
+}
+
+/**
+ * Whether someone joining now goes on the waitlist, as the database decides it (trip_waitlisting): every spot taken,
+ * or, where guests pay first, the guests who can already see how to pay (waiting, not refunded, not on the waitlist
+ * unless offered a spot) fill the spots left plus the system's waitlist buffer (System Settings), rounded up.
+ */
+export function waitlisting(
+  trip: { maxGuests: number | null; joinMode: JoinMode; waitlistBufferPercent: number },
+  guests: Guest[]
+): boolean {
+  if (trip.maxGuests === null) return false
+  const spotsLeft = trip.maxGuests - guests.filter((g) => g.status === 'approved').length
+  if (spotsLeft <= 0) return true
+  if (trip.joinMode === 'accept_first') return false
+  const inLine = guests.filter(
+    (g) => g.status === 'interested' && !g.refundSentAt && (!g.waitlistedAt || g.offeredAt)
+  ).length
+  return inLine >= spotsLeft + Math.ceil((spotsLeft * trip.waitlistBufferPercent) / 100)
+}
+
+/** Every spot is taken (accepted guests at the limit). */
+export const tripFull = (trip: OrganizerTrip): boolean =>
+  trip.maxGuests !== null &&
+  trip.guests.filter((g) => g.status === 'approved').length >= trip.maxGuests
+
+/** What the organizer does next for one guest, if anything. */
+export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
+  if (g.status === 'declined' || !g.signedAt) return []
+  const full = tripFull(trip)
+  // The waitlist: only the guest next in it, and only once a spot opened (someone joining now wouldn't wait).
+  if (g.status === 'interested' && g.waitlistedAt && !g.offeredAt) {
+    const next = waitlist(trip.guests)[0]?.id === g.id
+    const open = trip.joinMode === 'accept_first' ? !full : !waitlisting(trip, trip.guests)
+    if (!next || !open) return []
+    return [
+      trip.joinMode === 'accept_first'
+        ? { kind: 'accept', key: `${g.id}-accept`, fromWaitlist: true }
+        : { kind: 'offer', key: `${g.id}-offer` },
+    ]
+  }
+  const payFirst = trip.joinMode !== 'accept_first'
+  const paid = confirmedCents(g)
+  const out: GuestAction[] = g.payments
+    .filter((p) => p.status === 'reported')
+    .map((p) => {
+      const due = g.terms ? dueWhenSent(p, g.payments, g.terms) : 0
+      return { kind: 'payment', key: p.id, payment: p, due, short: p.guestPaymentAmount < due }
+    })
+  if (g.status !== 'interested') return out
+  if (full) {
+    if (paid && !g.refundSentAt)
+      out.push({ kind: 'refund', key: `${g.id}-refund`, paidCents: paid })
+    return out
+  }
+  if (payFirst && !paid) return out
+  out.push({ kind: 'accept', key: `${g.id}-accept`, fromWaitlist: false })
+  return out
+}
+
+/** Everything that needs the organizer on a trip: the red count beside Actions. */
+export const tripActionCount = (trip: OrganizerTrip): number =>
+  trip.guests.reduce((n, g) => n + guestActions(g, trip).length, 0)
+
+/** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
+export interface MyActions {
+  total: number
+  items: {
+    /** Where to go: a trip's Trip Control (organizer), or a guest's join page. */
+    href: string
+    name: string
+    count: number
+    /** 'organizer' for a trip they run; 'guest' for one they joined (something to pay). */
+    as: 'organizer' | 'guest'
+  }[]
+}

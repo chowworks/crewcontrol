@@ -8,6 +8,7 @@ import {
   type JoinInput,
   type JoinMode,
   type JoinView,
+  type MyActions,
   type MyTerms,
   type OrganizerTrip,
   type PaymentDecision,
@@ -33,6 +34,8 @@ export interface ListedTrip extends TripSummary {
   interestedCount: number
   maxGuests: number | null
   joinMode: JoinMode
+  /** What needs you on the trip, as Trip Control's Actions counts it (Your trips only). */
+  actionCount?: number
 }
 
 export class ApiError extends Error {
@@ -93,6 +96,7 @@ const json = (method: string, body: unknown): RequestInit => ({
 
 export const api = {
   listTrips: () => request<ListedTrip[]>('/trips'),
+  myActions: () => request<MyActions>('/me/actions'),
   getTrip: (id: string) => request<OrganizerTrip>(`/trips/${id}`),
   createTrip: (input: TripInput, slug?: string) =>
     request<OrganizerTrip>('/trips', json('POST', { ...input, slug })),

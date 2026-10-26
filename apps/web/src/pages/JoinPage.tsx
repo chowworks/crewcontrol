@@ -13,6 +13,7 @@ import { AccountMenu } from '@/components/AccountMenu'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { RoomCard } from '@/components/RoomCard'
+import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
 import { centsFrom, owed, paymentStatus, today } from '@/lib/payments'
@@ -485,6 +486,7 @@ function MyPlace({
 }) {
   const [reading, setReading] = useState(false)
   const [reporting, setReporting] = useState(false)
+  const toast = useToast()
   const o = trip.organizerName
   // On an accept-first trip a guest pays once accepted; on the other two, before the organizer decides.
   // A guest still waiting on a trip that filled has nothing to pay for (they're owed back what they sent).
@@ -635,6 +637,8 @@ function MyPlace({
           onDone={(v) => {
             setReporting(false)
             onChange(v)
+            toast({ text: `Payment reported to ${o}. They’ll confirm it arrived.` })
+            window.dispatchEvent(new Event('cc:actions-changed'))
           }}
           onClose={() => setReporting(false)}
         />

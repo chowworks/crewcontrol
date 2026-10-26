@@ -29,29 +29,5 @@ export function defaultSignupNote(organizerName: string, joinMode: JoinMode): st
     : 'Sign the trip agreement, pay your first installment, and you’re on your way.'
 }
 
-/**
- * Whether someone joining now goes on the waitlist, as the database decides it (trip_waitlisting, migration
- * 20261026020000_waitlist): every spot taken, or, where guests pay first, the guests who can already see how to pay
- * (waiting, not refunded, not on the waitlist unless offered a spot) fill the spots left plus the system's waitlist
- * buffer (System Settings), rounded up.
- */
-export function waitlisting(
-  trip: { maxGuests: number | null; joinMode: JoinMode; waitlistBufferPercent: number },
-  guests: Guest[]
-): boolean {
-  if (trip.maxGuests === null) return false
-  const spotsLeft = trip.maxGuests - guests.filter((g) => g.status === 'approved').length
-  if (spotsLeft <= 0) return true
-  if (trip.joinMode === 'accept_first') return false
-  const inLine = guests.filter(
-    (g) => g.status === 'interested' && !g.refundSentAt && (!g.waitlistedAt || g.offeredAt)
-  ).length
-  return inLine >= spotsLeft + Math.ceil((spotsLeft * trip.waitlistBufferPercent) / 100)
-}
-
-/** Guests waiting on the waitlist for a spot (not yet offered one), in the order they joined it. */
-export function waitlist(guests: Guest[]): Guest[] {
-  return guests
-    .filter((g) => g.status === 'interested' && g.waitlistedAt && !g.offeredAt)
-    .sort((a, b) => a.waitlistedAt!.localeCompare(b.waitlistedAt!))
-}
+// The waitlist and when joining goes to it: shared with the API (packages/types).
+export { waitlist, waitlisting } from '@cc/types'

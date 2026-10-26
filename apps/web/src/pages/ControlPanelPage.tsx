@@ -13,6 +13,7 @@ import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
+import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { ActionsCard, GuestsCard } from './TripGuests'
@@ -27,6 +28,7 @@ export function ControlPanelPage() {
   const [rooms, setRooms] = useState<TripRoom[]>([])
   const [guestError, setGuestError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     Promise.all([api.getTrip(id), api.getRooms(id)])
@@ -39,21 +41,76 @@ export function ControlPanelPage() {
 
   /** True when the change saved; otherwise the reason shows on the page and in any open dialog. */
   async function save(change: () => Promise<OrganizerTrip>): Promise<boolean> {
+    return Boolean(await saveTrip(change))
+  }
+  /** The trip as saved, or null when the change didn't save (the reason shows on the page and in any open dialog). */
+  async function saveTrip(change: () => Promise<OrganizerTrip>): Promise<OrganizerTrip | null> {
     setGuestError(null)
     try {
-      setTrip(await change())
-      return true
+      const saved = await change()
+      setTrip(saved)
+      // The red count in the account menu drops what was just done.
+      window.dispatchEvent(new Event('cc:actions-changed'))
+      return saved
     } catch (err) {
       setGuestError(err instanceof Error ? err.message : 'That change did not save.')
-      return false
+      return null
     }
   }
-  const updateGuest = (guest: Guest, update: GuestUpdate) =>
-    save(() => api.updateGuest(id, guest.id, update))
-  const decidePayment = (paymentId: string, decision: PaymentDecision) =>
-    save(() => api.decidePayment(id, paymentId, decision))
-  const logPayment = (guest: Guest, log: PaymentLog) =>
-    save(() => api.logPayment(id, guest.id, log))
+  // Each change that saved says so in a toast, with Undo where it can be undone in one step.
+  async function updateGuest(guest: Guest, update: GuestUpdate) {
+    const saved = await save(() => api.updateGuest(id, guest.id, update))
+    if (!saved) return false
+    const name = guest.firstName
+    if (update.offerSpot) toast({ text: `Spot offered to ${name}. We texted them.` })
+    else if (update.status === 'approved' && guest.status !== 'approved')
+      toast({
+        text: `${name} is on the trip.`,
+        action: { label: 'Undo', onClick: () => void updateGuest(guest, { status: 'interested' }) },
+      })
+    else if (update.status === 'declined') toast({ text: `${name} was turned down.` })
+    else if (update.status === 'interested' && guest.status !== 'interested')
+      toast({ text: `${name} is back to waiting.` })
+    else if (update.roomId !== undefined) toast({ text: `${name}’s room changed.` })
+    return true
+  }
+  async function decidePayment(paymentId: string, decision: PaymentDecision) {
+    const guest = trip?.guests.find((g) => g.payments.some((p) => p.id === paymentId))
+    const saved = await saveTrip(() => api.decidePayment(id, paymentId, decision))
+    if (!saved || !guest) return Boolean(saved)
+    // On a first come trip confirming may have given them the spot too: Undo gives it back first.
+    const tookSpot =
+      guest.status !== 'approved' &&
+      saved.guests.find((g) => g.id === guest.id)?.status === 'approved'
+    const undo = {
+      label: 'Undo',
+      onClick: async () => {
+        if (
+          tookSpot &&
+          !(await save(() => api.updateGuest(id, guest.id, { status: 'interested' })))
+        )
+          return
+        void decidePayment(paymentId, { status: 'reported' })
+      },
+    }
+    if (decision.status === 'confirmed') {
+      const p = guest.payments.find((x) => x.id === paymentId)
+      const amount = decision.receivedPaymentAmount ?? p?.guestPaymentAmount
+      toast({
+        text: `${amount ? money(amount) : 'Payment'} from ${guest.firstName} confirmed.${tookSpot ? ' They have a spot.' : ''}`,
+        action: undo,
+      })
+    } else if (decision.status === 'not_received')
+      toast({ text: `Marked ${guest.firstName}’s payment not received.`, action: undo })
+    else toast({ text: `${guest.firstName}’s payment is waiting again.` })
+    return true
+  }
+  async function logPayment(guest: Guest, log: PaymentLog) {
+    const saved = await save(() => api.logPayment(id, guest.id, log))
+    if (saved)
+      toast({ text: `${money(log.receivedPaymentAmount)} from ${guest.firstName} logged.` })
+    return saved
+  }
   const handlers = { onUpdate: updateGuest, onDecide: decidePayment, onLog: logPayment }
 
   if (error) return <p className="p-8 text-body">{error}</p>

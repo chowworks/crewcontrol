@@ -26,17 +26,17 @@ const STEPS = [
   {
     icon: Link2,
     title: 'Build the trip page',
-    body: 'Photos, highlights, key dates and the cost per person, on one link you drop in the group chat.',
+    body: 'Photos, dates and the price, on one link you drop in the group chat.',
   },
   {
     icon: Users,
-    title: 'Take in the crew',
-    body: 'Friends sign the trip agreement. You accept who is in, before or after they pay you, or let spots go first come, first served.',
+    title: 'Friends ask to join',
+    body: 'One quick form and a signature. You pick who’s in.',
   },
   {
     icon: CircleDollarSign,
-    title: 'Track who has paid',
-    body: 'Guests who signed see how to pay you and their installment plan. You log it, everyone sees their balance.',
+    title: 'They pay you',
+    body: 'Deposit, then installments, straight to you. You check them off, and each guest sees what’s left.',
   },
 ]
 
@@ -142,8 +142,8 @@ export function HomePage() {
             <h2 className="text-4xl font-extrabold leading-tight">Sound familiar?</h2>
             <p className="text-lg text-body">
               Every group trip has one person holding it together with a spreadsheet, their memory
-              and a 400-message thread, plus an RSVP page here and an expense app there. CrewControl
-              puts it all on one link and answers the same questions once, for everyone.
+              and a 300-message thread. CrewControl puts the plan, who&apos;s in and who&apos;s paid
+              on one link, so the same questions get answered once, for everyone.
             </p>
           </div>
         </div>
@@ -152,9 +152,7 @@ export function HomePage() {
       {/* How it works */}
       <section className="mx-auto max-w-[1120px] px-5 py-16">
         <h2 className="text-4xl font-extrabold">How a trip runs</h2>
-        <p className="mt-2 text-lg text-body">
-          Interest, then approval, then payment. In that order.
-        </p>
+        <p className="mt-2 text-lg text-body">They ask. You say yes. They pay you. Done.</p>
         <ol className="mt-8 grid gap-4 md:grid-cols-3">
           {STEPS.map((s, i) => (
             <li key={s.title} className="flex flex-col gap-3 rounded-2xl bg-white p-6 shadow-card">
@@ -178,11 +176,11 @@ export function HomePage() {
             <h2 className="text-4xl font-extrabold leading-tight">
               Your crew pays you, like they always have.
               <br />
-              <span className="text-marigold">We just keep score.</span>
+              <span className="text-marigold">We just handle the bookkeeping.</span>
             </h2>
             <p className="text-lg text-white/80">
               Your crew pays you directly, the way they already do. CrewControl records it, shows
-              everyone their balance, and keeps the plan straight.
+              each guest their balance, and keeps the plan straight.
             </p>
           </div>
           <ul className="flex flex-col gap-3">
@@ -208,7 +206,7 @@ export function HomePage() {
         <section className="mx-auto max-w-[1120px] px-5 py-16">
           <h2 className="text-4xl font-extrabold">One page, any kind of trip</h2>
           <p className="mt-2 text-lg text-body">
-            A beach house, a resort or a birthday villa. Tap one to see it the way your crew would.
+            A beach house, a resort or a birthday villa. Tap one to see what your crew sees.
           </p>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {trips.map((t) => (

@@ -43,3 +43,15 @@ export class JoinController {
     return this.join.reportPayment(slug, input, caller)
   }
 }
+
+// The signed-in person's red count: what needs them on the trips they run, and payments due on the trips they joined.
+@Controller('me')
+@UseGuards(SignedInGuard)
+export class MeController {
+  constructor(private readonly join: JoinService) {}
+
+  @Get('actions')
+  actions(@CurrentCaller() caller: Caller) {
+    return this.join.myActions(caller)
+  }
+}

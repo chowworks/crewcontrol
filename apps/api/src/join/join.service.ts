@@ -17,6 +17,7 @@ import {
   type GuestTerms,
   type JoinInput,
   type JoinView,
+  type MyActions,
   type MyGuest,
   type PaymentMethod,
   type PaymentReport,
@@ -199,6 +200,35 @@ export class JoinService {
         `${webUrl()}/t/${slug}/join`
     )
     return joined
+  }
+
+  /**
+   * The red count for what the caller has to do: on each trip they run, what Trip Control's Actions lists; on each trip
+   * they joined, a payment that is due now and not yet reported (one each).
+   */
+  async myActions(caller: Caller): Promise<MyActions> {
+    const items: MyActions['items'] = []
+    for (const [id, t] of await this.trips.actionCounts(caller))
+      if (t.count > 0)
+        items.push({
+          href: `/organize/${id}/control`,
+          name: t.name,
+          count: t.count,
+          as: 'organizer',
+        })
+    const joined = await this.prisma.guest.findMany({
+      where: { userId: caller.userId },
+      select: { trip: { select: { slug: true } } },
+    })
+    for (const { trip: j } of joined) {
+      const { trip, me } = await this.view(j.slug, caller).catch(() => ({ trip: null, me: null }))
+      if (!trip || !me?.terms || !canPay(trip.joinMode, me) || me.refundSentAt) continue
+      const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+      if (me.status === 'interested' && full) continue
+      if (owed(me.terms).dueNow > 0)
+        items.push({ href: `/t/${trip.slug}/join`, name: trip.name, count: 1, as: 'guest' })
+    }
+    return { total: items.reduce((n, i) => n + i.count, 0), items }
   }
 
   /**
