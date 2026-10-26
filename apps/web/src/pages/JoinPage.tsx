@@ -114,13 +114,20 @@ interface Draft {
   roomNote: string
   typedName: string
   agreed: boolean
+  /** CrewControl's Terms of Use, asked only of someone who hasn't accepted the current version. */
+  termsAccepted: boolean
 }
 
 const sameName = (a: string, b: string) =>
   a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
 /** Every problem with the form, by field, so they show at once beside their fields. */
-export function joinProblems(d: Draft, roomRequired = false): Partial<Record<keyof Draft, string>> {
+export function joinProblems(
+  d: Draft,
+  roomRequired = false,
+  termsAsked = false,
+  readAgreement = true
+): Partial<Record<keyof Draft, string>> {
   const out: Partial<Record<keyof Draft, string>> = {}
   if (!d.name.trim()) out.name = 'Add your name.'
   if (d.phone.replace(/\D/g, '').length < 7) out.phone = 'Add a phone number we can text.'
@@ -129,7 +136,9 @@ export function joinProblems(d: Draft, roomRequired = false): Partial<Record<key
   else if (d.name.trim() && !sameName(d.typedName, d.name))
     out.typedName = 'Type your name exactly as you wrote it above.'
   if (roomRequired && !d.roomId) out.roomId = 'Pick a room.'
-  if (!d.agreed) out.agreed = 'Tick this to sign.'
+  if (!readAgreement) out.agreed = 'Scroll to the end of the trip agreement first.'
+  else if (!d.agreed) out.agreed = 'Tick this to sign.'
+  if (termsAsked && !d.termsAccepted) out.termsAccepted = 'Tick this to join.'
   return out
 }
 
@@ -139,7 +148,8 @@ function Problem({ children }: { children: ReactNode }) {
 
 /** The guest's details, the agreement and their signature, sent as one step. */
 function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) => void }) {
-  const { trip, agreement } = view
+  const { trip, agreement, termsOfUse } = view
+  const termsAsked = !termsOfUse.accepted
   const { user } = useUser()
   const [draft, setDraft] = useState<Draft>(() => ({
     name: user?.fullName ?? '',
@@ -149,13 +159,23 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
     roomNote: '',
     typedName: '',
     agreed: false,
+    termsAccepted: false,
   }))
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const alertRef = useRef<HTMLParagraphElement>(null)
+  // The agreement is read to its end before signing; a changed agreement is read again. The box stays tickable (a
+  // screen reader can read it without scrolling it); Sign says what's missing.
+  const agreementRef = useRef<HTMLDivElement>(null)
+  const [readTo, setReadTo] = useState<string | null>(null)
+  const readAll = readTo === agreement.textHash
+  const checkRead = () => {
+    const el = agreementRef.current
+    if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReadTo(agreement.textHash)
+  }
   const roomRequired = trip.options.roomRequired && trip.rooms.length > 0
-  const problems = joinProblems(draft, roomRequired)
+  const problems = joinProblems(draft, roomRequired, termsAsked, readAll)
   // A field's problem shows once the guest has left it, and every one shows after they press Sign.
   const [left, setLeft] = useState<Partial<Record<keyof Draft, true>>>({})
   const shown = tried
@@ -165,6 +185,17 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
 
+  // The end already in view (short text, a bigger window, fonts that loaded late): nothing more to read.
+  useEffect(() => {
+    const el = agreementRef.current
+    if (!el) return
+    checkRead()
+    const watch = new ResizeObserver(checkRead)
+    watch.observe(el)
+    return () => watch.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agreement.textHash])
+
   useEffect(() => {
     if (error) alertRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [error])
@@ -173,7 +204,10 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
     e.preventDefault()
     if (busy) return
     setTried(true)
-    if (Object.keys(problems).length > 0) return
+    if (Object.keys(problems).length > 0) {
+      if (!readAll) agreementRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return
+    }
     setBusy(true)
     setError(null)
     const body: JoinInput = {
@@ -185,21 +219,27 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
       typedName: draft.typedName,
       agreed: draft.agreed,
       agreementHash: agreement.textHash,
+      ...(termsAsked ? { termsVersion: termsOfUse.version, termsAgreed: draft.termsAccepted } : {}),
     }
     try {
       onChange(await api.join(trip.slug, body))
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        // The trip changed under them: show the agreement as it is now, and ask for a fresh signature.
+        // The trip or the Terms changed under them: show them as they are now, and untick whichever changed, so
+        // nothing is signed or accepted unseen.
         setError(err.message)
-        if (/agreement again/.test(err.message))
-          api
-            .getJoin(trip.slug)
-            .then((v) => {
-              setDraft((d) => ({ ...d, agreed: false }))
-              onChange(v)
-            })
-            .catch(() => undefined)
+        api
+          .getJoin(trip.slug)
+          .then((v) => {
+            setDraft((d) => ({
+              ...d,
+              agreed: v.agreement.textHash === agreement.textHash && d.agreed,
+              termsAccepted:
+                v.termsOfUse.version === termsOfUse.version && termsAsked && d.termsAccepted,
+            }))
+            onChange(v)
+          })
+          .catch(() => undefined)
       } else
         setError(
           err instanceof ApiError && err.status !== 500
@@ -334,10 +374,21 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
         <div
           tabIndex={0}
           aria-label="The trip agreement"
+          ref={agreementRef}
+          onScroll={checkRead}
           className="max-h-80 overflow-y-auto whitespace-pre-line rounded-xl bg-ground p-4 text-[15px] text-body focus:outline-none focus:ring-2 focus:ring-royal"
         >
           {agreement.text}
         </div>
+        <p
+          id="agreement-read"
+          role="status"
+          className={`text-sm font-semibold ${readAll ? 'text-royal' : 'text-muted'}`}
+        >
+          {readAll
+            ? '✓ You’ve read to the end of the trip agreement.'
+            : '↓ Scroll to the end of the trip agreement to sign.'}
+        </p>
       </div>
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
         Type your full name to sign
@@ -351,10 +402,11 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
         />
         {shown.typedName && <Problem>{shown.typedName}</Problem>}
       </label>
-      <label className="flex cursor-pointer items-start gap-3 text-sm">
+      <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm">
         <input
           type="checkbox"
           checked={draft.agreed}
+          aria-describedby="agreement-read"
           onChange={(e) => set('agreed', e.target.checked)}
           className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
         />
@@ -365,6 +417,48 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
           I agree to the trip agreement above.
         </span>
       </label>
+      {termsAsked && (
+        <div className="flex flex-col">
+          <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.termsAccepted}
+              aria-describedby="terms-note"
+              onChange={(e) => set('termsAccepted', e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
+            />
+            <span>
+              {shown.termsAccepted && (
+                <span className="block font-semibold text-[#B42318]">{shown.termsAccepted}</span>
+              )}
+              I agree to CrewControl&apos;s Terms of Use and Privacy.
+              <span id="terms-note" className="mt-0.5 block text-muted">
+                These are between you and CrewControl, the app. The trip agreement is between you
+                and {trip.organizerName}.
+              </span>
+            </span>
+          </label>
+          {/* On their own line, away from the box, so a thumb meant for a link doesn't tick it. */}
+          <div className="flex gap-4 pl-8 text-sm">
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center font-semibold text-royal underline"
+            >
+              Read the Terms of Use
+            </a>
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center font-semibold text-royal underline"
+            >
+              Privacy
+            </a>
+          </div>
+        </div>
+      )}
       <p className="text-sm text-muted">
         You&apos;re signing electronically. You can ask {trip.organizerName} for a paper copy
         instead.

@@ -899,6 +899,44 @@ suite('trip isolation', () => {
     })
   })
 
+  it("keeps each person's Terms acceptances to themselves, stamped now, and lets nobody change or remove one", async () => {
+    const accept = (id: string, user: string, kind = 'use') =>
+      attempt(
+        `INSERT INTO "TermsAcceptance" (id, "userId", kind, fingerprint, "acceptedAt", "ipAddress", "userAgent") VALUES ('${id}', '${user}', '${kind}', 'f1', '2001-01-01', 'ip', 'ua')`
+      )
+    await as(await person('g1'), async () => {
+      expect(await accept('TA-1', 'g1')).toEqual({ rows: 1 })
+      expect(await accept('TA-2', 'g1', 'organizer')).toEqual({ rows: 1 })
+      // Nobody accepts for someone else.
+      expect(await accept('TA-3', 'u1')).toEqual({ error: refused })
+      const r = await db.query<{ year: number }>(
+        `SELECT EXTRACT(YEAR FROM "acceptedAt")::INTEGER AS year FROM "TermsAcceptance" WHERE id = 'TA-1'`
+      )
+      expect(r.rows[0].year).toBeGreaterThan(2001)
+      expect(await attempt(`UPDATE "TermsAcceptance" SET fingerprint = 'f2'`)).toEqual({ rows: 0 })
+      expect(await attempt(`DELETE FROM "TermsAcceptance"`)).toEqual({ rows: 0 })
+      expect(await ids('TermsAcceptance')).toEqual(['TA-1', 'TA-2'])
+    })
+    await as(await person('g1'), async () => {
+      expect(await accept('TA-4', 'g1', 'other')).toEqual({
+        error: expect.stringMatching(/TermsAcceptance_kind_check/),
+      })
+    })
+  })
+
+  it('shows nobody else, trusted work included, a Terms acceptance', async () => {
+    await db.query(
+      `INSERT INTO "TermsAcceptance" (id, "userId", kind, fingerprint, "ipAddress", "userAgent") VALUES ('TA-u2', 'u2', 'use', 'f1', 'ip', 'ua')`
+    )
+    await as(await person('u1'), async () => expect(await ids('TermsAcceptance')).toEqual([]))
+    await as({ system: true, trips: ['T1', 'T2', 'S'] }, async () =>
+      expect(await ids('TermsAcceptance')).toEqual([])
+    )
+    await as(await person('u2'), async () =>
+      expect(await ids('TermsAcceptance')).toEqual(['TA-u2'])
+    )
+  })
+
   it('lets everyone read the system settings and only the admin change them', async () => {
     const set = (pct: number) =>
       attempt(`UPDATE "SystemSettings" SET "waitlistBufferPercent" = ${pct}`)

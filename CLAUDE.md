@@ -65,6 +65,13 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   the typed name, time, IP and browser, and the price, plan, dates and refund terms it quoted. A guest's balance
   comes from their own signature, never from the trip's current settings. The wording has not had a lawyer's
   review; it needs one before a real trip uses it, and any change gets a new `TEMPLATE_VERSION`.
+- **CrewControl's own Terms** are apart from the trip agreement: the **Terms of Use** everyone accepts and the
+  **Organizer Terms** anyone who runs a trip accepts as well (`apps/api/src/terms/terms-text.ts`, shown at `/terms`).
+  Each version is the fingerprint of its wording, so changing a word asks everyone again. A guest ticks the Terms of
+  Use on the join form (only if they haven't accepted the current version), saved with their signature; an organizer
+  accepts both on a full screen before any `/organize` page, and the API refuses organizer routes until then
+  (`OrganizerTermsGuard`, 403 `terms_required`). Each `TermsAcceptance` row keeps the version, time, IP and browser.
+  The wording has not had a lawyer's review either. Issue #5.
 - **Trip** = a `Trip` row. Photos, highlights and key dates are ordered JSON lists on it (`TripPhoto[]` etc. in
   `packages/types`), replaced whole on save. The first photo is the cover.
 - **A trip page is configured, never built around one kind of trip.** A house, a resort, a cruise and a

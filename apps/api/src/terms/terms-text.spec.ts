@@ -1,0 +1,61 @@
+import { BadRequestException } from '@nestjs/common'
+import { fingerprint, TERMS } from './terms-text'
+import { acceptedKinds, parseAcceptTerms } from './terms.service'
+
+const doc = {
+  title: 'Terms of Use',
+  sections: [{ heading: '1. One', body: 'CrewControl never holds or moves money.' }],
+}
+
+describe('the Terms version', () => {
+  it('is 16 hex characters of the wording', () => {
+    expect(fingerprint(doc)).toMatch(/^[0-9a-f]{16}$/)
+    expect(TERMS.use.version).toBe(fingerprint(TERMS.use))
+    expect(TERMS.organizer.version).toBe(fingerprint(TERMS.organizer))
+  })
+
+  it('does not change when a line is re-wrapped', () => {
+    const wrapped = {
+      ...doc,
+      sections: [{ heading: ' 1. One ', body: 'CrewControl never holds\n   or moves  money.' }],
+    }
+    expect(fingerprint(wrapped)).toBe(fingerprint(doc))
+  })
+
+  it('changes when a word changes', () => {
+    const changed = {
+      ...doc,
+      sections: [{ ...doc.sections[0], body: 'CrewControl never holds money.' }],
+    }
+    expect(fingerprint(changed)).not.toBe(fingerprint(doc))
+  })
+
+  it('tells the two documents apart', () => {
+    expect(TERMS.use.version).not.toBe(TERMS.organizer.version)
+  })
+
+  it('has the Organizer Terms say organizers are responsible for licensing where it is required', () => {
+    expect(TERMS.organizer.sections.map((s) => s.heading)).toContain('4. Licenses and registration')
+  })
+})
+
+describe('accepting the Terms', () => {
+  it('takes the current versions only', () => {
+    expect(acceptedKinds({ use: TERMS.use.version })).toEqual(['use'])
+    expect(acceptedKinds({ use: TERMS.use.version, organizer: TERMS.organizer.version })).toEqual([
+      'use',
+      'organizer',
+    ])
+    expect(() => acceptedKinds({ use: 'old' })).toThrow(BadRequestException)
+    expect(() => acceptedKinds({ use: TERMS.use.version, organizer: 'old' })).toThrow(
+      BadRequestException
+    )
+  })
+
+  it('reads the request', () => {
+    expect(parseAcceptTerms({ use: 'a', organizer: 'b' })).toEqual({ use: 'a', organizer: 'b' })
+    expect(parseAcceptTerms({ use: 'a' })).toEqual({ use: 'a' })
+    expect(() => parseAcceptTerms({})).toThrow(BadRequestException)
+    expect(() => parseAcceptTerms({ use: 'a', organizer: 1 })).toThrow(BadRequestException)
+  })
+})

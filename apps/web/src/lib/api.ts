@@ -1,23 +1,27 @@
-import type {
-  AgreementPreview,
-  ContactInput,
-  GuestEvent,
-  GuestUpdate,
-  JoinInput,
-  JoinMode,
-  JoinView,
-  MyActions,
-  OrganizerTrip,
-  PaymentDecision,
-  PaymentLog,
-  PaymentReport,
-  PublicTrip,
-  SignedAgreement,
-  SystemSettings,
-  TripInput,
-  TripLogEntry,
-  TripRoom,
-  TripSummary,
+import {
+  TERMS_REQUIRED_CODE,
+  type AcceptTermsInput,
+  type AgreementPreview,
+  type ContactInput,
+  type GuestEvent,
+  type GuestUpdate,
+  type JoinInput,
+  type JoinMode,
+  type JoinView,
+  type MyActions,
+  type MyTerms,
+  type OrganizerTrip,
+  type PaymentDecision,
+  type PaymentLog,
+  type PaymentReport,
+  type PublicTerms,
+  type PublicTrip,
+  type SignedAgreement,
+  type SystemSettings,
+  type TripInput,
+  type TripLogEntry,
+  type TripRoom,
+  type TripSummary,
 } from '@cc/types'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -37,11 +41,15 @@ export interface ListedTrip extends TripSummary {
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    readonly code?: string
   ) {
     super(message)
   }
 }
+
+/** Fired on `window` when an organizer request is refused because the Organizer Terms changed; the Terms screen shows. */
+export const TERMS_REQUIRED_EVENT = 'cc:terms-required'
 
 // Set by the auth provider once Clerk loads; organizer and join requests carry the signed-in user's token.
 let getToken: () => Promise<string | null> = async () => null
@@ -66,9 +74,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const res = await fetch(`${BASE}/api${path}`, { ...init, headers })
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { message?: string | string[] } | null
+    const body = (await res.json().catch(() => null)) as {
+      message?: string | string[]
+      code?: string
+    } | null
     const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message
-    throw new ApiError(message ?? `Request failed (${res.status})`, res.status)
+    if (res.status === 403 && body?.code === TERMS_REQUIRED_CODE)
+      window.dispatchEvent(new Event(TERMS_REQUIRED_EVENT))
+    throw new ApiError(message ?? `Request failed (${res.status})`, res.status, body?.code)
   }
   // An action with nothing to return (seating the admin) answers with an empty body, 201 or 204.
   const text = await res.text()
@@ -118,6 +131,10 @@ export const api = {
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
   sendContact: (input: ContactInput) => request<void>('/contact', json('POST', input)),
+  // CrewControl's own Terms: the documents (public), and the signed-in person's acceptances.
+  getTerms: () => request<PublicTerms>('/public/terms'),
+  getMyTerms: () => request<MyTerms>('/me/terms'),
+  acceptTerms: (input: AcceptTermsInput) => request<MyTerms>('/me/terms', json('POST', input)),
   uploadPhoto: (file: Blob, name: string) => {
     const form = new FormData()
     form.append('photo', file, name)

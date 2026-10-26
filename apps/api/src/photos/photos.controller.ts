@@ -13,6 +13,7 @@ import { memoryStorage } from 'multer'
 import type { Caller } from '../auth/caller'
 import { SignedInGuard } from '../auth/signed-in.guard'
 import { RateLimiter } from '../core/rate-limit'
+import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import { photoBucket } from './photo-bucket'
 
 const TYPES: Record<string, string> = {
@@ -41,7 +42,7 @@ const uploads = new RateLimiter(
 
 // The web app shrinks photos before sending them, so 8 MB is a ceiling, not the usual size.
 @Controller('photos')
-@UseGuards(SignedInGuard)
+@UseGuards(SignedInGuard, OrganizerTermsGuard)
 export class PhotosController {
   private readonly bucket = photoBucket()
 

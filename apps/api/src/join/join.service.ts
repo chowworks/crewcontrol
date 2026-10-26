@@ -9,6 +9,7 @@ import type { Caller } from '../auth/caller'
 import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
+import { TermsService } from '../terms/terms.service'
 import { paymentMethodsOf, paymentsOf, toSignedAgreement } from '../trips/trip-mapper'
 import { splitName } from '../trips/trip-input'
 import {
@@ -59,7 +60,8 @@ const canPay = (
 export class JoinService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly trips: TripsService
+    private readonly trips: TripsService,
+    private readonly terms: TermsService
   ) {}
 
   async view(slug: string, caller: Caller): Promise<JoinView> {
@@ -89,7 +91,12 @@ export class JoinService {
       paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
       paymentInstructions: pay ? row.trip.paymentInstructions : '',
     }
-    return { trip, agreement: agreementPreview(trip), me }
+    return {
+      trip,
+      agreement: agreementPreview(trip),
+      me,
+      termsOfUse: await this.terms.status(caller.userId, 'use'),
+    }
   }
 
   /** Joins the trip and signs its agreement, as one step: there is no sign-up without a signature. */
@@ -99,13 +106,20 @@ export class JoinService {
     caller: Caller,
     from: { ip: string; userAgent: string }
   ): Promise<JoinView> {
-    const { trip, agreement, me } = await this.view(slug, caller)
+    const { trip, agreement, me, termsOfUse } = await this.view(slug, caller)
     if (me) throw new ConflictException('You’ve already joined this trip')
     // Three emails refused in ten minutes: no more joining this trip until the time is up.
     emailRefusals.check(`${caller.userId}:${slug}`)
     if (input.agreementHash !== agreement.textHash)
       throw new ConflictException(
         'The trip’s details changed since you opened this page. Read the agreement again, then sign.'
+      )
+    // Someone who hasn't accepted CrewControl's current Terms of Use accepts them here, with the signature.
+    if (!termsOfUse.accepted && input.termsVersion !== termsOfUse.version)
+      throw new ConflictException(
+        input.termsVersion
+          ? 'CrewControl’s Terms of Use changed since you opened this page. Read them again, then sign.'
+          : 'Tick the box to agree to CrewControl’s Terms of Use.'
       )
     // A full trip keeps taking sign-ups: the database puts them on the waitlist (guest_waitlist).
     if (input.roomId && !trip.rooms.some((r) => r.id === input.roomId))
@@ -148,8 +162,10 @@ export class JoinService {
               userAgent: from.userAgent.slice(0, 500),
             },
           })
+          if (!termsOfUse.accepted) await this.terms.record(tx, caller.userId, ['use'], from)
         })
       )
+      if (!termsOfUse.accepted) this.terms.remember(caller.userId, ['use'])
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         if (String(err.meta?.target ?? '').includes('userId'))

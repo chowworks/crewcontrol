@@ -408,6 +408,13 @@ export interface JoinInput {
   agreed: boolean
   /** The SHA-256 of the agreement they were shown, so a trip changed in the meantime is never signed unseen. */
   agreementHash: string
+  /**
+   * The version of CrewControl's Terms of Use they ticked, when the join page asked (only someone who hasn't accepted
+   * the current version is asked). Refused unless it is the current version.
+   */
+  termsVersion?: string
+  /** The Terms of Use box, ticked; required with `termsVersion`. */
+  termsAgreed?: boolean
 }
 
 /** The trip agreement as it stands for a trip today, before anyone signs it. */
@@ -444,6 +451,8 @@ export interface JoinView {
   trip: PublicTrip
   agreement: AgreementPreview
   me: MyGuest | null
+  /** Where this person stands with CrewControl's Terms of Use: the join page asks for them if not accepted. */
+  termsOfUse: TermsStatus
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
@@ -457,6 +466,53 @@ export interface GuestUpdate {
   /** Move the guest to a room, or null for no room. */
   roomId?: string | null
 }
+
+/**
+ * CrewControl's own documents, apart from any trip agreement: the Terms of Use everyone accepts, and the Organizer
+ * Terms anyone who runs a trip accepts as well.
+ */
+export type TermsKind = 'use' | 'organizer'
+
+export interface TermsSection {
+  heading: string
+  body: string
+}
+
+/** One of CrewControl's documents. `version` is the fingerprint of its wording: change a word and it changes. */
+export interface TermsDocument {
+  kind: TermsKind
+  title: string
+  version: string
+  sections: TermsSection[]
+}
+
+/** Both documents, as the /terms page and the Terms screens show them. */
+export interface PublicTerms {
+  use: TermsDocument
+  organizer: TermsDocument
+}
+
+/** Where the signed-in person stands with one document. */
+export interface TermsStatus {
+  version: string
+  accepted: boolean
+  /** They accepted an earlier version, so the screen says the Terms were updated rather than asking for the first time. */
+  previouslyAccepted: boolean
+}
+
+export interface MyTerms {
+  use: TermsStatus
+  organizer: TermsStatus
+}
+
+/** The versions the person accepts, as shown to them. Accepting the Organizer Terms takes the Terms of Use with it. */
+export interface AcceptTermsInput {
+  use: string
+  organizer?: string
+}
+
+/** The code on a 403 from an organizer route while the person hasn't accepted the current Organizer Terms. */
+export const TERMS_REQUIRED_CODE = 'terms_required'
 
 /** CrewControl-wide values the platform admin sets in the Admin toolbox (System Settings). */
 export interface SystemSettings {

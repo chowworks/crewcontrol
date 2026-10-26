@@ -12,11 +12,13 @@ import {
   parseSystemSettings,
   parseTripInput,
 } from './trip-input'
+import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import { TripsService } from './trips.service'
 
-// Organizer endpoints: signed in with Clerk, and only for the caller's own trips (admins: every trip).
+// Organizer endpoints: signed in with Clerk, the Organizer Terms accepted, and only for the caller's own trips
+// (admins: every trip).
 @Controller('trips')
-@UseGuards(SignedInGuard)
+@UseGuards(SignedInGuard, OrganizerTermsGuard)
 export class TripsController {
   constructor(
     private readonly trips: TripsService,

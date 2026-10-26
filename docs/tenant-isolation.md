@@ -43,6 +43,10 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
   record a refund. A
   signature is never changed or deleted; it names its guest and trip together (a composite foreign key), so it can't
   point at a guest of another trip. The join page reads the published trip itself as a public page.
+- **Terms acceptances are the person's, not a trip's** (`TermsAcceptance`, migration
+  `20261026040000_terms_acceptance`). A person reads and adds only their own rows (`userId = app_user_id()`); nobody,
+  trusted work included, reads another's, and no row is ever changed or deleted. It has no `tripId`, but it is in
+  `TENANT_TABLES` because its policy needs the caller's id on the query.
 - **The tenant is the trip.** A guest belongs to exactly one trip, and so will everything later hung off a trip
   (rooms, payments, messages). Each such row names its trip itself (`tripId`, a real foreign key), so unlike Audit
   Differently there is no copied tenant column and no `_1_set_tenant` trigger.
