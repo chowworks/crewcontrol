@@ -85,6 +85,19 @@ suite('the waitlist', () => {
     expect(kinds.rows.map((r) => r.kind)).toEqual(['joined', 'waitlisted', 'offered'])
   })
 
+  it('logs a withdrawn offer in the guest’s history', async () => {
+    await db.query(`UPDATE "Guest" SET "offeredAt" = NULL WHERE id = 'G-d'`)
+    const kinds = await db.query<{ kind: string }>(
+      `SELECT kind FROM "GuestEvent" WHERE "guestId" = 'G-d' ORDER BY at, n`
+    )
+    expect(kinds.rows.map((r) => r.kind)).toEqual([
+      'joined',
+      'waitlisted',
+      'offered',
+      'offer_withdrawn',
+    ])
+  })
+
   it('on an accept-first trip, waitlists only once every spot is taken', async () => {
     await insert(db, 'Trip', { id: 'A', slug: 'a', published: true, maxGuests: 1 })
     expect(await join('A', 'e')).toBe(false)
