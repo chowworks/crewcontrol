@@ -1,4 +1,4 @@
-# Developing CrewControl
+# Developing Travel HQ
 
 ## What you need
 
@@ -32,7 +32,7 @@ Then open:
 ## Ports
 
 `npm run dev` uses the defaults in the `.env.example` files (api 3000, web 5173). `.claude/launch.json` runs
-the same apps on 3200 and 5373 instead, so CrewControl can run beside Interview and Audit Differently. If you
+the same apps on 3200 and 5373 instead, so Travel HQ can run beside Interview and Audit Differently. If you
 use those, set `PORT` and `FRONTEND_URL` in `apps/api/.env` and `VITE_API_URL` in
 `apps/web/.env` to match.
 
@@ -84,7 +84,7 @@ off, then create an R2 API token with Object Read & Write on that bucket only. S
 
 ## The shared dev environment (Railway)
 
-CrewControl has a `dev` environment on Railway, set up the way Interview and Audit Differently's are: a Postgres
+Travel HQ has a `dev` environment on Railway, set up the way Interview and Audit Differently's are: a Postgres
 that holds the three fictional demo trips and nothing else, and an API beside it, `api-dev`. A laptop can develop
 against that database, a branch can be tried on Railway before it reaches production, and the seed runs there.
 

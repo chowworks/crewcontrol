@@ -163,8 +163,8 @@ export function PriceSimulator({
           </ol>
           <p className="mt-1 text-sm">
             Only the price guests see and the number of installments are saved to the trip. The rest
-            is your working numbers, kept in this browser. Guests pay you directly; CrewControl
-            never handles the money.
+            is your working numbers, kept in this browser. Guests pay you directly; Travel HQ never
+            handles the money.
           </p>
         </div>
       </div>

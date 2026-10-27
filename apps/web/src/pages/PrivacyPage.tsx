@@ -4,7 +4,7 @@ import { Logo } from '@/components/Logo'
 import { SiteFooter } from '@/components/SiteFooter'
 
 /*
- * DRAFT privacy page, adapted from Audit Differently's. It describes how CrewControl handles data as the product is
+ * DRAFT privacy page, adapted from Audit Differently's. It describes how Travel HQ handles data as the product is
  * built out (organizer sign-in, payment tracking, reminders, the guest portal), as the owner asked, and the banner
  * says some of that is still being built. Keep it in step with the build order in CLAUDE.md, and have it reviewed
  * before launch.
@@ -19,16 +19,16 @@ export function PrivacyPage() {
       <main className="mx-auto flex max-w-[760px] flex-col gap-4 px-5 pb-12">
         <h1 className="mt-4 text-4xl font-extrabold">Privacy and Data Protection</h1>
         <p className="rounded-xl bg-royal-pale px-4 py-3 text-[15px] text-body">
-          CrewControl is in early access, and this page is a draft. It describes how we handle data
-          as the product comes together. Some of what it covers, like organizer sign-in, payment
+          Travel HQ is in early access, and this page is a draft. It describes how we handle data as
+          the product comes together. Some of what it covers, like organizer sign-in, payment
           tracking and reminders, is still being built.
         </p>
 
         <Section title="Our approach">
           <p>
-            CrewControl exists to get a group trip out of the group chat, not to collect data. We
-            keep what an organizer needs to run the trip, show each person only what they need to
-            see, and never sell any of it.
+            Travel HQ exists to get a group trip out of the group chat, not to collect data. We keep
+            what an organizer needs to run the trip, show each person only what they need to see,
+            and never sell any of it.
           </p>
         </Section>
 
@@ -50,7 +50,7 @@ export function PrivacyPage() {
               signed from, so it can be shown later what you agreed to.
             </li>
             <li>
-              <strong>Terms you accepted:</strong> which version of CrewControl&apos;s Terms of Use
+              <strong>Terms you accepted:</strong> which version of Travel HQ&apos;s Terms of Use
               (and, for organizers, the Organizer Terms) you accepted, when, and the internet
               address and browser you accepted them from.
             </li>
@@ -66,7 +66,7 @@ export function PrivacyPage() {
             </li>
           </ul>
           <p>
-            We never collect card numbers or bank logins. CrewControl doesn&apos;t process, move or
+            We never collect card numbers or bank logins. Travel HQ doesn&apos;t process, move or
             hold money: guests pay the organizer directly, and we keep the record.
           </p>
         </Section>
@@ -89,7 +89,7 @@ export function PrivacyPage() {
             </li>
             <li>
               <strong>Our service providers</strong> for hosting, sign-in, email and text messages
-              handle data only to run CrewControl for us, under agreements that require them to
+              handle data only to run Travel HQ for us, under agreements that require them to
               protect it.
             </li>
           </ul>
@@ -123,7 +123,7 @@ export function PrivacyPage() {
           <p>
             Organizers can delete a trip, and with it the trip&apos;s guest list and payment
             records, once the trip is over or whenever they choose. Organizers are responsible for
-            keeping their own copies of anything they need, and CrewControl will let them export a
+            keeping their own copies of anything they need, and Travel HQ will let them export a
             trip&apos;s guest list and payment log first. Deleted data is gone for good.
           </p>
         </Section>

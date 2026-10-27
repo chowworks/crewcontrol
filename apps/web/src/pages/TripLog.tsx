@@ -51,7 +51,7 @@ function Line({ e }: { e: TripLogEntry }) {
       ? e.guestName
       : e.event.actor === 'organizer'
         ? 'An organizer'
-        : 'CrewControl'
+        : 'Travel HQ'
   return (
     <>
       <div className="font-semibold">
@@ -82,7 +82,7 @@ function row(e: TripLogEntry): (string | null)[] {
       ? e.guestName
       : e.event.actor === 'organizer'
         ? 'An organizer'
-        : 'CrewControl'
+        : 'Travel HQ'
   return [stamp(e.at), eventText(e.event), e.guestName, who, null, null, null]
 }
 

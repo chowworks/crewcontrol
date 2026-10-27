@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { TermsDocument, TermsKind, TermsSection } from '../trips/trip-types'
 
 /**
- * CrewControl's own Terms: the Terms of Use everyone accepts, and the Organizer Terms anyone who runs a trip accepts
+ * Travel HQ's own Terms: the Terms of Use everyone accepts, and the Organizer Terms anyone who runs a trip accepts
  * as well. They are apart from the trip agreement (join/agreement.ts), which is between a guest and the organizer.
  * This first wording is a draft and has not had a lawyer's review; it needs one before a real trip runs here.
  *
@@ -14,29 +14,29 @@ const TERMS_OF_USE: { title: string; sections: TermsSection[] } = {
   title: 'Terms of Use',
   sections: [
     {
-      heading: '1. What CrewControl is',
+      heading: '1. What Travel HQ is',
       body:
-        'CrewControl is an app organizers use to run group trips: a trip page, sign-ups, the trip agreement and a ' +
-        'record of payments. By using CrewControl you agree to these Terms.',
+        'Travel HQ is an app organizers use to run group trips: a trip page, sign-ups, the trip agreement and a ' +
+        'record of payments. By using Travel HQ you agree to these Terms.',
     },
     {
       heading: '2. Your trip is with its organizer',
       body:
-        'Each trip is run by its organizer, not by CrewControl. The trip agreement you sign is between you and the ' +
-        'organizer. CrewControl is not a party to it, does not plan, book or sell travel, and is not responsible ' +
+        'Each trip is run by its organizer, not by Travel HQ. The trip agreement you sign is between you and the ' +
+        'organizer. Travel HQ is not a party to it, does not plan, book or sell travel, and is not responsible ' +
         'for the trip, its costs or refunds, or anything the organizer does or does not deliver.',
     },
     {
-      heading: '3. CrewControl never holds or moves money',
+      heading: '3. Travel HQ never holds or moves money',
       body:
-        'You pay the organizer directly, the way their payment instructions say. CrewControl only records the ' +
+        'You pay the organizer directly, the way their payment instructions say. Travel HQ only records the ' +
         'payments organizers and guests tell it about. It cannot send, hold or refund money, and it does not ' +
         'guarantee that a payment was made or that a record is complete.',
     },
     {
       heading: '4. Disagreements',
       body:
-        'A disagreement about a trip, a payment or a refund is between the guest and the organizer. CrewControl is ' +
+        'A disagreement about a trip, a payment or a refund is between the guest and the organizer. Travel HQ is ' +
         'not a party to it and does not decide it.',
     },
     {
@@ -47,21 +47,21 @@ const TERMS_OF_USE: { title: string; sections: TermsSection[] } = {
         'describes.',
     },
     {
-      heading: '6. Using CrewControl fairly',
+      heading: '6. Using Travel HQ fairly',
       body:
-        'Do not use CrewControl for anything unlawful, to mislead people, or to collect money for a trip that is ' +
+        'Do not use Travel HQ for anything unlawful, to mislead people, or to collect money for a trip that is ' +
         "not real. Do not try to reach other people's information.",
     },
     {
       heading: '7. Changes',
       body:
-        'CrewControl may change, pause or stop parts of the app. When these Terms change, we ask you to accept them ' +
+        'Travel HQ may change, pause or stop parts of the app. When these Terms change, we ask you to accept them ' +
         'again before you carry on.',
     },
     {
       heading: '8. Limits',
       body:
-        'CrewControl is provided as it is. As far as the law allows, CrewControl is not liable for losses that come ' +
+        'Travel HQ is provided as it is. As far as the law allows, Travel HQ is not liable for losses that come ' +
         'from a trip, from payments between organizers and guests, or from disagreements between them.',
     },
   ],
@@ -74,19 +74,19 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
       heading: '1. You run your trip',
       body:
         'You are responsible for the trip you organize: its plans, bookings and costs, what you promise your ' +
-        'guests, and delivering it. CrewControl is not a party to your trip.',
+        'guests, and delivering it. Travel HQ is not a party to your trip.',
     },
     {
       heading: '2. You handle the money',
       body:
         'Guests pay you directly. You are responsible for the money you collect, paying the trip’s costs, refunding ' +
-        'guests as your trip agreement says, keeping your records on CrewControl accurate, and any taxes or ' +
+        'guests as your trip agreement says, keeping your records on Travel HQ accurate, and any taxes or ' +
         'reporting that apply to you.',
     },
     {
       heading: '3. Disagreements with your guests',
       body:
-        'A disagreement between you and a guest is yours to settle with them. CrewControl does not take part, decide ' +
+        'A disagreement between you and a guest is yours to settle with them. Travel HQ does not take part, decide ' +
         'it, or pay or refund anyone.',
     },
     {
@@ -95,12 +95,12 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
         'Some states require people who sell or arrange travel to register, hold a license or bond, keep a trust ' +
         'account or give guests certain notices (for example California, Florida, Washington and Hawaii). You are ' +
         'responsible for finding out whether any of these rules apply to you, where you are and where your guests ' +
-        'are, and for following them. CrewControl does not check this and holds no such license for you.',
+        'are, and for following them. Travel HQ does not check this and holds no such license for you.',
     },
     {
       heading: '5. The trip agreement',
       body:
-        'Your guests sign CrewControl’s trip agreement, filled in from your trip’s details. You are responsible for ' +
+        'Your guests sign Travel HQ’s trip agreement, filled in from your trip’s details. You are responsible for ' +
         'those details being right and for keeping the promises it makes in your name.',
     },
     {

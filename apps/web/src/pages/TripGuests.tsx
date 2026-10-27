@@ -683,7 +683,7 @@ function GuestHistory({
       .catch(() => setError('The history could not be loaded.'))
   }, [tripId, guest.id])
   const by = (e: GuestEvent) =>
-    e.actor === 'guest' ? guest.firstName : e.actor === 'organizer' ? 'An organizer' : 'CrewControl'
+    e.actor === 'guest' ? guest.firstName : e.actor === 'organizer' ? 'An organizer' : 'Travel HQ'
   // Newest first, under a heading for each day, as a timeline: money and the guest's spot in royal, the rest quieter.
   const days = new Map<string, GuestEvent[]>()
   for (const e of [...(events ?? [])].reverse()) {

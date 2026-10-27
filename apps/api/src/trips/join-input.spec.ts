@@ -38,7 +38,7 @@ describe('parseJoin', () => {
     [{ ...ok, agreed: 'yes' }, 'Tick “I agree” to sign'],
     [{ ...ok, agreementHash: undefined }, 'agreementHash must be text'],
     [{ ...ok, termsVersion: 7, termsAgreed: true }, 'termsVersion must be text'],
-    [{ ...ok, termsVersion: 'abc123' }, 'Tick the box to agree to CrewControl’s Terms of Use'],
+    [{ ...ok, termsVersion: 'abc123' }, 'Tick the box to agree to Travel HQ’s Terms of Use'],
   ])('rejects %o', (body, message) => {
     expect(() => parseJoin(body)).toThrow(new BadRequestException(message))
   })

@@ -142,7 +142,7 @@ export function HomePage() {
             <h2 className="text-4xl font-extrabold leading-tight">Sound familiar?</h2>
             <p className="text-lg text-body">
               Every group trip has one person holding it together with a spreadsheet, their memory
-              and a 300-message thread. CrewControl puts the plan, who&apos;s in and who&apos;s paid
+              and a 300-message thread. Travel HQ puts the plan, who&apos;s in and who&apos;s paid
               on one link, so the same questions get answered once, for everyone.
             </p>
           </div>
@@ -179,8 +179,8 @@ export function HomePage() {
               <span className="text-marigold">We just handle the bookkeeping.</span>
             </h2>
             <p className="text-lg text-white/80">
-              Your crew pays you directly, the way they already do. CrewControl records it, shows
-              each guest their balance, and keeps the plan straight.
+              Your crew pays you directly, the way they already do. Travel HQ records it, shows each
+              guest their balance, and keeps the plan straight.
             </p>
           </div>
           <ul className="flex flex-col gap-3">

@@ -155,7 +155,7 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
 
       <footer className="mx-auto flex max-w-[1120px] flex-wrap justify-between gap-3 px-5 pb-10 text-sm text-muted">
         <span>
-          Planned with <strong className="text-ink">CrewControl</strong>
+          Planned with <strong className="text-ink">Travel HQ</strong>
         </span>
         <span className="flex gap-4">
           <Link to="/privacy" className="font-semibold hover:text-royal">

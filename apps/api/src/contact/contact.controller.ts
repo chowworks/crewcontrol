@@ -18,7 +18,7 @@ export class ContactController {
     const input = parseContactInput(body)
     if (input.website) return
     this.limit.hit(ip)
-    const to = process.env.SUPPORT_EMAIL ?? 'support@crewcontrol.vacations'
+    const to = process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app'
     console.log(
       `[mock email] to ${to}, reply to ${input.name} <${input.email}>: ${CONTACT_TOPIC_LABELS[input.topic]}\n${input.message}`
     )

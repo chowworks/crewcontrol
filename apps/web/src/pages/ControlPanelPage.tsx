@@ -284,7 +284,7 @@ function PutBack({ name, onPutBack }: { name: string; onPutBack: () => void }) {
 
 /**
  * Turning a guest down takes a second tap. A guest whose payment arrived is owed a full refund, so the organizer
- * ticks "Refund sent" first (owner's decision, 2026-10-21). CrewControl records it and moves no money.
+ * ticks "Refund sent" first (owner's decision, 2026-10-21). Travel HQ records it and moves no money.
  */
 function TurnDown({
   guest: g,

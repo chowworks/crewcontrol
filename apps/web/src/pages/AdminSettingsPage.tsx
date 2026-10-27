@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '@/lib/api'
 import { AdminHow, AdminShell, AdminToolHead } from './AdminPage'
 
-/** System Settings: CrewControl-wide values the platform admin sets (for now, the waitlist buffer). */
+/** System Settings: app-wide values the platform admin sets (for now, the waitlist buffer). */
 export function AdminSettingsPage() {
   const [saved, setSaved] = useState<SystemSettings | null>(null)
   const [buffer, setBuffer] = useState('')

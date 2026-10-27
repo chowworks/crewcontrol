@@ -2,18 +2,18 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
-  <img src="docs/logo-light.png" alt="CrewControl" width="360">
+  <img src="docs/logo-light.png" alt="Travel HQ" width="360">
 </picture>
 
 ### Get your trip out the group chat.
 
 **Group trips are run by one friend, a spreadsheet, and a 400-message text thread.**<br>
-CrewControl gives that friend a real home base: a trip page people actually want to open,<br>
+Travel HQ gives that friend a real home base: a trip page people actually want to open,<br>
 a clean list of who's in, and a running tab of who's paid. No payment processor. No fees.
 
 <br>
 
-<img src="docs/screenshots/trip-page.jpg" alt="A CrewControl trip page for a birthday trip to Tulum" width="820">
+<img src="docs/screenshots/trip-page.jpg" alt="A Travel HQ trip page for a birthday trip to Tulum" width="820">
 
 </div>
 
@@ -24,13 +24,13 @@ a clean list of who's in, and a running tab of who's paid. No payment processor.
 Every group trip has an organizer. They find the house, front the deposit, chase twelve people for Zelle
 payments, answer "wait, what day do we fly?" for the fifth time, and track it all in their head.
 
-Booking sites aren't built for them, and neither are travel-agency tools. CrewControl is built for
+Booking sites aren't built for them, and neither are travel-agency tools. Travel HQ is built for
 **the friend who plans the trip**.
 
 ## The one rule: we track money, we never touch it
 
 Guests pay the organizer directly, by Zelle, Cash App, Venmo or cash, exactly like they already do.
-CrewControl records that the money moved, shows everyone their balance, and reminds them when the next
+Travel HQ records that the money moved, shows everyone their balance, and reminds them when the next
 installment is due.
 
 That means **no processor fees, no held funds, and nothing to connect to your bank.** It's the whole pitch,
