@@ -227,6 +227,7 @@ export interface GuestEvent {
     | 'joined'
     | 'waitlisted'
     | 'offered'
+    | 'offer_withdrawn'
     | 'signed'
     | 'said_paid'
     | 'payment_confirmed'
@@ -471,6 +472,8 @@ export interface GuestUpdate {
   status?: GuestStatus
   /** Offer a waitlisted guest the spot that opened (on the pay-first trips; accepting does it on the others). */
   offerSpot?: boolean
+  /** Take back an offer nobody has paid toward: the guest goes back on the waitlist. */
+  withdrawOffer?: boolean
   /** Turning down a guest whose payment arrived needs this: the organizer says the refund went out. */
   refundSent?: boolean
   /** Move the guest to a room, or null for no room. */
@@ -541,11 +544,8 @@ export interface SystemSettings {
 export type GuestAction =
   // A payment the guest reported, to confirm (in one tap) or, when it is short of what was due, to review.
   | { kind: 'payment'; key: string; payment: Payment; due: number; short: boolean }
-  // A guest ready to accept: signed (and on the pay-first trips, some payment arrived), or next on the waitlist of an
-  // accept-first trip with a spot open.
-  | { kind: 'accept'; key: string; fromWaitlist: boolean }
-  // A spot opened and this guest is next on the waitlist of a pay-first trip: offer it to them.
-  | { kind: 'offer'; key: string }
+  // A guest ready to accept: signed, and on the pay-first trips some payment arrived.
+  | { kind: 'accept'; key: string }
   // Their payment arrived but every spot is taken: they're owed it back.
   | { kind: 'refund'; key: string; paidCents: number }
 
@@ -575,7 +575,10 @@ export function dueWhenSent(payment: Payment, payments: Payment[], terms: GuestT
   return Math.max(0, terms.firstInstallmentCents - before)
 }
 
-/** Guests waiting on the waitlist for a spot (not yet offered one), in the order they joined it. */
+/**
+ * Guests waiting on the waitlist for a spot (not yet offered one), in the order they joined it. The order is only for
+ * reading: the organizer offers a spot to anyone on it (owner's decision, 2026-10-27).
+ */
 export function waitlist(guests: Guest[]): Guest[] {
   return guests
     .filter((g) => g.status === 'interested' && g.waitlistedAt && !g.offeredAt)
@@ -610,17 +613,8 @@ export const tripFull = (trip: OrganizerTrip): boolean =>
 export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
   if (g.status === 'declined' || !g.signedAt) return []
   const full = tripFull(trip)
-  // The waitlist: only the guest next in it, and only once a spot opened (someone joining now wouldn't wait).
-  if (g.status === 'interested' && g.waitlistedAt && !g.offeredAt) {
-    const next = waitlist(trip.guests)[0]?.id === g.id
-    const open = trip.joinMode === 'accept_first' ? !full : !waitlisting(trip, trip.guests)
-    if (!next || !open) return []
-    return [
-      trip.joinMode === 'accept_first'
-        ? { kind: 'accept', key: `${g.id}-accept`, fromWaitlist: true }
-        : { kind: 'offer', key: `${g.id}-offer` },
-    ]
-  }
+  // Someone on the waitlist waits for the organizer to pick them (waitlistSpotOpen), not for an action of their own.
+  if (g.status === 'interested' && g.waitlistedAt && !g.offeredAt) return []
   const payFirst = trip.joinMode !== 'accept_first'
   const paid = confirmedCents(g)
   const out: GuestAction[] = g.payments
@@ -636,13 +630,30 @@ export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
     return out
   }
   if (payFirst && !paid) return out
-  out.push({ kind: 'accept', key: `${g.id}-accept`, fromWaitlist: false })
+  out.push({ kind: 'accept', key: `${g.id}-accept` })
   return out
+}
+
+/**
+ * A spot opened while people wait on the waitlist: one action for the trip, to open the waitlist and offer it to
+ * whoever the organizer picks. On an accept-first trip, a spot not taken. On the others, more spots left than guests
+ * already able to pay for one (waiting, not refunded, not on the waitlist unless offered a spot): the buffer that lets
+ * newcomers join (waitlisting) doesn't count here, so one spot asks for one offer.
+ */
+export function waitlistSpotOpen(trip: OrganizerTrip): boolean {
+  if (waitlist(trip.guests).length === 0 || tripFull(trip)) return false
+  if (trip.joinMode === 'accept_first' || trip.maxGuests === null) return true
+  const spotsLeft = trip.maxGuests - trip.guests.filter((g) => g.status === 'approved').length
+  const inLine = trip.guests.filter(
+    (g) => g.status === 'interested' && !g.refundSentAt && (!g.waitlistedAt || g.offeredAt)
+  ).length
+  return spotsLeft > inLine
 }
 
 /** Everything that needs the organizer on a trip: the red count beside Actions. */
 export const tripActionCount = (trip: OrganizerTrip): number =>
-  trip.guests.reduce((n, g) => n + guestActions(g, trip).length, 0)
+  trip.guests.reduce((n, g) => n + guestActions(g, trip).length, 0) +
+  (waitlistSpotOpen(trip) ? 1 : 0)
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
 export interface MyActions {

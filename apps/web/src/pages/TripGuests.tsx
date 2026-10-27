@@ -4,6 +4,7 @@
 import {
   confirmedCents,
   guestActions,
+  waitlistSpotOpen,
   type Guest,
   type GuestEvent,
   type GuestUpdate,
@@ -13,7 +14,16 @@ import {
   type PaymentLog,
   type TripRoom,
 } from '@cc/types'
-import { Check, Copy, Info, ListChecks, Users, type LucideIcon } from 'lucide-react'
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  Hourglass,
+  Info,
+  ListChecks,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { api } from '@/lib/api'
@@ -71,10 +81,7 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
     return 'Accepted · waiting on payment'
   }
   if (!g.signedAt) return 'Hasn’t signed'
-  if (g.waitlistedAt && !g.offeredAt) {
-    const n = waitlist(trip.guests).findIndex((x) => x.id === g.id) + 1
-    return `Waitlist #${n} since ${day(g.waitlistedAt)}`
-  }
+  if (g.waitlistedAt && !g.offeredAt) return `On the waitlist since ${day(g.waitlistedAt)}`
   if (g.offeredAt && !paid && !reported)
     return `Offered a spot ${day(g.offeredAt)} · waiting on payment`
   if (!payFirst) return `Signed ${day(g.signedAt)}${full ? ' · trip full' : ''}`
@@ -92,7 +99,6 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
 type Action =
   | { kind: 'payment'; key: string; text: string; note: string; payment: Payment; short: boolean }
   | { kind: 'accept'; key: string; text: string; update: GuestUpdate }
-  | { kind: 'offer'; key: string; text: string; update: GuestUpdate }
   // The button opens Details, where turning them down asks for "Refund sent".
   | { kind: 'refund'; key: string; text: string }
 
@@ -114,13 +120,6 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
           short: a.short,
         }
       }
-      case 'offer':
-        return {
-          kind: 'offer',
-          key: a.key,
-          text: `On the waitlist since ${day(g.waitlistedAt!)}. A spot opened, and they’re next.`,
-          update: { offerSpot: true },
-        }
       case 'refund':
         return {
           kind: 'refund',
@@ -131,9 +130,8 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
         return {
           kind: 'accept',
           key: a.key,
-          text: a.fromWaitlist
-            ? `On the waitlist since ${day(g.waitlistedAt!)}. A spot opened, and they’re next.`
-            : trip.joinMode === 'accept_first'
+          text:
+            trip.joinMode === 'accept_first'
               ? `Requested to join your trip on ${day(g.createdAt)} and signed the trip agreement`
               : g.spotPaidAt
                 ? `Requested to join your trip on ${day(g.createdAt)} and paid the required ${first}`
@@ -207,9 +205,7 @@ function ActionRow({
         : 'Confirm payment'
       : action.kind === 'accept'
         ? 'Accept trip guest'
-        : action.kind === 'offer'
-          ? 'Offer the spot'
-          : 'Refund and turn down'
+        : 'Refund and turn down'
   async function act() {
     if (action.kind === 'refund') return onDetails()
     if (action.kind === 'payment' && action.short) return onReview(action.payment)
@@ -633,6 +629,8 @@ export function eventText(e: GuestEvent): string {
       return 'Joined the waitlist (the trip was full)'
     case 'offered':
       return 'Offered a spot that opened'
+    case 'offer_withdrawn':
+      return 'Offer withdrawn, back on the waitlist'
     case 'signed':
       return 'Signed the trip agreement'
     case 'said_paid':
@@ -742,7 +740,7 @@ function GuestHistory({
  * The dialogs both sections open for a guest: Details, and from it the signed copy, the history, reviewing a payment
  * and logging one. One at a time: Details closes before the others open, and comes back when they close.
  */
-function useGuestDialogs(props: Props, full: boolean) {
+function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => void) {
   const { trip } = props
   const [open, setOpen] = useState<string | null>(null)
   const [reading, setReading] = useState<Guest | null>(null)
@@ -785,7 +783,10 @@ function useGuestDialogs(props: Props, full: boolean) {
             setBack(x.id)
             setLogging(x.id)
           }}
-          onClose={() => setOpen(null)}
+          onClose={() => {
+            setOpen(null)
+            onDetailsClose?.()
+          }}
         />
       )}
       {reading && (
@@ -820,11 +821,139 @@ function useGuestDialogs(props: Props, full: boolean) {
   }
 }
 
-/** Everyone who joined, in line order, one line each. Next steps are in Actions, so these lines have none. */
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * The waitlist (owner's decision, 2026-10-27): everyone waiting for a spot, and the organizer offers one to whoever they
+ * pick. Nothing offers a spot on its own, and the order they joined in is only for reading. On an accept-first trip
+ * accepting them is the offer.
+ */
+function WaitlistDialog({
+  trip,
+  onUpdate,
+  onDetails,
+  onClose,
+  error,
+}: {
+  trip: OrganizerTrip
+  onUpdate: Props['onUpdate']
+  onDetails: (guest: Guest) => void
+  onClose: () => void
+  error?: string | null
+}) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const people = waitlist(trip.guests)
+  const acceptFirst = trip.joinMode === 'accept_first'
+  const accepted = trip.guests.filter((g) => g.status === 'approved').length
+  const left = trip.maxGuests === null ? Infinity : Math.max(0, trip.maxGuests - accepted)
+  // Offered a spot and not accepted yet: on the pay-first trips they may still pay for one of the spots left.
+  const offered = trip.guests.filter((g) => g.status === 'interested' && g.offeredAt).length
+  async function give(g: Guest) {
+    setBusy(g.id)
+    try {
+      await onUpdate(g, acceptFirst ? { status: 'approved' } : { offerSpot: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <Dialog title="Waitlist" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
+        <p className="text-body">
+          {left === 0
+            ? 'Every spot is taken. When one opens, you can give it to anyone here.'
+            : `${left === Infinity ? 'Spots are open' : `${plural(left, 'spot', 'spots')} open`}. ${
+                acceptFirst
+                  ? 'Accept anyone here, and they see how to pay you.'
+                  : 'Offer one to anyone here. We text them, and they can pay you.'
+              }`}
+          {!acceptFirst &&
+            offered > 0 &&
+            ` ${plural(offered, 'guest was', 'guests were')} offered a spot and ${offered === 1 ? 'hasn’t' : 'haven’t'} been accepted yet.`}
+        </p>
+        {people.length === 0 ? (
+          <p className="text-body">No one is on the waitlist.</p>
+        ) : (
+          <ul>
+            {people.map((g) => (
+              <li
+                key={g.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule py-3 first:border-t-0"
+              >
+                <div className="min-w-0 flex-[1_1_140px]">
+                  <div className="font-semibold">
+                    {g.firstName} {g.lastName}
+                  </div>
+                  <div className="text-sm text-muted">Waiting since {day(g.waitlistedAt!)}</div>
+                </div>
+                <div className="ml-auto flex gap-2">
+                  {left > 0 && (
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => give(g)}
+                      className={`${filled} disabled:opacity-60`}
+                    >
+                      {acceptFirst ? 'Accept trip guest' : 'Offer the spot'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => onDetails(g)} className={outlined}>
+                    Details
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
+/** The guest dialogs plus the waitlist; Details opened from the waitlist goes back to it on closing. */
+function useDialogs(props: Props, full: boolean) {
+  const [showing, setShowing] = useState(false)
+  const [back, setBack] = useState(false)
+  const guests = useGuestDialogs(props, full, () => {
+    if (back) setShowing(true)
+    setBack(false)
+  })
+  const dialogs = (
+    <>
+      {guests.dialogs}
+      {showing && (
+        <WaitlistDialog
+          trip={props.trip}
+          onUpdate={props.onUpdate}
+          error={props.error}
+          onDetails={(g) => {
+            setShowing(false)
+            setBack(true)
+            guests.openDetails(g.id)
+          }}
+          onClose={() => setShowing(false)}
+        />
+      )}
+    </>
+  )
+  return { ...guests, openWaitlist: () => setShowing(true), dialogs }
+}
+
+/**
+ * Everyone who joined, in line order, one line each. Next steps are in Actions, so these lines have none. The waitlist
+ * is a count that opens it (owner's decision, 2026-10-27).
+ */
 export function GuestsCard(props: Props) {
   const { trip } = props
-  const { line, accepted, full } = lineOf(trip)
-  const { openDetails, dialogs } = useGuestDialogs(props, full)
+  const { line: all, accepted, full } = lineOf(trip)
+  const { openDetails, openWaitlist, dialogs } = useDialogs(props, full)
+  const waiting = waitlist(trip.guests).length
+  const line = all.filter((x) => !(x.status === 'interested' && x.waitlistedAt && !x.offeredAt))
   const max = trip.maxGuests
   return (
     <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
@@ -840,6 +969,19 @@ export function GuestsCard(props: Props) {
             : 'Accept each guest once they’ve signed. Then they see how to pay you.'}{' '}
         {max ? `${accepted} of ${max} spots taken.` : `${accepted} accepted. No limit set.`}
       </p>
+      {waiting > 0 && (
+        <button
+          type="button"
+          onClick={openWaitlist}
+          className={`${outlined} justify-between gap-3 py-2 text-left`}
+        >
+          <span className="flex items-center gap-3">
+            <Hourglass className="h-5 w-5" aria-hidden="true" />
+            {plural(waiting, 'person', 'people')} on the waitlist
+          </span>
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
       {line.length === 0 ? (
         <p className="rounded-xl bg-ground p-4 text-body">No one has signed up yet.</p>
       ) : (
@@ -868,24 +1010,43 @@ export function GuestsCard(props: Props) {
 export function ActionsCard(props: Props) {
   const { trip, onUpdate, onDecide } = props
   const { line, full } = lineOf(trip)
-  const { openDetails, openReview, dialogs } = useGuestDialogs(props, full)
+  const { openDetails, openReview, openWaitlist, dialogs } = useDialogs(props, full)
   const todo = line.flatMap((x) => actionsFor(x, trip).map((action) => ({ g: x, action })))
+  const spotOpen = waitlistSpotOpen(trip)
+  const waiting = waitlist(trip.guests).length
+  const count = todo.length + (spotOpen ? 1 : 0)
   return (
     <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
         <IconCircle icon={ListChecks} />
         Actions
-        {todo.length > 0 && (
+        {count > 0 && (
           <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
-            {todo.length}
+            {count}
             <span className="sr-only"> to do</span>
           </span>
         )}
       </h2>
-      {todo.length === 0 ? (
+      {count === 0 ? (
         <p className="text-body">Nothing needs you right now.</p>
       ) : (
         <ul>
+          {spotOpen && (
+            <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule py-3 first:border-t-0">
+              <div className="min-w-0 flex-[1_1_200px]">
+                <div className="font-semibold">Waitlist</div>
+                <div className="text-sm text-body">
+                  A spot opened, and {plural(waiting, 'person is', 'people are')} on the waitlist.
+                  Give it to anyone you pick.
+                </div>
+              </div>
+              <div className="ml-auto flex gap-2">
+                <button type="button" onClick={openWaitlist} className={filled}>
+                  Open waitlist
+                </button>
+              </div>
+            </li>
+          )}
           {todo.map(({ g: x, action }) => (
             <ActionRow
               key={action.key}

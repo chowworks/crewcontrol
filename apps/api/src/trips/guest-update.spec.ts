@@ -428,6 +428,22 @@ describe('a guest’s spot in Trip Control', () => {
     expect(writes[0]).toMatchObject({ status: 'interested', offeredAt: expect.any(Date) })
   })
 
+  it('withdraws an offer nobody paid toward, putting the guest back on the waitlist', async () => {
+    const { service, writes } = setup({ maxGuests: 2 }, [
+      guest('offered', { waitlistedAt: at, offeredAt: at }),
+      paidGuest('paid', { waitlistedAt: at, offeredAt: at }),
+      guest('wait', { waitlistedAt: at }),
+    ])
+    await expect(
+      service.updateGuest('t1', 'wait', { withdrawOffer: true }, caller)
+    ).rejects.toThrow(/no offer to withdraw/)
+    await expect(
+      service.updateGuest('t1', 'paid', { withdrawOffer: true }, caller)
+    ).rejects.toThrow(/Turn them down and send a refund/)
+    await service.updateGuest('t1', 'offered', { withdrawOffer: true }, caller)
+    expect(writes[0]).toMatchObject({ status: 'interested', offeredAt: null })
+  })
+
   it('on an accept-first trip, gives a waitlisted guest the spot by accepting them', async () => {
     const { service } = setup({ joinMode: 'accept_first' }, [guest('wait', { waitlistedAt: at })])
     await expect(service.updateGuest('t1', 'wait', { offerSpot: true }, caller)).rejects.toThrow(

@@ -419,6 +419,16 @@ export class TripsService {
       if (trip.joinMode === 'accept_first')
         throw new BadRequestException(`Accept ${guest.firstName} to give them the spot`)
     }
+    // Withdrawing an offer puts the guest back on the waitlist (owner's decision, 2026-10-27). Once they've paid or said
+    // they paid, it's a refund instead: turn them down.
+    if (update.withdrawOffer) {
+      if (!guest.offeredAt || guest.status !== 'interested' || update.status)
+        throw new BadRequestException(`${guest.firstName} has no offer to withdraw`)
+      if (guest.payments.some((p) => p.status === 'reported' || p.status === 'confirmed'))
+        throw new BadRequestException(
+          `${guest.firstName} already paid or says they did. Turn them down and send a refund instead.`
+        )
+    }
     if (update.refundSent && status !== 'declined')
       throw new BadRequestException('Tick “Refund sent” only when turning a guest down')
     // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
@@ -467,6 +477,7 @@ export class TripsService {
                 }),
             ...(restart ? { refundSentAt: null } : {}),
             ...(update.offerSpot ? { offeredAt: new Date() } : {}),
+            ...(update.withdrawOffer ? { offeredAt: null } : {}),
           },
         })
         // The refund sends back what arrived, so those payments stop counting; undoing it counts them again. A guest
@@ -490,6 +501,11 @@ export class TripsService {
         guest.phone,
         `A spot opened on ${trip.name}. Pay ${trip.organizerName} to take it: ` +
           `${(process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()}/t/${trip.slug}/join`
+      )
+    if (update.withdrawOffer)
+      await sendText(
+        guest.phone,
+        `The spot ${trip.organizerName} offered you on ${trip.name} was taken back. You're still on the waitlist.`
       )
     return this.get(id, caller)
   }

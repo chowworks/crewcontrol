@@ -1,6 +1,7 @@
 import {
   guestActions,
   tripActionCount,
+  waitlistSpotOpen,
   type Guest,
   type OrganizerTrip,
   type Payment,
@@ -70,17 +71,30 @@ describe('what needs the organizer', () => {
     expect(guestActions(ready, trip([ready])).map((a) => a.kind)).toEqual(['accept'])
   })
 
-  it('offers the spot to the next on the waitlist only once one opens', () => {
+  it('gives the waitlist one action for the trip once a spot opens, and none to anyone on it', () => {
     const inLine = guest('in', { payments: [pay('p3', 'reported')] })
-    const next = guest('next', { waitlistedAt: at })
-    const after = guest('after', { waitlistedAt: '2026-10-21T00:00:00.000Z' })
-    // One spot, one guest in line who can pay (1 + 10% rounded up = 2): open.
-    const open = trip([inLine, next, after], { maxGuests: 1 })
-    expect(guestActions(next, open).map((a) => a.kind)).toEqual(['offer'])
-    expect(guestActions(after, open)).toEqual([])
-    // Two in line who can pay: full for paying, so nobody is offered a spot.
-    const busy = trip([inLine, guest('in2'), next], { maxGuests: 1 })
-    expect(guestActions(next, busy)).toEqual([])
+    const first = guest('first', { waitlistedAt: at })
+    const later = guest('later', { waitlistedAt: '2026-10-21T00:00:00.000Z' })
+    // Two spots, one guest in line who can pay: one is open.
+    const open = trip([inLine, first, later], { maxGuests: 2 })
+    expect(waitlistSpotOpen(open)).toBe(true)
+    expect(guestActions(first, open)).toEqual([])
+    expect(guestActions(later, open)).toEqual([])
+    // The reported payment, plus the open spot.
+    expect(tripActionCount(open)).toBe(2)
+    // One spot and one guest who can pay for it: no spot to give, though the buffer still lets newcomers join.
+    expect(waitlistSpotOpen(trip([inLine, first], { maxGuests: 1 }))).toBe(false)
+    // Offering it is enough: the offered guest is in line for it.
+    const offered = guest('first', { waitlistedAt: at, offeredAt: at })
+    expect(waitlistSpotOpen(trip([offered, later], { maxGuests: 1 }))).toBe(false)
+    // An accept-first trip: open while a spot isn't taken.
+    const acceptFirst = { joinMode: 'accept_first' as const, maxGuests: 1 }
+    expect(waitlistSpotOpen(trip([first], acceptFirst))).toBe(true)
+    expect(waitlistSpotOpen(trip([guest('in', { status: 'approved' }), first], acceptFirst))).toBe(
+      false
+    )
+    // Nobody waiting: nothing to do.
+    expect(waitlistSpotOpen(trip([inLine], { maxGuests: 2 }))).toBe(false)
   })
 
   it('counts every action on the trip', () => {

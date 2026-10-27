@@ -277,6 +277,7 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
   }
   if (body.refundSent !== undefined) update.refundSent = bool(body, 'refundSent')
   if (body.offerSpot !== undefined) update.offerSpot = bool(body, 'offerSpot')
+  if (body.withdrawOffer !== undefined) update.withdrawOffer = bool(body, 'withdrawOffer')
   if (body.roomId !== undefined) {
     if (body.roomId !== null && typeof body.roomId !== 'string')
       fail('roomId must be a room or null')

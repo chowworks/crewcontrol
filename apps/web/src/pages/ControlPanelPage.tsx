@@ -65,6 +65,8 @@ export function ControlPanelPage() {
     if (!saved) return false
     const name = guest.firstName
     if (update.offerSpot) toast({ text: `Spot offered to ${name}. We texted them.` })
+    else if (update.withdrawOffer)
+      toast({ text: `Offer to ${name} withdrawn. They’re back on the waitlist.` })
     else if (update.status === 'approved' && guest.status !== 'approved')
       toast({
         text: `${name} is on the trip.`,
@@ -226,7 +228,11 @@ export function Spot({
             // A spot opens to any guest who signed and, where guests pay first, whose payment arrived: on a first
             // come trip that is someone put back to waiting, or waiting when a spot freed up.
             'Waiting',
-            g.refundSentAt ? `Refund sent ${when(g.refundSentAt)}` : waiting,
+            g.refundSentAt
+              ? `Refund sent ${when(g.refundSentAt)}`
+              : g.waitlistedAt && !g.offeredAt
+                ? 'On the waitlist'
+                : waiting,
             <>
               {!waiting && (
                 <button
@@ -237,6 +243,7 @@ export function Spot({
                   Accept
                 </button>
               )}
+              {g.offeredAt && !paid && !reported && <WithdrawOffer guest={g} onUpdate={onUpdate} />}
               <TurnDown guest={g} onUpdate={onUpdate} />
             </>,
           ]
@@ -276,6 +283,40 @@ function PutBack({ name, onPutBack }: { name: string; onPutBack: () => void }) {
           onCancel={() => setAsking(false)}
         >
           <p>They lose their spot. Their payments stay recorded.</p>
+        </ConfirmDialog>
+      )}
+    </>
+  )
+}
+
+/** Taking back a spot offered from the waitlist asks first, in a modal: the guest gets a text. */
+function WithdrawOffer({
+  guest: g,
+  onUpdate,
+}: {
+  guest: Guest
+  onUpdate: (guest: Guest, update: GuestUpdate) => void
+}) {
+  const [asking, setAsking] = useState(false)
+  return (
+    <>
+      <button type="button" onClick={() => setAsking(true)} className={smallOutlined}>
+        Withdraw offer
+      </button>
+      {asking && (
+        <ConfirmDialog
+          title={`Withdraw ${g.firstName}’s offer?`}
+          confirmLabel="Withdraw offer"
+          onConfirm={() => {
+            setAsking(false)
+            onUpdate(g, { withdrawOffer: true })
+          }}
+          onCancel={() => setAsking(false)}
+        >
+          <p>
+            They go back on the waitlist and can’t pay until you offer them a spot again. We text
+            them.
+          </p>
         </ConfirmDialog>
       )}
     </>
