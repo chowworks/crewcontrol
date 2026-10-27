@@ -1,13 +1,15 @@
-# Project memory — CrewControl
+# Project memory — Travel HQ
 
 An organizer-first tool for running group trips for friend groups (not travel agencies). The organizer builds a
 trip page, collects interest, approves the crew, tracks payments and payment plans, and runs reminders and
 updates from one place. Guests get the trip page and, once approved, a portal with their plan and payment
-history. Tagline: "Get your trip out the group chat." Formerly called Travel HQ (and Group Trip) in older docs.
+history. Tagline: "Get your trip out the group chat." Renamed from CrewControl on 2026-10-26 (owner's decision); before that it was Travel HQ, and Group Trip in the
+oldest docs. The site is travel-hq.app (travelhq.net and travelhq.vacations forward to it). Write the name "Travel HQ",
+two words. Repository, Railway, R2 and package identifiers keep their old `crewcontrol` names on purpose.
 
 ## The pitch, and the rule it makes
 
-**CrewControl tracks money; it never moves it.** Guests pay the organizer directly (Zelle, Cash App, cash), so
+**Travel HQ tracks money; it never moves it.** Guests pay the organizer directly (Zelle, Cash App, cash), so
 nobody pays processor fees. Never build checkout, card entry, a payment processor or a bank integration, and
 never hold funds. The app records that money moved. If a feature needs money to move through us, it is out of
 scope; say so before building.
@@ -59,7 +61,7 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   while spots are left, in the order confirmed, never by random draw). Joining doesn't pause on the last spot: if two
   pay for it, the one confirmed second is refunded. Turning down a guest whose payment arrived needs the organizer to
   tick "Refund sent" (`Guest.refundSentAt`); that records the refund, it moves no money.
-- **The trip agreement** is one fixed CrewControl template (`apps/api/src/join/agreement.ts`, `TEMPLATE_VERSION`),
+- **The trip agreement** is one fixed Travel HQ template (`apps/api/src/join/agreement.ts`, `TEMPLATE_VERSION`),
   filled from the trip's facts; organizers can't edit it, only preview it, and pick its refund policy from presets
   (`Trip.refundPolicy`: `spot_filled` or `first_payment_kept`, owner's decision 2026-10-26; never free text, and
   organizers ask for other terms with "Suggest other refund terms", listed in the Admin toolbox). Click-to-sign: typed full name, an "I
@@ -67,7 +69,7 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   the typed name, time, IP and browser, and the price, plan, dates and refund terms it quoted. A guest's balance
   comes from their own signature, never from the trip's current settings. The wording has not had a lawyer's
   review; it needs one before a real trip uses it, and any change gets a new `TEMPLATE_VERSION`.
-- **CrewControl's own Terms** are apart from the trip agreement: the **Terms of Use** everyone accepts and the
+- **Travel HQ's own Terms** are apart from the trip agreement: the **Terms of Use** everyone accepts and the
   **Organizer Terms** anyone who runs a trip accepts as well (`apps/api/src/terms/terms-text.ts`, shown at `/terms`).
   Each version is the fingerprint of its wording, so changing a word asks everyone again. A guest ticks the Terms of
   Use on the join form (only if they haven't accepted the current version), saved with their signature; an organizer
@@ -118,7 +120,7 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   trips have no owner. Guests sign in to join a trip (`/t/<slug>/join`, `Guest.userId`); row-level security keeps
   them to their own guest row, their own signature and the trips they joined. Reading a trip page needs no sign-in.
 - Texts and email to guests go through one function, `sendText` (`apps/api/src/join/send-text.ts`), mocked (logged,
-  not sent) until the messaging module replaces it. "Text to join" (a join code texted to a CrewControl number) is
+  not sent) until the messaging module replaces it. "Text to join" (a join code texted to a Travel HQ number) is
   not built yet; the join button opens the join page directly.
 - Photos go to a private Cloudflare R2 bucket per environment, as Audit Differently's documents do. A trip stores each
   photo's reference (`r2:trip-photos/<name>`), never a link; the API signs links that last two hours when it hands a
@@ -132,12 +134,12 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   (#F2B33D) for the host chip. The owner does not want teal or green buttons, or light blue. Bricolage Grotesque
   for headings, Instrument Sans for text. Tokens are in `apps/web/tailwind.config.js`; use them, not new hex values.
 - Guests open the trip page from a text message, so **phone width first**: check 390 px wide before showing it,
-  no sideways scroll, touch targets at least 44 px. The design mock is the "CrewControl Guest Trip Page" canvas.
+  no sideways scroll, touch targets at least 44 px. The design mock is the "Travel HQ Guest Trip Page" canvas.
 
 ## Design rules (modeled on Audit Differently)
 
 Owner's decision, 2026-10-21, after a header that looked bad. Before building any screen, follow these; they are
-Audit Differently's rules in CrewControl's colours. When something new doesn't fit one, ask before inventing.
+Audit Differently's rules in Travel HQ's colours. When something new doesn't fit one, ask before inventing.
 
 - **The header:** the logo at the left, linking home. At the right, the page's actions as real buttons (New trip,
   Edit trip, Add trip), then the account menu last, at the far right (`components/AccountMenu.tsx`): the avatar and

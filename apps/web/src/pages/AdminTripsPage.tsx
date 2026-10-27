@@ -4,7 +4,7 @@ import { rowButton, TripList } from '@/components/TripList'
 import { api, type ListedTrip } from '@/lib/api'
 import { AdminHow, AdminShell, AdminToolHead } from './AdminPage'
 
-/** Trip admin: every trip on CrewControl, for admins, in the same list as Your trips. */
+/** Trip admin: every trip on Travel HQ, for admins, in the same list as Your trips. */
 export function AdminTripsPage() {
   const [trips, setTrips] = useState<ListedTrip[] | null>(null)
   const [error, setError] = useState<string | null>(null)

@@ -21,7 +21,7 @@ const TOOLS: {
     to: '/admin/trips',
     icon: Luggage,
     title: 'Trip admin',
-    text: 'Every trip on CrewControl: who runs it, who has signed up, and a way into its Trip Control panel.',
+    text: 'Every trip on Travel HQ: who runs it, who has signed up, and a way into its Trip Control panel.',
     sub: 'Every trip, with a way into each one’s Trip Control panel.',
     how: 'Opening a trip’s Trip Control panel or editor seats you on it as an organizer, so you see its guests; every seat is written to the trip’s access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears seats on them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
   },
@@ -29,7 +29,7 @@ const TOOLS: {
     to: '/admin/requests',
     icon: MessageSquareText,
     title: 'Organizer requests',
-    text: 'What organizers asked for that CrewControl doesn’t do yet, like other refund terms.',
+    text: 'What organizers asked for that Travel HQ doesn’t do yet, like other refund terms.',
     sub: 'What organizers asked for, newest first.',
     how: 'Organizers send these from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. Each shows who asked, the trip they were setting up, and their words. Nobody can change or delete one.',
   },
@@ -37,7 +37,7 @@ const TOOLS: {
     to: '/admin/settings',
     icon: SlidersHorizontal,
     title: 'System Settings',
-    text: 'Values that apply to every trip on CrewControl, like the waitlist buffer.',
+    text: 'Values that apply to every trip on Travel HQ, like the waitlist buffer.',
     sub: 'Values that apply to every trip.',
     how: 'These apply to every trip at once, from the moment you save. They change how trips behave from then on; nothing already decided (a guest on the waitlist, a payment confirmed) changes.',
   },
@@ -65,7 +65,7 @@ export function AdminPage() {
       <div className="mb-6 mt-2">
         <p className="text-sm font-semibold text-muted">Platform admin</p>
         <h1 className="text-3xl font-extrabold">Admin toolbox</h1>
-        <p className="mt-1 text-body">Tools for running CrewControl.</p>
+        <p className="mt-1 text-body">Tools for running Travel HQ.</p>
       </div>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {TOOLS.map((t) => (

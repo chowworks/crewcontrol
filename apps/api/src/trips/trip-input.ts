@@ -246,7 +246,7 @@ export function parseJoin(raw: unknown): JoinInput {
   const agreementHash = text(body, 'agreementHash', 64)
   const termsVersion = body.termsVersion === undefined ? undefined : text(body, 'termsVersion', 64)
   if (termsVersion !== undefined && body.termsAgreed !== true)
-    fail('Tick the box to agree to CrewControl’s Terms of Use')
+    fail('Tick the box to agree to Travel HQ’s Terms of Use')
   return {
     name,
     phone,

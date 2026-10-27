@@ -252,7 +252,7 @@ model AccessLog {
   @@index([tripId])
 }
 
-/// One person accepting one version of one of CrewControl's own documents (src/terms/terms-text.ts): 'use', the Terms of
+/// One person accepting one version of one of Travel HQ's own documents (src/terms/terms-text.ts): 'use', the Terms of
 /// Use, or 'organizer', the Organizer Terms. Only ever added. No relation to a trip: acceptance is the person's.
 model TermsAcceptance {
   id          String   @id @default(cuid())
@@ -266,7 +266,7 @@ model TermsAcceptance {
   @@unique([userId, kind, fingerprint])
 }
 
-// CrewControl-wide values the platform admin sets in the Admin toolbox ("System Settings"), one row (id 1). Everyone
+// app-wide values the platform admin sets in the Admin toolbox ("System Settings"), one row (id 1). Everyone
 // reads them; only the admin changes them (migration 20261026030000_system_settings).
 model SystemSettings {
   id                    Int      @id @default(1)
@@ -276,7 +276,7 @@ model SystemSettings {
   updatedByUserId       String?
 }
 
-// What organizers ask CrewControl for that it doesn't do yet (for now, other refund terms), in their words. Anyone
+// What organizers ask Travel HQ for that it doesn't do yet (for now, other refund terms), in their words. Anyone
 // signed in adds their own; only the platform admin reads them (migration 20261026040000_refund_policy).
 model OrganizerRequest {
   id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))

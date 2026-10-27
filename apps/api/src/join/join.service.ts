@@ -120,12 +120,12 @@ export class JoinService {
       throw new ConflictException(
         'The trip’s details changed since you opened this page. Read the agreement again, then sign.'
       )
-    // Someone who hasn't accepted CrewControl's current Terms of Use accepts them here, with the signature.
+    // Someone who hasn't accepted Travel HQ's current Terms of Use accepts them here, with the signature.
     if (!termsOfUse.accepted && input.termsVersion !== termsOfUse.version)
       throw new ConflictException(
         input.termsVersion
-          ? 'CrewControl’s Terms of Use changed since you opened this page. Read them again, then sign.'
-          : 'Tick the box to agree to CrewControl’s Terms of Use.'
+          ? 'Travel HQ’s Terms of Use changed since you opened this page. Read them again, then sign.'
+          : 'Tick the box to agree to Travel HQ’s Terms of Use.'
       )
     // A full trip keeps taking sign-ups: the database puts them on the waitlist (guest_waitlist).
     if (input.roomId && !trip.rooms.some((r) => r.id === input.roomId))

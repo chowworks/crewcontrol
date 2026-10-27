@@ -43,7 +43,7 @@ export function JoinPage() {
       .getJoin(slug)
       .then((v) => {
         setView(v)
-        document.title = `Join ${v.trip.name} · CrewControl`
+        document.title = `Join ${v.trip.name} · Travel HQ`
       })
       .catch((err: unknown) =>
         setError(
@@ -114,7 +114,7 @@ interface Draft {
   roomNote: string
   typedName: string
   agreed: boolean
-  /** CrewControl's Terms of Use, asked only of someone who hasn't accepted the current version. */
+  /** Travel HQ's Terms of Use, asked only of someone who hasn't accepted the current version. */
   termsAccepted: boolean
 }
 
@@ -431,10 +431,10 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
               {shown.termsAccepted && (
                 <span className="block font-semibold text-[#B42318]">{shown.termsAccepted}</span>
               )}
-              I agree to CrewControl&apos;s Terms of Use and Privacy.
+              I agree to Travel HQ&apos;s Terms of Use and Privacy.
               <span id="terms-note" className="mt-0.5 block text-muted">
-                These are between you and CrewControl, the app. The trip agreement is between you
-                and {trip.organizerName}.
+                These are between you and Travel HQ, the app. The trip agreement is between you and{' '}
+                {trip.organizerName}.
               </span>
             </span>
           </label>

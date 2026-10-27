@@ -128,7 +128,7 @@ export interface GuestTerms {
   balanceCents: number
 }
 
-/** The ways guests can pay an organizer that CrewControl knows by name, and a free-form one ("Pay in person"). */
+/** The ways guests can pay an organizer that Travel HQ knows by name, and a free-form one ("Pay in person"). */
 export const PAYMENT_METHOD_KINDS = [
   { kind: 'cashapp', name: 'Cash App', handle: '$cashtag or phone number' },
   { kind: 'zelle', name: 'Zelle', handle: 'Phone number or email' },
@@ -239,7 +239,7 @@ export interface GuestEvent {
     | 'refund_undone'
     | 'room_changed'
     | 'contact_changed'
-  /** Who did it: the guest, one of the trip's organizers, or CrewControl itself (a sample trip's setup). */
+  /** Who did it: the guest, one of the trip's organizers, or Travel HQ itself (a sample trip's setup). */
   actor: 'guest' | 'organizer' | 'system'
   /** For room_changed: the rooms' names, null for no room or a room since removed. */
   fromRoom: string | null
@@ -348,7 +348,7 @@ export const CONTACT_TOPICS = [
 ] as const
 export type ContactTopic = (typeof CONTACT_TOPICS)[number]
 export const CONTACT_TOPIC_LABELS: Record<ContactTopic, string> = {
-  question: 'A question about CrewControl',
+  question: 'A question about Travel HQ',
   'trip-help': 'Help with a trip',
   'app-problem': 'App Problem / Navigation Issue',
   privacy: 'Privacy or my data',
@@ -419,7 +419,7 @@ export interface JoinInput {
   /** The SHA-256 of the agreement they were shown, so a trip changed in the meantime is never signed unseen. */
   agreementHash: string
   /**
-   * The version of CrewControl's Terms of Use they ticked, when the join page asked (only someone who hasn't accepted
+   * The version of Travel HQ's Terms of Use they ticked, when the join page asked (only someone who hasn't accepted
    * the current version is asked). Refused unless it is the current version.
    */
   termsVersion?: string
@@ -461,7 +461,7 @@ export interface JoinView {
   trip: PublicTrip
   agreement: AgreementPreview
   me: MyGuest | null
-  /** Where this person stands with CrewControl's Terms of Use: the join page asks for them if not accepted. */
+  /** Where this person stands with Travel HQ's Terms of Use: the join page asks for them if not accepted. */
   termsOfUse: TermsStatus
 }
 
@@ -478,7 +478,7 @@ export interface GuestUpdate {
 }
 
 /**
- * CrewControl's own documents, apart from any trip agreement: the Terms of Use everyone accepts, and the Organizer
+ * Travel HQ's own documents, apart from any trip agreement: the Terms of Use everyone accepts, and the Organizer
  * Terms anyone who runs a trip accepts as well.
  */
 export type TermsKind = 'use' | 'organizer'
@@ -488,7 +488,7 @@ export interface TermsSection {
   body: string
 }
 
-/** One of CrewControl's documents. `version` is the fingerprint of its wording: change a word and it changes. */
+/** One of Travel HQ's documents. `version` is the fingerprint of its wording: change a word and it changes. */
 export interface TermsDocument {
   kind: TermsKind
   title: string
@@ -524,7 +524,7 @@ export interface AcceptTermsInput {
 /** The code on a 403 from an organizer route while the person hasn't accepted the current Organizer Terms. */
 export const TERMS_REQUIRED_CODE = 'terms_required'
 
-/** CrewControl-wide values the platform admin sets in the Admin toolbox (System Settings). */
+/** app-wide values the platform admin sets in the Admin toolbox (System Settings). */
 export interface SystemSettings {
   /**
    * On the trips where guests pay before they're accepted, joining goes to the waitlist once the guests who can see
@@ -657,7 +657,7 @@ export interface MyActions {
   }[]
 }
 
-/** An organizer asking for something CrewControl doesn't do yet (for now, other refund terms). */
+/** An organizer asking for something Travel HQ doesn't do yet (for now, other refund terms). */
 export interface OrganizerRequestInput {
   kind: 'refund_terms'
   /** The trip they were setting up, if it's saved. */

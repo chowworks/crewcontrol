@@ -1,5 +1,5 @@
 {
-  "name": "crewcontrol",
+  "name": "travel-hq",
   "private": true,
   "workspaces": [
     "apps/*",

@@ -5,8 +5,8 @@ export const FAQ: { q: string; a: string }[] = [
     a: 'No app. They tap your link and see the whole trip. To join, they sign in and sign the trip agreement, and they see how to pay you when your trip says so.',
   },
   {
-    q: 'Does CrewControl hold our money?',
-    a: "No. Your crew pays you directly by Zelle, Cash App, Venmo or cash, like they always have. CrewControl keeps the record: who's paid, what's left and what's due next.",
+    q: 'Does Travel HQ hold our money?',
+    a: "No. Your crew pays you directly by Zelle, Cash App, Venmo or cash, like they always have. Travel HQ keeps the record: who's paid, what's left and what's due next.",
   },
   {
     q: 'What if someone drops out?',
@@ -22,7 +22,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How do reminders work?',
-    a: 'You set the key dates and payment plan once, and CrewControl reminds your crew before each one, so you stop sending the same text.',
+    a: 'You set the key dates and payment plan once, and Travel HQ reminds your crew before each one, so you stop sending the same text.',
   },
   {
     q: 'Can I run more than one trip?',

@@ -933,7 +933,7 @@ function methodProblem(m: PaymentMethod): string | null {
 }
 
 /**
- * The ways guests can pay the organizer (owner's decision, 2026-10-24): fixed kinds CrewControl knows by name, each with
+ * The ways guests can pay the organizer (owner's decision, 2026-10-24): fixed kinds Travel HQ knows by name, each with
  * its handle, and free-form ones ("Pay in person"). A guest picks one when they report a payment.
  */
 function PaymentMethodsEditor({
@@ -1034,7 +1034,7 @@ const REFUND_POLICIES = [
 
 /**
  * "Suggest other refund terms": organizers who need terms we don't offer say what they want, so we learn what to add
- * (owner's decision, 2026-10-26). It goes to the CrewControl team; the Admin toolbox lists them.
+ * (owner's decision, 2026-10-26). It goes to the Travel HQ team; the Admin toolbox lists them.
  */
 function SuggestTerms({ tripId }: { tripId?: string }) {
   const [open, setOpen] = useState(false)
@@ -1129,7 +1129,7 @@ const JOIN_MODES = [
 ] as const
 
 /**
- * The agreement guests sign, read-only: CrewControl writes it and fills in the trip's saved facts, and organizers
+ * The agreement guests sign, read-only: Travel HQ writes it and fills in the trip's saved facts, and organizers
  * can't edit it. A new trip has nothing saved to fill it with yet.
  */
 function AgreementButton({ tripId }: { tripId?: string }) {
@@ -1155,7 +1155,7 @@ function AgreementButton({ tripId }: { tripId?: string }) {
       </button>
       <span className="text-sm text-muted">
         {tripId
-          ? 'CrewControl writes it from the trip’s saved details. You can’t edit it, and guests who already signed keep the version they signed.'
+          ? 'Travel HQ writes it from the trip’s saved details. You can’t edit it, and guests who already signed keep the version they signed.'
           : 'Save the trip first: the agreement is filled in from its saved details.'}
       </span>
       {error && (

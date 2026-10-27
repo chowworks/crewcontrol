@@ -135,7 +135,7 @@ export const api = {
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
   sendContact: (input: ContactInput) => request<void>('/contact', json('POST', input)),
-  // CrewControl's own Terms: the documents (public), and the signed-in person's acceptances.
+  // Travel HQ's own Terms: the documents (public), and the signed-in person's acceptances.
   getTerms: () => request<PublicTerms>('/public/terms'),
   getMyTerms: () => request<MyTerms>('/me/terms'),
   acceptTerms: (input: AcceptTermsInput) => request<MyTerms>('/me/terms', json('POST', input)),

@@ -4,7 +4,7 @@ import { acceptedKinds, parseAcceptTerms } from './terms.service'
 
 const doc = {
   title: 'Terms of Use',
-  sections: [{ heading: '1. One', body: 'CrewControl never holds or moves money.' }],
+  sections: [{ heading: '1. One', body: 'Travel HQ never holds or moves money.' }],
 }
 
 describe('the Terms version', () => {
@@ -17,7 +17,7 @@ describe('the Terms version', () => {
   it('does not change when a line is re-wrapped', () => {
     const wrapped = {
       ...doc,
-      sections: [{ heading: ' 1. One ', body: 'CrewControl never holds\n   or moves  money.' }],
+      sections: [{ heading: ' 1. One ', body: 'Travel HQ never holds\n   or moves  money.' }],
     }
     expect(fingerprint(wrapped)).toBe(fingerprint(doc))
   })
@@ -25,7 +25,7 @@ describe('the Terms version', () => {
   it('changes when a word changes', () => {
     const changed = {
       ...doc,
-      sections: [{ ...doc.sections[0], body: 'CrewControl never holds money.' }],
+      sections: [{ ...doc.sections[0], body: 'Travel HQ never holds money.' }],
     }
     expect(fingerprint(changed)).not.toBe(fingerprint(doc))
   })

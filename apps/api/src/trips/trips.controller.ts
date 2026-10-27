@@ -180,7 +180,7 @@ export class AdminController {
     }))
   }
 
-  // System Settings: CrewControl-wide values (for now, the waitlist buffer).
+  // System Settings: app-wide values (for now, the waitlist buffer).
   @Get('settings')
   settings() {
     return this.trips.settings()
@@ -201,7 +201,7 @@ async function withOwnerNames<T extends { ownerIds: string[] }>(trips: T[], cler
   }))
 }
 
-// Organizers asking for what CrewControl doesn't do yet (other refund terms): kept for the CrewControl team.
+// Organizers asking for what Travel HQ doesn't do yet (other refund terms): kept for the Travel HQ team.
 @Controller('requests')
 @UseGuards(SignedInGuard)
 export class RequestsController {

@@ -24,7 +24,7 @@ export function NotFoundPage({ message = "We couldn't find that page." }: { mess
             to="/"
             className="inline-flex min-h-[48px] items-center rounded-xl bg-royal px-6 font-semibold text-white hover:bg-royal-dark"
           >
-            Back to CrewControl
+            Back to Travel HQ
           </Link>
           <Link
             to={report}

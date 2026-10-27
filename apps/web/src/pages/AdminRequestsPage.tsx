@@ -6,7 +6,7 @@ import { AdminHow, AdminShell, AdminToolHead } from './AdminPage'
 const when = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-/** Organizer requests: what organizers asked for that CrewControl doesn't do yet (for now, other refund terms). */
+/** Organizer requests: what organizers asked for that Travel HQ doesn't do yet (for now, other refund terms). */
 export function AdminRequestsPage() {
   const [requests, setRequests] = useState<OrganizerRequest[] | null>(null)
   const [error, setError] = useState<string | null>(null)

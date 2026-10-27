@@ -15,7 +15,7 @@ export function GuestTripPage() {
       .getPublicTrip(slug)
       .then((t) => {
         setTrip(t)
-        document.title = `${t.name} · CrewControl`
+        document.title = `${t.name} · Travel HQ`
       })
       .catch((err: unknown) =>
         setError(

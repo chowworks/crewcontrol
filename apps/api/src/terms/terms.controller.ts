@@ -5,7 +5,7 @@ import { RateLimiter } from '../core/rate-limit'
 import { TERMS } from './terms-text'
 import { parseAcceptTerms, TermsService } from './terms.service'
 
-// CrewControl's Terms, for the /terms page: no sign-in.
+// Travel HQ's Terms, for the /terms page: no sign-in.
 @Controller('public/terms')
 export class PublicTermsController {
   @Get()

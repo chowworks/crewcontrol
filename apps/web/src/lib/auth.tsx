@@ -13,7 +13,7 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 export const authConfigured = Boolean(PUBLISHABLE_KEY)
 
-/** CrewControl's own Clerk application, the same setup as Learn Differently's. */
+/** Travel HQ's own Clerk application, the same setup as Learn Differently's. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   if (!authConfigured) return <>{children}</>
   return (

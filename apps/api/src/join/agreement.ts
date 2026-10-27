@@ -8,12 +8,12 @@ import type {
 } from '../trips/trip-types'
 
 /**
- * CrewControl's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
+ * Travel HQ's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
  * decision, 2026-10-21); they pick a refund policy from presets this file words (owner's decision, 2026-10-26). Change the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it:
  * this first version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-26'
+export const TEMPLATE_VERSION = '2026-10-27'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -92,7 +92,7 @@ export function agreementText(trip: AgreementFacts): string {
       : `paid in ${trip.installmentCount} installments, the first of ${money(first)}`
   return [
     `Trip agreement for ${trip.name}`,
-    `This is an agreement between you and ${o}, who organizes the trip. CrewControl is the app the trip is run ` +
+    `This is an agreement between you and ${o}, who organizes the trip. Travel HQ is the app the trip is run ` +
       `with. It is not a party to this agreement, and it never holds or moves your money.`,
     `1. The trip\n${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}.`,
     `2. Your price\n${money(trip.costPerPersonCents)} per person, ${plan}. You pay ${o} directly, the way ` +

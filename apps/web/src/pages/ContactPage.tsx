@@ -75,8 +75,8 @@ export function ContactPage() {
         <div>
           <h1 className="mt-4 text-4xl font-extrabold">Contact us</h1>
           <p className="mt-2 text-lg text-body">
-            Questions about CrewControl, help with a trip, or anything else: write here and
-            we&apos;ll answer by email.
+            Questions about Travel HQ, help with a trip, or anything else: write here and we&apos;ll
+            answer by email.
           </p>
         </div>
 

@@ -6,7 +6,7 @@ import { TermsText } from '@/components/TermsText'
 import { api, TERMS_REQUIRED_EVENT } from '@/lib/api'
 
 /**
- * The organizer screens, behind CrewControl's Terms: anyone who runs a trip accepts the Terms of Use and the Organizer
+ * The organizer screens, behind Travel HQ's Terms: anyone who runs a trip accepts the Terms of Use and the Organizer
  * Terms first, and again whenever their wording changes (modeled on Audit Differently's TermsGate). The API refuses
  * organizer requests until then (OrganizerTermsGuard); when it refuses one because the wording changed while this tab
  * was open, this screen shows again.
@@ -143,7 +143,7 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
           <p className="text-body">
             {updated
               ? 'Please read the updated Terms and accept them to keep running your trips.'
-              : 'You’re responsible for the trips you run and the money you collect. CrewControl only keeps the record. Please read the Terms and accept them to continue.'}
+              : 'You’re responsible for the trips you run and the money you collect. Travel HQ only keeps the record. Please read the Terms and accept them to continue.'}
           </p>
           {error && (
             <p role="alert" className="font-semibold text-[#B42318]">
@@ -168,7 +168,7 @@ function TermsScreen({ mine, onAccepted }: { mine: MyTerms; onAccepted: (m: MyTe
               ref={box}
               onScroll={checkRead}
               tabIndex={0}
-              aria-label="CrewControl's Terms"
+              aria-label="Travel HQ's Terms"
               className="flex max-h-[55vh] flex-col gap-6 overflow-y-auto rounded-xl bg-ground p-4 text-[15px] focus:outline-none focus:ring-2 focus:ring-royal"
             >
               {terms && (

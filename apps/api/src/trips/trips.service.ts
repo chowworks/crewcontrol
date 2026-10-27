@@ -86,8 +86,8 @@ export class TripsService {
   }
 
   /**
-   * An organizer asks for something CrewControl doesn't do yet (other refund terms), in their words, with the trip
-   * they were setting up when it's one of theirs. Kept for the CrewControl team; only the admin reads them.
+   * An organizer asks for something Travel HQ doesn't do yet (other refund terms), in their words, with the trip
+   * they were setting up when it's one of theirs. Kept for the Travel HQ team; only the admin reads them.
    */
   async addRequest(input: OrganizerRequestInput, caller: Caller): Promise<void> {
     const trip = input.tripId
@@ -392,7 +392,7 @@ export class TripsService {
    * accept-first trip the organizer accepts them before they pay; on the other two the organizer must first confirm
    * their payment arrived, and on a first come, first served trip that confirmation accepts them while spots are
    * left. Turning down a guest whose payment arrived needs the organizer to say the refund went out (owner's
-   * decision, 2026-10-21): CrewControl records it and moves no money.
+   * decision, 2026-10-21): Travel HQ records it and moves no money.
    */
   async updateGuest(
     id: string,

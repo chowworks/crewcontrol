@@ -11,7 +11,7 @@ export interface From {
 }
 
 /**
- * Who has accepted CrewControl's current Terms (terms-text.ts). A TermsAcceptance row is one person accepting one
+ * Who has accepted Travel HQ's current Terms (terms-text.ts). A TermsAcceptance row is one person accepting one
  * version of one document; rows are only ever added (migration 20261026040000_terms_acceptance). A yes is remembered in
  * memory, since an acceptance cannot be taken back; a no never is, so the next request asks the database again and
  * sees an acceptance made a moment ago on another instance.

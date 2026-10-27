@@ -1,7 +1,7 @@
 import { defineRailway, github, postgres, preserve, project, service, volume } from 'railway/iac'
 
 /**
- * CrewControl on Railway, declared in code the way Interview and Audit Differently are. `railway config plan`
+ * Travel HQ on Railway, declared in code the way Interview and Audit Differently are. `railway config plan`
  * shows what would change; CI applies this file on a push to main once deploys are switched on
  * (.github/workflows/ci.yml). Nothing here holds a secret: values marked preserve() are set by hand in Railway
  * and left alone. A project token is tied to one environment, so the file is applied to dev or production
@@ -71,7 +71,7 @@ export default defineRailway((ctx) => {
         // Trip photos: the dev R2 bucket, private; guests get signed links (DEVELOPMENT.md, "Photos").
         ...photoBucket,
         // Where contact form messages go (logged, not sent, until email is built).
-        SUPPORT_EMAIL: 'support@crewcontrol.vacations',
+        SUPPORT_EMAIL: 'support@travel-hq.app',
         // Clerk's secret key for this environment, set by hand in Railway.
         CLERK_SECRET_KEY: preserve(),
       },
@@ -103,7 +103,7 @@ export default defineRailway((ctx) => {
       FRONTEND_URL: preserve(),
       // Trip photos: production's R2 bucket, private; guests get signed links.
       ...photoBucket,
-      SUPPORT_EMAIL: 'support@crewcontrol.vacations',
+      SUPPORT_EMAIL: 'support@travel-hq.app',
       CLERK_SECRET_KEY: preserve(),
     },
   })
