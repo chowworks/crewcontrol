@@ -853,6 +853,14 @@ export function EditTripPage() {
                       : 'Only guests who signed in and signed the trip agreement see these. They never appear on the public trip page.'}
                   </span>
                 </Card>
+                <Card title="Vendor costs">
+                  <Toggle
+                    checked={trip.options.vendorCosts}
+                    onChange={(v) => setOption('vendorCosts', v)}
+                    label="Track what you pay vendors"
+                    hint="Trip Financials adds what you pay the house, the resort or a chef, and shows what's left after costs. Only you and the trip's organizers see it."
+                  />
+                </Card>
               </>
             )}
           </fieldset>

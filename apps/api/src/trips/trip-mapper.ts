@@ -95,7 +95,12 @@ export function toPublicTrip(
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,
     // Places left counts everyone who asked for the room; the organizer can move people.
-    options,
+    // Organizer-only options (vendor costs) stay off the guest's page.
+    options: {
+      roomChoice: options.roomChoice,
+      roomRequired: options.roomRequired,
+      signupNote: options.signupNote,
+    },
     rooms: (options.roomChoice ? (row.rooms ?? []) : []).map((r) => ({
       id: r.id,
       name: r.name,

@@ -16,6 +16,7 @@ import { runAsPublic } from '../core/tenant-context'
 import { ClerkService } from '../auth/clerk.service'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import {
+  parseExpense,
   parseGuestUpdate,
   parseOrganizerRequest,
   parsePaymentDecision,
@@ -29,6 +30,7 @@ import {
 } from './trip-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
+import { ExpensesService } from './expenses.service'
 import { PeopleService } from './people.service'
 import { TripsService } from './trips.service'
 
@@ -40,6 +42,7 @@ export class TripsController {
   constructor(
     private readonly trips: TripsService,
     private readonly people: PeopleService,
+    private readonly expenses: ExpensesService,
     private readonly clerk: ClerkService
   ) {}
 
@@ -131,6 +134,36 @@ export class TripsController {
     return this.trips.logPayment(id, guestId, parsePaymentLog(body), caller)
   }
 
+  // Trip Financials' vendor expenses: what the organizer pays out, recorded only.
+  @Get(':id/expenses')
+  listExpenses(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.expenses.list(id, caller)
+  }
+
+  @Post(':id/expenses')
+  addExpense(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.expenses.add(id, parseExpense(body), caller)
+  }
+
+  @Put(':id/expenses/:expenseId')
+  updateExpense(
+    @Param('id') id: string,
+    @Param('expenseId') expenseId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.expenses.update(id, expenseId, parseExpense(body), caller)
+  }
+
+  @Delete(':id/expenses/:expenseId')
+  removeExpense(
+    @Param('id') id: string,
+    @Param('expenseId') expenseId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.expenses.remove(id, expenseId, caller)
+  }
+
   @Put(':id')
   update(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     return this.trips.update(id, parseTripInput(body), caller, parseSlug(body))
@@ -218,6 +251,7 @@ export class AdminController {
   constructor(
     private readonly trips: TripsService,
     private readonly people: PeopleService,
+    private readonly expenses: ExpensesService,
     private readonly clerk: ClerkService
   ) {}
 
@@ -231,6 +265,11 @@ export class AdminController {
   @Get('trips/:id')
   trip(@Param('id') id: string, @CurrentCaller() caller: Caller) {
     return this.trips.get(id, caller, true)
+  }
+
+  @Get('trips/:id/expenses')
+  tripExpenses(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.expenses.list(id, caller, true)
   }
 
   @Get('trips/:id/rooms')

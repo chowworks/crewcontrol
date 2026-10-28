@@ -18,6 +18,7 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'GuestEvent',
   'TripLog',
   'Payment',
+  'Expense',
   'TermsAcceptance',
   // Not trip data: one row of system settings, read by all and changed by the admin, so its writes carry the admin mark.
   'SystemSettings',

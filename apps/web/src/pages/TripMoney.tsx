@@ -1,11 +1,16 @@
 // Trip Control's Trip Financials section (owner's decision, 2026-10-26): the trip's money at a glance, the totals and one line
 // per guest, and the two spreadsheet exports. Everything comes from the trip already loaded: payments are a log
 // (confirmed, waiting, not received, refunded), and each guest's price comes from the agreement they signed.
-import type { Guest, OrganizerTrip, Payment } from '@cc/types'
+import type { Expense, Guest, OrganizerTrip, Payment } from '@cc/types'
 import { DollarSign, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useAdminView } from '@/components/AdminView'
+import { useToast } from '@/components/Toast'
+import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { amount, downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { signupOrder } from '@/lib/signups'
+import { Expenses } from './TripExpenses'
 import { IconCircle } from './TripGuests'
 
 const sum = (payments: Payment[], status: Payment['status'], arrived = true) =>
@@ -34,6 +39,16 @@ const outlined =
   'inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale'
 
 export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
+  const admin = useAdminView()
+  const toast = useToast()
+  // Vendor costs load on their own: they're the organizer's, never part of the trip guests and the public page see.
+  const [expenses, setExpenses] = useState<Expense[] | null>(null)
+  // An optional part (owner's decision, 2026-10-28): only for trips that turned it on.
+  const tracksCosts = trip.options.vendorCosts
+  useEffect(() => {
+    if (!tracksCosts) return setExpenses(null)
+    api.getExpenses(trip.id, admin).then(setExpenses, () => setExpenses([]))
+  }, [trip.id, admin, tracksCosts])
   const line = signupOrder(trip.guests)
   const rows = line.map((g) => ({ g, m: moneyOf(g) }))
   const accepted = rows.filter((r) => r.g.status === 'approved')
@@ -73,6 +88,7 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
         stamp(g.spotPaidAt),
       ]),
     ])
+    toast({ text: 'Downloaded Guests and balances.' })
   }
 
   function exportPayments() {
@@ -110,6 +126,23 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
         ])
       ),
     ])
+    toast({ text: 'Downloaded Every payment.' })
+  }
+
+  function exportExpenses() {
+    downloadCsv(`${file}-vendor-costs`, [
+      ['Paid To', 'For', 'Amount', 'Status', 'Paid Date', 'Due Date', 'Added'],
+      ...(expenses ?? []).map((e) => [
+        e.payee,
+        e.description,
+        amount(e.amountCents),
+        e.paidOn ? 'Paid' : 'Owed',
+        e.paidOn,
+        e.dueOn,
+        stamp(e.createdAt),
+      ]),
+    ])
+    toast({ text: 'Downloaded Vendor costs.' })
   }
 
   // The picture of the trip's money (owner's ask, 2026-10-26: more visual, and no guest list, which Manage Guests
@@ -204,6 +237,15 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
           </ul>
         </div>
       )}
+      {expenses && (
+        <Expenses
+          trip={trip}
+          expenses={expenses}
+          onChange={setExpenses}
+          collected={totals.collected}
+          agreed={totals.agreed}
+        />
+      )}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={exportGuests} className={outlined}>
           <Download className="h-4 w-4" aria-hidden="true" />
@@ -213,6 +255,12 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
           <Download className="h-4 w-4" aria-hidden="true" />
           Every payment
         </button>
+        {expenses && expenses.length > 0 && (
+          <button type="button" onClick={exportExpenses} className={outlined}>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Vendor costs
+          </button>
+        )}
       </div>
       <p className="-mt-2 text-sm text-muted">
         Spreadsheet files (CSV) for Excel, Numbers or Google Sheets. Names and money only, no

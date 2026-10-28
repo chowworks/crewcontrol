@@ -7,6 +7,7 @@ import {
   TripsController,
 } from './trips.controller'
 import { TermsModule } from '../terms/terms.module'
+import { ExpensesService } from './expenses.service'
 import { PeopleService } from './people.service'
 import { TripsService } from './trips.service'
 
@@ -19,7 +20,7 @@ import { TripsService } from './trips.service'
     AdminController,
     RequestsController,
   ],
-  providers: [TripsService, PeopleService],
+  providers: [TripsService, PeopleService, ExpensesService],
   exports: [TripsService],
 })
 export class TripsModule {}

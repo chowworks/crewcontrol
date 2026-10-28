@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common'
 import {
+  parseExpense,
   parsePaymentDecision,
   parsePaymentReport,
   parseTripInput,
@@ -57,6 +58,7 @@ describe('trip options', () => {
       roomChoice: false,
       roomRequired: false,
       signupNote: '',
+      vendorCosts: false,
     })
   })
 
@@ -66,6 +68,7 @@ describe('trip options', () => {
       roomChoice: false,
       roomRequired: false,
       signupNote: 'Bring a towel',
+      vendorCosts: false,
     })
   })
 
@@ -139,5 +142,35 @@ describe('parseTripPerson', () => {
     expect(() => parseTripPerson({ email: 'dana@example.com', role: 'admin' })).toThrow(
       BadRequestException
     )
+  })
+})
+
+describe('parseExpense', () => {
+  it('takes a payee, amount and either date, an empty date as none', () => {
+    expect(
+      parseExpense({
+        payee: ' Seaside Rentals ',
+        description: 'House deposit',
+        amountCents: 250000,
+        paidOn: '2026-11-02',
+        dueOn: '',
+      })
+    ).toEqual({
+      payee: 'Seaside Rentals',
+      description: 'House deposit',
+      amountCents: 250000,
+      paidOn: '2026-11-02',
+      dueOn: null,
+    })
+    expect(
+      parseExpense({ payee: 'Chef', description: '', amountCents: 90000, paidOn: null })
+    ).toEqual({ payee: 'Chef', description: '', amountCents: 90000, paidOn: null, dueOn: null })
+  })
+
+  it('refuses no payee, no amount and a date that is not one', () => {
+    const ok = { payee: 'Chef', description: '', amountCents: 100, paidOn: null, dueOn: null }
+    expect(() => parseExpense({ ...ok, payee: ' ' })).toThrow(BadRequestException)
+    expect(() => parseExpense({ ...ok, amountCents: 0 })).toThrow(BadRequestException)
+    expect(() => parseExpense({ ...ok, dueOn: 'March' })).toThrow(BadRequestException)
   })
 })
