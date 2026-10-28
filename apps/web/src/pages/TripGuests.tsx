@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Dialog } from '@/components/Dialog'
+import { useAdminView } from '@/components/AdminView'
 import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
@@ -571,6 +572,7 @@ export function PaymentLine({
   onReview: () => void
   onDecide: Props['onDecide']
 }) {
+  const admin = useAdminView()
   // A payment the organizer logged was never the guest's word, so it can't go back to waiting: undoing it removes it.
   const logged = p.loggedBy === 'organizer'
   // Taking back the payment that paid a waiting guest's spot loses their place in line; otherwise only the balance moves.
@@ -597,7 +599,7 @@ export function PaymentLine({
         </span>
         {p.note && <span className="block italic text-body">&ldquo;{p.note}&rdquo;</span>}
       </span>
-      {p.status === 'reported' ? (
+      {admin ? null : p.status === 'reported' ? (
         <button type="button" onClick={onReview} className={outlined}>
           Review
         </button>
@@ -674,12 +676,13 @@ function GuestHistory({
 }) {
   const [events, setEvents] = useState<GuestEvent[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const admin = useAdminView()
   useEffect(() => {
     api
-      .getGuestHistory(tripId, guest.id)
+      .getGuestHistory(tripId, guest.id, admin)
       .then(setEvents)
       .catch(() => setError('The history could not be loaded.'))
-  }, [tripId, guest.id])
+  }, [tripId, guest.id, admin])
   const by = (e: GuestEvent) =>
     e.actor === 'guest' ? guest.firstName : e.actor === 'organizer' ? 'An organizer' : 'Travel HQ'
   // Newest first, under a heading for each day, as a timeline: money and the guest's spot in royal, the rest quieter.

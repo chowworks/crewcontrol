@@ -29,6 +29,7 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { AdminViewNote, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
 import { Logo } from '@/components/Logo'
@@ -157,6 +158,7 @@ export function EditTripPage() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [preview, setPreview] = useState(false)
   const [rooms, setRooms] = useState<TripRoom[]>([])
+  const admin = useAdminView()
   // What was last loaded or saved, to tell whether anything on screen is unsaved.
   const [savedTrip, setSavedTrip] = useState(JSON.stringify(EMPTY))
   const [savedRooms, setSavedRooms] = useState('[]')
@@ -198,7 +200,7 @@ export function EditTripPage() {
   useEffect(() => {
     if (!id) return
     api
-      .getTrip(id)
+      .getTrip(id, admin)
       .then((loaded) => {
         const { slug, guests } = loaded
         setTrip(toInput(loaded))
@@ -211,13 +213,13 @@ export function EditTripPage() {
       .catch(() => setMessage({ kind: 'error', text: 'This trip could not be loaded.' }))
       .finally(() => setLoading(false))
     api
-      .getRooms(id)
+      .getRooms(id, admin)
       .then((r) => {
         setRooms(r)
         setSavedRooms(JSON.stringify(r))
       })
       .catch(() => setMessage({ kind: 'error', text: 'The rooms could not be loaded.' }))
-  }, [id])
+  }, [id, admin])
 
   const set = <K extends keyof TripInput>(key: K, value: TripInput[K]) =>
     setTrip((t) => ({ ...t, [key]: value }))
@@ -322,7 +324,7 @@ export function EditTripPage() {
           <div className="flex shrink-0 items-center gap-2">
             {id && (
               <Link
-                to={`/organize/${id}/control`}
+                to={admin ? `/admin/trips/${id}/control` : `/organize/${id}/control`}
                 onClick={(e) => {
                   if (dirty && !window.confirm('Leave without saving your changes?'))
                     e.preventDefault()
@@ -355,486 +357,505 @@ export function EditTripPage() {
       {preview ? (
         <TripView trip={previewOf(trip, slug, guests, rooms, buffer)} preview />
       ) : (
-        <StepsFrame title={id ? 'Edit trip' : 'New trip'} steps={STEPS} step={step} onStep={goTo}>
-          {step === 1 && (
-            <>
-              <Card title="The basics">
-                <Text
-                  label="Trip name"
-                  value={trip.name}
-                  onChange={(v) => set('name', v)}
-                  placeholder="MV Beach House 2027"
-                />
-                <Text
-                  label="Destination"
-                  value={trip.destination}
-                  onChange={(v) => set('destination', v)}
-                  placeholder="Martha's Vineyard, MA"
-                />
-                <div className="grid grid-cols-2 gap-3">
+        <StepsFrame
+          title={admin ? 'View trip' : id ? 'Edit trip' : 'New trip'}
+          steps={STEPS}
+          step={step}
+          onStep={goTo}
+        >
+          {admin && id && <AdminViewNote tripId={id} />}
+          {/* An admin's look changes nothing: every field and button on the steps is disabled. */}
+          <fieldset
+            disabled={admin}
+            className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_input:disabled]:bg-ground [&_select:disabled]:bg-ground [&_textarea:disabled]:bg-ground"
+          >
+            {step === 1 && (
+              <>
+                <Card title="The basics">
                   <Text
-                    label="Starts"
-                    type="date"
-                    value={trip.startDate}
-                    onChange={(v) => set('startDate', v)}
+                    label="Trip name"
+                    value={trip.name}
+                    onChange={(v) => set('name', v)}
+                    placeholder="MV Beach House 2027"
                   />
                   <Text
-                    label="Ends"
-                    type="date"
-                    value={trip.endDate}
-                    onChange={(v) => set('endDate', v)}
+                    label="Destination"
+                    value={trip.destination}
+                    onChange={(v) => set('destination', v)}
+                    placeholder="Martha's Vineyard, MA"
                   />
-                </div>
-                <Text
-                  label="Hosted by"
-                  value={trip.organizerName}
-                  onChange={(v) => set('organizerName', v)}
-                  placeholder="Your first name"
-                />
-                <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                  About the trip
-                  <textarea
-                    className={`${field} min-h-[120px]`}
-                    value={trip.description}
-                    onChange={(e) => set('description', e.target.value)}
-                    placeholder="What the trip is, in a few sentences."
-                  />
-                </label>
-              </Card>
-              <Card title="Key dates">
-                {trip.keyDates.map((d, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-2">
-                    <input
+                  <div className="grid grid-cols-2 gap-3">
+                    <Text
+                      label="Starts"
                       type="date"
-                      className={`${field} min-w-0 flex-[1_1_150px]`}
-                      aria-label="Date"
-                      value={d.date}
-                      onChange={(e) =>
-                        set(
-                          'keyDates',
-                          trip.keyDates.map((x, j) =>
-                            j === i ? { ...x, date: e.target.value } : x
-                          )
-                        )
-                      }
+                      value={trip.startDate}
+                      onChange={(v) => set('startDate', v)}
                     />
-                    <input
-                      className={`${field} min-w-0 flex-[3_1_200px]`}
-                      aria-label="What happens"
-                      placeholder="Final payment due"
-                      value={d.label}
-                      onChange={(e) =>
-                        set(
-                          'keyDates',
-                          trip.keyDates.map((x, j) =>
-                            j === i ? { ...x, label: e.target.value } : x
-                          )
-                        )
-                      }
+                    <Text
+                      label="Ends"
+                      type="date"
+                      value={trip.endDate}
+                      onChange={(v) => set('endDate', v)}
                     />
-                    <button
-                      type="button"
-                      className={iconButton}
-                      aria-label="Remove date"
-                      onClick={() =>
-                        set(
-                          'keyDates',
-                          trip.keyDates.filter((_, j) => j !== i)
-                        )
-                      }
-                    >
-                      <Trash2 className="h-5 w-5" aria-hidden="true" />
-                    </button>
                   </div>
-                ))}
-                <AddButton
-                  onClick={() => set('keyDates', [...trip.keyDates, { date: '', label: '' }])}
-                >
-                  Add date
-                </AddButton>
-                <p className="text-sm text-muted">Dates sort themselves when you save.</p>
-              </Card>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <Card title="Registration options">
-                <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                  What guests read by the sign-up button
-                  <textarea
-                    className={`${field} min-h-[80px]`}
-                    value={
-                      trip.options.signupNote ||
-                      defaultSignupNote(trip.organizerName, trip.joinMode)
-                    }
-                    maxLength={500}
-                    onChange={(e) => {
-                      // Left as the default, it stays empty, so it follows the host's name and the join mode.
-                      const v = e.target.value
-                      const fallback = defaultSignupNote(trip.organizerName, trip.joinMode)
-                      setOption('signupNote', v.trim() === fallback ? '' : v)
-                    }}
+                  <Text
+                    label="Hosted by"
+                    value={trip.organizerName}
+                    onChange={(v) => set('organizerName', v)}
+                    placeholder="Your first name"
                   />
-                  <span className="font-normal text-muted">
-                    Starts with our default. Change it to say it your way.
-                  </span>
-                </label>
-                <Text
-                  label="Max trip attendees"
-                  type="number"
-                  value={trip.maxGuests ? String(trip.maxGuests) : ''}
-                  onChange={(v) => set('maxGuests', v ? Math.max(1, Math.round(Number(v))) : null)}
-                  placeholder="No limit"
-                />
-                <fieldset className="flex flex-col gap-2.5">
-                  <legend className="mb-1 text-sm font-semibold">Who gets a spot</legend>
-                  <p className="mb-1 text-sm text-muted">
-                    Guests sign in and sign the trip agreement before they get a spot. You choose
-                    whether they pay before or after you accept them.
-                  </p>
-                  {guests.some((g) => g.signedAt) && (
-                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                      Guests have signed under this choice, so it can’t change now.
-                    </p>
-                  )}
-                  {JOIN_MODES.map((m) => (
-                    <label
-                      key={m.value}
-                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
-                        trip.joinMode === m.value ? 'border-royal bg-royal-pale' : 'border-rule'
-                      }`}
-                    >
+                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                    About the trip
+                    <textarea
+                      className={`${field} min-h-[120px]`}
+                      value={trip.description}
+                      onChange={(e) => set('description', e.target.value)}
+                      placeholder="What the trip is, in a few sentences."
+                    />
+                  </label>
+                </Card>
+                <Card title="Key dates">
+                  {trip.keyDates.map((d, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-2">
                       <input
-                        type="radio"
-                        name="joinMode"
-                        checked={trip.joinMode === m.value}
-                        disabled={guests.some((g) => g.signedAt)}
-                        onChange={() => set('joinMode', m.value)}
-                        className="mt-1 h-4 w-4 accent-royal"
-                      />
-                      <span className="flex flex-col gap-0.5">
-                        <span className="font-semibold">{m.label}</span>
-                        <span className="text-sm text-muted">{m.hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
-                <fieldset className="flex flex-col gap-2.5">
-                  <legend className="mb-1 text-sm font-semibold">
-                    Refunds when someone drops out
-                  </legend>
-                  <p className="mb-1 text-sm text-muted">
-                    Whatever you pick, anyone you turn down or remove gets everything back.
-                  </p>
-                  {guests.some((g) => g.signedAt) && (
-                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                      Guests have signed under these terms, so they can’t change now.
-                    </p>
-                  )}
-                  {REFUND_POLICIES.map((r) => (
-                    <label
-                      key={r.value}
-                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
-                        trip.refundPolicy === r.value ? 'border-royal bg-royal-pale' : 'border-rule'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="refundPolicy"
-                        checked={trip.refundPolicy === r.value}
-                        disabled={guests.some((g) => g.signedAt)}
-                        onChange={() => set('refundPolicy', r.value)}
-                        className="mt-1 h-4 w-4 accent-royal"
-                      />
-                      <span className="flex flex-col gap-0.5">
-                        <span className="font-semibold">{r.label}</span>
-                        <span className="text-sm text-muted">{r.hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                  <SuggestTerms tripId={id} />
-                </fieldset>
-                <AgreementButton tripId={id} />
-              </Card>
-              <Card title="Who's going">
-                <Toggle
-                  checked={trip.showGuestNames || trip.options.roomChoice}
-                  disabled={trip.options.roomChoice}
-                  onChange={(v) => set('showGuestNames', v)}
-                  label="Show accepted guests' names on the trip page"
-                  hint={
-                    trip.options.roomChoice
-                      ? 'Always on while guests choose their room, so they can see who to share with.'
-                      : 'Shown as first name and last initial. People not yet accepted are never listed.'
-                  }
-                />
-                <p className="text-sm text-muted">
-                  {guests.filter((g) => g.status === 'approved').length} accepted ·{' '}
-                  {guests.filter((g) => g.status === 'interested').length} joining
-                </p>
-              </Card>
-              <Card title="Photos">
-                <Text
-                  label="Section title"
-                  value={trip.galleryTitle}
-                  onChange={(v) => set('galleryTitle', v)}
-                  placeholder="The house, The resort, Where we're staying…"
-                />
-                <p className="text-sm text-muted">
-                  The first photo is the cover. The section shows once there are two or more. Up to{' '}
-                  {MAX_TRIP_PHOTOS} photos.
-                </p>
-                <ul className="flex flex-col gap-3">
-                  {trip.photos.map((p, i) => (
-                    <li key={p.url + i} className="flex flex-wrap items-center gap-3">
-                      <img
-                        src={p.url}
-                        alt=""
-                        className="h-16 w-20 shrink-0 rounded-lg bg-placeholder object-cover"
-                      />
-                      <input
-                        className={`${field} min-w-0 flex-[1_1_180px]`}
-                        aria-label={`Caption for photo ${i + 1}`}
-                        value={p.caption}
-                        placeholder={i === 0 ? 'Cover photo caption' : 'Caption'}
+                        type="date"
+                        className={`${field} min-w-0 flex-[1_1_150px]`}
+                        aria-label="Date"
+                        value={d.date}
                         onChange={(e) =>
                           set(
-                            'photos',
-                            trip.photos.map((x, j) =>
-                              j === i ? { ...x, caption: e.target.value } : x
+                            'keyDates',
+                            trip.keyDates.map((x, j) =>
+                              j === i ? { ...x, date: e.target.value } : x
                             )
                           )
                         }
                       />
-                      <Reorder
-                        index={i}
-                        length={trip.photos.length}
-                        name="photo"
-                        onMove={(to) => set('photos', move(trip.photos, i, to))}
-                        onRemove={() =>
+                      <input
+                        className={`${field} min-w-0 flex-[3_1_200px]`}
+                        aria-label="What happens"
+                        placeholder="Final payment due"
+                        value={d.label}
+                        onChange={(e) =>
                           set(
-                            'photos',
-                            trip.photos.filter((_, j) => j !== i)
+                            'keyDates',
+                            trip.keyDates.map((x, j) =>
+                              j === i ? { ...x, label: e.target.value } : x
+                            )
                           )
                         }
                       />
-                    </li>
+                      <button
+                        type="button"
+                        className={iconButton}
+                        aria-label="Remove date"
+                        onClick={() =>
+                          set(
+                            'keyDates',
+                            trip.keyDates.filter((_, j) => j !== i)
+                          )
+                        }
+                      >
+                        <Trash2 className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </div>
                   ))}
-                </ul>
-                {trip.photos.length < MAX_TRIP_PHOTOS && (
-                  <label className="inline-flex min-h-[44px] w-fit cursor-pointer items-center gap-2 rounded-xl border border-royal px-4 font-semibold text-royal focus-within:ring-2 focus-within:ring-royal">
-                    <ImagePlus className="h-5 w-5" aria-hidden="true" />
-                    {uploading ? 'Uploading…' : 'Add photos'}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      multiple
-                      className="sr-only"
-                      disabled={uploading}
+                  <AddButton
+                    onClick={() => set('keyDates', [...trip.keyDates, { date: '', label: '' }])}
+                  >
+                    Add date
+                  </AddButton>
+                  <p className="text-sm text-muted">Dates sort themselves when you save.</p>
+                </Card>
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <Card title="Registration options">
+                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                    What guests read by the sign-up button
+                    <textarea
+                      className={`${field} min-h-[80px]`}
+                      value={
+                        trip.options.signupNote ||
+                        defaultSignupNote(trip.organizerName, trip.joinMode)
+                      }
+                      maxLength={500}
                       onChange={(e) => {
-                        void addPhotos(e.target.files)
-                        e.target.value = ''
+                        // Left as the default, it stays empty, so it follows the host's name and the join mode.
+                        const v = e.target.value
+                        const fallback = defaultSignupNote(trip.organizerName, trip.joinMode)
+                        setOption('signupNote', v.trim() === fallback ? '' : v)
                       }}
                     />
+                    <span className="font-normal text-muted">
+                      Starts with our default. Change it to say it your way.
+                    </span>
                   </label>
-                )}
-              </Card>
-              <Card title="Highlights">
-                <p className="text-sm text-muted">
-                  The cards under the description: where you stay, how you get there, the big
-                  moments.
-                </p>
-                {trip.highlights.map((h, i) => {
-                  const update = (patch: Partial<typeof h>) =>
-                    set(
-                      'highlights',
-                      trip.highlights.map((x, j) => (j === i ? { ...x, ...patch } : x))
-                    )
-                  return (
-                    <div key={i} className="flex flex-col gap-2 rounded-xl border border-rule p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <select
-                          className={`${field} min-w-0 flex-[1_1_140px]`}
-                          aria-label="Icon"
-                          value={h.icon}
-                          onChange={(e) => update({ icon: e.target.value as HighlightIcon })}
-                        >
-                          {HIGHLIGHT_ICONS.map((icon) => (
-                            <option key={icon} value={icon}>
-                              {HIGHLIGHT_ICON_LABELS[icon]}
-                            </option>
-                          ))}
-                        </select>
+                  <Text
+                    label="Max trip attendees"
+                    type="number"
+                    value={trip.maxGuests ? String(trip.maxGuests) : ''}
+                    onChange={(v) =>
+                      set('maxGuests', v ? Math.max(1, Math.round(Number(v))) : null)
+                    }
+                    placeholder="No limit"
+                  />
+                  <fieldset className="flex flex-col gap-2.5">
+                    <legend className="mb-1 text-sm font-semibold">Who gets a spot</legend>
+                    <p className="mb-1 text-sm text-muted">
+                      Guests sign in and sign the trip agreement before they get a spot. You choose
+                      whether they pay before or after you accept them.
+                    </p>
+                    {guests.some((g) => g.signedAt) && (
+                      <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                        Guests have signed under this choice, so it can’t change now.
+                      </p>
+                    )}
+                    {JOIN_MODES.map((m) => (
+                      <label
+                        key={m.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
+                          trip.joinMode === m.value ? 'border-royal bg-royal-pale' : 'border-rule'
+                        }`}
+                      >
                         <input
-                          className={`${field} min-w-0 flex-[2_1_180px]`}
-                          aria-label="Highlight title"
-                          placeholder="Beach house"
-                          value={h.title}
-                          onChange={(e) => update({ title: e.target.value })}
+                          type="radio"
+                          name="joinMode"
+                          checked={trip.joinMode === m.value}
+                          disabled={guests.some((g) => g.signedAt)}
+                          onChange={() => set('joinMode', m.value)}
+                          className="mt-1 h-4 w-4 accent-royal"
                         />
-                        <Reorder
-                          index={i}
-                          length={trip.highlights.length}
-                          name="highlight"
-                          onMove={(to) => set('highlights', move(trip.highlights, i, to))}
-                          onRemove={() =>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="font-semibold">{m.label}</span>
+                          <span className="text-sm text-muted">{m.hint}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <fieldset className="flex flex-col gap-2.5">
+                    <legend className="mb-1 text-sm font-semibold">
+                      Refunds when someone drops out
+                    </legend>
+                    <p className="mb-1 text-sm text-muted">
+                      Whatever you pick, anyone you turn down or remove gets everything back.
+                    </p>
+                    {guests.some((g) => g.signedAt) && (
+                      <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                        Guests have signed under these terms, so they can’t change now.
+                      </p>
+                    )}
+                    {REFUND_POLICIES.map((r) => (
+                      <label
+                        key={r.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 ${
+                          trip.refundPolicy === r.value
+                            ? 'border-royal bg-royal-pale'
+                            : 'border-rule'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="refundPolicy"
+                          checked={trip.refundPolicy === r.value}
+                          disabled={guests.some((g) => g.signedAt)}
+                          onChange={() => set('refundPolicy', r.value)}
+                          className="mt-1 h-4 w-4 accent-royal"
+                        />
+                        <span className="flex flex-col gap-0.5">
+                          <span className="font-semibold">{r.label}</span>
+                          <span className="text-sm text-muted">{r.hint}</span>
+                        </span>
+                      </label>
+                    ))}
+                    <SuggestTerms tripId={id} />
+                  </fieldset>
+                  <AgreementButton tripId={id} />
+                </Card>
+                <Card title="Who's going">
+                  <Toggle
+                    checked={trip.showGuestNames || trip.options.roomChoice}
+                    disabled={trip.options.roomChoice}
+                    onChange={(v) => set('showGuestNames', v)}
+                    label="Show accepted guests' names on the trip page"
+                    hint={
+                      trip.options.roomChoice
+                        ? 'Always on while guests choose their room, so they can see who to share with.'
+                        : 'Shown as first name and last initial. People not yet accepted are never listed.'
+                    }
+                  />
+                  <p className="text-sm text-muted">
+                    {guests.filter((g) => g.status === 'approved').length} accepted ·{' '}
+                    {guests.filter((g) => g.status === 'interested').length} joining
+                  </p>
+                </Card>
+                <Card title="Photos">
+                  <Text
+                    label="Section title"
+                    value={trip.galleryTitle}
+                    onChange={(v) => set('galleryTitle', v)}
+                    placeholder="The house, The resort, Where we're staying…"
+                  />
+                  <p className="text-sm text-muted">
+                    The first photo is the cover. The section shows once there are two or more. Up
+                    to {MAX_TRIP_PHOTOS} photos.
+                  </p>
+                  <ul className="flex flex-col gap-3">
+                    {trip.photos.map((p, i) => (
+                      <li key={p.url + i} className="flex flex-wrap items-center gap-3">
+                        <img
+                          src={p.url}
+                          alt=""
+                          className="h-16 w-20 shrink-0 rounded-lg bg-placeholder object-cover"
+                        />
+                        <input
+                          className={`${field} min-w-0 flex-[1_1_180px]`}
+                          aria-label={`Caption for photo ${i + 1}`}
+                          value={p.caption}
+                          placeholder={i === 0 ? 'Cover photo caption' : 'Caption'}
+                          onChange={(e) =>
                             set(
-                              'highlights',
-                              trip.highlights.filter((_, j) => j !== i)
+                              'photos',
+                              trip.photos.map((x, j) =>
+                                j === i ? { ...x, caption: e.target.value } : x
+                              )
                             )
                           }
                         />
-                      </div>
+                        <Reorder
+                          index={i}
+                          length={trip.photos.length}
+                          name="photo"
+                          onMove={(to) => set('photos', move(trip.photos, i, to))}
+                          onRemove={() =>
+                            set(
+                              'photos',
+                              trip.photos.filter((_, j) => j !== i)
+                            )
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  {trip.photos.length < MAX_TRIP_PHOTOS && (
+                    <label className="inline-flex min-h-[44px] w-fit cursor-pointer items-center gap-2 rounded-xl border border-royal px-4 font-semibold text-royal focus-within:ring-2 focus-within:ring-royal">
+                      <ImagePlus className="h-5 w-5" aria-hidden="true" />
+                      {uploading ? 'Uploading…' : 'Add photos'}
                       <input
-                        className={field}
-                        aria-label="Highlight detail"
-                        placeholder="Sleeps 10, five minutes' walk to the beach"
-                        value={h.detail}
-                        onChange={(e) => update({ detail: e.target.value })}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="sr-only"
+                        disabled={uploading}
+                        onChange={(e) => {
+                          void addPhotos(e.target.files)
+                          e.target.value = ''
+                        }}
                       />
-                    </div>
-                  )
-                })}
-                {trip.highlights.length < 8 && (
-                  <AddButton
-                    onClick={() =>
-                      set('highlights', [
-                        ...trip.highlights,
-                        { icon: 'star', title: '', detail: '' },
-                      ])
-                    }
-                  >
-                    Add highlight
-                  </AddButton>
-                )}
-              </Card>
-            </>
-          )}
-
-          {step === 5 && (
-            <>
-              <Card title="Publishing">
-                <Toggle
-                  checked={trip.published}
-                  onChange={(v) => set('published', v)}
-                  label="Published"
-                  hint="Guests can open the trip page only once it is published."
-                />
-                <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                  Trip link
-                  <span className="flex items-stretch overflow-hidden rounded-[10px] border border-[#5B6B80] bg-white focus-within:ring-2 focus-within:ring-royal">
-                    <span className="flex items-center bg-ground px-3 text-base font-normal text-muted">
-                      /t/
-                    </span>
-                    <input
-                      className="min-w-0 flex-1 px-3 py-3 text-base font-normal text-ink focus:outline-none"
-                      value={link}
-                      onChange={(e) => setLink(e.target.value)}
-                      placeholder={id ? '' : 'Made from the trip name if left blank'}
-                      maxLength={60}
-                      autoCapitalize="none"
-                      spellCheck={false}
-                    />
-                  </span>
-                  {linkProblem ? (
-                    <span className="font-semibold text-[#B42318]">{linkProblem}</span>
-                  ) : (
-                    <span className="font-normal text-muted">
-                      Letters, numbers and hyphens, like mv-2027.
-                    </span>
+                    </label>
                   )}
-                </label>
-                {id && trip.published && link.trim() && link.trim() !== slug && (
-                  <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                    Saving changes the link. The old one, /t/{slug}, will stop working, so share the
-                    new one with your crew.
+                </Card>
+                <Card title="Highlights">
+                  <p className="text-sm text-muted">
+                    The cards under the description: where you stay, how you get there, the big
+                    moments.
                   </p>
-                )}
-                {trip.published && guestUrl && (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="min-w-0 flex-1 break-all text-sm text-body">
-                      Guest link:{' '}
-                      <a href={guestUrl} className="font-semibold text-royal">
-                        {guestUrl}
-                      </a>
-                    </p>
-                    <CopyLink url={guestUrl} />
-                  </div>
-                )}
-              </Card>
-            </>
-          )}
+                  {trip.highlights.map((h, i) => {
+                    const update = (patch: Partial<typeof h>) =>
+                      set(
+                        'highlights',
+                        trip.highlights.map((x, j) => (j === i ? { ...x, ...patch } : x))
+                      )
+                    return (
+                      <div
+                        key={i}
+                        className="flex flex-col gap-2 rounded-xl border border-rule p-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            className={`${field} min-w-0 flex-[1_1_140px]`}
+                            aria-label="Icon"
+                            value={h.icon}
+                            onChange={(e) => update({ icon: e.target.value as HighlightIcon })}
+                          >
+                            {HIGHLIGHT_ICONS.map((icon) => (
+                              <option key={icon} value={icon}>
+                                {HIGHLIGHT_ICON_LABELS[icon]}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className={`${field} min-w-0 flex-[2_1_180px]`}
+                            aria-label="Highlight title"
+                            placeholder="Beach house"
+                            value={h.title}
+                            onChange={(e) => update({ title: e.target.value })}
+                          />
+                          <Reorder
+                            index={i}
+                            length={trip.highlights.length}
+                            name="highlight"
+                            onMove={(to) => set('highlights', move(trip.highlights, i, to))}
+                            onRemove={() =>
+                              set(
+                                'highlights',
+                                trip.highlights.filter((_, j) => j !== i)
+                              )
+                            }
+                          />
+                        </div>
+                        <input
+                          className={field}
+                          aria-label="Highlight detail"
+                          placeholder="Sleeps 10, five minutes' walk to the beach"
+                          value={h.detail}
+                          onChange={(e) => update({ detail: e.target.value })}
+                        />
+                      </div>
+                    )
+                  })}
+                  {trip.highlights.length < 8 && (
+                    <AddButton
+                      onClick={() =>
+                        set('highlights', [
+                          ...trip.highlights,
+                          { icon: 'star', title: '', detail: '' },
+                        ])
+                      }
+                    >
+                      Add highlight
+                    </AddButton>
+                  )}
+                </Card>
+              </>
+            )}
 
-          {step === 3 && (
-            <>
-              <Card title="Room choice">
-                <Toggle
-                  checked={trip.options.roomChoice}
-                  onChange={(v) =>
-                    setTrip((t) => ({
-                      ...t,
-                      options: {
-                        ...t.options,
-                        roomChoice: v,
-                        roomRequired: v && t.options.roomRequired,
-                      },
-                    }))
-                  }
-                  label="Guests choose their room"
-                  hint="Guests pick from the rooms below when they sign up, and the trip page shows who's going. Off: the rooms only set the price in step 4."
-                />
-                {trip.options.roomChoice && (
+            {step === 5 && (
+              <>
+                <Card title="Publishing">
                   <Toggle
-                    checked={trip.options.roomRequired}
-                    onChange={(v) => setOption('roomRequired', v)}
-                    label="Guests must pick a room"
-                    hint="Without one, the sign-up form won't send. Off: guests can choose no preference."
+                    checked={trip.published}
+                    onChange={(v) => set('published', v)}
+                    label="Published"
+                    hint="Guests can open the trip page only once it is published."
                   />
-                )}
-              </Card>
-              {id ? <RoomsEditor rooms={rooms} setRooms={setRooms} /> : <NeedsTrip />}
-            </>
-          )}
+                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                    Trip link
+                    <span className="flex items-stretch overflow-hidden rounded-[10px] border border-[#5B6B80] bg-white focus-within:ring-2 focus-within:ring-royal">
+                      <span className="flex items-center bg-ground px-3 text-base font-normal text-muted">
+                        /t/
+                      </span>
+                      <input
+                        className="min-w-0 flex-1 px-3 py-3 text-base font-normal text-ink focus:outline-none"
+                        value={link}
+                        onChange={(e) => setLink(e.target.value)}
+                        placeholder={id ? '' : 'Made from the trip name if left blank'}
+                        maxLength={60}
+                        autoCapitalize="none"
+                        spellCheck={false}
+                      />
+                    </span>
+                    {linkProblem ? (
+                      <span className="font-semibold text-[#B42318]">{linkProblem}</span>
+                    ) : (
+                      <span className="font-normal text-muted">
+                        Letters, numbers and hyphens, like mv-2027.
+                      </span>
+                    )}
+                  </label>
+                  {id && trip.published && link.trim() && link.trim() !== slug && (
+                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                      Saving changes the link. The old one, /t/{slug}, will stop working, so share
+                      the new one with your crew.
+                    </p>
+                  )}
+                  {trip.published && guestUrl && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="min-w-0 flex-1 break-all text-sm text-body">
+                        Guest link:{' '}
+                        <a href={guestUrl} className="font-semibold text-royal">
+                          {guestUrl}
+                        </a>
+                      </p>
+                      <CopyLink url={guestUrl} />
+                    </div>
+                  )}
+                </Card>
+              </>
+            )}
 
-          {step === 4 && (
-            <>
-              {id ? (
-                <PriceSimulator
-                  tripId={id}
-                  rooms={rooms}
-                  guests={guests}
-                  startDate={trip.startDate}
-                  costCents={trip.costPerPersonCents}
-                  onCost={(v) => set('costPerPersonCents', v)}
-                  installments={trip.installmentCount}
-                  onInstallments={(v) => set('installmentCount', v)}
-                />
-              ) : (
-                <NeedsTrip />
-              )}
-              <Card title="How to pay">
-                <PaymentMethodsEditor
-                  methods={trip.paymentMethods}
-                  onChange={(v) => set('paymentMethods', v)}
-                />
-                <label className="flex flex-col gap-1.5 text-sm font-semibold">
-                  Anything else about paying (optional)
-                  <textarea
-                    className={`${field} min-h-[80px] font-normal`}
-                    value={trip.paymentInstructions}
-                    onChange={(e) => set('paymentInstructions', e.target.value)}
-                    placeholder="Put your name and the trip code in the memo."
+            {step === 3 && (
+              <>
+                <Card title="Room choice">
+                  <Toggle
+                    checked={trip.options.roomChoice}
+                    onChange={(v) =>
+                      setTrip((t) => ({
+                        ...t,
+                        options: {
+                          ...t.options,
+                          roomChoice: v,
+                          roomRequired: v && t.options.roomRequired,
+                        },
+                      }))
+                    }
+                    label="Guests choose their room"
+                    hint="Guests pick from the rooms below when they sign up, and the trip page shows who's going. Off: the rooms only set the price in step 4."
                   />
-                </label>
-                <span className="text-sm text-muted">
-                  {trip.joinMode === 'accept_first'
-                    ? 'Only guests you accepted see these. They never appear on the public trip page.'
-                    : 'Only guests who signed in and signed the trip agreement see these. They never appear on the public trip page.'}
-                </span>
-              </Card>
-            </>
-          )}
+                  {trip.options.roomChoice && (
+                    <Toggle
+                      checked={trip.options.roomRequired}
+                      onChange={(v) => setOption('roomRequired', v)}
+                      label="Guests must pick a room"
+                      hint="Without one, the sign-up form won't send. Off: guests can choose no preference."
+                    />
+                  )}
+                </Card>
+                {id ? <RoomsEditor rooms={rooms} setRooms={setRooms} /> : <NeedsTrip />}
+              </>
+            )}
+
+            {step === 4 && (
+              <>
+                {id ? (
+                  <PriceSimulator
+                    tripId={id}
+                    rooms={rooms}
+                    guests={guests}
+                    startDate={trip.startDate}
+                    costCents={trip.costPerPersonCents}
+                    onCost={(v) => set('costPerPersonCents', v)}
+                    installments={trip.installmentCount}
+                    onInstallments={(v) => set('installmentCount', v)}
+                  />
+                ) : (
+                  <NeedsTrip />
+                )}
+                <Card title="How to pay">
+                  <PaymentMethodsEditor
+                    methods={trip.paymentMethods}
+                    onChange={(v) => set('paymentMethods', v)}
+                  />
+                  <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                    Anything else about paying (optional)
+                    <textarea
+                      className={`${field} min-h-[80px] font-normal`}
+                      value={trip.paymentInstructions}
+                      onChange={(e) => set('paymentInstructions', e.target.value)}
+                      placeholder="Put your name and the trip code in the memo."
+                    />
+                  </label>
+                  <span className="text-sm text-muted">
+                    {trip.joinMode === 'accept_first'
+                      ? 'Only guests you accepted see these. They never appear on the public trip page.'
+                      : 'Only guests who signed in and signed the trip agreement see these. They never appear on the public trip page.'}
+                  </span>
+                </Card>
+              </>
+            )}
+          </fieldset>
 
           <div className="flex flex-col gap-2">
             {message && (
@@ -860,22 +881,24 @@ export function EditTripPage() {
               ) : (
                 <span />
               )}
-              <button
-                type="button"
-                onClick={() => (step < STEPS.length ? goTo(step + 1) : void save())}
-                disabled={saving || uploading}
-                className="min-h-[44px] rounded-xl bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
-              >
-                {saving
-                  ? 'Saving…'
-                  : !id
-                    ? 'Create trip and continue'
-                    : step === STEPS.length
-                      ? 'Save'
-                      : dirty
-                        ? `Save and continue to ${STEPS[step]}`
-                        : `Continue to ${STEPS[step]}`}
-              </button>
+              {!(admin && step === STEPS.length) && (
+                <button
+                  type="button"
+                  onClick={() => (step < STEPS.length ? goTo(step + 1) : void save())}
+                  disabled={saving || uploading}
+                  className="min-h-[44px] rounded-xl bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
+                >
+                  {saving
+                    ? 'Saving…'
+                    : !id
+                      ? 'Create trip and continue'
+                      : step === STEPS.length
+                        ? 'Save'
+                        : dirty
+                          ? `Save and continue to ${STEPS[step]}`
+                          : `Continue to ${STEPS[step]}`}
+                </button>
+              )}
             </div>
             {dirty && !saving && (
               <p className="text-sm text-muted">
@@ -1135,11 +1158,12 @@ const JOIN_MODES = [
 function AgreementButton({ tripId }: { tripId?: string }) {
   const [agreement, setAgreement] = useState<AgreementPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const admin = useAdminView()
   const open = () => {
     if (!tripId) return
     setError(null)
     api
-      .getAgreement(tripId)
+      .getAgreement(tripId, admin)
       .then(setAgreement)
       .catch(() => setError('The agreement could not be loaded.'))
   }

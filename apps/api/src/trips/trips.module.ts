@@ -7,6 +7,7 @@ import {
   TripsController,
 } from './trips.controller'
 import { TermsModule } from '../terms/terms.module'
+import { PeopleService } from './people.service'
 import { TripsService } from './trips.service'
 
 @Module({
@@ -18,7 +19,7 @@ import { TripsService } from './trips.service'
     AdminController,
     RequestsController,
   ],
-  providers: [TripsService],
+  providers: [TripsService, PeopleService],
   exports: [TripsService],
 })
 export class TripsModule {}

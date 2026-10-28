@@ -18,13 +18,13 @@ export function AdminTripsPage() {
   }, [])
   useEffect(load, [load])
 
-  // Opening a trip seats the admin on it as an organizer (or its owner, when it has none), so it works on the trip
-  // as a member. The database logs every seat in the trip's access log.
-  async function open(t: ListedTrip, path: string, asOwner = false) {
+  // Control panel and Edit only look, read-only and without a seat (owner's decision, 2026-10-28). Taking an ownerless
+  // trip seats the admin as its owner, which the database logs in the trip's access log.
+  async function takeOwnership(t: ListedTrip) {
     setError(null)
     try {
-      await api.seatOnTrip(t.id, asOwner)
-      navigate(path)
+      await api.seatOnTrip(t.id, true)
+      navigate(`/organize/${t.id}/control`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That did not work.')
     }
@@ -43,31 +43,22 @@ export function AdminTripsPage() {
           trips={trips}
           actions={(t) => (
             <>
-              <button
-                type="button"
-                onClick={() => open(t, `/organize/${t.id}/control`)}
-                className={rowButton(true)}
-              >
+              <Link to={`/admin/trips/${t.id}/control`} className={rowButton(true)}>
                 Control panel
-              </button>
-              <button
-                type="button"
-                onClick={() => open(t, `/organize/${t.id}`)}
-                className={rowButton()}
-              >
+              </Link>
+              <Link to={`/admin/trips/${t.id}/edit`} className={rowButton()}>
                 Edit
-              </button>
+              </Link>
+              <Link to={`/admin/trips/${t.id}/people`} className={rowButton()}>
+                People
+              </Link>
               {t.published && (
                 <Link to={`/t/${t.slug}`} className={rowButton()}>
                   Guest page
                 </Link>
               )}
               {!t.isSample && !t.ownerName && (
-                <button
-                  type="button"
-                  onClick={() => open(t, `/organize/${t.id}/control`, true)}
-                  className={rowButton()}
-                >
+                <button type="button" onClick={() => takeOwnership(t)} className={rowButton()}>
                   Make me the owner
                 </button>
               )}

@@ -55,6 +55,10 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
 - **Memberships are invitations.** Only an owner gives, changes or removes a membership, and only on a trip they
   own; a person with none can give none, so nobody seats themselves. A trip's creator is made its owner in the same
   trusted step that creates the trip (`TripsService.create`).
+- **Invites wait in `TripInvite`** (migration `20261028030000_trip_invites`): an owner or the admin invites an email
+  that hasn't signed in yet. The trip's members read its invites; its owners and the admin give, change and take them
+  back. When someone signs in with that email (verified by Clerk), trusted work turns the invite into their
+  `TripMember` row and deletes it (`PeopleService.claimInvites`), since nobody may seat themselves.
 - **Members read and write the trip and its guests.** Owners alone change the trip's people and delete it. What an
   organizer may do beyond that is the application's rule.
 - **What a row belongs to cannot change** (`_3_keep`): a guest cannot move to another trip, a membership cannot
@@ -88,16 +92,17 @@ needs sign-in, so a public page signs nobody up.
 
 **The platform admin** (`app.admin`) is a person whose Clerk `publicMetadata.role` is `admin`, working at the trip
 level only, as in Audit Differently: it reads every trip and every trip's people, and gives, changes or removes a
-membership on any trip (handing an ownerless trip to its organizer, or seating itself). It changes no trip and
-reads no guest through the mark; once seated it works on that trip as a member. The mark counts only beside a
+membership on any trip (on the trip's People screen: handing a trip to its organizer, or adding itself). Since
+migration `20261028010000_admin_reads` the mark also reads a trip's guests, rooms, signatures, payments and history,
+read-only (owner's decision, 2026-10-28: the Admin toolbox's Control panel and Edit look without a seat). It changes no
+trip and no guest through the mark; once it adds itself it works on that trip as a member. The mark counts only beside a
 person, never with `app.system`. In dev the seed remakes the sample trips on every start, so a seat on one lasts
 until the next deploy.
 
 Every change the admin makes to a trip's people is logged, as in Audit Differently (`Membership_9_admin_logged`):
 the `TripMember_9_admin_logged` trigger writes an `AccessLog` line (who, which trip, what changed, the old and new
-role). The Admin toolbox seats the admin as an organizer before it opens a trip, and logs every later open of a trip
-it already sits on (`admin_log_open`), so each look from the toolbox leaves a line. A seat stays until someone
-removes it, so a seated admin who goes straight to a trip's address is not logged again. The trip's members can read
+role). A plain look from the Admin toolbox is not logged (owner's decision, 2026-10-28); `admin_log_open` remains for
+"Make me the owner" on a trip the admin already sits on. The trip's members can read
 their trip's lines; nobody can write or change one but those functions. Its going and
 interested counts come from `admin_trip_counts()`, counts only, for the admin only.
 

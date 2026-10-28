@@ -2,6 +2,7 @@
 // what's paid on one line, then two tabs, Payments and Trip Status & Room.
 import type { Guest, Payment, TripRoom } from '@cc/types'
 import { useState } from 'react'
+import { useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
 import { Spot } from './ControlPanelPage'
@@ -17,7 +18,9 @@ const outlined =
 function useParts(props: DetailsProps) {
   const { g, trip, rooms, onUpdate, onDecide, onRead, onHistory, onReview, onLogOpen, onClose } =
     props
+  const admin = useAdminView()
   const canLog =
+    !admin &&
     g.status !== 'declined' &&
     !(trip.joinMode === 'accept_first' && g.status !== 'approved') &&
     g.signedAt
@@ -67,7 +70,7 @@ function useParts(props: DetailsProps) {
           value={g.roomId ?? ''}
           onChange={(e) => onUpdate(g, { roomId: e.target.value || null })}
           aria-label={`Room for ${g.firstName}`}
-          disabled={g.status === 'declined'}
+          disabled={admin || g.status === 'declined'}
         >
           <option value="">No room yet</option>
           {rooms

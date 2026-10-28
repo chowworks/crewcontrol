@@ -21,9 +21,9 @@ const TOOLS: {
     to: '/admin/trips',
     icon: Luggage,
     title: 'Trip admin',
-    text: 'Every trip on Travel HQ: who runs it, who has signed up, and a way into its Trip Control panel.',
-    sub: 'Every trip, with a way into each one’s Trip Control panel.',
-    how: 'Opening a trip’s Trip Control panel or editor seats you on it as an organizer, so you see its guests; every seat is written to the trip’s access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears seats on them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
+    text: 'Every trip on Travel HQ: who runs it and who has signed up, to look at read-only or hand to an owner.',
+    sub: 'Every trip, to look at read-only or hand to an owner.',
+    how: 'Control panel and Edit open a trip read-only: you see its guests and money but change nothing, and a look is not logged. To change a trip, add yourself on its People screen; every change you make to a trip’s people is written to its access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears people added to them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
   },
   {
     to: '/admin/requests',

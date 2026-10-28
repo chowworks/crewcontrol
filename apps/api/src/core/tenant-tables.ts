@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client'
 export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'Trip',
   'TripMember',
+  'TripInvite',
   'Guest',
   'Room',
   'AccessLog',

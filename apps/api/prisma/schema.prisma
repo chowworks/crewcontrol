@@ -53,6 +53,7 @@ model Trip {
   updatedAt           DateTime             @updatedAt
   guests              Guest[]
   members             TripMember[]
+  invites             TripInvite[]
   rooms               Room[]
   log                 TripLog[]
   agreements          AgreementSignature[]
@@ -239,6 +240,20 @@ model TripLog {
   @@index([tripId, at])
 }
 
+/// Someone invited to run a trip before they signed in; turned into a TripMember when they do (migration 20261028030000).
+model TripInvite {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId    String
+  email     String // lowercased
+  role      String // 'owner' | 'organizer'
+  invitedBy String
+  createdAt DateTime @default(now())
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, email])
+  @@index([email])
+}
+
 model AccessLog {
   id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   tripId        String
@@ -248,6 +263,7 @@ model AccessLog {
   role          String?
   oldRole       String?
   at            DateTime @default(now())
+  byAdmin       Boolean  @default(true)
 
   @@index([tripId])
 }

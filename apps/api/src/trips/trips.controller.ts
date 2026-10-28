@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common'
 import { RateLimiter } from '../core/rate-limit'
 import type { Caller } from '../auth/caller'
 import { runAsPublic } from '../core/tenant-context'
@@ -13,9 +24,12 @@ import {
   parseSlug,
   parseSystemSettings,
   parseTripInput,
+  parseTripPerson,
+  parseTripRole,
 } from './trip-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
+import { PeopleService } from './people.service'
 import { TripsService } from './trips.service'
 
 // Organizer endpoints: signed in with Clerk, the Organizer Terms accepted, and only for the caller's own trips
@@ -25,11 +39,14 @@ import { TripsService } from './trips.service'
 export class TripsController {
   constructor(
     private readonly trips: TripsService,
+    private readonly people: PeopleService,
     private readonly clerk: ClerkService
   ) {}
 
   @Get()
   async list(@CurrentCaller() caller: Caller) {
+    // Trips the caller was invited to before they first signed in show up here.
+    await this.people.claimInvites(caller)
     return withOwnerNames(await this.trips.list(caller), this.clerk)
   }
 
@@ -118,6 +135,55 @@ export class TripsController {
   update(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     return this.trips.update(id, parseTripInput(body), caller, parseSlug(body))
   }
+
+  // The trip's People screen: who runs it. Its owners add, change and remove them.
+  @Get(':id/people')
+  listPeople(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.people.list(id, caller, false)
+  }
+
+  @Post(':id/people')
+  addPerson(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.people.add(id, parseTripPerson(body), caller, false)
+  }
+
+  @Patch(':id/people/:userId')
+  setPersonRole(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.setRole(id, userId, parseTripRole(body), caller, false)
+  }
+
+  @Patch(':id/invites/:email')
+  setInviteRole(
+    @Param('id') id: string,
+    @Param('email') email: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.setInviteRole(id, email.toLowerCase(), parseTripRole(body), caller, false)
+  }
+
+  @Delete(':id/invites/:email')
+  cancelInvite(
+    @Param('id') id: string,
+    @Param('email') email: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.cancelInvite(id, email.toLowerCase(), caller, false)
+  }
+
+  @Delete(':id/people/:userId')
+  removePerson(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.remove(id, userId, caller, false)
+  }
 }
 
 @Controller('public/trips')
@@ -151,6 +217,7 @@ export class SampleTripsController {
 export class AdminController {
   constructor(
     private readonly trips: TripsService,
+    private readonly people: PeopleService,
     private readonly clerk: ClerkService
   ) {}
 
@@ -159,10 +226,99 @@ export class AdminController {
     return withOwnerNames(await this.trips.listAll(), this.clerk)
   }
 
+  // Any trip, read-only and without a seat (owner's decision, 2026-10-28): the Admin toolbox's Edit and Control panel.
+  // A plain look is not logged; to change the trip the admin adds itself on its People screen, which is.
+  @Get('trips/:id')
+  trip(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.get(id, caller, true)
+  }
+
+  @Get('trips/:id/rooms')
+  tripRooms(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.getRooms(id, caller, true)
+  }
+
+  @Get('trips/:id/agreement')
+  tripAgreement(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.agreement(id, caller, true)
+  }
+
+  @Get('trips/:id/log')
+  tripLog(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.log(id, caller, true)
+  }
+
+  @Get('trips/:id/guests/:guestId/agreement')
+  tripGuestAgreement(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.guestAgreement(id, guestId, caller, true)
+  }
+
+  @Get('trips/:id/guests/:guestId/history')
+  tripGuestHistory(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.guestHistory(id, guestId, caller, true)
+  }
+
   @Post('trips/:id/seat')
   seat(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     const asOwner = (body as { asOwner?: unknown } | null)?.asOwner === true
     return this.trips.seat(id, caller, asOwner)
+  }
+
+  // The trip's People screen: who runs it. Its owners add, change and remove them (here, the admin, on any trip).
+  @Get('trips/:id/people')
+  listPeople(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.people.list(id, caller, true)
+  }
+
+  @Post('trips/:id/people')
+  addPerson(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.people.add(id, parseTripPerson(body), caller, true)
+  }
+
+  @Patch('trips/:id/people/:userId')
+  setPersonRole(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.setRole(id, userId, parseTripRole(body), caller, true)
+  }
+
+  @Patch('trips/:id/invites/:email')
+  setInviteRole(
+    @Param('id') id: string,
+    @Param('email') email: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.setInviteRole(id, email.toLowerCase(), parseTripRole(body), caller, true)
+  }
+
+  @Delete('trips/:id/invites/:email')
+  cancelInvite(
+    @Param('id') id: string,
+    @Param('email') email: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.cancelInvite(id, email.toLowerCase(), caller, true)
+  }
+
+  @Delete('trips/:id/people/:userId')
+  removePerson(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.people.remove(id, userId, caller, true)
   }
 
   // What organizers asked for (other refund terms), newest first, with who asked.

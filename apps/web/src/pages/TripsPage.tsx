@@ -64,6 +64,9 @@ export function TripsPage() {
                 <Link to={`/organize/${t.id}`} className={rowButton()}>
                   Edit
                 </Link>
+                <Link to={`/organize/${t.id}/people`} className={rowButton()}>
+                  People
+                </Link>
                 {t.published && (
                   <Link to={`/t/${t.slug}`} className={rowButton()}>
                     Guest page

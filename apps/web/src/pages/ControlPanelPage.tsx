@@ -7,10 +7,11 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { AdminViewNote, useAdminView } from '@/components/AdminView'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
@@ -31,15 +32,16 @@ export function ControlPanelPage() {
   const [guestError, setGuestError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const toast = useToast()
+  const admin = useAdminView()
 
   useEffect(() => {
-    Promise.all([api.getTrip(id), api.getRooms(id)])
+    Promise.all([api.getTrip(id, admin), api.getRooms(id, admin)])
       .then(([t, r]) => {
         setTrip(t)
         setRooms(r)
       })
       .catch(() => setError('This trip could not be loaded.'))
-  }, [id])
+  }, [id, admin])
 
   /** True when the change saved; otherwise the reason shows on the page and in any open dialog. */
   async function save(change: () => Promise<OrganizerTrip>): Promise<boolean> {
@@ -126,11 +128,21 @@ export function ControlPanelPage() {
         <Logo />
         <div className="flex items-center gap-3">
           <Link
-            to="/organize"
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
+            to={admin ? '/admin/trips' : '/organize'}
+            aria-label={admin ? 'Trip admin' : 'Your trips'}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
           >
+            {/* On a phone the buttons show their icons only, so the header stays on one line. */}
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Your trips
+            <span className="hidden sm:inline">{admin ? 'Trip admin' : 'Your trips'}</span>
+          </Link>
+          <Link
+            to={admin ? `/admin/trips/${id}/people` : `/organize/${id}/people`}
+            aria-label="People"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
+          >
+            <Users className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">People</span>
           </Link>
           <AccountMenu />
         </div>
@@ -142,12 +154,14 @@ export function ControlPanelPage() {
           <h1 className="text-3xl font-extrabold">{trip.name}</h1>
         </div>
 
+        {admin && <AdminViewNote tripId={id} />}
         {guestError && (
           <p role="alert" className="font-semibold text-[#B42318]">
             {guestError}
           </p>
         )}
-        <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        {/* What needs the organizer is theirs to do, not an admin's. */}
+        {!admin && <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         <TripLogCard trip={trip} />
@@ -182,6 +196,7 @@ export function Spot({
   /** Buttons side by side (the Details layouts under review), not stacked. */
   row?: boolean
 }) {
+  const admin = useAdminView()
   // Where they stand (a label, with a word on their payment), then the buttons that change it (owner's decision,
   // 2026-10-26: the status never sits among the buttons as if it were one).
   const paid = g.payments.some((p) => p.status === 'confirmed')
@@ -255,11 +270,13 @@ export function Spot({
         </span>
         {detail && <span className="text-muted"> · {detail}</span>}
       </span>
-      <span
-        className={`flex ${row ? 'flex-row flex-wrap items-start gap-2' : 'flex-col items-start gap-1'}`}
-      >
-        {actions}
-      </span>
+      {!admin && (
+        <span
+          className={`flex ${row ? 'flex-row flex-wrap items-start gap-2' : 'flex-col items-start gap-1'}`}
+        >
+          {actions}
+        </span>
+      )}
     </span>
   )
 }
@@ -400,12 +417,13 @@ export function SignedCopy({
 }) {
   const [copy, setCopy] = useState<SignedAgreement | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const admin = useAdminView()
   useEffect(() => {
     api
-      .getGuestAgreement(tripId, guest.id)
+      .getGuestAgreement(tripId, guest.id, admin)
       .then(setCopy)
       .catch(() => setError('The signed copy could not be loaded.'))
-  }, [tripId, guest.id])
+  }, [tripId, guest.id, admin])
   // The agreement's text is a title, then sections ("1. The trip", a line break, its words) between blank lines.
   const blocks = (copy?.text ?? '').split(/\n\n+/)
   const proof = 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm'

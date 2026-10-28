@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { AdminView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
@@ -13,6 +14,7 @@ import { GuestTripPage } from './pages/GuestTripPage'
 import { HomePage } from './pages/HomePage'
 import { JoinPage } from './pages/JoinPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { PeoplePage } from './pages/PeoplePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { SignInPage } from './pages/SignInPage'
 import { TermsPage } from './pages/TermsPage'
@@ -76,6 +78,16 @@ export default function App() {
         }
       />
       <Route
+        path="/organize/:id/people"
+        element={
+          <RequireSignIn>
+            <OrganizerTerms>
+              <PeoplePage />
+            </OrganizerTerms>
+          </RequireSignIn>
+        }
+      />
+      <Route
         path="/admin"
         element={
           <RequireSignIn>
@@ -88,6 +100,34 @@ export default function App() {
         element={
           <RequireSignIn>
             <AdminTripsPage />
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/trips/:id/control"
+        element={
+          <RequireSignIn>
+            <AdminView.Provider value>
+              <ControlPanelPage />
+            </AdminView.Provider>
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/trips/:id/edit"
+        element={
+          <RequireSignIn>
+            <AdminView.Provider value>
+              <EditTripPage />
+            </AdminView.Provider>
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/trips/:id/people"
+        element={
+          <RequireSignIn>
+            <PeoplePage admin />
           </RequireSignIn>
         }
       />

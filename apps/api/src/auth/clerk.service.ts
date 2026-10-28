@@ -15,6 +15,7 @@ export class ClerkService {
     : null
   // Roles change rarely; a minute's cache saves a Clerk call on every request.
   private readonly roles = new Map<string, { role: string | null; at: number }>()
+  private readonly emails = new Map<string, { emails: string[]; at: number }>()
 
   constructor() {
     if (!this.secretKey)
@@ -45,6 +46,48 @@ export class ClerkService {
     }
     this.roles.set(userId, { role, at: Date.now() })
     return role === 'admin'
+  }
+
+  /** The user who signed in with this email, or null if nobody has (a trip's People screen adds only them). */
+  async userIdByEmail(email: string): Promise<string | null> {
+    if (!this.client) return null
+    const { data } = await this.client.users.getUserList({ emailAddress: [email], limit: 1 })
+    return data[0]?.id ?? null
+  }
+
+  /** A person's verified emails, lowercased: the ones a trip invite may be claimed with. Cached for a minute. */
+  async verifiedEmails(userId: string): Promise<string[]> {
+    const cached = this.emails.get(userId)
+    if (cached && Date.now() - cached.at < 60_000) return cached.emails
+    let emails: string[] = []
+    try {
+      const user = await this.client?.users.getUser(userId)
+      emails = (user?.emailAddresses ?? [])
+        .filter((e) => e.verification?.status === 'verified')
+        .map((e) => e.emailAddress.toLowerCase())
+    } catch (err) {
+      this.logger.warn(
+        `Could not read Clerk user ${userId}: ${err instanceof Error ? err.message : err}`
+      )
+    }
+    this.emails.set(userId, { emails, at: Date.now() })
+    return emails
+  }
+
+  /** Names and emails for user ids, for a trip's People screen. Unknown ids are left out. */
+  async people(userIds: string[]): Promise<Map<string, { name: string; email: string }>> {
+    const out = new Map<string, { name: string; email: string }>()
+    if (!this.client || userIds.length === 0) return out
+    try {
+      const { data } = await this.client.users.getUserList({ userId: userIds, limit: 100 })
+      for (const u of data) {
+        const email = u.primaryEmailAddress?.emailAddress ?? ''
+        out.set(u.id, { name: [u.firstName, u.lastName].filter(Boolean).join(' ') || email, email })
+      }
+    } catch (err) {
+      this.logger.warn(`Could not list Clerk users: ${err instanceof Error ? err.message : err}`)
+    }
+    return out
   }
 
   /** Display names for user ids, for the Admin toolbox. Unknown ids are left out. */

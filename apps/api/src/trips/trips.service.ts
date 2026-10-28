@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
+import { ClerkService } from '../auth/clerk.service'
 import { runAsSystem } from '../core/tenant-context'
 import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
@@ -33,6 +34,7 @@ import type {
   SystemSettings,
   TripInput,
   TripLogEntry,
+  TripRole,
   TripRoom,
   TripSummary,
 } from './trip-types'
@@ -68,7 +70,10 @@ function data(input: TripInput) {
 
 @Injectable()
 export class TripsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clerk: ClerkService
+  ) {}
 
   /** The system settings (one row), as the Admin toolbox's System Settings shows them. */
   async settings(): Promise<SystemSettings> {
@@ -156,10 +161,13 @@ export class TripsService {
     )
   }
 
-  /** A trip the caller works on; anyone else's reads as not found. An admin seats itself first (Admin toolbox). */
-  async get(id: string, caller: Caller): Promise<OrganizerTrip> {
+  /**
+   * A trip the caller works on; anyone else's reads as not found. `admin` is true only on the Admin toolbox's routes,
+   * where the admin mark reads any trip, read-only and without a seat (owner's decision, 2026-10-28).
+   */
+  async get(id: string, caller: Caller, admin = false): Promise<OrganizerTrip> {
     const row = await this.prisma.trip.findFirst({
-      where: { id, members: { some: { userId: caller.userId } } },
+      where: admin ? { id } : { id, members: { some: { userId: caller.userId } } },
       include: withGuests,
     })
     if (!row) throw new NotFoundException('Trip not found')
@@ -254,8 +262,8 @@ export class TripsService {
     )
   }
 
-  async getRooms(id: string, caller: Caller): Promise<TripRoom[]> {
-    await this.get(id, caller)
+  async getRooms(id: string, caller: Caller, admin = false): Promise<TripRoom[]> {
+    await this.get(id, caller, admin)
     const rows = await this.prisma.room.findMany({
       where: { tripId: id },
       orderBy: { position: 'asc' },
@@ -295,21 +303,31 @@ export class TripsService {
   }
 
   /** The agreement as guests of this trip would sign it today, for the organizer's preview. */
-  async agreement(id: string, caller: Caller): Promise<AgreementPreview> {
-    return agreementPreview(await this.get(id, caller))
+  async agreement(id: string, caller: Caller, admin = false): Promise<AgreementPreview> {
+    return agreementPreview(await this.get(id, caller, admin))
   }
 
   /** The agreement one guest signed, exactly as they saw it, with when and from where. */
-  async guestAgreement(id: string, guestId: string, caller: Caller): Promise<SignedAgreement> {
-    await this.get(id, caller)
+  async guestAgreement(
+    id: string,
+    guestId: string,
+    caller: Caller,
+    admin = false
+  ): Promise<SignedAgreement> {
+    await this.get(id, caller, admin)
     const sig = await this.prisma.agreementSignature.findFirst({ where: { guestId, tripId: id } })
     if (!sig) throw new NotFoundException('This guest has not signed the agreement')
     return toSignedAgreement(sig)
   }
 
   /** Everything that happened to one guest, oldest first, with room ids turned into names. */
-  async guestHistory(id: string, guestId: string, caller: Caller): Promise<GuestEvent[]> {
-    const trip = await this.get(id, caller)
+  async guestHistory(
+    id: string,
+    guestId: string,
+    caller: Caller,
+    admin = false
+  ): Promise<GuestEvent[]> {
+    const trip = await this.get(id, caller, admin)
     if (!trip.guests.some((g) => g.id === guestId)) throw new NotFoundException('Guest not found')
     return (await this.events(id, guestId)).map((e) => e.event)
   }
@@ -345,13 +363,18 @@ export class TripsService {
    * The trip log, newest first: joins refused because the email is already on the trip (who tried, from where), the
    * admin's seats and opens, and, if asked, every guest's history.
    */
-  async log(id: string, caller: Caller): Promise<TripLogEntry[]> {
-    const trip = await this.get(id, caller)
+  async log(id: string, caller: Caller, admin = false): Promise<TripLogEntry[]> {
+    const trip = await this.get(id, caller, admin)
     const [refused, access, events] = await Promise.all([
       this.prisma.tripLog.findMany({ where: { tripId: id } }),
       this.prisma.accessLog.findMany({ where: { tripId: id } }),
       this.events(id),
     ])
+    // Who changed the trip's people, and whom, by name from sign-in.
+    const people = await this.clerk.names([
+      ...new Set(access.flatMap((a) => [a.actorUserId, a.subjectUserId])),
+    ])
+    const person = (userId: string) => people.get(userId) ?? 'Someone'
     const name = (guestId: string) => {
       const g = trip.guests.find((x) => x.id === guestId)
       return g ? `${g.firstName} ${g.lastName}` : 'A guest'
@@ -368,9 +391,15 @@ export class TripsService {
         blocked: r.blocked,
       })),
       ...access.map((a) => ({
-        kind: 'admin' as const,
+        kind: 'people' as const,
         at: a.at.toISOString(),
-        action: a.action as Extract<TripLogEntry, { kind: 'admin' }>['action'],
+        action: a.action as Extract<TripLogEntry, { kind: 'people' }>['action'],
+        byAdmin: a.byAdmin,
+        actorName: person(a.actorUserId),
+        subjectName: person(a.subjectUserId),
+        self: a.actorUserId === a.subjectUserId,
+        role: a.role as TripRole | null,
+        oldRole: a.oldRole as TripRole | null,
       })),
       ...events.map((e) => ({
         kind: 'guest' as const,

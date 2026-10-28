@@ -116,7 +116,11 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   routes need a signed-in user. The sign-in guard tells the database who is calling (`identifyCaller`, and
   `identifyAdmin` on admin routes), and organizers see only the trips they are members of (`TripMember`, see
   `docs/tenant-isolation.md`). Admins (Clerk public metadata `{"role": "admin"}`) see every trip in the Admin
-  toolbox; opening one seats them on it as an organizer, and the database logs every seat (`AccessLog`). Sample
+  toolbox and open its Control panel and editor read-only, with no seat and no log line (owner's decision,
+  2026-10-28). To change a trip they add themselves on its People screen, and the database logs that (`AccessLog`).
+  A trip's owners add, change and remove its owners and organizers on the People screen (`/organize/<id>/people`), by
+  email. Someone who hasn't signed in yet is invited (`TripInvite`) and joins with that role when they first sign in
+  with that email, verified by Clerk (`PeopleService.claimInvites`, on Your trips). No email is sent yet. Sample
   trips have no owner. Guests sign in to join a trip (`/t/<slug>/join`, `Guest.userId`); row-level security keeps
   them to their own guest row, their own signature and the trips they joined. Reading a trip page needs no sign-in.
 - Texts and email to guests go through one function, `sendText` (`apps/api/src/join/send-text.ts`), mocked (logged,

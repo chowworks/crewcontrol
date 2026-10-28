@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
+import type { ClerkService } from '../auth/clerk.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import { TripsService } from './trips.service'
 
@@ -173,7 +174,7 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   }
-  const service = new TripsService(prisma as unknown as PrismaService)
+  const service = new TripsService(prisma as unknown as PrismaService, {} as ClerkService)
   return { service, writes, guests }
 }
 

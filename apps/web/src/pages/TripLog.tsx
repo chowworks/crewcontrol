@@ -1,12 +1,13 @@
 import type { OrganizerTrip, TripLogEntry } from '@cc/types'
 import { Download, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useAdminView } from '@/components/AdminView'
 import { api } from '@/lib/api'
 import { downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { eventText, IconCircle } from './TripGuests'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
-// already on the trip, the admin's visits, and, with the box ticked, every guest's history, newest first.
+// already on the trip, changes to who runs it (and the admin's visits), and, with the box ticked, every guest's history, newest first.
 
 const at = (iso: string) =>
   new Date(iso).toLocaleString('en-US', {
@@ -16,11 +17,23 @@ const at = (iso: string) =>
     minute: '2-digit',
   })
 
-const ADMIN: Record<Extract<TripLogEntry, { kind: 'admin' }>['action'], string> = {
-  insert: 'An admin joined the trip’s organizers',
-  update: 'An admin changed an organizer’s role',
-  delete: 'An organizer was removed by an admin',
-  open: 'An admin opened the trip',
+type PeopleEntry = Extract<TripLogEntry, { kind: 'people' }>
+const roleWord = (r: PeopleEntry['role']) => (r === 'owner' ? 'an owner' : 'an organizer')
+/** Who did it: the owner by name, the admin as "An admin". */
+const actor = (e: PeopleEntry) => (e.byAdmin ? 'An admin' : e.actorName)
+
+/** A change to who runs the trip, in plain words. */
+function peopleText(e: PeopleEntry): string {
+  if (e.action === 'open') return 'An admin opened the trip'
+  if (e.action === 'insert')
+    return e.self
+      ? `${actor(e)} joined as ${roleWord(e.role)}`
+      : `${actor(e)} added ${e.subjectName} as ${roleWord(e.role)}`
+  if (e.action === 'update')
+    return e.self
+      ? `${actor(e)} became ${roleWord(e.role)}`
+      : `${actor(e)} made ${e.subjectName} ${roleWord(e.role)}`
+  return e.self ? `${actor(e)} stepped down` : `${actor(e)} removed ${e.subjectName}`
 }
 
 function Line({ e }: { e: TripLogEntry }) {
@@ -39,10 +52,10 @@ function Line({ e }: { e: TripLogEntry }) {
         </div>
       </>
     )
-  if (e.kind === 'admin')
+  if (e.kind === 'people')
     return (
       <>
-        <div className="font-semibold">{ADMIN[e.action]}</div>
+        <div className="font-semibold">{peopleText(e)}</div>
         <div className="text-sm text-muted">{at(e.at)}</div>
       </>
     )
@@ -76,7 +89,7 @@ function row(e: TripLogEntry): (string | null)[] {
       e.ipAddress || null,
       e.userAgent || null,
     ]
-  if (e.kind === 'admin') return [stamp(e.at), ADMIN[e.action], null, 'An admin', null, null, null]
+  if (e.kind === 'people') return [stamp(e.at), peopleText(e), null, actor(e), null, null, null]
   const who =
     e.event.actor === 'guest'
       ? e.guestName
@@ -92,12 +105,13 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const [error, setError] = useState<string | null>(null)
   const [guests, setGuests] = useState(true)
   const [all, setAll] = useState(false)
+  const admin = useAdminView()
   useEffect(() => {
     api
-      .getTripLog(trip.id)
+      .getTripLog(trip.id, admin)
       .then(setEntries)
       .catch(() => setError('The trip log could not be loaded.'))
-  }, [trip])
+  }, [trip, admin])
   const shown = (entries ?? []).filter((e) => guests || e.kind !== 'guest')
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-card sm:p-6">

@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common'
-import { parsePaymentDecision, parsePaymentReport, parseTripInput } from './trip-input'
+import {
+  parsePaymentDecision,
+  parsePaymentReport,
+  parseTripInput,
+  parseTripPerson,
+} from './trip-input'
 
 const valid = {
   name: ' Aruba 2028 ',
@@ -115,6 +120,23 @@ describe('payments', () => {
     expect(() => parsePaymentDecision({ status: 'refunded' })).toThrow(BadRequestException)
     // Nothing arrived is "not received", not a confirmation of $0.
     expect(() => parsePaymentDecision({ status: 'confirmed', receivedPaymentAmount: 0 })).toThrow(
+      BadRequestException
+    )
+  })
+})
+
+describe('parseTripPerson', () => {
+  it('takes an email and a role, the email lowercased', () => {
+    expect(parseTripPerson({ email: ' Dana@Example.com ', role: 'owner' })).toEqual({
+      email: 'dana@example.com',
+      role: 'owner',
+    })
+  })
+
+  it('refuses a missing email, a non-email and an unknown role', () => {
+    expect(() => parseTripPerson({ email: '', role: 'organizer' })).toThrow(BadRequestException)
+    expect(() => parseTripPerson({ email: 'dana', role: 'organizer' })).toThrow(BadRequestException)
+    expect(() => parseTripPerson({ email: 'dana@example.com', role: 'admin' })).toThrow(
       BadRequestException
     )
   })

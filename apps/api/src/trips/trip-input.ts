@@ -25,6 +25,8 @@ import {
   type PaymentReport,
   type SystemSettings,
   type OrganizerRequestInput,
+  type TripPersonInput,
+  type TripRole,
 } from './trip-types'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -343,4 +345,17 @@ export function parseOrganizerRequest(raw: unknown): OrganizerRequestInput {
     tripId: typeof body.tripId === 'string' && body.tripId ? body.tripId : undefined,
     text: text(body, 'text', 2000),
   }
+}
+
+export function parseTripRole(raw: unknown): TripRole {
+  const role = (raw as Body | null)?.role
+  if (role !== 'owner' && role !== 'organizer') fail('role must be owner or organizer')
+  return role
+}
+
+export function parseTripPerson(raw: unknown): TripPersonInput {
+  if (!raw || typeof raw !== 'object') fail('Expected a person')
+  const email = text(raw as Body, 'email', 254).toLowerCase()
+  if (!EMAIL.test(email)) fail('Enter an email address')
+  return { email, role: parseTripRole(raw) }
 }

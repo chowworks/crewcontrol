@@ -86,6 +86,35 @@ export type GuestStatus = 'interested' | 'approved' | 'declined'
 /** A person's part in running a trip (TripMember.role): the owner decides who else organizes it. */
 export type TripRole = 'owner' | 'organizer'
 
+/** Someone who runs a trip, as its People screen lists them (name and email from sign-in). */
+export interface TripPerson {
+  userId: string
+  name: string
+  email: string
+  role: TripRole
+}
+
+/** Someone invited to run a trip who hasn't signed in yet: they join with this role when they do. */
+export interface TripInvite {
+  email: string
+  role: TripRole
+}
+
+/** A trip's People screen: who runs it, and whether the viewer may change that (its owners, and the admin). */
+export interface TripPeople {
+  tripName: string
+  isSample: boolean
+  canManage: boolean
+  people: TripPerson[]
+  invites: TripInvite[]
+}
+
+/** Adding someone who runs the trip by email; someone who hasn't signed in yet is invited (TripInvite). */
+export interface TripPersonInput {
+  email: string
+  role: TripRole
+}
+
 export interface Guest {
   id: string
   firstName: string
@@ -267,7 +296,20 @@ export type TripLogEntry =
       userAgent: string
       blocked: boolean
     }
-  | { kind: 'admin'; at: string; action: 'insert' | 'update' | 'delete' | 'open' }
+  | {
+      /** A change to who runs the trip (an owner's or the admin's), or the admin opening it. */
+      kind: 'people'
+      at: string
+      action: 'insert' | 'update' | 'delete' | 'open'
+      /** The admin did it: the log says "An admin", not their name. */
+      byAdmin: boolean
+      actorName: string
+      subjectName: string
+      /** They changed their own place (stepped down, or the admin added itself). */
+      self: boolean
+      role: TripRole | null
+      oldRole: TripRole | null
+    }
   | { kind: 'guest'; at: string; guestId: string; guestName: string; event: GuestEvent }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */

@@ -306,11 +306,16 @@ suite('trip isolation', () => {
     })
   })
 
-  it('shows the admin every trip and its people but no guest, and lets it seat people', async () => {
+  it('shows the admin every trip, its people and its guests read-only, and lets it seat people', async () => {
     await as(await person('a1', { admin: true }), async () => {
       expect(await ids('Trip')).toEqual(['S', 'T1', 'T2'])
       expect(await ids('TripMember')).toEqual(['M-T1-org', 'M-T1-owner', 'M-T2-owner'])
-      expect(await ids('Guest')).toEqual([])
+      // A look without a seat (owner's decision, 2026-10-28): it reads every guest and changes none.
+      expect(await ids('Guest')).toEqual(['G-S-a', 'G-S-i', 'G-T1-a', 'G-T1-i', 'G-T2-a', 'G-T2-i'])
+      expect(await attempt(`UPDATE "Guest" SET status = 'approved' WHERE id = 'G-T1-i'`)).toEqual({
+        rows: 0,
+      })
+      expect(await attempt(`DELETE FROM "Guest" WHERE id = 'G-T1-i'`)).toEqual({ rows: 0 })
       expect(await attempt(`UPDATE "Trip" SET name = 'x' WHERE id = 'T1'`)).toEqual({ rows: 0 })
       expect(await attempt(`DELETE FROM "Trip" WHERE id = 'T2'`)).toEqual({ rows: 0 })
       // Handing the sample trip to an organizer, or seating itself to work on it.
@@ -327,10 +332,46 @@ suite('trip isolation', () => {
     )
     try {
       await as(await person('a1', { admin: true }), async () => {
-        expect(await ids('Guest')).toEqual(['G-S-a', 'G-S-i'])
+        expect(await attempt(`UPDATE "Guest" SET status = 'approved' WHERE id = 'G-S-i'`)).toEqual({
+          rows: 1,
+        })
       })
     } finally {
       await db.query(`DELETE FROM "TripMember" WHERE id = 'M-S'`)
+    }
+  })
+
+  it("keeps a trip's invites to its members, lets its owners and the admin give them, and trusted work claim them", async () => {
+    const invite = (id: string, trip: string, email: string) =>
+      `INSERT INTO "TripInvite" (id, "tripId", email, role, "invitedBy") VALUES ('${id}', '${trip}', '${email}', 'organizer', 'x')`
+    await as(await person('u1'), async () => {
+      expect(await attempt(invite('I-u', 'T1', 'dana@example.com'))).toEqual({ rows: 1 })
+      expect(await attempt(invite('I-x', 'T2', 'dana@example.com'))).toEqual({ error: refused })
+      // Kept lowercased, so a sign-in in any case matches.
+      expect(await attempt(invite('I-y', 'T1', 'Dana2@example.com'))).toEqual({
+        error: expect.stringMatching(/TripInvite_email_check/),
+      })
+    })
+    await as(await person('a1', { admin: true }), async () => {
+      expect(await attempt(invite('I-a', 'T2', 'fay@example.com'))).toEqual({ rows: 1 })
+    })
+    await db.query(invite('I-1', 'T1', 'dana@example.com'))
+    await db.query(invite('I-2', 'T2', 'eve@example.com'))
+    try {
+      await as(await person('o1'), async () => {
+        expect(await ids('TripInvite')).toEqual(['I-1'])
+        expect(await attempt(invite('I-o', 'T1', 'gus@example.com'))).toEqual({ error: refused })
+        expect(await attempt(`DELETE FROM "TripInvite" WHERE id = 'I-1'`)).toEqual({ rows: 0 })
+      })
+      await as(await person('u2'), async () => {
+        expect(await ids('TripInvite')).toEqual(['I-2'])
+      })
+      await as({ system: true }, async () => {
+        expect(await ids('TripInvite')).toEqual(['I-1', 'I-2'])
+        expect(await attempt(`DELETE FROM "TripInvite" WHERE id = 'I-1'`)).toEqual({ rows: 1 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "TripInvite"`)
     }
   })
 
@@ -444,7 +485,8 @@ suite('trip isolation', () => {
       ).toEqual({ error: refused })
     })
     await as(await person('a1', { admin: true }), async () => {
-      expect(await ids('Room')).toEqual([])
+      expect(await ids('Room')).toEqual(['R-T1', 'R-T2'])
+      expect(await attempt(`UPDATE "Room" SET name = 'x' WHERE id = 'R-T1'`)).toEqual({ rows: 0 })
     })
   })
 
@@ -733,14 +775,25 @@ suite('trip isolation', () => {
       ).toEqual({ error: refused })
       expect(await attempt(`DELETE FROM "AccessLog"`)).toEqual({ rows: 0 })
     })
-    // An owner's own change to their trip's people is theirs to make, not the admin's, so it is not logged.
+    // An owner's change to their trip's people is logged too, as theirs (owner's decision, 2026-10-28).
     await as(await person('u1'), async () => {
       expect(
         await attempt(
           `INSERT INTO "TripMember" (id, "tripId", "userId", role) VALUES ('M-new', 'T1', 'o9', 'organizer')`
         )
       ).toEqual({ rows: 1 })
-      expect(await ids('AccessLog')).toEqual([])
+      const owner = await db.query(
+        `SELECT "actorUserId", action, "subjectUserId", role, "byAdmin" FROM "AccessLog" WHERE "tripId" = 'T1'`
+      )
+      expect(owner.rows).toEqual([
+        {
+          actorUserId: 'u1',
+          action: 'insert',
+          subjectUserId: 'o9',
+          role: 'organizer',
+          byAdmin: false,
+        },
+      ])
       expect(await attempt(`SELECT "admin_log_open"('T1')`)).toEqual({
         error: expect.stringMatching(/Admins only/),
       })

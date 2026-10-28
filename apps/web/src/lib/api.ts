@@ -22,6 +22,9 @@ import {
   type SystemSettings,
   type TripInput,
   type TripLogEntry,
+  type TripPeople,
+  type TripPersonInput,
+  type TripRole,
   type TripRoom,
   type TripSummary,
 } from '@cc/types'
@@ -96,26 +99,48 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 })
 
+const tripBase = (id: string, admin: boolean) => (admin ? `/admin/trips/${id}` : `/trips/${id}`)
+const peopleBase = (id: string, admin: boolean) => `${tripBase(id, admin)}/people`
+
 export const api = {
   listTrips: () => request<ListedTrip[]>('/trips'),
   myActions: () => request<MyActions>('/me/actions'),
-  getTrip: (id: string) => request<OrganizerTrip>(`/trips/${id}`),
+  // `admin`: the Admin toolbox's read-only look at a trip it doesn't sit on (components/AdminView.tsx).
+  getTrip: (id: string, admin = false) => request<OrganizerTrip>(tripBase(id, admin)),
   createTrip: (input: TripInput, slug?: string) =>
     request<OrganizerTrip>('/trips', json('POST', { ...input, slug })),
   updateTrip: (id: string, input: TripInput, slug?: string) =>
     request<OrganizerTrip>(`/trips/${id}`, json('PUT', { ...input, slug })),
   listSampleTrips: () => request<TripSummary[]>('/public/sample-trips'),
-  getRooms: (id: string) => request<TripRoom[]>(`/trips/${id}/rooms`),
+  getRooms: (id: string, admin = false) => request<TripRoom[]>(`${tripBase(id, admin)}/rooms`),
   setRooms: (id: string, rooms: TripRoom[]) =>
     request<TripRoom[]>(`/trips/${id}/rooms`, json('PUT', { rooms })),
   updateGuest: (id: string, guestId: string, update: GuestUpdate) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}`, json('PATCH', update)),
-  getAgreement: (id: string) => request<AgreementPreview>(`/trips/${id}/agreement`),
-  getGuestAgreement: (id: string, guestId: string) =>
-    request<SignedAgreement>(`/trips/${id}/guests/${guestId}/agreement`),
-  getTripLog: (id: string) => request<TripLogEntry[]>(`/trips/${id}/log`),
-  getGuestHistory: (id: string, guestId: string) =>
-    request<GuestEvent[]>(`/trips/${id}/guests/${guestId}/history`),
+  getAgreement: (id: string, admin = false) =>
+    request<AgreementPreview>(`${tripBase(id, admin)}/agreement`),
+  getGuestAgreement: (id: string, guestId: string, admin = false) =>
+    request<SignedAgreement>(`${tripBase(id, admin)}/guests/${guestId}/agreement`),
+  // A trip's People screen; `admin` uses the Admin toolbox's routes, which reach any trip without a seat.
+  getPeople: (id: string, admin: boolean) => request<TripPeople>(peopleBase(id, admin)),
+  addPerson: (id: string, input: TripPersonInput, admin: boolean) =>
+    request<TripPeople>(peopleBase(id, admin), json('POST', input)),
+  setPersonRole: (id: string, userId: string, role: TripRole, admin: boolean) =>
+    request<TripPeople>(`${peopleBase(id, admin)}/${userId}`, json('PATCH', { role })),
+  setInviteRole: (id: string, email: string, role: TripRole, admin: boolean) =>
+    request<TripPeople>(
+      `${tripBase(id, admin)}/invites/${encodeURIComponent(email)}`,
+      json('PATCH', { role })
+    ),
+  cancelInvite: (id: string, email: string, admin: boolean) =>
+    request<TripPeople>(`${tripBase(id, admin)}/invites/${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+    }),
+  removePerson: (id: string, userId: string, admin: boolean) =>
+    request<TripPeople | null>(`${peopleBase(id, admin)}/${userId}`, { method: 'DELETE' }),
+  getTripLog: (id: string, admin = false) => request<TripLogEntry[]>(`${tripBase(id, admin)}/log`),
+  getGuestHistory: (id: string, guestId: string, admin = false) =>
+    request<GuestEvent[]>(`${tripBase(id, admin)}/guests/${guestId}/history`),
   // The join page: a signed-in guest's own place on a trip.
   getJoin: (slug: string) => request<JoinView>(`/join/${slug}`),
   join: (slug: string, input: JoinInput) => request<JoinView>(`/join/${slug}`, json('POST', input)),
