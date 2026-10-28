@@ -18,6 +18,7 @@ import {
   type JoinInput,
   type JoinMode,
   PAYMENT_METHOD_KINDS,
+  type ExpenseInput,
   type PaymentDecision,
   type PaymentLog,
   type PaymentMethod,
@@ -168,6 +169,7 @@ export function parseOptions(raw: unknown): TripOptions {
     roomChoice,
     roomRequired: roomChoice && flag('roomRequired'),
     signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
+    vendorCosts: flag('vendorCosts'),
   }
 }
 
@@ -328,6 +330,21 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
     method: text(body, 'method', 160),
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
+  }
+}
+
+/** A vendor expense: who, what for, how much, and when it was paid or is due (either may be left out). */
+export function parseExpense(raw: unknown): ExpenseInput {
+  if (!raw || typeof raw !== 'object') fail('Expected an expense')
+  const body = raw as Body
+  const optionalDate = (key: string) =>
+    body[key] === null || body[key] === undefined || body[key] === '' ? null : date(body, key)
+  return {
+    payee: text(body, 'payee', 160),
+    description: text(body, 'description', 300, false),
+    amountCents: cents(body, 'amountCents'),
+    paidOn: optionalDate('paidOn'),
+    dueOn: optionalDate('dueOn'),
   }
 }
 

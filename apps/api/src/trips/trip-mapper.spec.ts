@@ -137,7 +137,7 @@ describe('toPublicTrip', () => {
         minPeople: 1,
       },
     ]
-    const view = toPublicTrip({ ...trip, options: {}, guests, rooms })
+    const view = toPublicTrip({ ...trip, options: { vendorCosts: true }, guests, rooms })
     expect(view.rooms).toEqual([])
     expect(view.options).toEqual({ roomChoice: false, roomRequired: false, signupNote: '' })
   })

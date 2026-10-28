@@ -3,6 +3,8 @@ import {
   type AcceptTermsInput,
   type AgreementPreview,
   type ContactInput,
+  type Expense,
+  type ExpenseInput,
   type GuestEvent,
   type GuestUpdate,
   type JoinInput,
@@ -150,6 +152,14 @@ export const api = {
     request<OrganizerTrip>(`/trips/${id}/payments/${paymentId}`, json('PATCH', decision)),
   logPayment: (id: string, guestId: string, log: PaymentLog) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
+  // Trip Financials' vendor expenses; `admin` reads them through the Admin toolbox.
+  getExpenses: (id: string, admin = false) => request<Expense[]>(`${tripBase(id, admin)}/expenses`),
+  addExpense: (id: string, input: ExpenseInput) =>
+    request<Expense[]>(`/trips/${id}/expenses`, json('POST', input)),
+  updateExpense: (id: string, expenseId: string, input: ExpenseInput) =>
+    request<Expense[]>(`/trips/${id}/expenses/${expenseId}`, json('PUT', input)),
+  removeExpense: (id: string, expenseId: string) =>
+    request<Expense[]>(`/trips/${id}/expenses/${expenseId}`, { method: 'DELETE' }),
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   getSettings: () => request<SystemSettings>('/admin/settings'),
   adminRequests: () => request<OrganizerRequest[]>('/admin/requests'),

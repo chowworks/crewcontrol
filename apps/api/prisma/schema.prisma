@@ -58,6 +58,7 @@ model Trip {
   log                 TripLog[]
   agreements          AgreementSignature[]
   payments            Payment[]
+  expenses            Expense[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -163,6 +164,23 @@ model GuestEvent {
   guest       Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 
   @@index([guestId, at, n])
+  @@index([tripId])
+}
+
+// Money the organizer pays out for the trip, a vendor's bill (migration 20261028040000_expenses). Recorded only, never
+// moved. Paid once paidOn is set; until then still owed, by dueOn when there is one. Its trip's members only.
+model Expense {
+  id              String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId          String
+  payee           String
+  description     String   @default("")
+  amountCents     Int
+  paidOn          String? // 'YYYY-MM-DD'
+  dueOn           String? // 'YYYY-MM-DD'
+  createdAt       DateTime @default(now())
+  createdByUserId String
+  trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
   @@index([tripId])
 }
 

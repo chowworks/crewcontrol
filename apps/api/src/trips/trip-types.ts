@@ -73,7 +73,7 @@ export interface PublicTrip {
   /** Rooms guests can ask for, with how many places are still open; empty unless room choice is on. */
   rooms: PublicRoom[]
   /** Room choice, whether a room is required, and the lines beside the sign-up button. */
-  options: TripOptions
+  options: PublicTripOptions
   /** Spots taken against maxGuests: accepted guests. */
   spotsTaken: number
   /** Someone joining now goes on the waitlist: the trip is full (or, where guests pay first, enough people can pay). */
@@ -237,6 +237,30 @@ export interface PaymentLog {
   note: string
 }
 
+/**
+ * Money the organizer pays out for the trip (the house, the resort, a chef), recorded only: Travel HQ never moves it.
+ * Paid once it has a paid date; until then it is still owed, by its due date if it has one. Organizers only.
+ */
+export interface Expense {
+  id: string
+  /** Who gets paid ("Seaside Rentals"). */
+  payee: string
+  /** What it's for ("House deposit"). */
+  description: string
+  amountCents: number
+  /** 'YYYY-MM-DD', the day it was paid; null while it is still owed. */
+  paidOn: string | null
+  /** 'YYYY-MM-DD', when it is due; optional. */
+  dueOn: string | null
+  createdAt: string
+}
+
+/** What the organizer types to add or change an expense. */
+export type ExpenseInput = Pick<
+  Expense,
+  'payee' | 'description' | 'amountCents' | 'paidOn' | 'dueOn'
+>
+
 /** A signed agreement, as the guest who signed it and the trip's organizers see it. */
 export interface SignedAgreement {
   text: string
@@ -324,13 +348,19 @@ export interface TripOptions {
   roomRequired: boolean
   /** A few lines guests read beside the sign-up button. */
   signupNote: string
+  /** Trip Financials tracks what the organizer pays vendors (issue #16). Organizer-only: never on a guest's page. */
+  vendorCosts: boolean
 }
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
   roomRequired: false,
   signupNote: '',
+  vendorCosts: false,
 }
+
+/** The options a guest's page sees: the organizer-only ones left out. */
+export type PublicTripOptions = Omit<TripOptions, 'vendorCosts'>
 
 export interface TripInput {
   name: string

@@ -375,6 +375,53 @@ suite('trip isolation', () => {
     }
   })
 
+  it("keeps a trip's vendor expenses to its members: the admin only reads them, guests never see them", async () => {
+    const expense = (id: string, trip: string) =>
+      `INSERT INTO "Expense" (id, "tripId", payee, "amountCents", "createdByUserId") VALUES ('${id}', '${trip}', 'Seaside Rentals', 50000, 'x')`
+    await db.query(expense('E-1', 'T1'))
+    await db.query(expense('E-2', 'T2'))
+    await insert(db, 'Guest', {
+      id: 'G-exp',
+      tripId: 'T1',
+      userId: 'g-exp',
+      email: 'gil@example.com',
+      status: 'approved',
+      firstName: 'Gil',
+      lastName: 'Guest',
+    })
+    try {
+      await as(await person('o1'), async () => {
+        expect(await ids('Expense')).toEqual(['E-1'])
+        expect(await attempt(expense('E-o', 'T1'))).toEqual({ rows: 1 })
+        expect(await attempt(expense('E-x', 'T2'))).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "Expense" SET "paidOn" = '2026-11-01'`)).toEqual({ rows: 2 })
+        expect(await attempt(`UPDATE "Expense" SET "tripId" = 'T2' WHERE id = 'E-1'`)).toEqual({
+          error: expect.stringMatching(/cannot be changed|row-level security/),
+        })
+        expect(await attempt(`DELETE FROM "Expense"`)).toEqual({ rows: 2 })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('Expense')).toEqual(['E-1', 'E-2'])
+        expect(await attempt(expense('E-a', 'T1'))).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "Expense" SET "amountCents" = 1`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "Expense"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('g-exp'), async () => {
+        expect(await ids('Expense')).toEqual([])
+        expect(await attempt(expense('E-g', 'T1'))).toEqual({ error: refused })
+      })
+      await as({ public: true }, async () => {
+        expect(await ids('Expense')).toEqual([])
+      })
+      await expect(db.query(`UPDATE "Expense" SET "amountCents" = 0`)).rejects.toThrow(
+        /Expense_amount_check/
+      )
+    } finally {
+      await db.query(`DELETE FROM "Expense"`)
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-exp'`)
+    }
+  })
+
   it('does not count the admin mark without a person', async () => {
     await as({ admin: true }, async () => {
       expect(await ids('Trip')).toEqual([])

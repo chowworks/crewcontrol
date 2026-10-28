@@ -59,6 +59,9 @@ Which of that the page shows stays the job of `toPublicTrip` and its spec.
   that hasn't signed in yet. The trip's members read its invites; its owners and the admin give, change and take them
   back. When someone signs in with that email (verified by Clerk), trusted work turns the invite into their
   `TripMember` row and deletes it (`PeopleService.claimInvites`), since nobody may seat themselves.
+- **Vendor expenses are the organizers' alone** (`Expense`, migration `20261028040000_expenses`): what the
+  organizer pays out for the trip. The trip's members read, add, change and remove them, the admin reads them, and no
+  guest or public page sees them.
 - **Members read and write the trip and its guests.** Owners alone change the trip's people and delete it. What an
   organizer may do beyond that is the application's rule.
 - **What a row belongs to cannot change** (`_3_keep`): a guest cannot move to another trip, a membership cannot
