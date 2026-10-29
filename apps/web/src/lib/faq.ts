@@ -10,7 +10,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'What if someone drops out?',
-    a: 'You set the trip terms, like deposits, deadlines and refunds. Guests agree to them when they join, so everyone knows the deal before anyone pays.',
+    a: 'You set the price and the installments, and pick your refund terms. Guests agree to them when they join, so everyone knows the deal before anyone pays.',
   },
   {
     q: 'Who can see my friends’ phone numbers and emails?',

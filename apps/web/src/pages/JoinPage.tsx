@@ -274,7 +274,7 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
                 trip.joinMode === 'first_come'
                   ? 'Spots go first come, first served, in the order payments are confirmed.'
                   : `${trip.organizerName} accepts the crew once payments arrive.`
-              } If you don’t get a spot, you get a full refund.`}
+              } If you don’t get a spot, ${trip.organizerName} refunds you in full.`}
         </p>
       )}
       {(error || (tried && Object.keys(problems).length > 0)) && (

@@ -9,11 +9,12 @@ import type {
 
 /**
  * Travel HQ's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
- * decision, 2026-10-21); they pick a refund policy from presets this file words (owner's decision, 2026-10-26). Change the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it:
- * this first version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
+ * decision, 2026-10-21); they pick a refund policy from presets this file words (owner's decision, 2026-10-26). Travel
+ * HQ supplies the form but is not a party: every term reads as the organizer's (owner's decision, 2026-10-28). Change
+ * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-27'
+export const TEMPLATE_VERSION = '2026-10-29'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -22,6 +23,8 @@ export interface AgreementFacts {
   startDate: string
   endDate: string
   organizerName: string
+  /** Who the agreement is with, from the trip owner's sign-in (TripsService.organizerContact); none on sample trips. */
+  organizer?: { name: string; email: string } | null
   costPerPersonCents: number
   installmentCount: number
   joinMode: string
@@ -43,8 +46,9 @@ export function firstInstallmentCents(priceCents: number, installmentCount: numb
 }
 
 /**
- * The refund promise. Turning a paid guest down needs the organizer to say they sent this refund. What happens when a
- * guest drops out follows the trip's refund policy; `firstCents` is the first payment their plan asks for.
+ * The refund terms. The drop-out rule is the organizer's pick (the trip's refund policy); the rest every trip on
+ * Travel HQ has, and organizers accept them in the Organizer Terms. Turning a paid guest down needs the organizer to say
+ * they sent this refund. `firstCents` is the first payment the guest's plan asks for.
  */
 export function refundTerms(
   organizer: string,
@@ -52,20 +56,24 @@ export function refundTerms(
   refundPolicy: string,
   firstCents: number
 ): string {
+  const dropOut =
+    (refundPolicy as RefundPolicy) === 'first_payment_kept'
+      ? `If you drop out after you're accepted, your first payment (${money(firstCents)}) isn't refunded. Money ` +
+        `you paid after it comes back only if ${organizer} fills your spot, and only as much as that person pays ` +
+        `for it.`
+      : `If you drop out after you're accepted, money you paid comes back only if ${organizer} fills your spot, ` +
+        `and only as much as that person pays for it.`
   const before =
     joinMode === 'accept_first'
       ? `You pay nothing until ${organizer} accepts you. If ${organizer} turns you down after you paid anything, ` +
         `${organizer} refunds it in full.`
       : `If ${organizer} does not accept you, or the trip is full by the time your payment is confirmed, ` +
         `${organizer} refunds everything you paid, in full.`
-  const dropOut =
-    (refundPolicy as RefundPolicy) === 'first_payment_kept'
-      ? `If you drop out after you are accepted, your first payment (${money(firstCents)}) is not refunded. Money ` +
-        `you paid after it comes back only if ${organizer} fills your spot with someone else, and only as much as ` +
-        `that person pays for it.`
-      : `If you drop out after you are accepted, money you paid comes back only if ${organizer} fills your spot ` +
-        `with someone else, and only as much as that person pays for it.`
-  return `${before} ${dropOut} If ${organizer} removes you from the trip, ${organizer} refunds everything you paid.`
+  return (
+    `${organizer} chose this for the trip: ${dropOut} Every trip run on Travel HQ also has these terms, and ` +
+    `${organizer} agreed to them: ${before} If ${organizer} removes you from the trip, ${organizer} refunds ` +
+    `everything you paid.`
+  )
 }
 
 function spotTerms(organizer: string, joinMode: JoinMode): string {
@@ -82,29 +90,43 @@ function spotTerms(organizer: string, joinMode: JoinMode): string {
   )
 }
 
-/** The agreement for a trip as it stands now, as plain text with blank lines between sections. */
+/**
+ * The agreement for a trip as it stands now, as plain text with blank lines between sections. Every promise in it is
+ * worded as the organizer's: Travel HQ supplies the form and is not a party (owner's decision, 2026-10-28).
+ */
 export function agreementText(trip: AgreementFacts): string {
   const o = trip.organizerName
+  // "Nia Thompson ("Nia", nia@example.com)": the organizer's name and email from sign-in, beside the name the pages use.
+  const name = trip.organizer?.name.trim()
+  const email = trip.organizer?.email.trim()
+  const aka = [name && name !== o ? `"${o}"` : '', email].filter(Boolean).join(', ')
+  const party = `${name || o}${aka ? ` (${aka})` : ''}`
   const first = firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
   const plan =
     trip.installmentCount <= 1
       ? `paid in one payment of ${money(trip.costPerPersonCents)}`
       : `paid in ${trip.installmentCount} installments, the first of ${money(first)}`
   return [
-    `Trip agreement for ${trip.name}`,
-    `This is an agreement between you and ${o}, who organizes the trip. Travel HQ is the app the trip is run ` +
-      `with. It is not a party to this agreement, and it never holds or moves your money.`,
-    `1. The trip\n${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}.`,
+    `Trip agreement between you and ${o}`,
+    `This agreement is between you, the guest, and ${party}, who organizes ${trip.name}. Every promise in it ` +
+      `is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
+      `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
+      `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
+      `wrong, you and ${o} settle it between you.`,
+    `1. The trip\n${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}. ${o} can ` +
+      `change the trip's details; section 5 says what happens if ${o} does.`,
     `2. Your price\n${money(trip.costPerPersonCents)} per person, ${plan}. You pay ${o} directly, the way ` +
-      `${o}'s payment instructions say.`,
+      `${o}'s payment instructions say. ${o} can't raise your price after you sign. Travel HQ keeps a record of ` +
+      `the payments you and ${o} report; when ${o} confirms a payment there, that is ${o}'s receipt, not ` +
+      `Travel HQ's.`,
     `3. Your spot\n${spotTerms(o, trip.joinMode as JoinMode)}`,
-    `4. Refunds\n${refundTerms(o, trip.joinMode, trip.refundPolicy, first)}`,
-    `5. If the trip changes\nIf ${o} changes the trip's dates or destination after you sign, you may leave the ` +
-      `trip for a full refund of what you paid, or stay on.`,
-    `6. The organizer's role\n${o} collects the group's money and pays the trip's costs on the group's behalf. ` +
-      `${o} is not a travel company.`,
-    `7. Signing\nYou're signing electronically: your typed name and ticking "I agree" are your signature. You can ` +
-      `ask ${o} for a paper copy instead. You get a copy of what you signed.`,
+    `4. ${o}'s refund terms\n${refundTerms(o, trip.joinMode, trip.refundPolicy, first)}`,
+    `5. If the trip changes or is cancelled\nIf ${o} changes the trip's dates or destination after you sign, ` +
+      `${o} tells you. If you can't make the new plan, or ${o} cancels the trip, ${o} refunds what you paid, ` +
+      `less any money ${o} already spent on the trip and can't get back; ${o} shows you what that was.`,
+    `6. Signing\nYou're signing electronically: your typed name and ticking "I agree" are your signature. You ` +
+      `can ask ${o} for a paper copy instead. Travel HQ keeps a copy of what you signed, and you and ${o} can ` +
+      `see it any time.`,
   ].join('\n\n')
 }
 

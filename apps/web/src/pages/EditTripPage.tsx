@@ -1155,7 +1155,7 @@ const JOIN_MODES = [
   {
     value: 'first_come',
     label: 'First to pay gets in',
-    hint: 'Spots go in the order you confirm payments arrived. You don’t choose; the money does. Best for popular trips where fairness matters more than picking. Anyone who pays after the trip fills gets a full refund.',
+    hint: 'Spots go in the order you confirm payments arrived. You don’t choose; the money does. Best for popular trips where fairness matters more than picking. Anyone who pays after the trip fills gets a full refund from you.',
   },
 ] as const
 

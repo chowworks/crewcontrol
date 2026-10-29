@@ -75,9 +75,9 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
             </p>
             <p className="rounded-[10px] bg-royal-pale px-3 py-2.5 text-sm text-body">
               {trip.joinMode === 'first_come'
-                ? `Sign the trip agreement and pay ${trip.organizerName}. Spots go first come, first served, in the order payments are confirmed. If the trip fills first, you get a full refund.`
+                ? `Sign the trip agreement and pay ${trip.organizerName}. Spots go first come, first served, in the order payments are confirmed. If the trip fills first, ${trip.organizerName} refunds you in full.`
                 : trip.joinMode === 'pay_first'
-                  ? `Sign the trip agreement and pay ${trip.organizerName}, who then accepts the crew. If you’re not accepted, you get a full refund.`
+                  ? `Sign the trip agreement and pay ${trip.organizerName}, who then accepts the crew. If you’re not accepted, ${trip.organizerName} refunds you in full.`
                   : `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you’ll see how to pay.`}
             </p>
           </div>
