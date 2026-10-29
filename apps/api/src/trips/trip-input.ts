@@ -18,9 +18,12 @@ import {
   type GuestUpdate,
   type JoinInput,
   type JoinMode,
+  DISMISS_RECEIPT_REASONS,
   PAYMENT_METHOD_KINDS,
   REMIND_DAYS,
   type BalanceAdjustmentInput,
+  type DismissReceiptReason,
+  type MatchReceiptInput,
   type ExpenseInput,
   type PaymentDecision,
   type PaymentLog,
@@ -217,6 +220,7 @@ export function parseOptions(raw: unknown): TripOptions {
     roomRequired: roomChoice && flag('roomRequired'),
     signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
     vendorCosts: flag('vendorCosts'),
+    confirmReceipts: flag('confirmReceipts'),
   }
 }
 
@@ -434,6 +438,27 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
   }
+}
+
+/** Matching a forwarded receipt to a guest: who, how much and the day it was sent. */
+export function parseMatchReceipt(raw: unknown): MatchReceiptInput {
+  if (!raw || typeof raw !== 'object') fail('Expected a guest to match it to')
+  const body = raw as Body
+  return {
+    guestId: text(body, 'guestId', 100),
+    amountCents: cents(body, 'amountCents'),
+    sentOn: date(body, 'sentOn'),
+    confirm: body.confirm === true,
+    remember: body.remember === true,
+  }
+}
+
+/** Why a forwarded receipt is dismissed, from the fixed list. */
+export function parseDismissReceipt(raw: unknown): DismissReceiptReason {
+  const reason = (raw as Body | null)?.reason
+  if (!DISMISS_RECEIPT_REASONS.includes(reason as DismissReceiptReason))
+    fail('Say why it’s dismissed')
+  return reason as DismissReceiptReason
 }
 
 /** A credit or charge on a guest's balance: which, how much, and why (required). */

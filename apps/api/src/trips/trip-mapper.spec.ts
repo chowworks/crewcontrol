@@ -29,6 +29,7 @@ const trip: Trip = {
   keyDates: [],
   options: { roomChoice: true },
   createdAt: new Date(),
+  receiptsAddress: null,
   updatedAt: new Date(),
 }
 
@@ -156,7 +157,12 @@ describe('toPublicTrip', () => {
         minPeople: 1,
       },
     ]
-    const view = toPublicTrip({ ...trip, options: { vendorCosts: true }, guests, rooms })
+    const view = toPublicTrip({
+      ...trip,
+      options: { vendorCosts: true, confirmReceipts: true },
+      guests,
+      rooms,
+    })
     expect(view.rooms).toEqual([])
     expect(view.options).toEqual({ roomChoice: false, roomRequired: false, signupNote: '' })
   })

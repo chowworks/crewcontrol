@@ -1,6 +1,7 @@
 import {
   TERMS_REQUIRED_CODE,
   type AcceptTermsInput,
+  type AdminForwardedReceipts,
   type AgreementPreview,
   type BalanceAdjustmentInput,
   type ContactInput,
@@ -13,6 +14,10 @@ import {
   type ExpenseInput,
   type GuestEvent,
   type GuestUpdate,
+  type DismissReceiptReason,
+  type MatchReceiptInput,
+  type ReceiptProof,
+  type TripReceipts,
   type ClaimInput,
   type JoinInput,
   type JoinMode,
@@ -164,6 +169,26 @@ export const api = {
     request<OrganizerTrip>(`/trips/${id}/payments/${paymentId}`, json('PATCH', decision)),
   logPayment: (id: string, guestId: string, log: PaymentLog) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
+  // Forwarded receipts (issue #12): the trip's address, matching or dismissing one the worker couldn't place, and the
+  // email a payment was read from.
+  setReceiptsAddress: (id: string, address: string) =>
+    request<TripReceipts>(`/trips/${id}/receipts-address`, json('PUT', { address })),
+  matchReceipt: (id: string, receiptId: string, input: MatchReceiptInput) =>
+    request<OrganizerTrip>(`/trips/${id}/receipts/${receiptId}/match`, json('POST', input)),
+  dismissReceipt: (id: string, receiptId: string, reason: DismissReceiptReason) =>
+    request<OrganizerTrip>(`/trips/${id}/receipts/${receiptId}/dismiss`, json('POST', { reason })),
+  forgetReceiptSender: (id: string, senderId: string) =>
+    request<OrganizerTrip>(`/trips/${id}/receipt-senders/${senderId}`, { method: 'DELETE' }),
+  getReceiptProof: (id: string, paymentId: string, admin = false) =>
+    request<ReceiptProof>(`${tripBase(id, admin)}/payments/${paymentId}/receipt`),
+  adminForwardedReceipts: () => request<AdminForwardedReceipts>('/admin/forwarded-receipts'),
+  adminRunReceiptAgain: (id: string) =>
+    request<AdminForwardedReceipts>(`/admin/forwarded-receipts/${id}/run-again`, json('POST', {})),
+  adminReleaseAddress: (id: string, receivedSinceRemoval: number) =>
+    request<AdminForwardedReceipts>(
+      `/admin/receipts-addresses/${id}/release`,
+      json('POST', { receivedSinceRemoval })
+    ),
   // A credit or charge on a guest's balance (issue #17); removing one keeps it on record, marked removed.
   addAdjustment: (id: string, guestId: string, input: BalanceAdjustmentInput) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/adjustments`, json('POST', input)),

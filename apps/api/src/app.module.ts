@@ -7,6 +7,7 @@ import { JoinModule } from './join/join.module'
 import { MessagingModule } from './messaging/messaging.module'
 import { PhotosModule } from './photos/photos.module'
 import { PrismaModule } from './prisma/prisma.module'
+import { ReceiptsModule } from './receipts/receipts.module'
 import { RemindersModule } from './reminders/reminders.module'
 import { TermsModule } from './terms/terms.module'
 import { TripsModule } from './trips/trips.module'
@@ -23,6 +24,7 @@ import { TripsModule } from './trips/trips.module'
     TermsModule,
     MessagingModule,
     RemindersModule,
+    ReceiptsModule,
   ],
 })
 export class AppModule implements NestModule {

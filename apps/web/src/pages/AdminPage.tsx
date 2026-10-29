@@ -1,4 +1,5 @@
 import {
+  Inbox,
   Luggage,
   Mail,
   MailWarning,
@@ -55,6 +56,14 @@ const TOOLS: {
     text: 'Emails that bounced, were blocked or were marked as spam, on every trip, and who they were for.',
     sub: 'Bounces, blocked sends and spam complaints, newest first.',
     how: 'Resend, which sends Travel HQ’s email, tells us each time an email bounces, is blocked because that address bounced before, or is marked as spam. Each one is listed here with the guests on that address. Their organizer sees the same problem in Trip Control’s Actions and fixes the address there; then it shows as fixed. Resend stops sending to a bad address on its own, so nothing here needs you unless a guest asks why they get no email.',
+  },
+  {
+    to: '/admin/forwarded-receipts',
+    icon: Inbox,
+    title: 'Forwarded receipts',
+    text: 'Forwarded payment emails that reached no trip or failed, and every receipts address used.',
+    sub: 'Emails that reached no trip or failed, and the addresses trips have used.',
+    how: 'Each trip has its own receipts address, chosen by its organizers in the trip editor. A receipt that names a guest becomes their payment; anything else waits in that trip’s Actions. Mail from nobody on the trip that isn’t a payment is refused. Organizers can change an address but never clear it, and an address used once is held so no other trip gets mail meant for the old one. Release it here once nothing has arrived at it for a while; any trip can choose it after that. This page lists only what reached no trip or went wrong: a recorded or matched email is its trip’s. An email Resend couldn’t hand over after five tries shows as Failed; Run again tries once more. Emails are kept for 30 days.',
   },
   {
     to: '/admin/settings',
