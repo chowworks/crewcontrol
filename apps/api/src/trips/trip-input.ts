@@ -14,6 +14,7 @@ import {
   type TripPhoto,
   type TripRoom,
   type BedType,
+  type ClaimInput,
   type GuestUpdate,
   type JoinInput,
   type JoinMode,
@@ -245,7 +246,10 @@ export function parseJoin(raw: unknown): JoinInput {
   const roomId = typeof body.roomId === 'string' && body.roomId ? body.roomId : null
   const roomNote = body.roomNote === undefined ? '' : text(body, 'roomNote', 200, false)
   const typedName = text(body, 'typedName', 120)
-  if (!sameName(typedName, name)) fail('Type your full name exactly as you wrote it above')
+  // Signing up someone else, the signer types their own name, not the traveler's.
+  const onBehalf = body.onBehalf === undefined ? false : bool(body, 'onBehalf')
+  if (!onBehalf && !sameName(typedName, name))
+    fail('Type your full name exactly as you wrote it above')
   if (body.agreed !== true) fail('Tick “I agree” to sign')
   const agreementHash = text(body, 'agreementHash', 64)
   const termsVersion = body.termsVersion === undefined ? undefined : text(body, 'termsVersion', 64)
@@ -261,7 +265,17 @@ export function parseJoin(raw: unknown): JoinInput {
     agreed: true,
     agreementHash,
     ...(termsVersion === undefined ? {} : { termsVersion, termsAgreed: true }),
+    ...(onBehalf ? { onBehalf: true } : {}),
   }
+}
+
+/** Taking over a place someone signed you up with: the Terms of Use version ticked, when asked. */
+export function parseClaim(raw: unknown): ClaimInput {
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Body
+  if (body.termsVersion === undefined) return {}
+  const termsVersion = text(body, 'termsVersion', 64)
+  if (body.termsAgreed !== true) fail('Tick the box to agree to Travel HQ’s Terms of Use')
+  return { termsVersion, termsAgreed: true }
 }
 
 /** "Jordan Price" → ["Jordan", "Price"]; everything after the first word is the last name. */
@@ -287,6 +301,11 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
       fail('roomId must be a room or null')
     update.roomId = body.roomId || null
   }
+  if (body.managedBy !== undefined) {
+    if (body.managedBy !== null && (typeof body.managedBy !== 'string' || !body.managedBy))
+      fail('managedBy must be a guest or null')
+    update.managedBy = body.managedBy
+  }
   return update
 }
 
@@ -305,7 +324,21 @@ export function parsePaymentReport(raw: unknown): PaymentReport {
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
     certified: true,
+    ...(body.forGuests === undefined ? {} : { forGuests: shares(body.forGuests) }),
   }
+}
+
+/** Who one payment covers and each one's share: one to twenty travelers, each with an amount. */
+function shares(raw: unknown): { guestId: string; amount: number }[] {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 20)
+    fail('forGuests must list who the payment is for')
+  return raw.map((x: unknown) => {
+    if (!x || typeof x !== 'object') fail('forGuests must list who the payment is for')
+    const share = x as Body
+    if (typeof share.guestId !== 'string' || !share.guestId || share.guestId.length > 64)
+      fail('forGuests must name each guest')
+    return { guestId: share.guestId, amount: cents(share, 'amount') }
+  })
 }
 
 export function parsePaymentDecision(raw: unknown): PaymentDecision {
@@ -313,8 +346,25 @@ export function parsePaymentDecision(raw: unknown): PaymentDecision {
   const body = raw as Body
   if (body.status !== 'confirmed' && body.status !== 'not_received' && body.status !== 'reported')
     fail('status must be confirmed, not_received or reported')
-  if (body.status !== 'confirmed' || body.receivedPaymentAmount === undefined)
-    return { status: body.status }
+  if (body.status !== 'confirmed') return { status: body.status }
+  if (body.shares !== undefined) {
+    if (!Array.isArray(body.shares) || body.shares.length === 0 || body.shares.length > 20)
+      fail('shares must list what arrived for each payment')
+    return {
+      status: 'confirmed',
+      shares: body.shares.map((x: unknown) => {
+        if (!x || typeof x !== 'object') fail('Expected a share')
+        const share = x as Body
+        if (typeof share.paymentId !== 'string' || !share.paymentId) fail('paymentId is required')
+        // Nothing arrived for one of them is less on another, or "not received" for the transfer.
+        return {
+          paymentId: share.paymentId,
+          receivedPaymentAmount: cents(share, 'receivedPaymentAmount'),
+        }
+      }),
+    }
+  }
+  if (body.receivedPaymentAmount === undefined) return { status: 'confirmed' }
   return {
     status: 'confirmed',
     // Nothing arrived is "not received", never a confirmation of $0.

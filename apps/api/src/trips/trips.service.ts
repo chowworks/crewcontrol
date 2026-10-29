@@ -26,6 +26,7 @@ import type {
   Guest,
   GuestUpdate,
   OrganizerTrip,
+  Payment,
   PaymentDecision,
   PaymentLog,
   PublicTrip,
@@ -476,6 +477,42 @@ export class TripsService {
     }
     if (update.refundSent && status !== 'declined')
       throw new BadRequestException('Tick “Refund sent” only when turning a guest down')
+    // Who looks after the guest (issue #11): another guest on the trip with an account of their own, or the guest
+    // themselves, which needs an account of their own too.
+    let managedByUserId: string | null | undefined
+    if (update.managedBy !== undefined) {
+      if (update.managedBy === guestId)
+        throw new BadRequestException(`Pick someone other than ${guest.firstName}`)
+      const by = update.managedBy
+        ? await this.prisma.guest.findFirst({
+            where: { id: update.managedBy, tripId: id },
+            select: { userId: true },
+          })
+        : null
+      if (update.managedBy && !by?.userId)
+        throw new BadRequestException('Pick a guest who signed in to join')
+      // Handing a guest to someone else makes them able to sign for them: only once the guest has signed.
+      if (update.managedBy && !guest.signedAt)
+        throw new BadRequestException(
+          `${guest.firstName} hasn’t signed the trip agreement, so nobody else can handle it`
+        )
+      if (!update.managedBy && !guest.hasAccount)
+        throw new BadRequestException(
+          `${guest.firstName} hasn’t signed in yet, so someone has to look after them`
+        )
+      // One email per trip holds for guests who look after themselves.
+      if (
+        !update.managedBy &&
+        trip.guests.some(
+          (x) =>
+            x.id !== guestId && !x.managedBy && x.email.toLowerCase() === guest.email.toLowerCase()
+        )
+      )
+        throw new ConflictException(
+          `${guest.firstName} shares an email with another guest. Change one of them first.`
+        )
+      managedByUserId = by?.userId ?? null
+    }
     // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
     const restart = guest.status === 'declined' && status === 'interested' && guest.refundSentAt
     if (status === 'approved' && guest.status !== 'approved') {
@@ -523,6 +560,7 @@ export class TripsService {
             ...(restart ? { refundSentAt: null } : {}),
             ...(update.offerSpot ? { offeredAt: new Date() } : {}),
             ...(update.withdrawOffer ? { offeredAt: null } : {}),
+            ...(managedByUserId === undefined ? {} : { managedByUserId }),
           },
         })
         // The refund sends back what arrived, so those payments stop counting; undoing it counts them again. A guest
@@ -557,7 +595,8 @@ export class TripsService {
 
   /**
    * The organizer decides a reported payment: it arrived (what the guest said they sent, unless they say otherwise), it
-   * didn't, or undo that. On a first come trip a payment that pays the spot takes the next one.
+   * didn't, or undo that. On a first come trip a payment that pays the spot takes the next one. One transfer for several
+   * travelers is decided as one (owner's decision, 2026-10-28), with what arrived for each when it differs.
    */
   async decidePayment(
     id: string,
@@ -566,49 +605,71 @@ export class TripsService {
     caller: Caller
   ): Promise<OrganizerTrip> {
     const trip = await this.get(id, caller)
-    const guest = trip.guests.find((g) => g.payments.some((p) => p.id === paymentId))
-    const payment = guest?.payments.find((p) => p.id === paymentId)
-    if (!guest || !payment) throw new NotFoundException('Payment not found')
-    if (payment.status === 'refunded') throw new BadRequestException('That payment was refunded')
+    const all = trip.guests.flatMap((guest) =>
+      guest.payments.map((payment) => ({ guest, payment }))
+    )
+    const hit = all.find((x) => x.payment.id === paymentId)
+    if (!hit) throw new NotFoundException('Payment not found')
+    const transfer = hit.payment.transferId
+    const group = transfer ? all.filter((x) => x.payment.transferId === transfer) : [hit]
     const confirmed = decision.status === 'confirmed'
-    const received = confirmed
-      ? (decision.receivedPaymentAmount ?? payment.guestPaymentAmount)
-      : null
+    if (decision.shares) {
+      const ids = new Set(decision.shares.map((x) => x.paymentId))
+      if (ids.size !== group.length || group.some((x) => !ids.has(x.payment.id)))
+        throw new BadRequestException('Say what arrived for each person this payment was for')
+    }
+    if (group.length > 1 && decision.receivedPaymentAmount !== undefined)
+      throw new BadRequestException('Say what arrived for each person this payment was for')
+    const receivedFor = (p: Payment) =>
+      confirmed
+        ? (decision.shares?.find((x) => x.paymentId === p.id)?.receivedPaymentAmount ??
+          decision.receivedPaymentAmount ??
+          p.guestPaymentAmount)
+        : null
     // The same decision again changes nothing, except correcting what arrived on a confirmed payment.
-    if (
-      decision.status === payment.status &&
-      !(confirmed && received !== payment.receivedPaymentAmount)
+    const changes = group.filter(
+      ({ payment }) =>
+        !(
+          decision.status === payment.status &&
+          !(confirmed && receivedFor(payment) !== payment.receivedPaymentAmount)
+        )
     )
-      return trip
-    // A turned-down guest's money is refunded, not confirmed: put them back first.
-    if (confirmed && payment.status !== 'confirmed' && guest.status === 'declined')
-      throw new BadRequestException(
-        `${guest.firstName} was turned down. Put them back to waiting before confirming their payment.`
+    if (changes.length === 0) return trip
+    for (const { guest, payment } of changes) {
+      if (payment.status === 'refunded') throw new BadRequestException('That payment was refunded')
+      // A turned-down guest's money is refunded, not confirmed: put them back first.
+      if (confirmed && payment.status !== 'confirmed' && guest.status === 'declined')
+        throw new BadRequestException(
+          `${guest.firstName} was turned down. Put them back to waiting before confirming their payment.`
+        )
+      // A payment the organizer logged was never the guest's word: it can be removed, not put back to waiting.
+      if (decision.status === 'reported' && payment.loggedBy === 'organizer')
+        throw new BadRequestException('Remove a payment you logged instead of undoing it')
+      // Where the payment earned the spot, taking it back needs the spot given back first.
+      if (
+        payment.status === 'confirmed' &&
+        !confirmed &&
+        trip.joinMode !== 'accept_first' &&
+        guest.status === 'approved' &&
+        guest.payments.filter((p) => p.status === 'confirmed').length === 1
       )
-    // A payment the organizer logged was never the guest's word: it can be removed, not put back to waiting.
-    if (decision.status === 'reported' && payment.loggedBy === 'organizer')
-      throw new BadRequestException('Remove a payment you logged instead of undoing it')
-    // Where the payment earned the spot, taking it back needs the spot given back first.
-    if (
-      payment.status === 'confirmed' &&
-      !confirmed &&
-      trip.joinMode !== 'accept_first' &&
-      guest.status === 'approved' &&
-      guest.payments.filter((p) => p.status === 'confirmed').length === 1
-    )
-      throw new BadRequestException(
-        `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
-      )
-    await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: decision.status,
-        receivedPaymentAmount: received,
-        decidedAt: decision.status === 'reported' ? null : new Date(),
-        decidedByUserId: decision.status === 'reported' ? null : caller.userId,
-      },
+        throw new BadRequestException(
+          `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
+        )
+    }
+    await this.prisma.$transaction(async (tx) => {
+      for (const { payment } of changes)
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: decision.status,
+            receivedPaymentAmount: receivedFor(payment),
+            decidedAt: decision.status === 'reported' ? null : new Date(),
+            decidedByUserId: decision.status === 'reported' ? null : caller.userId,
+          },
+        })
     })
-    if (confirmed) await this.firstComeAccept(id, guest.id, caller)
+    if (confirmed) for (const { guest } of changes) await this.firstComeAccept(id, guest.id, caller)
     return this.get(id, caller)
   }
 
@@ -751,6 +812,13 @@ export async function roomFull<T>(write: () => Promise<T>): Promise<T> {
       throw new ConflictException(`${name.trim()} is full. Pick another room.`)
     if (/That room is not on this trip/.test(String((err as Error).message)))
       throw new BadRequestException('That room is not on this trip')
+    // Who looks after a guest (issue #11): the database's own checks, for a change that raced another.
+    if (/manager_not_on_trip/.test(String(err)))
+      throw new BadRequestException('Pick a guest on this trip who signed in to join')
+    if (/Guest_tripId_email_key/.test(String(err)))
+      throw new ConflictException(
+        'That guest shares an email with another guest. Change one of them first.'
+      )
     throw err
   }
 }

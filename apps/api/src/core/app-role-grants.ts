@@ -25,6 +25,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'app_guest_ids()',
   'app_guest_trip_ids()',
   'trip_is_published(text)',
+  // A traveler someone else signed up finding, and taking over, their own row when they sign in with that email.
+  'claim_managed_guest(text,text[],boolean)',
   // The Admin toolbox's going and interested counts (admin only, counts only).
   'admin_trip_counts()',
   // A line in the access log each time the admin opens a trip from the Admin toolbox.

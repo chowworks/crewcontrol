@@ -32,6 +32,8 @@ const g = (
           note: '',
           status: confirmed ? 'confirmed' : 'reported',
           loggedBy: 'guest',
+          paidByName: '',
+          transferId: null,
           reportedAt: sent,
           decidedAt: confirmed,
         },
@@ -41,6 +43,8 @@ const g = (
   roomNote: '',
   signedAt: createdAt,
   terms: null,
+  hasAccount: true,
+  managedBy: null,
 })
 
 describe('signupOrder', () => {

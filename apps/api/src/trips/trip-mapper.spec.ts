@@ -43,6 +43,7 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   offeredAt: null,
   refundSentAt: null,
   userId: null,
+  managedByUserId: null,
   roomId: null,
   roomNote: '',
 })

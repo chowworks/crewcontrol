@@ -30,6 +30,8 @@ const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
   note: '',
   status,
   loggedBy: 'guest',
+  paidByName: '',
+  transferId: null,
   reportedAt: at,
   decidedAt: null,
 })
@@ -50,6 +52,8 @@ const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   roomNote: '',
   signedAt: at,
   terms,
+  hasAccount: true,
+  managedBy: null,
   ...extra,
 })
 const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
@@ -103,5 +107,19 @@ describe('what needs the organizer', () => {
       guest('b', { status: 'declined', payments: [pay('p3', 'reported')] }),
     ])
     expect(tripActionCount(t)).toBe(2)
+  })
+
+  it('counts one transfer for several travelers once', () => {
+    const shared = (id: string) => ({
+      ...pay(id, 'reported'),
+      transferId: 'tr1',
+      paidByName: 'Dana R',
+    })
+    const t = trip([
+      guest('a', { payments: [shared('p1')] }),
+      guest('b', { payments: [shared('p2')] }),
+    ])
+    expect(guestActions(t.guests[0], t)[0].key).toBe('tr1')
+    expect(tripActionCount(t)).toBe(1)
   })
 })

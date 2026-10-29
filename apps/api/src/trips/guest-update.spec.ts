@@ -27,6 +27,7 @@ type PaymentRow = {
   decidedAt: Date | null
   decidedByUserId: string | null
   refundedAt?: Date | null
+  transferId?: string | null
 }
 
 function payment(id: string, status = 'confirmed', amount = FIRST): PaymentRow {
@@ -450,5 +451,42 @@ describe('a guest’s spot in Trip Control', () => {
     await expect(service.updateGuest('t1', 'wait', { offerSpot: true }, caller)).rejects.toThrow(
       /Accept wait to give them the spot/
     )
+  })
+
+  it('decides one transfer for several travelers at once, with what arrived for each', async () => {
+    const shared = (id: string) => ({ ...payment(id, 'reported'), transferId: 'tr' })
+    const { service, guests } = setup({}, [
+      guest('ava', { payments: [shared('pa')] }),
+      guest('ben', { payments: [shared('pb')] }),
+    ])
+    // One amount can't say how it splits; every share must be named.
+    await expect(
+      service.decidePayment('t1', 'pa', { status: 'confirmed', receivedPaymentAmount: 400 }, caller)
+    ).rejects.toThrow(/each person/)
+    await expect(
+      service.decidePayment(
+        't1',
+        'pa',
+        { status: 'confirmed', shares: [{ paymentId: 'pa', receivedPaymentAmount: 400 }] },
+        caller
+      )
+    ).rejects.toThrow(/each person/)
+    await service.decidePayment('t1', 'pb', { status: 'confirmed' }, caller)
+    expect(guests.map((g) => g.payments[0].status)).toEqual(['confirmed', 'confirmed'])
+    await service.decidePayment(
+      't1',
+      'pa',
+      {
+        status: 'confirmed',
+        shares: [
+          { paymentId: 'pa', receivedPaymentAmount: 500 },
+          { paymentId: 'pb', receivedPaymentAmount: 300 },
+        ],
+      },
+      caller
+    )
+    expect(guests.map((g) => g.payments[0].receivedPaymentAmount)).toEqual([500, 300])
+    await service.decidePayment('t1', 'pb', { status: 'reported' }, caller)
+    expect(guests.map((g) => g.payments[0].status)).toEqual(['reported', 'reported'])
   })
 })
