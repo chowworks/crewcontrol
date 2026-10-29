@@ -95,6 +95,8 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   "First L.", or when guests pick rooms, because choosing who to room with needs them (owner's decision, 2026-10-24). A new field on `Trip` or `Guest` stays out of the public view until someone decides it belongs there.
 - **Payment instructions go only to signed-in guests who joined the trip** (on an `accept_first` trip, once
   accepted), on their join page (`JoinService`), never on the public page and never through `toPublicTrip`.
+  Emails to a guest who joined carry them in their variables (`paymentDetails.*`, owner's decision 2026-10-28);
+  an email's wording shows them only inside `{{#if guest.canPay}}`, the same rule as the join page.
 - Uploads: JPEG, PNG or WebP, at most 8 MB, and the bytes must begin the way that type does (`looksLikeImage`);
   the browser's claimed type alone is never trusted. The web app shrinks photos before upload (`lib/resize.ts`).
   At most `MAX_TRIP_PHOTOS` (15) per trip.
@@ -130,7 +132,11 @@ when the API connects as the restricted role (`cc_app`); dev still connects as t
   photo's reference (`r2:trip-photos/<name>`), never a link; the API signs links that last two hours when it hands a
   trip out (`src/photos/photo-bucket.ts`), and browsers load them from Cloudflare, so a trip page view costs no
   Railway traffic. Anything more sensitive later uses the same private, signed pattern.
-- Email and SMS are mocked (logged, not sent) until slice 4 says otherwise.
+- **Email is sent through Resend** (`apps/api/src/messaging/send-email.ts`, `RESEND_API_KEY` and `EMAIL_FROM` per
+  environment; dev uses its own Resend account on dev.travel-hq.app). Without a key it only logs, and it never sends
+  to reserved domains like the seed's example.com. Every email's wording is a Handlebars template the admin edits on
+  the Admin toolbox's Emails page (`EmailTemplate`, defaults in `email-defaults.ts`); guests' replies go to the trip
+  owner. SMS (`sendText`) is still mocked.
 
 ## Design
 

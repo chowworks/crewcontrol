@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common'
 import type { ClerkService } from '../auth/clerk.service'
+import type { EmailsService } from '../messaging/emails.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import type { TermsService } from '../terms/terms.service'
 import type { PaymentReport } from '../trips/trip-types'
@@ -91,7 +92,8 @@ function service(rows: ReturnType<typeof row>[]) {
     prisma as unknown as PrismaService,
     trips as unknown as TripsService,
     terms as unknown as TermsService,
-    clerk as unknown as ClerkService
+    clerk as unknown as ClerkService,
+    { sendToGuest: jest.fn() } as unknown as EmailsService
   )
   return { s, created, prisma }
 }

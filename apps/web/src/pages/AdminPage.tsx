@@ -1,4 +1,4 @@
-import { Luggage, MessageSquareText, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import { Luggage, Mail, MessageSquareText, SlidersHorizontal, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -34,6 +34,14 @@ const TOOLS: {
     how: 'Organizers send these from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. Each shows who asked, the trip they were setting up, and their words. Nobody can change or delete one.',
   },
   {
+    to: '/admin/emails',
+    icon: Mail,
+    title: 'Emails',
+    text: 'The emails Travel HQ sends: their wording and design, with variables for each trip and guest.',
+    sub: 'What each email says, with a preview for a sample guest.',
+    how: 'Each email is HTML inside Travel HQ’s frame (the purple band and the footer), with variables like {{trip.name}} that are filled in for each guest. A variable that doesn’t exist, or isn’t allowed in that email, stops the save. Payment details are filled in for every guest who signed; show them inside {{#if guest.canPay}}, which is true only for a guest whose trip page shows how to pay. Every subject starts with “[Travel HQ] ”, added for you. Every email also goes out as plain text, made from the HTML. A save applies to every email sent from then on; “Use Travel HQ’s wording” goes back to the default.',
+  },
+  {
     to: '/admin/settings',
     icon: SlidersHorizontal,
     title: 'System Settings',
@@ -45,15 +53,19 @@ const TOOLS: {
 
 const tool = (to: string) => TOOLS.find((t) => t.to === to)!
 
-/** The frame every admin page shares: the logo and the account menu at the far right. */
-export function AdminShell({ children }: { children: ReactNode }) {
+/**
+ * The frame every admin page shares: the logo and the account menu at the far right. `wide` uses the whole screen,
+ * for an editor that needs room (the Emails editor).
+ */
+export function AdminShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  const width = wide ? 'max-w-[1600px]' : 'max-w-[1120px]'
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
-      <header className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-5 py-4">
+      <header className={`mx-auto flex ${width} items-center justify-between gap-3 px-5 py-4`}>
         <Logo />
         <AccountMenu />
       </header>
-      <main className="mx-auto flex max-w-[1120px] flex-col px-5">{children}</main>
+      <main className={`mx-auto flex ${width} flex-col px-5`}>{children}</main>
     </div>
   )
 }

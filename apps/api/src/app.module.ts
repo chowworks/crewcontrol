@@ -4,6 +4,7 @@ import { ContactModule } from './contact/contact.module'
 import { TenantMiddleware } from './core/tenant.middleware'
 import { HealthModule } from './health/health.module'
 import { JoinModule } from './join/join.module'
+import { MessagingModule } from './messaging/messaging.module'
 import { PhotosModule } from './photos/photos.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { TermsModule } from './terms/terms.module'
@@ -19,6 +20,7 @@ import { TripsModule } from './trips/trips.module'
     PhotosModule,
     ContactModule,
     TermsModule,
+    MessagingModule,
   ],
 })
 export class AppModule implements NestModule {

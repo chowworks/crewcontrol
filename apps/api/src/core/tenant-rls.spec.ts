@@ -149,9 +149,10 @@ suite('trip isolation', () => {
 
   it('shows nothing with no context', async () => {
     await as({}, async () => {
-      // System settings are read by everyone; every table of trip data shows nothing.
+      // System settings and email templates are read by everyone; every table of trip data shows nothing.
       for (const t of TENANT_TABLES)
-        if (t !== 'SystemSettings') expect([t, await ids(t)]).toEqual([t, []])
+        if (t !== 'SystemSettings' && t !== 'EmailTemplate')
+          expect([t, await ids(t)]).toEqual([t, []])
     })
   })
 
@@ -1075,6 +1076,33 @@ suite('trip isolation', () => {
       })
       expect(await attempt(`DELETE FROM "SystemSettings"`)).toEqual({ rows: 0 })
     })
+  })
+
+  it('lets everyone read the email templates and only the admin write them', async () => {
+    const kinds = async () =>
+      (await db.query<{ kind: string }>(`SELECT kind FROM "EmailTemplate"`)).rows.map((r) => r.kind)
+    const add = (kind: string) =>
+      attempt(
+        `INSERT INTO "EmailTemplate" (kind, subject, body) VALUES ('${kind}', 'Hi', '<p>Hi</p>')`
+      )
+    await db.query(
+      `INSERT INTO "EmailTemplate" (kind, subject, body) VALUES ('joined', 'Hi', '<p>Hi</p>')`
+    )
+    try {
+      await as(await person('u1'), async () => {
+        expect(await kinds()).toEqual(['joined'])
+        expect(await add('accepted')).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "EmailTemplate" SET subject = 'x'`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "EmailTemplate"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await add('accepted')).toEqual({ rows: 1 })
+        expect(await attempt(`UPDATE "EmailTemplate" SET subject = 'Hey'`)).toEqual({ rows: 2 })
+        expect(await attempt(`DELETE FROM "EmailTemplate"`)).toEqual({ rows: 2 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "EmailTemplate"`)
+    }
   })
 
   it('accepts only the two roles', async () => {

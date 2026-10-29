@@ -31,7 +31,9 @@
     "@nestjs/platform-express": "^10.0.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.4.1",
+    "handlebars": "^4.7.10",
     "reflect-metadata": "^0.2.0",
+    "resend": "^6.35.0",
     "rxjs": "^7.8.0"
   },
   "devDependencies": {

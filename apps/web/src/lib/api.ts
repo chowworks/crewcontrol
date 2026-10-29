@@ -3,6 +3,10 @@ import {
   type AcceptTermsInput,
   type AgreementPreview,
   type ContactInput,
+  type EmailPreview,
+  type EmailPreviewGuest,
+  type EmailTemplateInput,
+  type EmailTemplateView,
   type Expense,
   type ExpenseInput,
   type GuestEvent,
@@ -168,6 +172,15 @@ export const api = {
   getSettings: () => request<SystemSettings>('/admin/settings'),
   adminRequests: () => request<OrganizerRequest[]>('/admin/requests'),
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
+  // The Admin toolbox's Emails page.
+  adminEmails: () => request<EmailTemplateView[]>('/admin/emails'),
+  adminEmail: (kind: string) => request<EmailTemplateView>(`/admin/emails/${kind}`),
+  previewEmail: (kind: string, draft: EmailTemplateInput, guest: EmailPreviewGuest) =>
+    request<EmailPreview>(`/admin/emails/${kind}/preview?guest=${guest}`, json('POST', draft)),
+  saveEmail: (kind: string, draft: EmailTemplateInput) =>
+    request<EmailTemplateView>(`/admin/emails/${kind}`, json('PUT', draft)),
+  resetEmail: (kind: string) =>
+    request<EmailTemplateView>(`/admin/emails/${kind}`, { method: 'DELETE' }),
   setSettings: (settings: SystemSettings) =>
     request<SystemSettings>('/admin/settings', json('PUT', settings)),
   seatOnTrip: (id: string, asOwner = false) =>

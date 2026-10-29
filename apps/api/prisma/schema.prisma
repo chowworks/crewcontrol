@@ -335,3 +335,12 @@ model OrganizerRequest {
 
   @@index([createdAt])
 }
+
+/// The admin's version of one email Travel HQ sends (src/messaging/email-defaults.ts has each one's default).
+model EmailTemplate {
+  kind            String   @id
+  subject         String
+  body            String
+  updatedAt       DateTime @default(now())
+  updatedByUserId String?
+}

@@ -33,7 +33,7 @@ export interface AgreementFacts {
 }
 
 /** 120000 → "$1,200"; 120050 → "$1,200.50" (as the web app's money()). */
-function money(cents: number): string {
+export function money(cents: number): string {
   return (cents / 100).toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',

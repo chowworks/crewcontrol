@@ -10,6 +10,7 @@ import type { Caller } from '../auth/caller'
 import { ClerkService } from '../auth/clerk.service'
 import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
+import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { TermsService } from '../terms/terms.service'
 import { paymentMethodsOf, paymentsOf, toSignedAgreement } from '../trips/trip-mapper'
@@ -18,7 +19,6 @@ import {
   fillAgreementNames,
   paymentMethodLabel,
   type ClaimInput,
-  type GuestTerms,
   type JoinInput,
   type JoinView,
   type MyActions,
@@ -35,6 +35,7 @@ import {
   TEMPLATE_VERSION,
   termsOf,
 } from './agreement'
+import { canPay, owed } from './guest-pay'
 import { sendText } from './send-text'
 
 /** Where guests open the web app, for links in texts: the first of FRONTEND_URL's addresses. */
@@ -49,18 +50,6 @@ const emailRefusals = new RateLimiter(
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
 
 /**
- * Whether a guest may see how to pay and report a payment: never once turned down, never while on the waitlist without
- * an offer, and on an accept-first trip only once accepted (a guest on the other two pays before the organizer decides).
- */
-const canPay = (
-  joinMode: string,
-  g: { status: string; waitlistedAt: Date | string | null; offeredAt: Date | string | null }
-) =>
-  g.status !== 'declined' &&
-  (g.status === 'approved' || !g.waitlistedAt || Boolean(g.offeredAt)) &&
-  (joinMode !== 'accept_first' || g.status === 'approved')
-
-/**
  * Joining a trip, for a signed-in guest: read the agreement, sign it with the form, then report their payments. The trip
  * itself is read as a public page (a person who hasn't joined can't read the trip row); everything about the guest
  * is read and written as the guest, whom row-level security keeps to their own rows (migration
@@ -73,7 +62,8 @@ export class JoinService {
     private readonly prisma: PrismaService,
     private readonly trips: TripsService,
     private readonly terms: TermsService,
-    private readonly clerk: ClerkService
+    private readonly clerk: ClerkService,
+    private readonly emails: EmailsService
   ) {}
 
   /**
@@ -289,7 +279,8 @@ export class JoinService {
       }
       throw err
     }
-    // The copy of record (the guest's join page keeps it too). Email is mocked until slice 4.
+    // The copy of record (the guest's join page keeps it too): a text (mocked) and the "joined" email, whose wording
+    // the admin edits on the Emails page. Neither failing undoes the join.
     const joined = await this.view(slug, caller)
     if (onBehalf) {
       await sendText(
@@ -311,6 +302,25 @@ export class JoinService {
             ? `Your copy, and how to pay ${trip.organizerName} once you're accepted: `
             : `Your copy and how to pay ${trip.organizerName}: `) +
         `${webUrl()}/t/${slug}/join`
+    )
+    // The email has the trip's payment details for every guest; its wording shows them only to one who can pay.
+    const pays = (
+      await this.prisma.guest.findFirst({
+        where: { userId: caller.userId, trip: { slug } },
+        select: { trip: { select: { paymentMethods: true, paymentInstructions: true } } },
+      })
+    )?.trip
+    await this.emails.sendToGuest(
+      'joined',
+      joined,
+      {
+        email: input.email,
+        phone: input.phone,
+        paymentMethods: pays ? paymentMethodsOf(pays) : [],
+        paymentInstructions: pays?.paymentInstructions ?? '',
+        replyTo: (await this.trips.organizerContact(tripId))?.email || undefined,
+      },
+      webUrl()
     )
     return joined
   }
@@ -452,16 +462,4 @@ function payable(
     trip.maxGuests !== null &&
     trip.spotsTaken >= trip.maxGuests
   )
-}
-
-/**
- * What a guest still owes: `left` is the price less what was confirmed or is waiting to be, and `dueNow` the rest of
- * the first payment, which holds the spot (nothing once that is covered: later installments have no dates yet).
- */
-export function owed(terms: GuestTerms): { left: number; dueNow: number } {
-  const counted = terms.paidCents + terms.pendingCents
-  return {
-    left: Math.max(0, terms.priceCents - counted),
-    dueNow: Math.max(0, terms.firstInstallmentCents - counted),
-  }
 }

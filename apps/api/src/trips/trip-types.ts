@@ -833,3 +833,43 @@ export interface OrganizerRequest {
   text: string
   createdAt: string
 }
+
+/** A variable an email template can use, as the Emails page lists it; a list has fields for inside {{#each}}. */
+export interface EmailVariable {
+  path: string
+  label: string
+  fields?: { name: string; label: string }[]
+}
+
+/** One email Travel HQ sends, as the Admin toolbox's Emails page edits it. */
+export interface EmailTemplateView {
+  kind: string
+  name: string
+  /** When it goes out, in one line. */
+  when: string
+  subject: string
+  /** HTML with {{variables}}, inside Travel HQ's frame when sent. */
+  body: string
+  /** The variables this email may use, in groups ("Trip", "Guest", "Payment details"). */
+  variables: { group: string; items: EmailVariable[] }[]
+  /** Still the wording Travel HQ started with (no admin version saved). */
+  isDefault: boolean
+  updatedAt: string | null
+}
+
+export interface EmailTemplateInput {
+  subject: string
+  body: string
+}
+
+/** Who a preview is written to: a guest who can pay now, one who can't yet, or one on the waitlist. */
+export type EmailPreviewGuest = 'can_pay' | 'not_yet' | 'waitlisted'
+
+/** A template filled in for a sample guest, or what's wrong with its subject and its body, each shown beside it. */
+export interface EmailPreview {
+  subjectProblems: string[]
+  bodyProblems: string[]
+  subject: string
+  html: string
+  text: string
+}

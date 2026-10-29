@@ -70,8 +70,12 @@ export default defineRailway((ctx) => {
         FRONTEND_URL: preserve(),
         // Trip photos: the dev R2 bucket, private; guests get signed links (DEVELOPMENT.md, "Photos").
         ...photoBucket,
-        // Where contact form messages go (logged, not sent, until email is built).
+        // Where contact form messages go.
         SUPPORT_EMAIL: 'support@travel-hq.app',
+        // Resend's API key for this environment, set by hand in Railway. Without it, email is logged, not sent. Dev
+        // uses its own Resend account, so EMAIL_FROM is an address on a domain verified there, set by hand too.
+        RESEND_API_KEY: preserve(),
+        EMAIL_FROM: preserve(),
         // Clerk's secret key for this environment, set by hand in Railway.
         CLERK_SECRET_KEY: preserve(),
       },
@@ -104,6 +108,9 @@ export default defineRailway((ctx) => {
       // Trip photos: production's R2 bucket, private; guests get signed links.
       ...photoBucket,
       SUPPORT_EMAIL: 'support@travel-hq.app',
+      // Production's own Resend account, with travel-hq.app verified there.
+      RESEND_API_KEY: preserve(),
+      EMAIL_FROM: 'Travel HQ <trips@travel-hq.app>',
       CLERK_SECRET_KEY: preserve(),
     },
   })
