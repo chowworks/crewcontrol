@@ -36,7 +36,56 @@ describe('parseTripInput', () => {
     expect(input.keyDates.map((d) => d.date)).toEqual(['2027-11-01', '2028-03-01'])
   })
 
+  it('keeps a due date for each installment, and the payment reminder', () => {
+    const input = parseTripInput({
+      ...valid,
+      installmentCount: 2,
+      paymentDueDates: ['2027-11-01', '2028-01-01'],
+      paymentReminderDays: 7,
+    })
+    expect(input.paymentDueDates).toEqual(['2027-11-01', '2028-01-01'])
+    expect(input.paymentReminderDays).toBe(7)
+    expect(parseTripInput(valid)).toMatchObject({
+      paymentDueDates: [],
+      paymentReminderDays: null,
+      firstPaymentCents: null,
+    })
+    expect(parseTripInput({ ...valid, firstPaymentCents: 50000 }).firstPaymentCents).toBe(50000)
+    // One payment is the whole price.
+    expect(
+      parseTripInput({ ...valid, installmentCount: 1, firstPaymentCents: 50000 }).firstPaymentCents
+    ).toBeNull()
+  })
+
   it.each([
+    ['a date short', { installmentCount: 3, paymentDueDates: ['2027-11-01', '2028-01-01'] }],
+    ['dates out of order', { installmentCount: 2, paymentDueDates: ['2028-01-01', '2027-11-01'] }],
+    ['a date that isn’t one', { installmentCount: 1, paymentDueDates: ['soon'] }],
+    ['a reminder on an odd day', { paymentReminderDays: 5 }],
+    ['a first payment over the price', { firstPaymentCents: 240001 }],
+  ])('refuses a payment plan with %s', (_, change) => {
+    expect(() => parseTripInput({ ...valid, ...change })).toThrow(BadRequestException)
+  })
+
+  it('keeps a key date’s reminder settings only when set', () => {
+    const input = parseTripInput({
+      ...valid,
+      keyDates: [
+        { date: '2027-11-01', label: 'Ferry tickets open', remindDaysBefore: 7 },
+        { date: '2028-02-01', label: 'Book flights', remindDaysBefore: null },
+      ],
+    })
+    expect(input.keyDates).toEqual([
+      { date: '2027-11-01', label: 'Ferry tickets open', remindDaysBefore: 7 },
+      { date: '2028-02-01', label: 'Book flights' },
+    ])
+  })
+
+  it.each([
+    [
+      'a reminder on an odd day',
+      { keyDates: [{ date: '2028-01-01', label: 'x', remindDaysBefore: 5 }] },
+    ],
     ['an end before the start', { endDate: '2028-04-01' }],
     ['a missing name', { name: '  ' }],
     ['an unknown icon', { highlights: [{ title: 'x', detail: '', icon: 'rocket' }] }],

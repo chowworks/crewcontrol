@@ -30,7 +30,15 @@ export interface TripPhoto {
 export interface TripKeyDate {
   date: string
   label: string
+  /**
+   * Email guests this many days before the date (0 is on the day), or no reminder when missing or null. The
+   * organizer's settings: never on the public page.
+   */
+  remindDaysBefore?: number | null
 }
+
+/** The choices for a reminder, in days before its date. */
+export const REMIND_DAYS = [0, 1, 3, 7, 14, 30] as const
 
 /** How a trip takes its crew once guests have signed: the organizer accepts each one and then they pay
  * (accept_first), they pay and then the organizer accepts each one (pay_first), or they pay and confirming a payment
@@ -68,6 +76,8 @@ export interface PublicTrip {
   isSample: boolean
   maxGuests: number | null
   joinMode: JoinMode
+  /** The payment plan the agreement quotes: each installment's amount and due date (terms, not anything private). */
+  paymentPlan: PlannedPayment[]
   /** The trip agreement quotes it, so the join page needs it (terms, not anything private). */
   refundPolicy: RefundPolicy
   /** Rooms guests can ask for, with how many places are still open; empty unless room choice is on. */
@@ -170,6 +180,39 @@ export interface GuestTerms {
   adjustmentCents: number
   /** What is left to pay: the price, plus the adjustments, less the payments the organizer has confirmed. */
   balanceCents: number
+  /**
+   * The payment plan they signed, one line per installment: its amount and, when the trip had set them, its due date.
+   * Agreements signed before plans had dates have none.
+   */
+  schedule: PlannedPayment[]
+}
+
+/** One installment of a payment plan. Amounts add up to the price; credits and charges are apart from them. */
+export interface PlannedPayment {
+  dueOn: string | null
+  amountCents: number
+}
+
+/**
+ * A trip's payment plan for a price: `count` installments, the first `firstPaymentCents` when the organizer set one
+ * (never more than the price) or an even share, the rest split evenly with any odd cents on the last, each with its
+ * due date when the trip has them. The agreement quotes it and the signature keeps it.
+ */
+export function paymentPlan(
+  priceCents: number,
+  count: number,
+  firstPaymentCents: number | null,
+  dueDates: string[]
+): PlannedPayment[] {
+  const n = Math.max(1, Math.floor(count))
+  const due = (i: number) => dueDates[i] ?? null
+  if (n === 1) return [{ dueOn: due(0), amountCents: priceCents }]
+  const first = Math.min(priceCents, firstPaymentCents ?? Math.floor(priceCents / n))
+  const each = Math.floor((priceCents - first) / (n - 1))
+  return Array.from({ length: n }, (_, i) => ({
+    dueOn: due(i),
+    amountCents: i === 0 ? first : i === n - 1 ? priceCents - first - each * (n - 2) : each,
+  }))
 }
 
 /**
@@ -431,6 +474,15 @@ export interface TripInput {
   description: string
   costPerPersonCents: number
   installmentCount: number
+  /**
+   * When each installment is due ('YYYY-MM-DD', one per installment, in order), or empty when the organizer hasn't
+   * set them. Payment reminders go out from these.
+   */
+  paymentDueDates: string[]
+  /** Email guests who still owe this many days before each due date (REMIND_DAYS), or null for no payment reminders. */
+  paymentReminderDays: number | null
+  /** The first payment, which holds the spot, when the organizer sets it; null splits the price evenly. */
+  firstPaymentCents: number | null
   galleryTitle: string
   showGuestNames: boolean
   /** How guests can pay the organizer; a guest picks one when they report a payment. */
@@ -942,4 +994,38 @@ export interface EmailProblemNotice {
   at: string
   /** The guests on that address now, and whether each one's problem is still waiting for their organizer. */
   guests: { tripId: string; tripName: string; name: string; open: boolean }[]
+}
+
+/** A reminder still to go out, for Trip Control's Reminders section. */
+export interface UpcomingReminder {
+  date: string
+  label: string
+  paymentDue: boolean
+  /** The day it goes out ('YYYY-MM-DD'), in the morning (US time). */
+  sendOn: string
+  /** Who it would go to if it went out now, by name: accepted guests, or for a payment those who owe by then. */
+  to: string[]
+}
+
+/** A reminder that went out: to whom, and when it started. */
+export interface SentReminder {
+  date: string
+  label: string
+  paymentDue: boolean
+  sentAt: string
+  to: string[]
+}
+
+export interface TripReminders {
+  upcoming: UpcomingReminder[]
+  sent: SentReminder[]
+  /** Guests who stopped updates for this trip, by name: reminders skip them. */
+  stopped: string[]
+}
+
+/** The "Stop updates for this trip" page, reached from the link in a reminder. */
+export interface StopUpdatesView {
+  tripName: string
+  firstName: string
+  stopped: boolean
 }

@@ -21,6 +21,7 @@ import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import { TripLogCard } from './TripLog'
+import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
@@ -241,6 +242,7 @@ export function ControlPanelPage() {
         {!admin && <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        {!admin && <RemindersCard trip={trip} />}
         <TripLogCard trip={trip} />
       </main>
     </div>

@@ -20,6 +20,7 @@ const terms = {
   pendingCents: 0,
   adjustmentCents: 0,
   balanceCents: 1000,
+  schedule: [],
 }
 const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
   id,

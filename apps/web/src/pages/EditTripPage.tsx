@@ -3,6 +3,7 @@ import {
   HIGHLIGHT_ICONS,
   MAX_TRIP_PHOTOS,
   PAYMENT_METHOD_KINDS,
+  paymentPlan,
   type AgreementPreview,
   type Guest,
   type HighlightIcon,
@@ -31,6 +32,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
+import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
@@ -54,6 +56,9 @@ const EMPTY: TripInput = {
   description: '',
   costPerPersonCents: 0,
   installmentCount: 1,
+  paymentDueDates: [],
+  paymentReminderDays: null,
+  firstPaymentCents: null,
   galleryTitle: 'Photos',
   showGuestNames: false,
   paymentMethods: [],
@@ -96,6 +101,13 @@ function previewOf(
     ...trip,
     slug,
     isSample: false,
+    keyDates: trip.keyDates.map(({ date, label }) => ({ date, label })),
+    paymentPlan: paymentPlan(
+      trip.costPerPersonCents,
+      trip.installmentCount,
+      trip.firstPaymentCents,
+      trip.paymentDueDates
+    ),
     rooms: trip.options.roomChoice
       ? rooms
           .filter((r) => r.id)
@@ -236,8 +248,11 @@ export function EditTripPage() {
   async function save(): Promise<boolean> {
     const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r))
     const methodsBad = trip.paymentMethods.some((m) => methodProblem(m))
+    const planBad =
+      trip.paymentDueDates.some((d, i) => i > 0 && d < trip.paymentDueDates[i - 1]) ||
+      (trip.firstPaymentCents ?? 0) > trip.costPerPersonCents
     // A problem can sit on another step than this one: open that step, where it shows beside its field.
-    const problemStep = roomsBad ? 3 : methodsBad ? 4 : linkProblem ? 5 : 0
+    const problemStep = roomsBad ? 3 : methodsBad || planBad ? 4 : linkProblem ? 5 : 0
     if (problemStep) {
       show(problemStep)
       setMessage({
@@ -416,7 +431,10 @@ export function EditTripPage() {
                 </Card>
                 <Card title="Key dates">
                   {trip.keyDates.map((d, i) => (
-                    <div key={i} className="flex flex-wrap items-center gap-2">
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-center gap-2 border-b border-rule pb-3 last:border-0"
+                    >
                       <input
                         type="date"
                         className={`${field} min-w-0 flex-[1_1_150px]`}
@@ -458,6 +476,27 @@ export function EditTripPage() {
                       >
                         <Trash2 className="h-5 w-5" aria-hidden="true" />
                       </button>
+                      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-sm font-semibold text-body">
+                          Email accepted guests
+                        </span>
+                        <Dropdown
+                          label="Email accepted guests"
+                          className="w-full sm:w-[220px]"
+                          value={d.remindDaysBefore ?? null}
+                          options={REMIND_OPTIONS}
+                          onChange={(v) =>
+                            set(
+                              'keyDates',
+                              trip.keyDates.map((x, j) => {
+                                if (j !== i) return x
+                                const { remindDaysBefore: _, ...rest } = x
+                                return v === null ? rest : { ...rest, remindDaysBefore: v }
+                              })
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                   ))}
                   <AddButton
@@ -465,7 +504,11 @@ export function EditTripPage() {
                   >
                     Add date
                   </AddButton>
-                  <p className="text-sm text-muted">Dates sort themselves when you save.</p>
+                  <p className="text-sm text-muted">
+                    Dates sort themselves when you save. A reminder goes out in the morning, by
+                    email, with a link to stop them. Payment due dates go in step 4, Price and
+                    payments.
+                  </p>
                 </Card>
               </>
             )}
@@ -829,6 +872,12 @@ export function EditTripPage() {
                     onCost={(v) => set('costPerPersonCents', v)}
                     installments={trip.installmentCount}
                     onInstallments={(v) => set('installmentCount', v)}
+                    dueDates={trip.paymentDueDates}
+                    onDueDates={(v) => set('paymentDueDates', v)}
+                    firstPaymentCents={trip.firstPaymentCents}
+                    onFirstPayment={(v) => set('firstPaymentCents', v)}
+                    reminderDays={trip.paymentReminderDays}
+                    onReminderDays={(v) => set('paymentReminderDays', v)}
                   />
                 ) : (
                   <NeedsTrip />

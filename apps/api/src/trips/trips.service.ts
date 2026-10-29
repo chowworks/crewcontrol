@@ -42,7 +42,7 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
-import { totalDueCents, tripActionCount } from './trip-types'
+import { paymentPlan, totalDueCents, tripActionCount } from './trip-types'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
 async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
@@ -69,6 +69,7 @@ function data(input: TripInput) {
     photos: input.photos as unknown as Prisma.InputJsonValue,
     highlights: input.highlights as unknown as Prisma.InputJsonValue,
     keyDates: input.keyDates as unknown as Prisma.InputJsonValue,
+    paymentDueDates: input.paymentDueDates as unknown as Prisma.InputJsonValue,
     paymentMethods: input.paymentMethods as unknown as Prisma.InputJsonValue,
     options: input.options as unknown as Prisma.InputJsonValue,
   }
@@ -312,7 +313,16 @@ export class TripsService {
   /** The agreement as guests of this trip would sign it today, for the organizer's preview. */
   async agreement(id: string, caller: Caller, admin = false): Promise<AgreementPreview> {
     const trip = await this.get(id, caller, admin)
-    return agreementPreview({ ...trip, organizer: await this.organizerContact(id) })
+    return agreementPreview({
+      ...trip,
+      paymentPlan: paymentPlan(
+        trip.costPerPersonCents,
+        trip.installmentCount,
+        trip.firstPaymentCents,
+        trip.paymentDueDates
+      ),
+      organizer: await this.organizerContact(id),
+    })
   }
 
   /**

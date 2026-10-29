@@ -902,6 +902,19 @@ function MyPlace({
           <Term label="Dates" value={dateRange(me.terms.startDate, me.terms.endDate)} />
         </dl>
       )}
+      {me.terms && me.terms.schedule.length > 1 && me.terms.schedule.every((p) => p.dueOn) && (
+        <div className="flex flex-col gap-1 text-sm">
+          <p className="text-muted">Your payment plan, as you signed it</p>
+          <ol className="flex flex-col">
+            {me.terms.schedule.map((p, i) => (
+              <li key={i} className="flex justify-between border-t border-rule py-1.5">
+                <span>Due by {dateRange(p.dueOn!, p.dueOn!)}</span>
+                <span className="font-semibold text-ink">{money(p.amountCents)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {me.agreement && (
         <button type="button" onClick={() => setReading(true)} className={`${outlined} self-start`}>
           Read what you signed

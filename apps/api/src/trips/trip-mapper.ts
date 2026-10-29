@@ -9,6 +9,7 @@ import type {
 import { termsOf } from '../join/agreement'
 import {
   DEFAULT_TRIP_OPTIONS,
+  paymentPlan,
   type BalanceAdjustment,
   type BedType,
   type Guest,
@@ -17,6 +18,7 @@ import {
   type OrganizerTrip,
   type Payment,
   type PaymentMethod,
+  type PlannedPayment,
   type PublicTrip,
   type RefundPolicy,
   type SignedAgreement,
@@ -80,10 +82,15 @@ export function toPublicTrip(
     description: row.description,
     costPerPersonCents: row.costPerPersonCents,
     installmentCount: row.installmentCount,
+    paymentPlan: planOf(row),
     photos: photos(row),
     galleryTitle: row.galleryTitle,
     highlights: row.highlights as unknown as TripHighlight[],
-    keyDates: row.keyDates as unknown as TripKeyDate[],
+    // The organizer's reminder settings stay off the guest's page.
+    keyDates: (row.keyDates as unknown as TripKeyDate[]).map((k) => ({
+      date: k.date,
+      label: k.label,
+    })),
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
     waitlisting: row.waitlisting ?? false,
@@ -163,6 +170,20 @@ export const adjustmentsOf = (rows: AdjustmentRow[] | undefined): BalanceAdjustm
       removedAt: row.removedAt?.toISOString() ?? null,
     }))
 
+/** The trip's payment plan at its price now: what the agreement quotes and a new signature keeps. */
+export const planOf = (
+  row: Pick<
+    TripRow,
+    'costPerPersonCents' | 'installmentCount' | 'firstPaymentCents' | 'paymentDueDates'
+  >
+): PlannedPayment[] =>
+  paymentPlan(
+    row.costPerPersonCents,
+    row.installmentCount,
+    row.firstPaymentCents,
+    row.paymentDueDates as unknown as string[]
+  )
+
 export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentMethod[] =>
   (row.paymentMethods as unknown as PaymentMethod[] | null) ?? []
 
@@ -220,6 +241,9 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     description: row.description,
     costPerPersonCents: row.costPerPersonCents,
     installmentCount: row.installmentCount,
+    paymentDueDates: row.paymentDueDates as unknown as string[],
+    paymentReminderDays: row.paymentReminderDays,
+    firstPaymentCents: row.firstPaymentCents,
     galleryTitle: row.galleryTitle,
     showGuestNames: row.showGuestNames,
     paymentMethods: paymentMethodsOf(row),

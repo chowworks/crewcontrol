@@ -12,6 +12,9 @@ const trip: Trip = {
   description: 'A long weekend.',
   costPerPersonCents: 120000,
   installmentCount: 4,
+  paymentDueDates: [],
+  paymentReminderDays: null,
+  firstPaymentCents: null,
   galleryTitle: 'The house',
   showGuestNames: true,
   paymentMethods: [{ kind: 'cashapp', label: '', handle: '$chrisMV' }],
@@ -48,6 +51,8 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   emailProblemAt: null,
   roomId: null,
   roomNote: '',
+  updatesStoppedAt: null,
+  updatesToken: `token-${id}`,
 })
 
 const guests = [
@@ -81,6 +86,17 @@ describe('toPublicTrip', () => {
       expect(view).not.toHaveProperty('paymentInstructions')
       expect(JSON.stringify(view)).not.toContain('Zelle')
     }
+  })
+
+  it('shows key dates without the organizer’s reminder settings', () => {
+    const keyDates = [{ date: '2027-05-01', label: 'Final payment', remindDaysBefore: 7 }]
+    expect(toPublicTrip({ ...trip, keyDates, guests }).keyDates).toEqual([
+      { date: '2027-05-01', label: 'Final payment' },
+    ])
+  })
+
+  it('never carries a guest’s stop-updates link', () => {
+    expect(JSON.stringify(toPublicTrip({ ...trip, guests }))).not.toContain('token-')
   })
 
   it('carries no agreement or signature', () => {

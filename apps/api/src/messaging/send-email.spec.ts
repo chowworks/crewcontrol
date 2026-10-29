@@ -14,6 +14,7 @@ describe('sendEmail', () => {
     send.mockReset()
     resetEmailClient()
     delete process.env.RESEND_API_KEY
+    delete process.env.DEV_EMAIL_TO
   })
 
   it('only logs without an API key', async () => {
@@ -63,6 +64,45 @@ describe('sendEmail', () => {
       reason: 'not_deliverable',
     })
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('DEV_EMAIL_TO', () => {
+  beforeEach(() => {
+    send.mockReset()
+    resetEmailClient()
+    process.env.RESEND_API_KEY = 're_test'
+    send.mockResolvedValue({ data: { id: 'em_3' }, error: null })
+  })
+  afterEach(() => {
+    delete process.env.RESEND_API_KEY
+    delete process.env.DEV_EMAIL_TO
+  })
+
+  it('sends every email to the developer, saying who it was for, the seed’s fictional guests included', async () => {
+    process.env.DEV_EMAIL_TO = 'dev@travel-hq.app'
+    await sendEmail({
+      ...email,
+      to: 'dana.reyes@example.com',
+      html: '<!doctype html><html><body style="margin:0"><p>Hi</p></body></html>',
+    })
+    const sent = send.mock.calls[0][0]
+    expect(sent.to).toBe('dev@travel-hq.app')
+    expect(sent.subject).toBe('[Test] You signed up for Aruba')
+    expect(sent.text).toMatch(
+      /^Test email from Travel HQ dev\. It would have gone to dana\.reyes@example\.com\./
+    )
+    expect(sent.html).toMatch(
+      /<body style="margin:0"><div[^>]*>Test email .* dana\.reyes@example\.com\.<\/div><p>Hi/
+    )
+  })
+
+  it('sends normally when it isn’t set', async () => {
+    await sendEmail(email)
+    expect(send.mock.calls[0][0]).toMatchObject({
+      to: 'kendra@travel-hq.app',
+      subject: email.subject,
+    })
   })
 })
 

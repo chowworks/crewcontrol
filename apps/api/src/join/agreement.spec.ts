@@ -5,7 +5,7 @@ import {
   hashOf,
   termsOf,
 } from './agreement'
-import { fillAgreementNames } from '../trips/trip-types'
+import { fillAgreementNames, paymentPlan } from '../trips/trip-types'
 import { toE164 } from './send-text'
 
 const trip = {
@@ -17,6 +17,7 @@ const trip = {
   organizer: { name: 'Chris Avery', email: 'chris@example.com' },
   costPerPersonCents: 120000,
   installmentCount: 4,
+  paymentPlan: paymentPlan(120000, 4, null, []),
   joinMode: 'pay_first',
   refundPolicy: 'spot_filled',
 }
@@ -26,7 +27,9 @@ describe('the trip agreement', () => {
     const text = agreementText(trip)
     expect(text).toContain('MV Beach House 2027')
     expect(text).toContain('2027-06-18 to 2027-06-21')
-    expect(text).toContain('$1,200 per person, paid in 4 installments, the first of $300')
+    expect(text).toContain(
+      '$1,200 per person, paid in 4 installments: $300, $300, $300 and $300. You pay Chris directly'
+    )
     expect(text).toContain('Chris refunds everything you paid, in full')
     expect(text).toContain('Chris accepts who comes')
     expect(text).toContain('You can ask Chris for a paper copy instead')
@@ -179,6 +182,35 @@ describe('a guest’s terms', () => {
     expect(
       termsOf(sig, paid, [adj('credit', 5000), adj('charge', 4000), adj('charge', 9999, 'x')])
     ).toMatchObject({ priceCents: 120000, adjustmentCents: -1000, balanceCents: 89000 })
+  })
+
+  it('quotes the payment plan the trip editor set: each amount and its due date', () => {
+    const plan = paymentPlan(120000, 3, 50000, ['2027-01-15', '2027-03-15', '2027-05-15'])
+    const text = agreementText({ ...trip, installmentCount: 3, paymentPlan: plan })
+    expect(text).toContain(
+      'paid in 3 installments: $500 due by 2027-01-15, $350 due by 2027-03-15 and $350 due by 2027-05-15'
+    )
+    // The first payment the refund terms name is the plan's.
+    expect(
+      agreementText({ ...trip, refundPolicy: 'first_payment_kept', paymentPlan: plan })
+    ).toContain("your first payment ($500) isn't refunded")
+    expect(agreementPreview({ ...trip, paymentPlan: plan }).textHash).not.toBe(
+      agreementPreview(trip).textHash
+    )
+    expect(
+      agreementText({
+        ...trip,
+        installmentCount: 1,
+        paymentPlan: paymentPlan(120000, 1, null, ['2027-01-15']),
+      })
+    ).toContain('paid in one payment of $1,200 due by 2027-01-15')
+  })
+
+  it('takes a guest’s first payment from the plan they signed, or the even split from before plans', () => {
+    const schedule = paymentPlan(120000, 4, 50000, [])
+    expect(termsOf({ ...sig, schedule }, []).firstInstallmentCents).toBe(50000)
+    expect(termsOf({ ...sig, schedule }, []).schedule).toEqual(schedule)
+    expect(termsOf({ ...sig, schedule: [] }, []).schedule).toEqual(paymentPlan(120000, 4, null, []))
   })
 
   it('puts odd cents on the last installment, and one payment is the whole price', () => {

@@ -3,12 +3,8 @@
 // The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
 import '../scripts/lib/owner-env'
 import { PrismaClient, type Prisma } from '@prisma/client'
-import {
-  agreementPreview,
-  firstInstallmentCents,
-  refundTerms,
-  TEMPLATE_VERSION,
-} from '../src/join/agreement'
+import { agreementPreview, refundTerms, TEMPLATE_VERSION } from '../src/join/agreement'
+import { planOf } from '../src/trips/trip-mapper'
 import {
   paymentMethodLabel,
   type PaymentMethod,
@@ -43,6 +39,8 @@ const trips: Seed[] = [
       'A long weekend at a beach house on the Vineyard. We take the ferry over from Woods Hole, spend the days on the sand, and close it out with a chef dinner Saturday night.',
     costPerPersonCents: 120000,
     installmentCount: 4,
+    paymentDueDates: ['2026-11-01', '2027-01-01', '2027-03-01', '2027-05-01'],
+    paymentReminderDays: 7,
     galleryTitle: 'The house',
     showGuestNames: true,
     paymentMethods: [
@@ -75,7 +73,7 @@ const trips: Seed[] = [
         date: '2026-11-01',
         label: 'First $300 installment due once you’re accepted',
       },
-      { date: '2027-03-01', label: 'Ferry tickets open' },
+      { date: '2027-03-01', label: 'Ferry tickets open', remindDaysBefore: 3 },
       { date: '2027-05-01', label: 'Final payment due' },
       { date: '2027-06-18', label: 'Arrive. Rental car pickup at the ferry terminal, 3:00 PM' },
     ],
@@ -106,6 +104,17 @@ const trips: Seed[] = [
       'Five nights at an all-inclusive resort on Palm Beach. Days are yours: pool, beach, or the catamaran. We come together for a welcome dinner the first night and a sunset sail mid-week.',
     costPerPersonCents: 240000,
     installmentCount: 8,
+    paymentDueDates: [
+      '2027-08-01',
+      '2027-09-01',
+      '2027-10-01',
+      '2027-11-01',
+      '2027-12-01',
+      '2028-01-01',
+      '2028-02-01',
+      '2028-03-01',
+    ],
+    paymentReminderDays: 7,
     galleryTitle: 'The resort',
     showGuestNames: false,
     paymentMethods: [{ kind: 'zelle', label: '', handle: 'nia.aruba@example.com' }],
@@ -137,7 +146,7 @@ const trips: Seed[] = [
         date: '2027-08-01',
         label: 'First $300 installment due. Sign, pay it, and it holds your spot.',
       },
-      { date: '2027-12-01', label: 'Send your flight details' },
+      { date: '2027-12-01', label: 'Send your flight details', remindDaysBefore: 7 },
       { date: '2028-03-01', label: 'Final payment due' },
       { date: '2028-04-13', label: 'Arrive. Transfers leave AUA every hour from noon.' },
     ],
@@ -168,6 +177,8 @@ const trips: Seed[] = [
       'Four nights in a jungle villa with its own pool, ten minutes from the beach. We swim a cenote, walk the ruins on the cliff, and celebrate with a private chef dinner on Saturday.',
     costPerPersonCents: 160000,
     installmentCount: 4,
+    paymentDueDates: ['2026-11-15', '2026-12-01', '2026-12-15', '2027-01-15'],
+    paymentReminderDays: 3,
     galleryTitle: 'The villa',
     showGuestNames: true,
     paymentMethods: [
@@ -198,7 +209,7 @@ const trips: Seed[] = [
         date: '2026-11-15',
         label: 'First $400 installment due. Sign and pay it to ask for a spot.',
       },
-      { date: '2026-12-15', label: 'Send your flight details' },
+      { date: '2026-12-15', label: 'Send your flight details', remindDaysBefore: 7 },
       { date: '2027-01-15', label: 'Final payment due' },
       { date: '2027-02-11', label: 'Arrive. Shuttle from Tulum airport at 2:00 PM' },
     ],
@@ -253,6 +264,12 @@ async function main() {
   // Only sample trips are replaced (and their guests, by cascade); every other trip is left alone.
   // The admin's access-log lines for the old sample trips go with them (the log has no tie to the trip itself).
   const old = await prisma.trip.findMany({ where: { isSample: true }, select: { id: true } })
+  // The reminders already sent are kept, by trip link and guest email, so a dev restart (which seeds) never sends
+  // them again (owner's decision, 2026-10-29: with DEV_EMAIL_TO set they land in a real inbox).
+  const sent = await prisma.reminderSend.findMany({
+    where: { tripId: { in: old.map((t) => t.id) } },
+    include: { trip: { select: { slug: true } }, guest: { select: { email: true } } },
+  })
   await prisma.accessLog.deleteMany({ where: { tripId: { in: old.map((t) => t.id) } } })
   await prisma.trip.deleteMany({ where: { isSample: true } })
   for (const {
@@ -327,7 +344,22 @@ async function main() {
       },
       include: { guests: true },
     })
-    const agreement = agreementPreview(created)
+    const byEmail = new Map(created.guests.map((g) => [g.email, g.id]))
+    await prisma.reminderSend.createMany({
+      data: sent
+        .filter((r) => r.trip.slug === created.slug && byEmail.has(r.guest.email))
+        .map(({ key, date, label, paymentDue, sentAt, guest }) => ({
+          tripId: created.id,
+          guestId: byEmail.get(guest.email)!,
+          key,
+          date,
+          label,
+          paymentDue,
+          sentAt,
+        })),
+    })
+    const plan = planOf(created)
+    const agreement = agreementPreview({ ...created, paymentPlan: plan })
     await prisma.agreementSignature.createMany({
       data: created.guests.map((g) => ({
         tripId: created.id,
@@ -337,13 +369,14 @@ async function main() {
         textHash: agreement.textHash,
         priceCents: created.costPerPersonCents,
         installmentCount: created.installmentCount,
+        schedule: plan as unknown as Prisma.InputJsonValue,
         startDate: created.startDate,
         endDate: created.endDate,
         refundTerms: refundTerms(
           created.organizerName,
           created.joinMode,
           created.refundPolicy,
-          firstInstallmentCents(created.costPerPersonCents, created.installmentCount)
+          plan[0].amountCents
         ),
         typedName: `${g.firstName} ${g.lastName}`,
         signedAt: g.createdAt,
@@ -352,7 +385,7 @@ async function main() {
       })),
     })
     // Their payments: the first installment, by the trip's first way to pay.
-    const first = firstInstallmentCents(created.costPerPersonCents, created.installmentCount)
+    const first = plan[0].amountCents
     const method = paymentMethods[0]
     for (const [i, g] of guests.entries()) {
       if (!g.payment) continue

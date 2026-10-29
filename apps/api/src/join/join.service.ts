@@ -32,14 +32,7 @@ import {
   type PaymentReport,
 } from '../trips/trip-types'
 import { roomFull, TripsService } from '../trips/trips.service'
-import {
-  agreementPreview,
-  firstInstallmentCents,
-  hashOf,
-  refundTerms,
-  TEMPLATE_VERSION,
-  termsOf,
-} from './agreement'
+import { agreementPreview, hashOf, refundTerms, TEMPLATE_VERSION, termsOf } from './agreement'
 import { canPay, owed } from './guest-pay'
 import { sendText } from './send-text'
 
@@ -238,13 +231,15 @@ export class JoinService {
               textHash: hashOf(signedText),
               priceCents: trip.costPerPersonCents,
               installmentCount: trip.installmentCount,
+              // The plan the agreement quoted: their schedule, like their price, is what they signed.
+              schedule: trip.paymentPlan as unknown as Prisma.InputJsonValue,
               startDate: trip.startDate,
               endDate: trip.endDate,
               refundTerms: refundTerms(
                 trip.organizerName,
                 trip.joinMode,
                 trip.refundPolicy,
-                firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
+                trip.paymentPlan[0].amountCents
               ),
               typedName: input.typedName,
               ...(onBehalf ? { signedByUserId: caller.userId } : {}),

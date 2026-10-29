@@ -24,6 +24,12 @@ model Trip {
   description         String
   costPerPersonCents  Int
   installmentCount    Int                  @default(1)
+  // When each installment is due ('YYYY-MM-DD'[], one per installment) or [] when not set, and how many days before
+  // each one guests who owe are reminded (null: no payment reminders). Migration 20261029060000_reminders.
+  paymentDueDates     Json                 @default("[]")
+  paymentReminderDays Int?
+  // The first payment, which holds the spot, when the organizer sets one; null splits the price evenly.
+  firstPaymentCents   Int?
   galleryTitle        String               @default("Photos")
   showGuestNames      Boolean              @default(false)
   // Shown only to signed-in guests who joined the trip (their join page). Never on the public page.
@@ -59,6 +65,7 @@ model Trip {
   agreements          AgreementSignature[]
   payments            Payment[]
   expenses            Expense[]
+  reminderSends       ReminderSend[]
   adjustments         BalanceAdjustment[]
 }
 
@@ -111,12 +118,18 @@ model Guest {
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
   roomId             String?
   roomNote           String              @default("")
+  // When the guest pressed "Stop updates for this trip" in a reminder email (migration 20261029060000_reminders):
+  // reminders skip them. Trip business emails (signing, being accepted) still go.
+  updatesStoppedAt   DateTime?
+  // The guest's own secret in that link; it names this guest row and nothing else.
+  updatesToken       String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
   room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
   trip               Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
   agreement          AgreementSignature?
   events             GuestEvent[]
   payments           Payment[]
   adjustments        BalanceAdjustment[]
+  reminderSends      ReminderSend[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -140,6 +153,9 @@ model AgreementSignature {
   startDate        String
   endDate          String
   refundTerms      String
+  // The payment plan as signed (PlannedPayment[]: amount and due date per installment); [] on agreements from before
+  // plans had dates (migration 20261029060000_reminders).
+  schedule         Json     @default("[]")
   typedName        String
   // Whose account signed it on the traveler's behalf (issue #11); null when the traveler signed it themselves.
   signedByUserId   String?
@@ -217,6 +233,25 @@ model BalanceAdjustment {
 
   @@index([tripId])
   @@index([guestId])
+}
+
+// One reminder email to one guest (migration 20261029060000_reminders): a key date's reminder goes to each guest once,
+// and this row is written before it's sent, so two runs never send it twice. `key` names the installment or key date
+// it's about. Written by trusted work only; the trip's members read them.
+model ReminderSend {
+  id         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId     String
+  guestId    String
+  key        String
+  date       String // 'YYYY-MM-DD'
+  label      String
+  paymentDue Boolean  @default(false)
+  sentAt     DateTime @default(now())
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest      Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@unique([guestId, key])
+  @@index([tripId])
 }
 
 // One payment a guest sent the organizer, for any installment (migration 20261025010000_payment_log). The guest

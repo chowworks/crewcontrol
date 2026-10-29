@@ -1,4 +1,4 @@
-// Price-per-person and payment-schedule math for the Trip Control panel simulator. Money is integer cents.
+// Price-per-person and payment-date math for the Trip Control panel simulator. Money is integer cents.
 
 export type PricingMethod = 'flat' | 'tiered' | 'hybrid'
 
@@ -79,37 +79,29 @@ export function priceRooms(input: PricingInput): PricingResult {
   return { rooms: priced, people, costCents, collectedCents }
 }
 
-export interface ScheduleInput {
-  perPersonCents: number
-  installments: number
-  /** 'YYYY-MM-DD'; later installments fall on the same day of each following month. */
-  firstDue: string
-  /** The first installment, which reserves the spot. 0 splits everything evenly. */
-  depositCents: number
-}
-
-export interface Installment {
-  date: string
-  amountCents: number
-}
-
-/** Monthly installments; the last one takes any rounding so they add up exactly. */
-export function paymentSchedule(input: ScheduleInput): Installment[] {
-  const n = Math.max(1, Math.floor(input.installments))
-  const deposit = n > 1 ? Math.min(Math.max(0, input.depositCents), input.perPersonCents) : 0
-  const rest = input.perPersonCents - deposit
-  const others = deposit > 0 ? n - 1 : n
-  const each = Math.floor(rest / others)
-  const amounts = Array.from({ length: n }, (_, i) => {
-    if (deposit > 0 && i === 0) return deposit
-    return each
-  })
-  amounts[n - 1] += input.perPersonCents - amounts.reduce((a, b) => a + b, 0)
-  return amounts.map((amountCents, i) => ({ date: addMonths(input.firstDue, i), amountCents }))
+/**
+ * `n` due dates from `first` to `last`, spaced evenly (issue #12). When the two fall on the same day of the month and
+ * the months divide evenly, the dates do too ("the 1st of every other month"); otherwise they're spaced by days.
+ */
+export function spreadDates(first: string, last: string, n: number): string[] {
+  const count = Math.max(1, Math.floor(n))
+  if (count === 1) return [first]
+  const [y1, m1, d1] = first.split('-').map(Number)
+  const [y2, m2, d2] = last.split('-').map(Number)
+  const months = (y2 - y1) * 12 + (m2 - m1)
+  if (d1 === d2 && months > 0 && months % (count - 1) === 0)
+    return Array.from({ length: count }, (_, i) => addMonths(first, (months / (count - 1)) * i))
+  const start = Date.parse(`${first}T00:00:00Z`)
+  const span = Date.parse(`${last}T00:00:00Z`) - start
+  return Array.from({ length: count }, (_, i) =>
+    new Date(start + Math.round((span * i) / (count - 1) / 86_400_000) * 86_400_000)
+      .toISOString()
+      .slice(0, 10)
+  )
 }
 
 /** 'YYYY-MM-DD' plus whole months, clamped to the end of a shorter month. */
-export function addMonths(date: string, months: number): string {
+function addMonths(date: string, months: number): string {
   const [y, m, d] = date.split('-').map(Number)
   const total = y * 12 + (m - 1) + months
   const year = Math.floor(total / 12)

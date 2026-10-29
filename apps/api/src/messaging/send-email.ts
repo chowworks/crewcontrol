@@ -45,10 +45,36 @@ function resend(): Resend | null {
 }
 
 /**
+ * On dev, DEV_EMAIL_TO sends every email to that one developer address instead, marked as a test that names who it was
+ * for, so the seed's fictional guests (and anyone else on the shared dev database) can be emailed safely. Unset, as in
+ * production, email goes to whoever it's for.
+ */
+function redirected(email: Email): Email {
+  const devTo = process.env.DEV_EMAIL_TO?.trim()
+  if (!devTo) return email
+  const note = `Test email from Travel HQ dev. It would have gone to ${email.to}.`
+  const banner =
+    `<div style="background:#F2B33D;color:#0F1C2E;font-family:Arial,sans-serif;font-size:14px;` +
+    `padding:10px 16px;text-align:center;">${note.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>`
+  return {
+    ...email,
+    to: devTo,
+    subject: `[Test] ${email.subject}`,
+    text: `${note}\n\n${email.text}`,
+    html:
+      email.html &&
+      (/<body[^>]*>/.test(email.html)
+        ? email.html.replace(/<body[^>]*>/, (m) => `${m}${banner}`)
+        : `${banner}${email.html}`),
+  }
+}
+
+/**
  * Sends one email. The one place Travel HQ sends email: through Resend when RESEND_API_KEY is set, and logged (sent
  * nowhere) when it isn't, as on a laptop. A provider error throws, so the caller decides whether it matters.
  */
-export async function sendEmail(email: Email): Promise<EmailResult> {
+export async function sendEmail(original: Email): Promise<EmailResult> {
+  const email = redirected(original)
   const to = maskEmail(email.to)
   if (!deliverable(email.to)) {
     logger.log(`Not emailed ${to}: not an address mail can reach`)
