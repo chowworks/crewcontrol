@@ -33,25 +33,27 @@ const ENTITIES: Record<string, string> = {
 
 /** An HTML email as plain lines: blocks become line breaks, tags go, entities are decoded. */
 export function htmlToText(html: string): string {
-  return html
-    .slice(0, 500_000)
-    .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\b[^>]*>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote|section)\s*>/gi, '\n')
-    .replace(/<(td|th)\b[^>]*>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
-      if (e[0] === '#') {
-        const code =
-          e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)
-        return Number.isFinite(code) && code > 0 && code < 0x110000
-          ? String.fromCodePoint(code)
-          : ' '
-      }
-      return ENTITIES[e.toLowerCase()] ?? m
-    })
-    // No angle brackets survive, whether from a broken tag or an encoded one: it is only ever read as text.
-    .replace(/[<>]/g, ' ')
+  return (
+    html
+      .slice(0, 500_000)
+      .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\b[^>]*>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote|section)\s*>/gi, '\n')
+      .replace(/<(td|th)\b[^>]*>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+        if (e[0] === '#') {
+          const code =
+            e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)
+          return Number.isFinite(code) && code > 0 && code < 0x110000
+            ? String.fromCodePoint(code)
+            : ' '
+        }
+        return ENTITIES[e.toLowerCase()] ?? m
+      })
+      // No angle brackets survive, whether from a broken tag or an encoded one: it is only ever read as text.
+      .replace(/[<>]/g, ' ')
+  )
 }
 
 /** The email's text, one trimmed line per line, blank lines dropped: the text part, else the HTML made plain. */
