@@ -99,10 +99,20 @@ export class JoinService {
     }
     return {
       trip,
-      agreement: agreementPreview(trip),
+      agreement: agreementPreview({
+        ...trip,
+        organizer: await this.trips.organizerContact(await this.tripId(slug)),
+      }),
       me,
       termsOfUse: await this.terms.status(caller.userId, 'use'),
     }
+  }
+
+  private async tripId(slug: string): Promise<string> {
+    const { id } = await runAsPublic(() =>
+      this.prisma.trip.findUniqueOrThrow({ where: { slug }, select: { id: true } })
+    )
+    return id
   }
 
   /** Joins the trip and signs its agreement, as one step: there is no sign-up without a signature. */
@@ -132,9 +142,7 @@ export class JoinService {
       throw new BadRequestException('That room is not on this trip')
     if (!input.roomId && trip.options.roomRequired && trip.rooms.length > 0)
       throw new BadRequestException('Pick a room to join')
-    const { id: tripId } = await runAsPublic(() =>
-      this.prisma.trip.findUniqueOrThrow({ where: { slug }, select: { id: true } })
-    )
+    const tripId = await this.tripId(slug)
     const [firstName, lastName] = splitName(input.name)
     try {
       await roomFull(() =>

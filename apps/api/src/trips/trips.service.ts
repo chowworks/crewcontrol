@@ -304,7 +304,23 @@ export class TripsService {
 
   /** The agreement as guests of this trip would sign it today, for the organizer's preview. */
   async agreement(id: string, caller: Caller, admin = false): Promise<AgreementPreview> {
-    return agreementPreview(await this.get(id, caller, admin))
+    const trip = await this.get(id, caller, admin)
+    return agreementPreview({ ...trip, organizer: await this.organizerContact(id) })
+  }
+
+  /**
+   * Who the trip agreement is with: the trip's first owner, by the name and email they signed in with. Trusted work,
+   * because a guest about to sign may not read the trip's members. Null for a trip with no owner (the sample trips).
+   */
+  async organizerContact(tripId: string): Promise<{ name: string; email: string } | null> {
+    const owner = await runAsSystem(() =>
+      this.prisma.tripMember.findFirst({
+        where: { tripId, role: 'owner' },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true },
+      })
+    )
+    return owner ? this.clerk.contact(owner.userId) : null
   }
 
   /** The agreement one guest signed, exactly as they saw it, with when and from where. */

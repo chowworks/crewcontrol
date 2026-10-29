@@ -100,8 +100,13 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
     {
       heading: '5. The trip agreement',
       body:
-        'Your guests sign Travel HQ’s trip agreement, filled in from your trip’s details. You are responsible for ' +
-        'those details being right and for keeping the promises it makes in your name.',
+        'Your guests sign a trip agreement that Travel HQ provides as a form, filled in from your trip’s details. ' +
+        'It is made in your name, between you and each guest; Travel HQ is not a party to it. Some of its terms ' +
+        'are your choices, such as your refund terms. The rest are rules every trip on Travel HQ follows: a full ' +
+        'refund to a guest you turn down or remove, and a ' +
+        'refund, less money already spent that you can’t get back, if you cancel the trip or a guest can’t make ' +
+        'a change to its dates or destination. You agree to them by running a trip here. You are responsible for ' +
+        'your trip’s details being right and for keeping every promise the agreement makes in your name.',
     },
     {
       heading: '6. Your guests’ information',

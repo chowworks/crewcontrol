@@ -13,6 +13,7 @@ const trip = {
   startDate: '2027-06-18',
   endDate: '2027-06-21',
   organizerName: 'Chris',
+  organizer: { name: 'Chris Avery', email: 'chris@example.com' },
   costPerPersonCents: 120000,
   installmentCount: 4,
   joinMode: 'pay_first',
@@ -41,10 +42,10 @@ describe('the trip agreement', () => {
 
   it('words the refund policy the organizer picked', () => {
     expect(agreementText(trip)).toContain(
-      'If you drop out after you are accepted, money you paid comes back only if Chris fills your spot'
+      "If you drop out after you're accepted, money you paid comes back only if Chris fills your spot"
     )
     const kept = agreementText({ ...trip, refundPolicy: 'first_payment_kept' })
-    expect(kept).toContain('your first payment ($300) is not refunded')
+    expect(kept).toContain("your first payment ($300) isn't refunded")
     expect(kept).toContain('Money you paid after it comes back only if Chris fills your spot')
     // Turned down or removed: a full refund, whatever the policy.
     expect(kept).toContain('Chris refunds everything you paid, in full')
@@ -52,6 +53,51 @@ describe('the trip agreement', () => {
     expect(agreementPreview({ ...trip, refundPolicy: 'first_payment_kept' }).textHash).not.toBe(
       agreementPreview(trip).textHash
     )
+  })
+
+  it('makes every promise the organizer’s, and Travel HQ no party to it', () => {
+    const text = agreementText(trip)
+    expect(text).toContain(
+      'This agreement is between you, the guest, and Chris Avery ("Chris", chris@example.com), who organizes MV Beach House 2027.'
+    )
+    expect(text).toContain("Every promise in it is Chris's.")
+    expect(text).toContain('it is not a party to this agreement')
+    expect(text).toContain(
+      "is not responsible for what Chris promises here or does or doesn't deliver"
+    )
+    expect(text).toContain("that is Chris's receipt, not Travel HQ's")
+    // Which refund terms the organizer chose, and which every trip has.
+    expect(text).toContain('Chris chose this for the trip: If you drop out')
+    expect(text).toContain(
+      'Every trip run on Travel HQ also has these terms, and Chris agreed to them'
+    )
+    // When a refund is sent is between the organizer and the guest (owner's decision, 2026-10-29).
+    expect(text).not.toMatch(/within \d+ days/)
+    expect(text).not.toContain('not a travel company')
+  })
+
+  it('gives the email beside the display name when sign-in has no name', () => {
+    expect(
+      agreementText({ ...trip, organizer: { name: '', email: 'chris@example.com' } })
+    ).toContain('between you, the guest, and Chris (chris@example.com), who organizes')
+  })
+
+  it('names the organizer by their display name alone on a trip with no owner', () => {
+    const text = agreementText({ ...trip, organizer: null })
+    expect(text).toContain('between you, the guest, and Chris, who organizes')
+    expect(agreementPreview({ ...trip, organizer: null }).textHash).not.toBe(
+      agreementPreview(trip).textHash
+    )
+  })
+
+  it('refunds what can be recovered when the trip changes or is cancelled, not a full refund', () => {
+    const text = agreementText(trip)
+    expect(text).toContain('5. If the trip changes or is cancelled')
+    expect(text).toContain(
+      "Chris refunds what you paid, less any money Chris already spent on the trip and can't get back"
+    )
+    expect(text).not.toContain('for a full refund of what you paid')
+    expect(text).toContain('6. Signing')
   })
 
   it('says how spots go on a first come, first served trip', () => {

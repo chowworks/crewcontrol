@@ -74,6 +74,25 @@ export class ClerkService {
     return emails
   }
 
+  /**
+   * A person's first and last name and primary email from their sign-in, for the trip agreement. Blank parts when
+   * Clerk has none or can't be reached.
+   */
+  async contact(userId: string): Promise<{ name: string; email: string }> {
+    try {
+      const user = await this.client?.users.getUser(userId)
+      return {
+        name: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim(),
+        email: user?.primaryEmailAddress?.emailAddress ?? '',
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not read Clerk user ${userId}: ${err instanceof Error ? err.message : err}`
+      )
+      return { name: '', email: '' }
+    }
+  }
+
   /** Names and emails for user ids, for a trip's People screen. Unknown ids are left out. */
   async people(userIds: string[]): Promise<Map<string, { name: string; email: string }>> {
     const out = new Map<string, { name: string; email: string }>()
