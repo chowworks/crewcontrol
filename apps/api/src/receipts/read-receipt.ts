@@ -33,14 +33,20 @@ const ENTITIES: Record<string, string> = {
 
 /** An HTML email as plain lines: blocks become line breaks, tags go, entities are decoded. */
 export function htmlToText(html: string): string {
-  return (
-    html
-      .slice(0, 500_000)
+  // Stripped until nothing changes, so a tag split around another ("<scr<script>ipt>") can't come back together.
+  let text = html.slice(0, 500_000)
+  let before: string
+  do {
+    before = text
+    text = text
       .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\b[^>]*>/gi, ' ')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote|section)\s*>/gi, '\n')
       .replace(/<(td|th)\b[^>]*>/gi, ' ')
       .replace(/<[^>]*>/g, '')
+  } while (text !== before)
+  return (
+    text
       .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
         if (e[0] === '#') {
           const code =
