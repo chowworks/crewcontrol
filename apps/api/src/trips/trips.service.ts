@@ -67,6 +67,8 @@ const withGuests = {
     include: { agreement: true, payments: true, adjustments: true },
   },
   rooms: { orderBy: { position: 'asc' } },
+  forwardedReceipts: { where: { status: 'unmatched' }, orderBy: { receivedAt: 'asc' } },
+  payerAddresses: { orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.TripInclude
 
 function data(input: TripInput) {
@@ -912,8 +914,22 @@ export class TripsService {
    * spots were paid. When another organizer took the last spot a moment ago, the payment stays recorded and the guest
    * waits (they are the one refunded).
    */
-  private async firstComeAccept(id: string, guestId: string, caller: Caller): Promise<void> {
-    const trip = await this.get(id, caller)
+  /**
+   * A forwarded receipt confirmed a payment as trusted work (receipts/forwarded-receipts.service.ts): on a first come
+   * trip it takes the next spot as an organizer's confirmation would. No person acts, so the guest's history says the
+   * system accepted them.
+   */
+  async firstComeAcceptAsSystem(id: string, guestId: string): Promise<void> {
+    await runAsSystem(() => this.firstComeAccept(id, guestId, { userId: '', isAdmin: false }, true))
+  }
+
+  private async firstComeAccept(
+    id: string,
+    guestId: string,
+    caller: Caller,
+    anyTrip = false
+  ): Promise<void> {
+    const trip = await this.get(id, caller, anyTrip)
     const guest = trip.guests.find((g) => g.id === guestId)
     if (
       trip.joinMode !== 'first_come' ||

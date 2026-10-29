@@ -16,6 +16,7 @@ import {
   type PublicTrip,
   type TripInput,
   type TripOptions,
+  type TripReceipts,
   type TripRoom,
 } from '@cc/types'
 import {
@@ -46,6 +47,7 @@ import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
 import { defaultSignupNote, waitlisting } from '@/lib/signups'
 import { StepsFrame } from './EditTripSteps'
+import { ReceiptsAddressCard } from './ForwardedReceipts'
 
 /** The trip link's shape, as the server checks it (parseSlug). */
 const LINK = /^(?=.{3,60}$)[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -181,6 +183,8 @@ export function EditTripPage() {
   const toast = useToast()
   const [preview, setPreview] = useState(false)
   const [rooms, setRooms] = useState<TripRoom[]>([])
+  // The trip's forwarded-receipts address (issue #12), saved on its own, not with the trip.
+  const [receipts, setReceipts] = useState<TripReceipts | null>(null)
   const admin = useAdminView()
   // What was last loaded or saved, to tell whether anything on screen is unsaved.
   const [savedTrip, setSavedTrip] = useState(JSON.stringify(EMPTY))
@@ -254,6 +258,7 @@ export function EditTripPage() {
         setLink(slug)
         setGuests(guests)
         setBuffer(loaded.waitlistBufferPercent)
+        setReceipts(loaded.receipts)
       })
       .catch(() => setMessage({ kind: 'error', text: 'This trip could not be loaded.' }))
       .finally(() => setLoading(false))
@@ -953,6 +958,32 @@ export function EditTripPage() {
                       : 'Only guests who signed in and signed the trip agreement see these. They never appear on the public trip page.'}
                   </span>
                 </Card>
+                {id && receipts && (
+                  <ReceiptsAddressCard
+                    tripId={id}
+                    receipts={receipts}
+                    suggestion={slug}
+                    onSaved={setReceipts}
+                  >
+                    <Toggle
+                      checked={trip.options.confirmReceipts}
+                      onChange={(v) => setOption('confirmReceipts', v)}
+                      label="Confirm guests’ receipts as they arrive"
+                      hint={
+                        <>
+                          <strong className="text-ink">On:</strong> a receipt a guest forwards that
+                          says who paid and how much is confirmed right away.
+                          <br />
+                          <strong className="text-ink">Off:</strong> it waits in Actions for you to
+                          confirm.
+                          <br />
+                          Receipts you forward are always confirmed. Anyone can edit an email before
+                          forwarding it, so turn this on only for a crew you trust.
+                        </>
+                      }
+                    />
+                  </ReceiptsAddressCard>
+                )}
                 <Card title="Vendor costs">
                   <Toggle
                     checked={trip.options.vendorCosts}
@@ -1319,7 +1350,7 @@ function Toggle({
   checked: boolean
   onChange: (value: boolean) => void
   label: string
-  hint: string
+  hint: ReactNode
   disabled?: boolean
 }) {
   return (

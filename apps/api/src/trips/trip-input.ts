@@ -18,9 +18,12 @@ import {
   type GuestUpdate,
   type JoinInput,
   type JoinMode,
+  DISMISS_RECEIPT_REASONS,
   PAYMENT_METHOD_KINDS,
   REMIND_DAYS,
   type BalanceAdjustmentInput,
+  type DismissReceiptReason,
+  type MatchReceiptInput,
   type ExpenseInput,
   type PaymentDecision,
   type PaymentLog,
@@ -209,7 +212,7 @@ export function parseOptions(raw: unknown): TripOptions {
   if (raw === undefined || raw === null) return { ...DEFAULT_TRIP_OPTIONS }
   if (typeof raw !== 'object' || Array.isArray(raw)) fail('options must be an object')
   const body = raw as Body
-  const flag = (key: 'roomChoice' | 'roomRequired' | 'vendorCosts') =>
+  const flag = (key: 'roomChoice' | 'roomRequired' | 'vendorCosts' | 'confirmReceipts') =>
     body[key] === undefined ? DEFAULT_TRIP_OPTIONS[key] : bool(body, key)
   const roomChoice = flag('roomChoice')
   return {
@@ -225,6 +228,7 @@ export function parseOptions(raw: unknown): TripOptions {
             body.roomPricing === 'weights'
           ? body.roomPricing
           : fail('roomPricing must be same, typed or weights'),
+    confirmReceipts: flag('confirmReceipts'),
   }
 }
 
@@ -448,6 +452,27 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
   }
+}
+
+/** Matching a forwarded receipt to a guest: who, how much and the day it was sent. */
+export function parseMatchReceipt(raw: unknown): MatchReceiptInput {
+  if (!raw || typeof raw !== 'object') fail('Expected a guest to match it to')
+  const body = raw as Body
+  return {
+    guestId: text(body, 'guestId', 100),
+    amountCents: cents(body, 'amountCents'),
+    sentOn: date(body, 'sentOn'),
+    confirm: body.confirm === true,
+    remember: body.remember === true,
+  }
+}
+
+/** Why a forwarded receipt is dismissed, from the fixed list. */
+export function parseDismissReceipt(raw: unknown): DismissReceiptReason {
+  const reason = (raw as Body | null)?.reason
+  if (!DISMISS_RECEIPT_REASONS.includes(reason as DismissReceiptReason))
+    fail('Say why it’s dismissed')
+  return reason as DismissReceiptReason
 }
 
 /** A credit or charge on a guest's balance: which, how much, and why (required). */

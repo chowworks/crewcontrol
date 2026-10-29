@@ -13,6 +13,7 @@ import type { Request } from 'express'
 import { Resend } from 'resend'
 import { runAsSystem } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
+import { enqueueReceived } from '../receipts/forwarded-queue'
 import { maskEmail } from './send-email'
 
 /** The Resend events we keep: the address bounces, a send was blocked because it bounced before, or spam. */
@@ -34,8 +35,10 @@ type Notice = {
 
 /**
  * Resend tells us when an email bounced, was blocked because the address bounced before, or was marked as spam.
- * Every guest row with that address gets the problem, so Trip Control's Actions asks the organizer to fix it. Signed
- * by Resend (Svix) with RESEND_WEBHOOK_SECRET; anything unsigned or for other events is ignored.
+ * Every guest row with that address gets the problem, so Trip Control's Actions asks the organizer to fix it. It also
+ * tells us when an email arrived at a trip's receipts address (`email.received`), which is queued for the forwarded
+ * receipts worker (receipts/forwarded-queue.ts). Signed by Resend (Svix) with RESEND_WEBHOOK_SECRET; anything unsigned
+ * or for other events is ignored.
  */
 @Controller('webhooks/resend')
 export class ResendWebhookController {
@@ -63,6 +66,10 @@ export class ResendWebhookController {
       }) as typeof event
     } catch {
       throw new BadRequestException('Bad signature')
+    }
+    if (event.type === 'email.received') {
+      await enqueueReceived(this.prisma, event)
+      return
     }
     const problem = PROBLEMS[event.type]
     if (!problem) return

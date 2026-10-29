@@ -7,9 +7,12 @@ import {
   totalDueCents,
   waitlistSpotOpen,
   type BalanceAdjustmentInput,
+  type DismissReceiptReason,
+  type ForwardedReceiptItem,
   type Guest,
   type GuestEvent,
   type GuestUpdate,
+  type MatchReceiptInput,
   type OrganizerTrip,
   type Payment,
   type PaymentDecision,
@@ -36,6 +39,7 @@ import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/
 import { signupOrder, waitlist } from '@/lib/signups'
 import { AdjustBalance } from './AdjustBalance'
 import { SignedCopy, UndoConfirm } from './ControlPanelPage'
+import { ReceiptActionRow, ReceiptProofButton } from './ForwardedReceipts'
 import { GuestDetails } from './GuestDetails'
 
 const day = (iso: string) =>
@@ -80,6 +84,14 @@ interface Props {
   onRemoveAdjustment: (guest: Guest, adjustmentId: string) => Promise<boolean>
   /** Their room costs more or less than they signed: add the difference to their balance, or leave it. */
   onRoomPrice: (guest: Guest, adjust: boolean) => Promise<boolean>
+  /** A forwarded receipt nobody could place, matched to a guest or put aside (issue #12); true when it saved. */
+  onMatchReceipt?: (receipt: ForwardedReceiptItem, input: MatchReceiptInput) => Promise<boolean>
+  onDismissReceipt?: (
+    receipt: ForwardedReceiptItem,
+    reason: DismissReceiptReason
+  ) => Promise<boolean>
+  /** Stops filing receipts from an address an organizer tied to the guest; true when it saved. */
+  onForgetSender?: (guest: Guest, senderId: string) => Promise<boolean>
   /** Why the last change didn't save, shown in an open Details dialog (the page's own line is behind it). */
   error?: string | null
 }
@@ -145,7 +157,7 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
         return {
           kind: 'payment',
           key: a.key,
-          text: `${p.paidByName ? `${p.paidByName} paid ${amount} for them` : `Paid ${amount}`} by ${methodName(p)} on ${shortDate(p.sentOn)}${!a.short && a.due ? ` · due ${money(a.due)}` : ''}`,
+          text: `${p.loggedBy === 'email' ? 'Forwarded a receipt · ' : ''}${p.paidByName ? `${p.paidByName} paid ${amount} for them` : `Paid ${amount}`} by ${methodName(p)} on ${shortDate(p.sentOn)}${!a.short && a.due ? ` · due ${money(a.due)}` : ''}`,
           note: p.note,
           payment: p,
           short: a.short,
@@ -233,6 +245,7 @@ function GuestRow({
  */
 function ActionRow({
   g,
+  tripId,
   action,
   onUpdate,
   onDecide,
@@ -241,6 +254,7 @@ function ActionRow({
   onDetails,
 }: {
   g: Guest
+  tripId: string
   action: Action
   onUpdate: Props['onUpdate']
   onDecide: Props['onDecide']
@@ -313,7 +327,7 @@ function ActionRow({
           <div className="text-sm italic text-body">&ldquo;{action.note}&rdquo;</div>
         )}
       </div>
-      <div className="ml-auto flex gap-2">
+      <div className="ml-auto flex flex-wrap gap-2">
         <button
           type="button"
           disabled={busy}
@@ -331,6 +345,9 @@ function ActionRow({
           >
             Leave it
           </button>
+        )}
+        {action.kind === 'payment' && action.payment.loggedBy === 'email' && (
+          <ReceiptProofButton tripId={tripId} paymentId={action.payment.id} admin={false} />
         )}
         <button type="button" onClick={onDetails} className={outlined}>
           Details
@@ -960,17 +977,22 @@ function ManagedBy({
 export function PaymentLine({
   p,
   g,
+  tripId,
   onReview,
   onDecide,
 }: {
   p: Payment
   g: Guest
+  tripId: string
   onReview: () => void
   onDecide: Props['onDecide']
 }) {
   const admin = useAdminView()
   // A payment the organizer logged was never the guest's word, so it can't go back to waiting: undoing it removes it.
   const logged = p.loggedBy === 'organizer'
+  // One read from a forwarded receipt keeps the email as its proof; confirmed as it came in, it is taken back by
+  // marking it not received (owner's decision, 2026-10-29).
+  const emailed = p.loggedBy === 'email'
   // Taking back the payment that paid a waiting guest's spot loses their place in line; otherwise only the balance moves.
   const warning =
     (p.transferId ? 'It was one payment for several travelers: this undoes all of it. ' : '') +
@@ -996,31 +1018,39 @@ export function PaymentLine({
             ? p.status === 'confirmed'
               ? 'Logged by an organizer'
               : 'Logged by an organizer · removed'
-            : paymentStatus(p.status, 'you')}
+            : `${emailed ? 'From a forwarded receipt · ' : ''}${paymentStatus(p.status, 'you')}`}
           {arrived}
           {p.paidByName && ` · sent by ${p.paidByName}`}
           {p.transferId && ' · one payment for several travelers'}
         </span>
         {p.note && <span className="block italic text-body">&ldquo;{p.note}&rdquo;</span>}
       </span>
-      {admin ? null : p.status === 'reported' ? (
-        <button type="button" onClick={onReview} className={outlined}>
-          Review
-        </button>
-      ) : p.status === 'confirmed' ? (
-        <UndoConfirm
-          warning={warning}
-          onUndo={() => onDecide(p.id, { status: logged ? 'not_received' : 'reported' })}
-        />
-      ) : p.status === 'not_received' && !logged ? (
-        <button
-          type="button"
-          onClick={() => onDecide(p.id, { status: 'reported' })}
-          className={outlined}
-        >
-          Undo
-        </button>
-      ) : null}
+      <span className="flex flex-wrap gap-2">
+        {emailed && <ReceiptProofButton tripId={tripId} paymentId={p.id} admin={admin} />}
+        {admin ? null : p.status === 'reported' ? (
+          <button type="button" onClick={onReview} className={outlined}>
+            Review
+          </button>
+        ) : p.status === 'confirmed' ? (
+          <UndoConfirm
+            warning={warning}
+            {...(emailed
+              ? { label: 'Not received', title: 'Mark this payment not received?' }
+              : {})}
+            onUndo={() =>
+              onDecide(p.id, { status: logged || emailed ? 'not_received' : 'reported' })
+            }
+          />
+        ) : p.status === 'not_received' && !logged ? (
+          <button
+            type="button"
+            onClick={() => onDecide(p.id, { status: 'reported' })}
+            className={outlined}
+          >
+            Undo
+          </button>
+        ) : null}
+      </span>
     </li>
   )
 }
@@ -1040,7 +1070,8 @@ export function eventText(e: GuestEvent): string {
     case 'signed':
       return 'Signed the trip agreement'
     case 'said_paid':
-      return `Said they paid${amount}`
+      // Travel HQ logs the payment a forwarded receipt said was sent (issue #12).
+      return e.actor === 'system' ? `Forwarded a receipt for${amount}` : `Said they paid${amount}`
     case 'payment_confirmed':
       return amount ? `Confirmed${amount} arrived` : 'Payment confirmed'
     case 'payment_not_received':
@@ -1473,7 +1504,8 @@ export function ActionsCard(props: Props) {
   }
   const spotOpen = waitlistSpotOpen(trip)
   const waiting = waitlist(trip.guests).length
-  const count = rows.length + (spotOpen ? 1 : 0)
+  const receipts = props.onMatchReceipt && props.onDismissReceipt ? trip.receipts.unmatched : []
+  const count = rows.length + (spotOpen ? 1 : 0) + receipts.length
   return (
     <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
@@ -1506,6 +1538,16 @@ export function ActionsCard(props: Props) {
               </div>
             </li>
           )}
+          {receipts.map((r) => (
+            <ReceiptActionRow
+              key={r.id}
+              r={r}
+              trip={trip}
+              onMatch={props.onMatchReceipt!}
+              onDismiss={props.onDismissReceipt!}
+              error={props.error}
+            />
+          ))}
           {rows.map(({ key, items }) =>
             items.length > 1 ? (
               <TransferRow
@@ -1521,6 +1563,7 @@ export function ActionsCard(props: Props) {
               <ActionRow
                 key={key}
                 g={items[0].g}
+                tripId={trip.id}
                 action={items[0].action}
                 onUpdate={onUpdate}
                 onDecide={onDecide}

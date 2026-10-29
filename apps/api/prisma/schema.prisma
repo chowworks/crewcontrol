@@ -55,6 +55,10 @@ model Trip {
   // TripOptions: settings that only change what the pages show (room choice, the sign-up lines). A setting the
   // database must enforce gets its own column instead.
   options             Json                 @default("{}")
+  // The part before the @ of the trip's own address for forwarded receipts (the domain is the environment's,
+  // RECEIPTS_DOMAIN). Changed, never cleared; every address used is kept in ReceiptsAddress (migration
+  // 20261029080000_receipt_forwarding).
+  receiptsAddress     String?              @unique
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   guests              Guest[]
@@ -67,6 +71,8 @@ model Trip {
   expenses            Expense[]
   reminderSends       ReminderSend[]
   adjustments         BalanceAdjustment[]
+  forwardedReceipts   ForwardedReceipt[]
+  payerAddresses      PayerAddress[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -87,52 +93,53 @@ model TripMember {
 // Someone joining a trip. They sign in, sign the agreement and pay the organizer; then the organizer accepts them
 // (or, on a first come, first served trip, confirming their payment does).
 model Guest {
-  id                 String              @id @default(cuid())
-  tripId             String
+  id                    String              @id @default(cuid())
+  tripId                String
   // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in, and for a
   // traveler someone else signed up until that traveler signs in themselves (claim_managed_guest).
-  userId             String?
+  userId                String?
   // Whose account signed this traveler up and looks after them (a parent, a friend paying for a roommate), when it
   // wasn't the traveler (migration 20261028050000_responsible_party). Organizers can change it.
-  managedByUserId    String?
+  managedByUserId       String?
   // Emails to them bounced or they marked one as spam (Resend's webhook, migration 20261029040000_email_problems):
   // 'bounced' | 'complained', cleared when an organizer fixes the address or says they've seen it.
-  emailProblem       String?
-  emailProblemAt     DateTime?
-  firstName          String
-  lastName           String
-  email              String
-  phone              String
-  status             String              @default("interested") // 'interested' | 'approved' | 'declined'
-  createdAt          DateTime            @default(now())
+  emailProblem          String?
+  emailProblemAt        DateTime?
+  firstName             String
+  lastName              String
+  email                 String
+  phone                 String
+  status                String              @default("interested") // 'interested' | 'approved' | 'declined'
+  createdAt             DateTime            @default(now())
   // When the payments the organizer confirmed first added up to the first payment the guest's agreement asked for
   // (kept by the database from Payment, migration 20261025010000_payment_log). On a first come, first served trip
   // spots go in this order.
-  spotPaidAt         DateTime?
+  spotPaidAt            DateTime?
   // When they joined onto the waitlist (the trip was full), and when an organizer offered them a spot that opened
   // (migration 20261026020000_waitlist). Waitlisted and not offered: no way to pay shown, and no payment taken.
-  waitlistedAt       DateTime?
-  offeredAt          DateTime?
+  waitlistedAt          DateTime?
+  offeredAt             DateTime?
   // When the organizer, turning a paid guest down, said the refund went out. Records it; moves no money.
-  refundSentAt       DateTime?
+  refundSentAt          DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
-  roomId             String?
-  roomNote           String              @default("")
+  roomId                String?
+  roomNote              String              @default("")
   // When the guest pressed "Stop updates for this trip" in a reminder email (migration 20261029060000_reminders):
   // reminders skip them. Trip business emails (signing, being accepted) still go.
-  updatesStoppedAt   DateTime?
+  updatesStoppedAt      DateTime?
   // The guest's own secret in that link; it names this guest row and nothing else.
-  updatesToken       String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  updatesToken          String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
   // The room price the difference from the signed price was last settled at, as a credit or charge or left alone
   // (migration 20261029070000_room_prices); null: never.
   roomPriceSettledCents Int?
-  room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  trip               Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  agreement          AgreementSignature?
-  events             GuestEvent[]
-  payments           Payment[]
-  adjustments        BalanceAdjustment[]
-  reminderSends      ReminderSend[]
+  room                  Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  trip                  Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  agreement             AgreementSignature?
+  events                GuestEvent[]
+  payments              Payment[]
+  adjustments           BalanceAdjustment[]
+  payerAddresses        PayerAddress[]
+  reminderSends         ReminderSend[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -175,27 +182,27 @@ model AgreementSignature {
 // One line of a guest's history, written only by the database's triggers (migration 20261024010000_guest_history):
 // what happened, when, and who did it. Members of the trip read it; nobody writes, changes or deletes a line.
 model GuestEvent {
-  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  tripId      String
-  guestId     String
-  at          DateTime @default(now())
+  id           String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId       String
+  guestId      String
+  at           DateTime @default(now())
   // 'joined' | 'signed' | 'said_paid' | 'payment_confirmed' | 'payment_not_received' | 'payment_undone' |
   // 'accepted' | 'turned_down' | 'put_back' | 'refund_sent' | 'refund_undone' | 'room_changed' | 'contact_changed'
-  kind        String
-  actorUserId String?
-  actor       String // 'guest' | 'organizer' | 'system'
-  fromRoomId  String?
-  toRoomId    String?
+  kind         String
+  actorUserId  String?
+  actor        String // 'guest' | 'organizer' | 'system'
+  fromRoomId   String?
+  toRoomId     String?
   // For contact_changed: which details changed ('name', 'email', 'phone'), never their values.
-  fields      String?
+  fields       String?
   // For the payment kinds: which payment, and its amount in whole cents (what the guest said they sent, or what the
   // organizer confirmed arrived).
-  paymentId   String?
-  amount      Int?
+  paymentId    String?
+  amount       Int?
   // For the adjustment kinds: which adjustment (its reason is there).
   adjustmentId String?
-  n           Int      @default(autoincrement())
-  guest       Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+  n            Int      @default(autoincrement())
+  guest        Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 
   @@index([guestId, at, n])
   @@index([tripId])
@@ -275,7 +282,7 @@ model Payment {
   // Why, when it is less than what was due. Required then.
   note                  String    @default("")
   status                String    @default("reported") // 'reported' | 'confirmed' | 'not_received'
-  loggedBy              String    @default("guest") // 'guest' | 'organizer'
+  loggedBy              String    @default("guest") // 'guest' | 'organizer' | 'email' (a forwarded receipt)
   // Who sent it, by name, when someone paid for this traveler ('' when the traveler reported it themselves).
   paidByName            String    @default("")
   // One transfer for several travelers: the rows it pays share this, and are confirmed together. Null for one person.
@@ -296,20 +303,20 @@ model Payment {
 
 // A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.
 model Room {
-  id        String   @id @default(cuid())
-  tripId    String
-  position  Int
-  name      String
-  beds      String   @default("")
-  capacity  Int
-  weight    Float    @default(1)
+  id         String   @id @default(cuid())
+  tripId     String
+  position   Int
+  name       String
+  beds       String   @default("")
+  capacity   Int
+  weight     Float    @default(1)
   // The beds in it, in order (BED_TYPES), for the room pictures guests choose from.
-  bedTypes  String[] @default([])
+  bedTypes   String[] @default([])
   // The fewest people the room is priced for. Fewer than this and they pay for the empty places too.
-  minPeople Int      @default(1)
+  minPeople  Int      @default(1)
   // What a guest in this room pays, per person; null: the trip's price (migration 20261029070000_room_prices).
   priceCents Int?
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   guests Guest[]
 
@@ -425,4 +432,70 @@ model EmailProblem {
   guestIds String[] @default([])
 
   @@index([at])
+}
+
+/// A sender an organizer vouched for when matching a forwarded receipt (migration 20261029080000_receipt_forwarding):
+/// its next forwards are filed on that guest.
+model PayerAddress {
+  id              String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId          String
+  guestId         String
+  address         String
+  createdAt       DateTime @default(now())
+  createdByUserId String
+  trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest           Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@unique([tripId, address])
+  @@index([guestId])
+}
+
+/// Every address a trip has used for forwarded receipts (migration 20261029080000_receipt_forwarding). One not released
+/// is never chosen again; the platform admin releases a retired one. Not trip data: `tripId` is a plain id.
+/// Its two partial unique indexes (one row not released per address, one current row per trip) and
+/// ForwardedReceipt's on `paymentId` are in the migration only: Prisma can't say "unique where", so keep them when
+/// writing a migration with `prisma migrate diff`.
+model ReceiptsAddress {
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  address          String
+  tripId           String
+  firstUsedAt      DateTime  @default(now())
+  removedAt        DateTime?
+  releasedAt       DateTime?
+  releasedByUserId String?
+}
+
+/// One email received at a trip's receipts address, and what became of it (migration 20261029080000_receipt_forwarding).
+model ForwardedReceipt {
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  emailId          String    @unique
+  toAddress        String?
+  fromAddress      String?
+  subject          String?
+  receivedAt       DateTime  @default(now())
+  tripId           String?
+  // 'received' | 'processing' | 'recorded' | 'unmatched' | 'dismissed' | 'rejected' | 'failed'
+  status           String    @default("received")
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime  @default(now())
+  reason           String?
+  error            String?
+  senderVerified   Boolean   @default(false)
+  amountCents      Int?
+  payerName        String    @default("")
+  methodKind       String?
+  sentOn           String?
+  excerpt          String    @default("")
+  suggestedGuestId String?
+  guestId          String?
+  paymentId        String?
+  decidedAt        DateTime?
+  decidedByUserId  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  trip             Trip?     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, status])
+  @@index([status, nextAttemptAt])
+  @@index([receivedAt])
 }

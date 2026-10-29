@@ -292,7 +292,8 @@ export interface Payment {
   /** Why it was less than due, in the guest's words. */
   note: string
   status: 'reported' | 'confirmed' | 'not_received' | 'refunded'
-  loggedBy: 'guest' | 'organizer'
+  /** 'email': read from a receipt someone forwarded to the trip's receipts address; still the guest's word. */
+  loggedBy: 'guest' | 'organizer' | 'email'
   /** Who sent it, by name, when someone paid for this traveler; '' when the traveler reported it themselves. */
   paidByName: string
   /** One transfer for several travelers: their payments share this and are decided together. Null for one person. */
@@ -463,6 +464,12 @@ export interface TripOptions {
    * typed per room (a resort), or the trip's cost split by each room's weight in the editor (a house). Organizer-only.
    */
   roomPricing: RoomPricing
+  /**
+   * A guest's forwarded receipt that names its guest is confirmed as it arrives; off, it waits in Actions for the
+   * organizer to confirm (owner's decision, 2026-10-29: it's about how much the organizer trusts the crew). An
+   * organizer's own forward is always confirmed. Organizer-only.
+   */
+  confirmReceipts: boolean
 }
 
 export type RoomPricing = 'same' | 'typed' | 'weights'
@@ -473,10 +480,11 @@ export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   signupNote: '',
   vendorCosts: false,
   roomPricing: 'same',
+  confirmReceipts: false,
 }
 
 /** The options a guest's page sees: the organizer-only ones left out. */
-export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'roomPricing'>
+export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'roomPricing' | 'confirmReceipts'>
 
 export interface TripInput {
   name: string
@@ -517,6 +525,8 @@ export interface OrganizerTrip extends TripInput {
   id: string
   slug: string
   guests: Guest[]
+  /** The trip's address for forwarded receipts, and the ones waiting for an organizer to match. */
+  receipts: TripReceipts
   /** The system's waitlist buffer (System Settings), so Trip Control can tell when a spot opened as the database does. */
   waitlistBufferPercent: number
   updatedAt: string
@@ -709,6 +719,8 @@ export interface MyGuest {
    */
   paymentMethods: PaymentMethod[]
   paymentInstructions: string
+  /** Where to forward a payment receipt (the trip's receipts address), under the same rule; null when there's none. */
+  receiptsEmail: string | null
 }
 
 /** The join page: the trip, the agreement to sign, and the guest's own place once they've joined. */
@@ -955,7 +967,8 @@ export function waitlistSpotOpen(trip: OrganizerTrip): boolean {
 /** Everything that needs the organizer on a trip: the red count beside Actions. */
 export const tripActionCount = (trip: OrganizerTrip): number =>
   new Set(trip.guests.flatMap((g) => guestActions(g, trip).map((a) => a.key))).size +
-  (waitlistSpotOpen(trip) ? 1 : 0)
+  (waitlistSpotOpen(trip) ? 1 : 0) +
+  trip.receipts.unmatched.length
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
 export interface MyActions {
@@ -1074,4 +1087,134 @@ export interface StopUpdatesView {
   tripName: string
   firstName: string
   stopped: boolean
+}
+
+// ── Forwarded receipts (issue #12, receipts@) ──────────────────────────────────
+
+/** The part before the @ of a trip's receipts address: 3 to 40 lowercase letters, digits and hyphens. */
+export const RECEIPTS_ADDRESS_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/
+
+/** A trip's receipts address, as Trip Control and the trip editor show it. */
+export interface TripReceipts {
+  /** The part before the @, or null until set. */
+  address: string | null
+  /** The whole address, when both it and this environment's receipts domain are set. */
+  email: string | null
+  /** This environment's receipts domain, so the editor can show "@receipts.travel-hq.app" beside the field. */
+  domain: string | null
+  /** Receiving email is set up here (Resend's receiving key, webhook and domain). */
+  on: boolean
+  /** Forwarded receipts it couldn't place, oldest first, for the organizer to match to a guest or dismiss. */
+  unmatched: ForwardedReceiptItem[]
+  /** Other addresses an organizer said belong to a guest, so receipts from them are filed on that guest. */
+  senders: RememberedSender[]
+}
+
+/** An address an organizer tied to a guest when matching a receipt from it. */
+export interface RememberedSender {
+  id: string
+  guestId: string
+  address: string
+}
+
+/** A forwarded receipt waiting for an organizer: what was read from it and why it wasn't placed. */
+export interface ForwardedReceiptItem {
+  id: string
+  receivedAt: string
+  fromAddress: string | null
+  subject: string | null
+  /** Why it needs the organizer, in a sentence. */
+  reason: string
+  amountCents: number | null
+  payerName: string
+  methodKind: PaymentMethodKind | 'other' | null
+  sentOn: string | null
+  /** The start of the email's text, to read before matching it. */
+  excerpt: string
+  /** The guest it most likely is, when there's a good guess (the organizer still picks). */
+  suggestedGuestId: string | null
+  /** It came from an address nobody on the trip uses, so the organizer can tie that address to the guest. */
+  fromStranger: boolean
+}
+
+/** Matching a forwarded receipt to a guest: it becomes their reported payment, for the organizer to confirm. */
+export interface MatchReceiptInput {
+  guestId: string
+  /** Whole cents; what the receipt says unless the organizer corrects it. */
+  amountCents: number
+  /** 'YYYY-MM-DD' */
+  sentOn: string
+  /** The organizer says the money arrived: confirmed in the same step instead of waiting as reported. */
+  confirm: boolean
+  /** File later receipts from this receipt's sender on the same guest. */
+  remember: boolean
+}
+
+/** The forwarded email a payment was read from, as its proof. */
+export interface ReceiptProof {
+  receivedAt: string
+  fromAddress: string | null
+  subject: string | null
+  /** Resend found the sender's domain vouched for the From address. */
+  senderVerified: boolean
+  /** The start of the email's text. */
+  excerpt: string
+}
+
+export const DISMISS_RECEIPT_REASONS = [
+  'not_a_payment',
+  'already_recorded',
+  'not_this_trip',
+] as const
+export type DismissReceiptReason = (typeof DISMISS_RECEIPT_REASONS)[number]
+export const DISMISS_RECEIPT_LABELS: Record<DismissReceiptReason, string> = {
+  not_a_payment: 'Not a payment',
+  already_recorded: 'Already recorded',
+  not_this_trip: 'Not for this trip',
+}
+
+export type ForwardedReceiptStatus =
+  'received' | 'processing' | 'recorded' | 'unmatched' | 'dismissed' | 'rejected' | 'failed'
+
+/** One email received, as the Admin toolbox lists it: the envelope and what became of it, never its text. */
+export interface AdminForwardedReceipt {
+  id: string
+  receivedAt: string
+  toAddress: string | null
+  fromAddress: string | null
+  subject: string | null
+  status: ForwardedReceiptStatus
+  tripId: string | null
+  tripName: string | null
+  senderVerified: boolean
+  amountCents: number | null
+  reason: string | null
+  error: string | null
+  attempts: number
+  canRunAgain: boolean
+}
+
+/** One receipts address a trip has used, for the Admin toolbox: in use, retired (held) or released. */
+export interface AdminReceiptsAddress {
+  id: string
+  address: string
+  email: string | null
+  tripId: string
+  /** The trip's name today; null when the trip was deleted. */
+  tripName: string | null
+  firstUsedAt: string
+  removedAt: string | null
+  /** Emails that still arrived at a retired address since it was retired (all refused), and when the last came. */
+  receivedSinceRemoval: number
+  lastReceivedAt: string | null
+  releasedAt: string | null
+  releasedBy: string | null
+  canRelease: boolean
+}
+
+export interface AdminForwardedReceipts {
+  on: boolean
+  domain: string | null
+  emails: AdminForwardedReceipt[]
+  addresses: AdminReceiptsAddress[]
 }

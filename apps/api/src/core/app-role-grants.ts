@@ -37,6 +37,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'note_email_problem(text,text,text,text)',
   // The Admin toolbox's Email problems, with the guests on each address (admin only).
   'admin_email_problems()',
+  // Whether a receipts address is taken, in use or retired and not released (yes or no only).
+  'receipts_address_taken(text)',
 ]
 
 /** SQL that gives `role` its table access and exactly the functions above, and nothing else. `role` is a plain identifier. */

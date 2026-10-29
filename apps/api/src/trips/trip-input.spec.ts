@@ -109,6 +109,7 @@ describe('trip options', () => {
       signupNote: '',
       vendorCosts: false,
       roomPricing: 'same',
+      confirmReceipts: false,
     })
   })
 
@@ -120,6 +121,7 @@ describe('trip options', () => {
       signupNote: 'Bring a towel',
       vendorCosts: false,
       roomPricing: 'same',
+      confirmReceipts: false,
     })
     expect(
       parseTripInput({ ...valid, options: { roomPricing: 'weights' } }).options.roomPricing

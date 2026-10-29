@@ -876,6 +876,14 @@ function MyPlace({
           {me.paymentInstructions && (
             <p className="mt-2 whitespace-pre-line">{me.paymentInstructions}</p>
           )}
+          {/* Forwarding the payment email records it for them (issue #12). */}
+          {me.receiptsEmail && (
+            <p className="mt-2 text-sm">
+              Paid? Forward the Zelle, Cash App or bank email to{' '}
+              <span className="break-all font-semibold">{me.receiptsEmail}</span> and it’s recorded
+              for you.
+            </p>
+          )}
         </div>
       )}
       {canPay && left > 0 && me.terms && (

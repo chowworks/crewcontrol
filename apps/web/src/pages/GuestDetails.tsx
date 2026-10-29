@@ -87,6 +87,7 @@ function useParts(props: DetailsProps) {
                 key={p.id}
                 p={p as Payment}
                 g={g}
+                tripId={trip.id}
                 onReview={() => {
                   onClose()
                   onReview(g, p as Payment)
@@ -203,10 +204,12 @@ function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
 }
 
 export function GuestDetails(props: DetailsProps) {
-  const { g, trip, full, onUpdate, onClose, onManageOpen, error } = props
+  const { g, trip, full, onUpdate, onClose, onManageOpen, onForgetSender, error } = props
   const { logButton, adjustButton, list, room, records } = useParts(props)
   const admin = useAdminView()
   const [tab, setTab] = useState<'payments' | 'spot'>('payments')
+  // Addresses an organizer said are this guest's when matching a receipt from them (issue #12).
+  const senders = trip.receipts.senders.filter((s) => s.guestId === g.id)
   const transactions = g.payments.length + g.adjustments.length
   const tabs = [
     {
@@ -224,6 +227,27 @@ export function GuestDetails(props: DetailsProps) {
           <Contact label="Phone" value={g.phone} />
           <Contact label="Email" value={g.email} />
         </dl>
+        {senders.length > 0 && (
+          <div className="text-sm">
+            <h4 className="font-semibold text-muted">Receipts also filed from</h4>
+            <ul>
+              {senders.map((s) => (
+                <li key={s.id} className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 break-all text-body">{s.address}</span>
+                  {!admin && onForgetSender && (
+                    <button
+                      type="button"
+                      onClick={() => void onForgetSender(g, s.id)}
+                      className={outlined}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       {error && (
         <p role="alert" className="mb-3 font-semibold text-[#B42318]">
