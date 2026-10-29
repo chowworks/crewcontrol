@@ -49,7 +49,7 @@ describe('the trip agreement', () => {
       "If you drop out after you're accepted, money you paid comes back only if Chris fills your spot"
     )
     const kept = agreementText({ ...trip, refundPolicy: 'first_payment_kept' })
-    expect(kept).toContain("your first payment ($300) isn't refunded")
+    expect(kept).toContain("your deposit, the first payment ($300), isn't refunded")
     expect(kept).toContain('Money you paid after it comes back only if Chris fills your spot')
     // Turned down or removed: a full refund, whatever the policy.
     expect(kept).toContain('Chris refunds everything you paid, in full')
@@ -193,7 +193,7 @@ describe('a guest’s terms', () => {
     // The first payment the refund terms name is the plan's.
     expect(
       agreementText({ ...trip, refundPolicy: 'first_payment_kept', paymentPlan: plan })
-    ).toContain("your first payment ($500) isn't refunded")
+    ).toContain("your deposit, the first payment ($500), isn't refunded")
     expect(agreementPreview({ ...trip, paymentPlan: plan }).textHash).not.toBe(
       agreementPreview(trip).textHash
     )

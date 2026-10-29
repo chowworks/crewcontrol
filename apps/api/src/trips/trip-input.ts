@@ -209,14 +209,22 @@ export function parseOptions(raw: unknown): TripOptions {
   if (raw === undefined || raw === null) return { ...DEFAULT_TRIP_OPTIONS }
   if (typeof raw !== 'object' || Array.isArray(raw)) fail('options must be an object')
   const body = raw as Body
-  const flag = (key: keyof TripOptions) =>
-    body[key] === undefined ? (DEFAULT_TRIP_OPTIONS[key] as boolean) : bool(body, key)
+  const flag = (key: 'roomChoice' | 'roomRequired' | 'vendorCosts') =>
+    body[key] === undefined ? DEFAULT_TRIP_OPTIONS[key] : bool(body, key)
   const roomChoice = flag('roomChoice')
   return {
     roomChoice,
     roomRequired: roomChoice && flag('roomRequired'),
     signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
     vendorCosts: flag('vendorCosts'),
+    roomPricing:
+      body.roomPricing === undefined
+        ? 'same'
+        : body.roomPricing === 'same' ||
+            body.roomPricing === 'typed' ||
+            body.roomPricing === 'weights'
+          ? body.roomPricing
+          : fail('roomPricing must be same, typed or weights'),
   }
 }
 

@@ -178,6 +178,7 @@ export function EditTripPage() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const toast = useToast()
   const [preview, setPreview] = useState(false)
   const [rooms, setRooms] = useState<TripRoom[]>([])
   const admin = useAdminView()
@@ -189,6 +190,21 @@ export function EditTripPage() {
   const roomsDirty = Boolean(id) && JSON.stringify(rooms) !== savedRooms
   const dirty =
     JSON.stringify(trip) !== savedTrip || (link.trim() !== '' && link.trim() !== slug) || roomsDirty
+
+  // Rooms with their own prices (step 3): the trip's price is the cheapest room's, so the trip page's "From $X" and
+  // anything that falls back to the trip's price match a room guests can pick.
+  const ownRoomPrices = trip.options.roomPricing !== 'same'
+  const cheapestRoom = ownRoomPrices
+    ? Math.min(...rooms.map((r) => r.priceCents ?? Infinity).filter((c) => c > 0))
+    : 0
+  useEffect(() => {
+    if (
+      Number.isFinite(cheapestRoom) &&
+      cheapestRoom > 0 &&
+      cheapestRoom !== trip.costPerPersonCents
+    )
+      setTrip((t) => ({ ...t, costPerPersonCents: cheapestRoom }))
+  }, [cheapestRoom, trip.costPerPersonCents])
 
   // Rooms priced apart from the trip need guests to pick one (owner's decision, 2026-10-29): both switches stay on.
   const pricedApart = roomsPricedApart(rooms, trip.costPerPersonCents)
@@ -263,7 +279,7 @@ export function EditTripPage() {
 
   /** Saves the trip and, when they changed, its rooms. True when everything saved. */
   async function save(): Promise<boolean> {
-    const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r))
+    const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r, trip.options.roomPricing))
     const methodsBad = trip.paymentMethods.some((m) => methodProblem(m))
     const planBad =
       trip.paymentDueDates.some((d, i) => i > 0 && d < trip.paymentDueDates[i - 1]) ||
@@ -294,8 +310,7 @@ export function EditTripPage() {
           // A removed room is cleared from its guests.
           setGuests((await api.getTrip(id)).guests)
         }
-        setMessage({
-          kind: 'ok',
+        toast({
           text: trip.published ? 'Saved. Guests see the changes now.' : 'Saved as a draft.',
         })
       } else {
@@ -851,36 +866,41 @@ export function EditTripPage() {
                 <Card title="Room choice">
                   {pricedApart && (
                     <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                      {ROOMS_PRICED_APART} Change room prices in step 4.
+                      {ROOMS_PRICED_APART} Room prices are set in the rooms below.
                     </p>
                   )}
                   <Toggle
                     disabled={pricedApart}
                     checked={trip.options.roomChoice}
-                    onChange={(v) =>
+                    onChange={(v) => {
+                      // Off: everyone gets the trip's one price (owner's decision, 2026-10-29), so rooms lose theirs.
                       setTrip((t) => ({
                         ...t,
                         options: {
                           ...t.options,
                           roomChoice: v,
-                          roomRequired: v && t.options.roomRequired,
+                          roomRequired: v,
+                          roomPricing: v ? t.options.roomPricing : 'same',
                         },
                       }))
-                    }
-                    label="Guests choose their room"
-                    hint="Guests pick from the rooms below when they sign up, and the trip page shows who's going. Off: the rooms only set the price in step 4."
+                      if (!v) setRooms((rs) => rs.map((r) => ({ ...r, priceCents: null })))
+                    }}
+                    label="Guests pick their room"
+                    hint="Guests pick one of the rooms below when they sign up, and the trip page shows who's in each. Off: everyone pays the trip’s one price, and you place guests in rooms."
                   />
-                  {trip.options.roomChoice && (
-                    <Toggle
-                      disabled={pricedApart}
-                      checked={trip.options.roomRequired}
-                      onChange={(v) => setOption('roomRequired', v)}
-                      label="Guests must pick a room"
-                      hint="Without one, the sign-up form won't send. Off: guests can choose no preference."
-                    />
-                  )}
                 </Card>
-                {id ? <RoomsEditor rooms={rooms} setRooms={setRooms} /> : <NeedsTrip />}
+                {id ? (
+                  <RoomsEditor
+                    rooms={rooms}
+                    setRooms={setRooms}
+                    tripPriceCents={trip.costPerPersonCents}
+                    pricing={trip.options.roomPricing}
+                    onPricing={(v) => setOption('roomPricing', v)}
+                    guestsPick={trip.options.roomChoice}
+                  />
+                ) : (
+                  <NeedsTrip />
+                )}
               </>
             )}
 
@@ -891,6 +911,7 @@ export function EditTripPage() {
                     tripId={id}
                     rooms={rooms}
                     onRooms={setRooms}
+                    roomPricing={trip.options.roomPricing}
                     guests={guests}
                     startDate={trip.startDate}
                     costCents={trip.costPerPersonCents}
@@ -901,6 +922,11 @@ export function EditTripPage() {
                     onDueDates={(v) => set('paymentDueDates', v)}
                     firstPaymentCents={trip.firstPaymentCents}
                     onFirstPayment={(v) => set('firstPaymentCents', v)}
+                    depositKept={trip.refundPolicy === 'first_payment_kept'}
+                    onDepositKept={(kept) =>
+                      set('refundPolicy', kept ? 'first_payment_kept' : 'spot_filled')
+                    }
+                    depositKeptLocked={guests.some((g) => g.signedAt)}
                     reminderDays={trip.paymentReminderDays}
                     onReminderDays={(v) => set('paymentReminderDays', v)}
                   />
@@ -1132,8 +1158,8 @@ const REFUND_POLICIES = [
   },
   {
     value: 'first_payment_kept',
-    label: 'Keep the first payment',
-    hint: 'The first payment isn’t refunded (for deposits you can’t get back). Anything paid after it comes back only if you fill their spot.',
+    label: 'Keep the deposit',
+    hint: 'The deposit (the first payment) isn’t refunded. Anything paid after it comes back only if you fill their spot.',
   },
 ] as const
 

@@ -198,8 +198,9 @@ export interface PlannedPayment {
 
 /**
  * A trip's payment plan for a price: `count` installments, the first `firstPaymentCents` when the organizer set one
- * (never more than the price) or an even share, the rest split evenly with any odd cents on the last, each with its
- * due date when the trip has them. The agreement quotes it and the signature keeps it.
+ * (never more than the price) or an even share, the rest split evenly, each with its due date when the trip has them.
+ * Shares are whole dollars, with what's left over on the last payment (owner's decision, 2026-10-29: nobody sends
+ * $466.66). The agreement quotes it and the signature keeps it.
  */
 export function paymentPlan(
   priceCents: number,
@@ -210,8 +211,9 @@ export function paymentPlan(
   const n = Math.max(1, Math.floor(count))
   const due = (i: number) => dueDates[i] ?? null
   if (n === 1) return [{ dueOn: due(0), amountCents: priceCents }]
-  const first = Math.min(priceCents, firstPaymentCents ?? Math.floor(priceCents / n))
-  const each = Math.floor((priceCents - first) / (n - 1))
+  const dollars = (cents: number) => Math.floor(cents / 100) * 100
+  const first = Math.min(priceCents, firstPaymentCents ?? dollars(priceCents / n))
+  const each = dollars((priceCents - first) / (n - 1))
   return Array.from({ length: n }, (_, i) => ({
     dueOn: due(i),
     amountCents: i === 0 ? first : i === n - 1 ? priceCents - first - each * (n - 2) : each,
@@ -456,17 +458,25 @@ export interface TripOptions {
   signupNote: string
   /** Trip Financials tracks what the organizer pays vendors (issue #16). Organizer-only: never on a guest's page. */
   vendorCosts: boolean
+  /**
+   * How the trip's rooms are priced (owner's decision, 2026-10-29): all the same (the trip's price), each its own price
+   * typed per room (a resort), or the trip's cost split by each room's weight in the editor (a house). Organizer-only.
+   */
+  roomPricing: RoomPricing
 }
+
+export type RoomPricing = 'same' | 'typed' | 'weights'
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
   roomRequired: false,
   signupNote: '',
   vendorCosts: false,
+  roomPricing: 'same',
 }
 
 /** The options a guest's page sees: the organizer-only ones left out. */
-export type PublicTripOptions = Omit<TripOptions, 'vendorCosts'>
+export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'roomPricing'>
 
 export interface TripInput {
   name: string

@@ -1,16 +1,18 @@
+import { Lightbulb } from 'lucide-react'
 import {
   paymentPlan,
   roomPrice,
   ROOMS_PRICED_APART,
   roomsPricedApart,
   type Guest,
+  type RoomPricing,
   type TripRoom,
 } from '@cc/types'
 import { useEffect, useMemo, useState } from 'react'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { Card, Field, field, Money, Stat } from '@/components/EditorParts'
 import { money, shortDate } from '@/lib/format'
-import { PRICING_METHODS, priceRooms, spreadDates, type PricingMethod } from '@/lib/pricing'
+import { priceRooms, spreadDates, type PricingMethod } from '@/lib/pricing'
 
 // The price per person simulator and payment plan (step 4 of the trip editor). Its money inputs (the lease total,
 // what the organizer fronted) stay in this browser only, never on the server: they are the organizer's working
@@ -57,6 +59,7 @@ export function PriceSimulator({
   tripId,
   rooms,
   onRooms,
+  roomPricing,
   guests,
   startDate,
   costCents,
@@ -67,13 +70,18 @@ export function PriceSimulator({
   onDueDates,
   firstPaymentCents,
   onFirstPayment,
+  depositKept,
+  onDepositKept,
+  depositKeptLocked,
   reminderDays,
   onReminderDays,
 }: {
   tripId: string
   rooms: TripRoom[]
-  /** Saves each room's own price with the trip's rooms (issue #30). */
+  /** Saves the rooms' prices when they come from the cost split by weight. */
   onRooms: (rooms: TripRoom[]) => void
+  /** How the rooms are priced (step 3): the same, typed per room, or the cost split by weight here. */
+  roomPricing: RoomPricing
   guests: Guest[]
   startDate: string
   costCents: number
@@ -84,6 +92,11 @@ export function PriceSimulator({
   onDueDates: (dates: string[]) => void
   firstPaymentCents: number | null
   onFirstPayment: (cents: number | null) => void
+  /** The deposit isn't refunded when a guest drops out: the trip's "Keep the deposit" refund terms (step 3). */
+  depositKept: boolean
+  onDepositKept: (kept: boolean) => void
+  /** Guests signed under the refund terms, so they can't change. */
+  depositKeptLocked: boolean
   reminderDays: number | null
   onReminderDays: (days: number | null) => void
 }) {
@@ -116,7 +129,8 @@ export function PriceSimulator({
         rentCents: cents(sim.rent),
         feesCents: cents(sim.fees),
         coverCents: cents(sim.cover),
-        method: sim.method,
+        // One price for everyone splits the cost evenly; weights split it by room (owner's decision, 2026-10-29).
+        method: roomPricing === 'weights' ? 'tiered' : 'flat',
         rooms: rooms.map((r) => ({
           name: r.name,
           occupants: occupantsFor(r, sim.occupants),
@@ -124,8 +138,37 @@ export function PriceSimulator({
           minPeople: r.minPeople,
         })),
       }),
-    [rooms, sim]
+    [rooms, sim, roomPricing]
   )
+
+  // How the rooms are priced (step 3, owner's decision 2026-10-29). Typed: each room at its own price. Weights: the
+  // cost split by each room's weight sets its price, saved to the rooms below. Same: one price, the cost split evenly.
+  const typed = roomPricing === 'typed'
+  const weighted = roomPricing === 'weights'
+  const ownPrices = typed || weighted
+  const eachPays = (i: number): number | undefined =>
+    occupantsOf(i) > 0
+      ? typed
+        ? roomPrice(rooms[i], costCents)
+        : pricing.rooms[i]?.perPersonCents
+      : undefined
+  const collectedCents = typed
+    ? rooms.reduce((n, r, i) => n + roomPrice(r, costCents) * occupantsOf(i), 0)
+    : pricing.collectedCents
+  // Weights: each room's price is its share above, rounded to the dollar, kept on the room as the cost changes.
+  const weightedPrices = rooms.map((_, i) =>
+    occupantsOf(i) > 0 ? Math.round((pricing.rooms[i]?.perPersonCents ?? 0) / 100) * 100 : null
+  )
+  const weightedKey = JSON.stringify(weightedPrices)
+  useEffect(() => {
+    if (!weighted) return
+    const next = rooms.map((r, i) => ({
+      ...r,
+      priceCents: weightedPrices[i] || r.priceCents || null,
+    }))
+    if (next.some((r, i) => r.priceCents !== rooms[i].priceCents)) onRooms(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weighted, weightedKey])
 
   // The plan guests sign, at the trip's price and at each room's own (issue #30); what the organizer collects with
   // everyone in the rooms above, each at their room's price.
@@ -173,11 +216,6 @@ export function PriceSimulator({
   // What each person pays on average at these prices, rounded to the dollar: a starting point for the price shown.
   const average =
     pricing.people > 0 ? Math.round(pricing.collectedCents / pricing.people / 100) * 100 : 0
-  // Each room's price above, rounded to the dollar, for "Use these prices": only when the rooms come out different.
-  const simulated = rooms.map((_, i) =>
-    occupantsOf(i) > 0 ? Math.round((pricing.rooms[i]?.perPersonCents ?? 0) / 100) * 100 : 0
-  )
-  const differ = simulated.every((p) => p > 0) && new Set(simulated).size > 1 && rooms.length > 1
   const fronted = cents(sim.fronted)
   const paidBack = fronted > 0 ? cash.find((c) => c.total >= fronted) : undefined
 
@@ -185,11 +223,8 @@ export function PriceSimulator({
     <>
       <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
         <p className="flex items-center gap-3 font-semibold">
-          <span
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-royal text-lg"
-            aria-hidden="true"
-          >
-            💡
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-royal">
+            <Lightbulb className="h-5 w-5" aria-hidden="true" />
           </span>
           How pricing works
         </p>
@@ -198,8 +233,14 @@ export function PriceSimulator({
             <li>
               Enter what the trip costs: the rent, shared fees, and anything you cover yourself.
             </li>
-            <li>Pick how to split it. The rooms from step 3 set each room&apos;s share.</li>
-            <li>Set the price guests see, then the payment plan.</li>
+            <li>
+              {typed
+                ? 'Each room has its own price, set in step 3. Put people in the rooms to see what you collect.'
+                : weighted
+                  ? 'Put people in the rooms: each room’s weight from step 3 sets its share, and so its price.'
+                  : 'Put people in the rooms: everyone pays an even share.'}
+            </li>
+            <li>Check the price guests see, then set the payment plan.</li>
           </ol>
           <p className="mt-1 text-sm">
             The price guests see and the payment plan are saved to the trip, and go into the
@@ -209,12 +250,12 @@ export function PriceSimulator({
         </div>
       </div>
 
-      <Card title="Price per person">
+      <Card title="Work out the price">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Rent" hint="The lease or booking total">
             <Money value={sim.rent} onChange={(v) => set('rent', v)} />
           </Field>
-          <Field label="Shared fees" hint="Deposit, cleaning, booking">
+          <Field label="Shared fees" hint="Cleaning, booking, security deposit">
             <Money value={sim.fees} onChange={(v) => set('fees', v)} />
           </Field>
           <Field label="You cover" hint="What you pay yourself">
@@ -237,31 +278,6 @@ export function PriceSimulator({
             Fill in people per room from sign-ups
           </button>
         )}
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-semibold">How to split it</legend>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {PRICING_METHODS.map((m) => (
-              <label
-                key={m.value}
-                className={`flex cursor-pointer flex-col gap-0.5 rounded-xl border-2 p-3 ${
-                  sim.method === m.value ? 'border-royal bg-royal-pale' : 'border-rule bg-white'
-                }`}
-              >
-                <span className="flex items-center gap-2 font-semibold">
-                  <input
-                    type="radio"
-                    name="method"
-                    checked={sim.method === m.value}
-                    onChange={() => set('method', m.value)}
-                    className="accent-royal"
-                  />
-                  {m.label}
-                </span>
-                <span className="text-sm text-body">{m.hint}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
 
         {rooms.length === 0 ? (
           <p className="rounded-xl bg-ground p-4 text-body">
@@ -281,7 +297,7 @@ export function PriceSimulator({
               <tbody>
                 {rooms.map((r, i) => {
                   const people = occupantsOf(i)
-                  const each = people > 0 ? pricing.rooms[i]?.perPersonCents : undefined
+                  const each = eachPays(i)
                   return (
                     <tr key={i} className="border-t border-rule">
                       <td className="py-2.5">
@@ -325,89 +341,59 @@ export function PriceSimulator({
           <Stat label="The crew pays" value={money(pricing.costCents)} />
           <Stat
             label="Collected at these prices"
-            value={money(pricing.collectedCents)}
+            value={money(collectedCents)}
             note={
-              pricing.collectedCents !== pricing.costCents
-                ? `${money(Math.abs(pricing.collectedCents - pricing.costCents))} rounding`
-                : undefined
+              collectedCents === pricing.costCents
+                ? undefined
+                : typed
+                  ? `${money(Math.abs(collectedCents - pricing.costCents))} ${collectedCents > pricing.costCents ? 'over' : 'short of'} the cost`
+                  : `${money(Math.abs(collectedCents - pricing.costCents))} rounding`
             }
           />
         </dl>
         <div className="flex flex-col gap-3 border-t border-rule pt-4">
           <h3 className="text-lg font-extrabold">Price guests see</h3>
-          <div className="flex flex-wrap items-end gap-3">
-            <Field
-              label={rooms.length ? 'Trip price, per person' : 'Per person, on the trip page'}
-              hint={rooms.length ? 'Rooms without their own price cost this' : undefined}
-            >
-              <span className="block w-48">
-                <Money
-                  value={costCents ? String(costCents / 100) : ''}
-                  onChange={(v) => onCost(cents(v))}
-                />
-              </span>
-            </Field>
-            {!differ && average > 0 && average !== costCents && (
-              <button
-                type="button"
-                onClick={() => onCost(average)}
-                className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-4 text-sm font-semibold text-royal hover:bg-royal-pale"
-              >
-                Use {money(average)}, the average above
-              </button>
-            )}
-          </div>
-          {rooms.length > 0 && (
+          {!ownPrices && (
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Per person, on the trip page">
+                <span className="block w-48">
+                  <Money
+                    value={costCents ? String(costCents / 100) : ''}
+                    onChange={(v) => onCost(cents(v))}
+                  />
+                </span>
+              </Field>
+              {average > 0 && average !== costCents && (
+                <button
+                  type="button"
+                  onClick={() => onCost(average)}
+                  className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-4 text-sm font-semibold text-royal hover:bg-royal-pale"
+                >
+                  Use {money(average)}, the average above
+                </button>
+              )}
+            </div>
+          )}
+          {ownPrices && (
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-semibold">Each room’s price, per person</span>
-                {differ && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onRooms(rooms.map((r, i) => ({ ...r, priceCents: simulated[i] })))
-                      onCost(Math.min(...simulated))
-                    }}
-                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-4 text-sm font-semibold text-royal hover:bg-royal-pale"
-                  >
-                    Use the prices above for each room
-                  </button>
-                )}
-              </div>
+              <span className="text-sm font-semibold">Each room’s price, per person</span>
               <ul className="flex flex-col">
-                {rooms.map((r, i) => (
+                {rooms.map((r) => (
                   <li
                     key={roomKey(r)}
-                    className="flex flex-wrap items-center justify-between gap-2 border-t border-rule py-2"
+                    className="flex items-center justify-between gap-2 border-t border-rule py-2"
                   >
-                    <span className="min-w-0">
-                      <span className="font-semibold">{r.name || 'Room'}</span>
-                      <span className="block text-sm text-muted">
-                        {r.priceCents == null ? 'The trip price' : 'Its own price'}
-                      </span>
-                    </span>
-                    <span className="block w-36">
-                      <Money
-                        value={r.priceCents == null ? '' : String(r.priceCents / 100)}
-                        placeholder={costCents ? String(costCents / 100) : '0'}
-                        label={`${r.name || 'Room'} price per person`}
-                        onChange={(v) =>
-                          onRooms(
-                            rooms.map((x, j) =>
-                              j === i ? { ...x, priceCents: cents(v) || null } : x
-                            )
-                          )
-                        }
-                      />
-                    </span>
+                    <span className="font-semibold">{r.name || 'Room'}</span>
+                    <span className="font-semibold">{money(roomPrice(r, costCents))}</span>
                   </li>
                 ))}
               </ul>
-              {apart && (
-                <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                  {ROOMS_PRICED_APART} The trip page shows “From {money(lowest)}”.
-                </p>
-              )}
+              <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                {typed
+                  ? 'Set in step 3, where each room has its own price.'
+                  : 'Worked out above from each room’s weight, rounded to the dollar.'}
+                {apart && ` ${ROOMS_PRICED_APART} The trip page shows “From ${money(lowest)}”.`}
+              </p>
             </div>
           )}
         </div>
@@ -418,7 +404,7 @@ export function PriceSimulator({
           The plan every guest signs: what they pay, and by when. Changing it later applies to new
           sign-ups only; guests who already signed keep the plan they agreed to.
         </p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
           <Field label="Payments" hint="1 to 24">
             <input
               className={field}
@@ -443,7 +429,7 @@ export function PriceSimulator({
             />
           </Field>
           {installments > 1 && (
-            <Field label="Last one due" hint="The ones between are spaced evenly">
+            <Field label="Last one due" hint="Others are spaced evenly">
               <input
                 className={field}
                 type="date"
@@ -459,18 +445,14 @@ export function PriceSimulator({
           </p>
         )}
         {installments > 1 && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field
-              as="div"
-              label="How to split it"
-              hint="Even split unless the first payment holds the spot"
-            >
+          <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+            <Field as="div" label="How to split it" hint="Even, or a deposit first">
               <Dropdown
                 label="How to split it"
                 value={firstPaymentCents === null ? 'even' : 'first'}
                 options={[
                   { value: 'even', label: 'Even split' },
-                  { value: 'first', label: 'First payment holds the spot' },
+                  { value: 'first', label: 'Deposit first' },
                 ]}
                 onChange={(v) =>
                   onFirstPayment(v === 'even' ? null : Math.min(lowest, 30000) || null)
@@ -478,7 +460,7 @@ export function PriceSimulator({
               />
             </Field>
             {firstPaymentCents !== null && (
-              <Field label="First payment" hint="The rest is split evenly">
+              <Field label="Deposit" hint="The rest is split evenly">
                 <Money
                   value={String(firstPaymentCents / 100)}
                   onChange={(v) => onFirstPayment(cents(v) || null)}
@@ -489,6 +471,25 @@ export function PriceSimulator({
                   </span>
                 )}
               </Field>
+            )}
+            {firstPaymentCents !== null && (
+              <label className="flex items-start gap-3 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={depositKept}
+                  disabled={depositKeptLocked}
+                  onChange={(e) => onDepositKept(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 accent-royal"
+                />
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-semibold">The deposit is non-refundable</span>
+                  <span className="text-muted">
+                    {depositKeptLocked
+                      ? 'Locked: guests have already signed these refund terms.'
+                      : 'A guest who drops out after you accept them doesn’t get it back. This is the same as “Keep the deposit” in step 3’s refund terms.'}
+                  </span>
+                </span>
+              </label>
             )}
           </div>
         )}

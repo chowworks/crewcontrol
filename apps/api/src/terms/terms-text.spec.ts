@@ -45,7 +45,7 @@ describe('the Terms version', () => {
     expect(text).toContain('[your full name] ([organizer], [your email])')
     // Both refund presets and every way in are spelled out.
     expect(text).toContain(
-      'Keep the first payment: "If you drop out after you\'re accepted, your first payment'
+      'Keep the deposit: "If you drop out after you\'re accepted, your deposit, the first payment'
     )
     expect(text).toContain('Refund only if you fill their spot: "')
     expect(text).toContain(

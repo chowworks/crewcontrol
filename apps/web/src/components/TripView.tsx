@@ -22,6 +22,10 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
   const cheapest = apart
     ? [...trip.rooms].sort((a, b) => a.priceCents - b.priceCents)[0]
     : undefined
+  // A deposit: the organizer set a first payment different from the rest ("Deposit first").
+  const plan = cheapest?.paymentPlan ?? trip.paymentPlan
+  const deposit = plan.length > 1 && plan[0].amountCents !== plan[1].amountCents
+  const keptDeposit = deposit && trip.refundPolicy === 'first_payment_kept'
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -75,10 +79,12 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
             </div>
             <p className="text-[15px] text-body">
               {apart && 'Each room has its own price; you pick yours when you join. '}
-              {installmentLine(cheapest?.paymentPlan ?? trip.paymentPlan)}
+              {installmentLine(plan)}
               {trip.joinMode === 'accept_first'
                 ? ' You pay once you’re accepted.'
-                : ' The first one holds your spot.'}
+                : deposit
+                  ? ` Your deposit saves your spot${keptDeposit ? ' and isn’t refundable' : ''}.`
+                  : ' Your first payment saves your spot.'}
             </p>
             <p className="rounded-[10px] bg-royal-pale px-3 py-2.5 text-sm text-body">
               {trip.joinMode === 'first_come'
