@@ -83,6 +83,9 @@ export function ControlPanelPage() {
     else if (update.status === 'interested' && guest.status !== 'interested')
       toast({ text: `${name} is back to waiting.` })
     else if (update.roomId !== undefined) toast({ text: `${name}’s room changed.` })
+    else if (update.email !== undefined)
+      toast({ text: `${name}’s email is now ${update.email}. Their next emails go there.` })
+    else if (update.emailProblemSeen) toast({ text: `Noted. ${name} won’t get Travel HQ emails.` })
     else if (update.managedBy !== undefined) {
       const by = trip?.guests.find((g) => g.id === update.managedBy)
       // Undo puts back who handled it before, when that's someone who can be picked again.

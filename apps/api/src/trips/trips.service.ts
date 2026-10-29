@@ -531,6 +531,24 @@ export class TripsService {
         )
       managedByUserId = by?.userId ?? null
     }
+    // A corrected address after emails bounced (owner's decision, 2026-10-29): still one email per trip for guests who
+    // look after themselves. A new address, or the organizer saying they've seen a spam complaint, clears the problem.
+    if (
+      update.email &&
+      !guest.managedBy &&
+      trip.guests.some(
+        (x) => x.id !== guestId && !x.managedBy && x.email.toLowerCase() === update.email
+      )
+    )
+      throw new ConflictException('Another guest on this trip already uses that email.')
+    const emailFix =
+      update.email !== undefined || update.emailProblemSeen
+        ? {
+            ...(update.email === undefined ? {} : { email: update.email }),
+            emailProblem: null,
+            emailProblemAt: null,
+          }
+        : {}
     // A guest turned down and refunded who is put back starts paying again: the money they sent went back to them.
     const restart = guest.status === 'declined' && status === 'interested' && guest.refundSentAt
     if (status === 'approved' && guest.status !== 'approved') {
@@ -564,6 +582,7 @@ export class TripsService {
           where: { id: guestId },
           data: {
             status,
+            ...emailFix,
             // A guest turned down gives up the room they asked for.
             ...(status === 'declined'
               ? { roomId: null }

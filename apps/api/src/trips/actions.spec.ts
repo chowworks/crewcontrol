@@ -56,6 +56,7 @@ const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   terms,
   hasAccount: true,
   managedBy: null,
+  emailProblem: null,
   ...extra,
 })
 const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
@@ -68,6 +69,19 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
   }) as OrganizerTrip
 
 describe('what needs the organizer', () => {
+  it('asks to fix an address that bounced, or to note a spam complaint, but not for a guest turned down', () => {
+    const t = trip([])
+    expect(guestActions(guest('a', { emailProblem: 'bounced' }), t)).toContainEqual({
+      kind: 'email',
+      key: 'a-email',
+      problem: 'bounced',
+    })
+    expect(guestActions(guest('b', { emailProblem: 'complained', signedAt: null }), t)).toEqual([
+      { kind: 'email', key: 'b-email', problem: 'complained' },
+    ])
+    expect(guestActions(guest('c', { emailProblem: 'bounced', status: 'declined' }), t)).toEqual([])
+  })
+
   it('lists each reported payment, marking a short one, and a guest ready to accept', () => {
     const g = guest('a', { payments: [pay('p1', 'reported', 200)] })
     expect(guestActions(g, trip([g]))).toEqual([

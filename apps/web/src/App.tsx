@@ -3,6 +3,7 @@ import { AdminView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
+import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
 import { AdminEmailPage, AdminEmailsPage } from './pages/AdminEmailsPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
@@ -153,6 +154,14 @@ export default function App() {
         element={
           <RequireSignIn>
             <AdminEmailPage />
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/email-problems"
+        element={
+          <RequireSignIn>
+            <AdminEmailProblemsPage />
           </RequireSignIn>
         }
       />

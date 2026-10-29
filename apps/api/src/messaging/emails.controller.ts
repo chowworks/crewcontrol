@@ -15,6 +15,12 @@ export class EmailsController {
     return this.emails.list()
   }
 
+  // Bounces, blocked sends and spam complaints from Resend, on every trip. Before ':kind', which would take it.
+  @Get('problems')
+  problems() {
+    return this.emails.listProblems()
+  }
+
   @Get(':kind')
   get(@Param('kind') kind: string) {
     return this.emails.get(kind)

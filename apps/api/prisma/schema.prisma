@@ -88,6 +88,10 @@ model Guest {
   // Whose account signed this traveler up and looks after them (a parent, a friend paying for a roommate), when it
   // wasn't the traveler (migration 20261028050000_responsible_party). Organizers can change it.
   managedByUserId    String?
+  // Emails to them bounced or they marked one as spam (Resend's webhook, migration 20261029040000_email_problems):
+  // 'bounced' | 'complained', cleared when an organizer fixes the address or says they've seen it.
+  emailProblem       String?
+  emailProblemAt     DateTime?
   firstName          String
   lastName           String
   email              String
@@ -367,4 +371,18 @@ model EmailTemplate {
   body            String
   updatedAt       DateTime @default(now())
   updatedByUserId String?
+}
+
+/// A bounce, blocked send or spam complaint Resend told us about (migration 20261029040000_email_problems).
+model EmailProblem {
+  id       String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  address  String
+  kind     String
+  subject  String   @default("")
+  detail   String   @default("")
+  at       DateTime @default(now())
+  /// The guests it marked (migration 20261029050000_email_problem_guests), so a fixed one still shows.
+  guestIds String[] @default([])
+
+  @@index([at])
 }

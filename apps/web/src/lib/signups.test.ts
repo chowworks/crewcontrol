@@ -46,6 +46,7 @@ const g = (
   terms: null,
   hasAccount: true,
   managedBy: null,
+  emailProblem: null,
 })
 
 describe('signupOrder', () => {

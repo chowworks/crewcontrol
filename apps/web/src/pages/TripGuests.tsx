@@ -126,6 +126,8 @@ type Action =
   | { kind: 'accept'; key: string; text: string; update: GuestUpdate }
   // The button opens Details, where turning them down asks for "Refund sent".
   | { kind: 'refund'; key: string; text: string }
+  // Emails to them bounced (fix the address) or they marked one as spam (noted with "Got it").
+  | { kind: 'email'; key: string; text: string; problem: 'bounced' | 'complained' }
 
 function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
   const first = g.terms ? money(g.terms.firstInstallmentCents) : 'the first payment'
@@ -145,6 +147,16 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
           short: a.short,
         }
       }
+      case 'email':
+        return {
+          kind: 'email',
+          key: a.key,
+          problem: a.problem,
+          text:
+            a.problem === 'bounced'
+              ? `Emails to ${g.email} bounced. Check the address with them and fix it.`
+              : 'Marked a Travel HQ email as spam, so they won’t get any more. Reach them another way.',
+        }
       case 'refund':
         return {
           kind: 'refund',
@@ -224,6 +236,7 @@ function ActionRow({
 }) {
   const [help, setHelp] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [fixing, setFixing] = useState(false)
   const button =
     action.kind === 'payment'
       ? action.short
@@ -231,15 +244,22 @@ function ActionRow({
         : 'Confirm payment'
       : action.kind === 'accept'
         ? 'Accept trip guest'
-        : 'Refund and turn down'
+        : action.kind === 'email'
+          ? action.problem === 'bounced'
+            ? 'Fix email'
+            : 'Got it'
+          : 'Refund and turn down'
   async function act() {
     if (action.kind === 'refund') return onDetails()
+    if (action.kind === 'email' && action.problem === 'bounced') return setFixing(true)
     if (action.kind === 'payment' && action.short) return onReview(action.payment)
     setBusy(true)
     try {
       await (action.kind === 'payment'
         ? onDecide(action.payment.id, { status: 'confirmed' })
-        : onUpdate(g, action.update))
+        : action.kind === 'email'
+          ? onUpdate(g, { emailProblemSeen: true })
+          : onUpdate(g, action.update))
     } finally {
       setBusy(false)
     }
@@ -286,6 +306,13 @@ function ActionRow({
           Check {action.kind === 'payment' ? methodName(action.payment) : 'your payments'}. If the
           money is there, confirm it. Confirm payments in the order they arrived.
         </p>
+      )}
+      {fixing && (
+        <FixEmailDialog
+          g={g}
+          onSave={(email) => onUpdate(g, { email })}
+          onClose={() => setFixing(false)}
+        />
       )}
     </li>
   )
@@ -1471,5 +1498,71 @@ export function ActionsCard(props: Props) {
       )}
       {dialogs}
     </section>
+  )
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** A guest's emails bounced: the organizer types the right address, and the alert clears. */
+function FixEmailDialog({
+  g,
+  onSave,
+  onClose,
+}: {
+  g: Guest
+  onSave: (email: string) => unknown
+  onClose: () => void
+}) {
+  const [email, setEmail] = useState(g.email)
+  const [busy, setBusy] = useState(false)
+  const value = email.trim().toLowerCase()
+  const problem = !EMAIL.test(value)
+    ? 'Enter an email address.'
+    : value === g.email.toLowerCase()
+      ? 'This is the address that bounced. Enter the right one.'
+      : null
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    if (problem || busy) return
+    setBusy(true)
+    try {
+      await onSave(value)
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog title={`Fix ${g.firstName}’s email`} onClose={onClose}>
+      <form onSubmit={save} noValidate className="flex flex-col gap-4">
+        <p className="text-body">
+          Emails to <strong>{g.email}</strong> bounced. Check the address with {g.firstName}, then
+          enter the right one. Their next emails go there.
+        </p>
+        <label className="flex flex-col gap-1.5 text-sm font-semibold">
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={Boolean(problem)}
+            className="min-h-[44px] rounded-[10px] border border-[#5B6B80] bg-white px-3.5 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal"
+          />
+          {problem && <span className="font-semibold text-[#B42318]">{problem}</span>}
+        </label>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={busy || Boolean(problem)}
+            className={`${filled} disabled:opacity-60`}
+          >
+            Save email
+          </button>
+          <button type="button" onClick={onClose} className={outlined}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Dialog>
   )
 }

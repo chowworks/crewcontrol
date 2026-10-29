@@ -1,4 +1,11 @@
-import { Luggage, Mail, MessageSquareText, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import {
+  Luggage,
+  Mail,
+  MailWarning,
+  MessageSquareText,
+  SlidersHorizontal,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -40,6 +47,14 @@ const TOOLS: {
     text: 'The emails Travel HQ sends: their wording and design, with variables for each trip and guest.',
     sub: 'What each email says, with a preview for a sample guest.',
     how: 'Each email is HTML inside Travel HQ’s frame (the purple band and the footer), with variables like {{trip.name}} that are filled in for each guest. A variable that doesn’t exist, or isn’t allowed in that email, stops the save. Payment details are filled in for every guest who signed; show them inside {{#if guest.canPay}}, which is true only for a guest whose trip page shows how to pay. Every subject starts with “[Travel HQ] ”, added for you. Every email also goes out as plain text, made from the HTML. A save applies to every email sent from then on; “Use Travel HQ’s wording” goes back to the default.',
+  },
+  {
+    to: '/admin/email-problems',
+    icon: MailWarning,
+    title: 'Email problems',
+    text: 'Emails that bounced, were blocked or were marked as spam, on every trip, and who they were for.',
+    sub: 'Bounces, blocked sends and spam complaints, newest first.',
+    how: 'Resend, which sends Travel HQ’s email, tells us each time an email bounces, is blocked because that address bounced before, or is marked as spam. Each one is listed here with the guests on that address. Their organizer sees the same problem in Trip Control’s Actions and fixes the address there; then it shows as fixed. Resend stops sending to a bad address on its own, so nothing here needs you unless a guest asks why they get no email.',
   },
   {
     to: '/admin/settings',

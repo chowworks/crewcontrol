@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import type {
   EmailPreview,
   EmailPreviewGuest,
+  EmailProblemNotice,
   EmailTemplateInput,
   EmailTemplateView,
 } from '../trips/trip-types'
@@ -166,5 +167,12 @@ export class EmailsService {
   async sendContact(contact: NonNullable<EmailContext['contact']>, to: string): Promise<void> {
     const email = render(await this.template(this.kindOf('contact')), { contact })
     await sendEmail({ to, replyTo: contact.email, ...email })
+  }
+
+  /** The Admin toolbox's Email problems, newest first; the database lets only the admin read them. */
+  async listProblems(): Promise<EmailProblemNotice[]> {
+    const rows = await this.prisma.$queryRaw<(Omit<EmailProblemNotice, 'at'> & { at: Date })[]>`
+      SELECT * FROM "admin_email_problems"()`
+    return rows.map((r) => ({ ...r, at: r.at.toISOString() }))
   }
 }

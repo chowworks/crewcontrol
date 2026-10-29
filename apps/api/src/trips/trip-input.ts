@@ -307,6 +307,13 @@ export function parseGuestUpdate(raw: unknown): GuestUpdate {
       fail('managedBy must be a guest or null')
     update.managedBy = body.managedBy
   }
+  if (body.email !== undefined) {
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+      fail('Enter an email address')
+    update.email = email
+  }
+  if (body.emailProblemSeen !== undefined) update.emailProblemSeen = bool(body, 'emailProblemSeen')
   return update
 }
 

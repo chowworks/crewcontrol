@@ -1219,6 +1219,47 @@ suite('trip isolation', () => {
     })
   })
 
+  it('lets only trusted work mark a guest whose email bounced', async () => {
+    const mark = () =>
+      attempt(
+        `SELECT "note_email_problem"('G-T1-a@example.com', 'blocked', 'Hi', 'bounced before')`
+      )
+    await db.query(`UPDATE "Guest" SET email = 'G-T1-a@example.com' WHERE id = 'G-T1-a'`)
+    try {
+      await as(await person('u1'), async () =>
+        expect(await mark()).toEqual({ error: expect.stringMatching(/Trusted work only/) })
+      )
+      await as({ system: true, trips: ['T1', 'T2', 'S'] }, async () => {
+        expect((await mark()).error).toBeUndefined()
+        const r = await db.query<{ p: string }>(
+          `SELECT "emailProblem" AS p FROM "Guest" WHERE id = 'G-T1-a'`
+        )
+        expect(r.rows[0].p).toBe('bounced')
+      })
+      // Each block above rolls back, so the notice the admin reads is written here as the owner.
+      await db.query(
+        `INSERT INTO "EmailProblem" (id, address, kind, "guestIds") VALUES ('EP1', 'g-t1-a@example.com', 'blocked', '{G-T1-a}')`
+      )
+      await db.query(`UPDATE "Guest" SET "emailProblem" = 'bounced' WHERE id = 'G-T1-a'`)
+      await as(await person('u1'), async () => {
+        expect(await ids('EmailProblem')).toEqual([])
+        const r = await db.query(`SELECT * FROM "admin_email_problems"()`)
+        expect(r.rows).toEqual([])
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        const r = await db.query<{ kind: string; guests: { name: string; open: boolean }[] }>(
+          `SELECT kind, guests FROM "admin_email_problems"()`
+        )
+        expect(r.rows).toEqual([
+          { kind: 'blocked', guests: [expect.objectContaining({ open: true })] },
+        ])
+      })
+    } finally {
+      await db.query(`DELETE FROM "EmailProblem"`)
+      await db.query(`UPDATE "Guest" SET "emailProblem" = NULL, "emailProblemAt" = NULL`)
+    }
+  })
+
   it('lets everyone read the email templates and only the admin write them', async () => {
     const kinds = async () =>
       (await db.query<{ kind: string }>(`SELECT kind FROM "EmailTemplate"`)).rows.map((r) => r.kind)

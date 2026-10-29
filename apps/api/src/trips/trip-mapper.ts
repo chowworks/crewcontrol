@@ -195,6 +195,7 @@ function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
     signedAt: row.agreement?.signedAt.toISOString() ?? null,
     terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
     hasAccount: row.userId !== null,
+    emailProblem: (row.emailProblem as Guest['emailProblem']) ?? null,
     managedBy: row.managedByUserId
       ? {
           guestId: manager?.id ?? null,

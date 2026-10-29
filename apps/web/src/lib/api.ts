@@ -6,6 +6,7 @@ import {
   type ContactInput,
   type EmailPreview,
   type EmailPreviewGuest,
+  type EmailProblemNotice,
   type EmailTemplateInput,
   type EmailTemplateView,
   type Expense,
@@ -180,6 +181,7 @@ export const api = {
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
   // The Admin toolbox's Emails page.
   adminEmails: () => request<EmailTemplateView[]>('/admin/emails'),
+  adminEmailProblems: () => request<EmailProblemNotice[]>('/admin/emails/problems'),
   adminEmail: (kind: string) => request<EmailTemplateView>(`/admin/emails/${kind}`),
   previewEmail: (kind: string, draft: EmailTemplateInput, guest: EmailPreviewGuest) =>
     request<EmailPreview>(`/admin/emails/${kind}/preview?guest=${guest}`, json('POST', draft)),

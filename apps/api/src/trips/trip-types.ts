@@ -149,6 +149,8 @@ export interface Guest {
    * on this trip with that account, if they're on it, and the name to show. Null when they look after themselves.
    */
   managedBy: { guestId: string | null; name: string } | null
+  /** Emails to them bounced, or they marked one as spam (Resend tells the API); null when nothing's wrong. */
+  emailProblem: 'bounced' | 'complained' | null
 }
 
 /** What a guest's signed agreement holds them and the organizer to. Trip changes after signing never touch it. */
@@ -660,6 +662,10 @@ export interface GuestUpdate {
   roomId?: string | null
   /** Who looks after them: another guest on the trip with an account (by guest id), or null for themselves. */
   managedBy?: string | null
+  /** A corrected email address, after emails to the old one bounced. Clears the email problem. */
+  email?: string
+  /** The organizer saw the email problem (a spam complaint): clears it without changing the address. */
+  emailProblemSeen?: boolean
 }
 
 /**
@@ -731,6 +737,8 @@ export type GuestAction =
   | { kind: 'accept'; key: string }
   // Their payment arrived but every spot is taken: they're owed it back.
   | { kind: 'refund'; key: string; paidCents: number }
+  // Emails to them bounced (fix the address) or they marked one as spam (the organizer just needs to know).
+  | { kind: 'email'; key: string; problem: 'bounced' | 'complained' }
 
 /** Money the organizer confirmed arrived from a guest (refunded payments don't count). */
 export const confirmedCents = (g: Guest): number =>
@@ -792,8 +800,15 @@ export const tripFull = (trip: OrganizerTrip): boolean =>
   trip.maxGuests !== null &&
   trip.guests.filter((g) => g.status === 'approved').length >= trip.maxGuests
 
-/** What the organizer does next for one guest, if anything. */
+/** What the organizer does next for one guest, if anything: the trip's own steps, then an email problem. */
 export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
+  const steps = tripSteps(g, trip)
+  return g.emailProblem && g.status !== 'declined'
+    ? [...steps, { kind: 'email', key: `${g.id}-email`, problem: g.emailProblem }]
+    : steps
+}
+
+function tripSteps(g: Guest, trip: OrganizerTrip): GuestAction[] {
   if (g.status === 'declined' || !g.signedAt) return []
   const full = tripFull(trip)
   // Someone on the waitlist waits for the organizer to pick them (waitlistSpotOpen), not for an action of their own.
@@ -914,4 +929,17 @@ export interface EmailPreview {
   subject: string
   html: string
   text: string
+}
+
+/** A bounce, a send blocked because the address bounced before, or a spam complaint, as Resend reported it. */
+export interface EmailProblemNotice {
+  id: string
+  address: string
+  kind: 'bounced' | 'blocked' | 'complained'
+  /** The email's subject, and Resend's reason (the receiving server's words). */
+  subject: string
+  detail: string
+  at: string
+  /** The guests on that address now, and whether each one's problem is still waiting for their organizer. */
+  guests: { tripId: string; tripName: string; name: string; open: boolean }[]
 }

@@ -4,7 +4,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express'
 import { AppModule } from './app.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule)
+  // rawBody: Resend's webhook is checked against the exact bytes it signed (messaging/resend-webhook.controller.ts).
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true })
   // FRONTEND_URL may list several web addresses, comma-separated (a laptop, a Vercel preview, production).
   const origins = (process.env.FRONTEND_URL ?? 'http://localhost:5173')
     .split(',')

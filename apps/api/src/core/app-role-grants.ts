@@ -33,6 +33,10 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'admin_log_open(text)',
   // A join refused because the email is already on the trip, in the trip log.
   'log_refused_email(text,text,text,text,text,text,boolean)',
+  // Resend's webhook keeps each bounce, blocked send or spam complaint and marks its guests (trusted work only).
+  'note_email_problem(text,text,text,text)',
+  // The Admin toolbox's Email problems, with the guests on each address (admin only).
+  'admin_email_problems()',
 ]
 
 /** SQL that gives `role` its table access and exactly the functions above, and nothing else. `role` is a plain identifier. */

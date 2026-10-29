@@ -7,6 +7,7 @@ import { join, relative } from 'node:path'
  * site is a review item: add it here on purpose.
  */
 const TRUSTED_CALL_SITES = [
+  'messaging/resend-webhook.controller.ts', // Resend's signed notice that a guest's email bounced or was marked spam
   'trips/people.service.ts', // an invite turned into the membership of the person it was for, when they sign in
   'trips/trips.service.ts', // a new trip and its owner row, as one step
 ]
