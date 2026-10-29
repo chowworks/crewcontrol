@@ -160,7 +160,11 @@ describe('parseTripPerson', () => {
     expect(parseTripPerson({ email: ' Dana@Example.com ', role: 'owner' })).toEqual({
       email: 'dana@example.com',
       role: 'owner',
+      notify: true,
     })
+    expect(
+      parseTripPerson({ email: 'dana@example.com', role: 'owner', notify: false }).notify
+    ).toBe(false)
   })
 
   it('refuses a missing email, a non-email and an unknown role', () => {

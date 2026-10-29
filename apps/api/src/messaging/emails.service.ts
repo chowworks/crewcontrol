@@ -24,6 +24,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   guest: 'Guest',
   paymentDetails: 'Payment details',
   contact: 'Contact form',
+  invite: 'Invite',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -139,6 +140,21 @@ export class EmailsService {
     } catch (err) {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+    }
+  }
+
+  /**
+   * The email to someone added to help run a trip, with Reply-To set to whoever added them. Logged, never thrown, as
+   * for a guest: they're already on the trip (or invited), and the People screen shows it.
+   */
+  async sendInvite(invite: NonNullable<EmailContext['invite']>, replyTo?: string): Promise<void> {
+    try {
+      const email = render(await this.template(this.kindOf('invite')), { invite })
+      await sendEmail({ to: invite.email, replyTo, ...email })
+    } catch (err) {
+      this.logger.error(
+        `The "invite" email failed: ${err instanceof Error ? err.message : 'unknown'}`
       )
     }
   }

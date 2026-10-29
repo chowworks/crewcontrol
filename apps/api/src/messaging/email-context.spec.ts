@@ -137,4 +137,27 @@ describe('the default emails', () => {
     expect(out.text).toContain('picked the wrong room.\nCan the organizer')
     expect(out.text).toContain('Sent from the contact form')
   })
+
+  it('tells someone added to a trip how to get in, with or without an account', () => {
+    const invite = EMAIL_KINDS.find((k) => k.kind === 'invite')!
+    const ctx = sampleFor(invite, 'can_pay')
+    const fresh = render(invite, ctx)
+    expect(fresh.subject).toBe(
+      '[Travel HQ] Nia Brooks added you to help run Aruba Crew Getaway 2028'
+    )
+    expect(fresh.text).toContain('as an organizer of Aruba Crew Getaway 2028, Mar 3 – 8, 2028')
+    expect(fresh.text).toContain('dana.reyes@example.com')
+    expect(fresh.text).toContain('Make your account (https://travel-hq.app/sign-up)')
+    expect(fresh.text).toContain(
+      'Nia Brooks added you to help run Aruba Crew Getaway 2028 on Travel HQ'
+    )
+    expect(fresh.text).not.toContain('trip agreement')
+    const link = 'https://travel-hq.app/organize/t1/control'
+    const owner = render(invite, {
+      invite: { ...ctx.invite!, signedUp: true, isOwner: true, role: 'owner', link },
+    })
+    expect(owner.text).toContain('as an owner of')
+    expect(owner.text).toContain(`Open the trip (${link})`)
+    expect(owner.text).not.toContain('Make your account')
+  })
 })
