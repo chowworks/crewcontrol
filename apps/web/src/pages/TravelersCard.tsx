@@ -5,7 +5,7 @@ import { Users } from 'lucide-react'
 import { useState } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
-import { owed } from '@/lib/payments'
+import { owed, totalDueCents } from '@/lib/payments'
 import { MyPayments, payees, travelerStatus } from './JoinPage'
 
 const primary =
@@ -16,7 +16,8 @@ const outlined =
 export function PaidBar({ g }: { g: MyGuest }) {
   if (!g.terms) return null
   const paid = g.terms.paidCents
-  const pct = g.terms.priceCents ? Math.round((paid / g.terms.priceCents) * 100) : 0
+  const due = totalDueCents(g.terms)
+  const pct = due ? Math.min(100, Math.round((paid / due) * 100)) : 0
   return (
     <div
       role="progressbar"
@@ -71,8 +72,13 @@ function TravelerDialog({ g, view, onClose }: { g: MyGuest; view: JoinView; onCl
             </div>
           </dl>
         )}
-        {g.payments.length > 0 ? (
-          <MyPayments payments={g.payments} organizer={view.trip.organizerName} title="Payments" />
+        {g.payments.length > 0 || g.adjustments.length > 0 ? (
+          <MyPayments
+            payments={g.payments}
+            adjustments={g.adjustments}
+            organizer={view.trip.organizerName}
+            title="Transaction history"
+          />
         ) : (
           <p className="text-sm text-muted">No payments yet.</p>
         )}
@@ -157,7 +163,7 @@ export function TravelersCard({ view, onPay, onAdd, onJoinMyself }: TravelersPro
               <PaidBar g={g} />
               {g.terms && (
                 <span className="text-sm text-body">
-                  {money(g.terms.paidCents)} of {money(g.terms.priceCents)} paid
+                  {money(g.terms.paidCents)} of {money(totalDueCents(g.terms))} paid
                 </span>
               )}
             </span>

@@ -16,6 +16,7 @@ import { runAsPublic } from '../core/tenant-context'
 import { ClerkService } from '../auth/clerk.service'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import {
+  parseAdjustment,
   parseExpense,
   parseGuestUpdate,
   parseOrganizerRequest,
@@ -132,6 +133,26 @@ export class TripsController {
     @CurrentCaller() caller: Caller
   ) {
     return this.trips.logPayment(id, guestId, parsePaymentLog(body), caller)
+  }
+
+  // A credit or charge on a guest's balance, with a reason (issue #17); removing one keeps it, marked removed.
+  @Post(':id/guests/:guestId/adjustments')
+  addAdjustment(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.addAdjustment(id, guestId, parseAdjustment(body), caller)
+  }
+
+  @Delete(':id/adjustments/:adjustmentId')
+  removeAdjustment(
+    @Param('id') id: string,
+    @Param('adjustmentId') adjustmentId: string,
+    @CurrentCaller() caller: Caller
+  ) {
+    return this.trips.removeAdjustment(id, adjustmentId, caller)
   }
 
   // Trip Financials' vendor expenses: what the organizer pays out, recorded only.

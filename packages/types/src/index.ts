@@ -129,6 +129,8 @@ export interface Guest {
   offeredAt: string | null
   /** Every payment they reported or the organizer logged, oldest first. */
   payments: Payment[]
+  /** The credits and charges the organizer put on their balance, removed ones too, oldest first. */
+  adjustments: BalanceAdjustment[]
   roomId: string | null
   /** Who they'd like to share with, in their words. */
   roomNote: string
@@ -158,9 +160,35 @@ export interface GuestTerms {
   paidCents: number
   /** Reported by the guest, waiting for the organizer. */
   pendingCents: number
-  /** What is left to pay: the price less the payments the organizer has confirmed. */
+  /** The organizer's adjustments that still count: charges less credits (below zero when credits are more). */
+  adjustmentCents: number
+  /** What is left to pay: the price, plus the adjustments, less the payments the organizer has confirmed. */
   balanceCents: number
 }
+
+/**
+ * A credit or charge the organizer put on a guest's balance by hand, with a reason (issue #17): "$50 off for driving
+ * the van", "$40 for the extra night". Not a payment, and it never touches the signed price. Never edited: removing
+ * it keeps it, marked removed, and it no longer counts.
+ */
+export interface BalanceAdjustment {
+  id: string
+  kind: 'credit' | 'charge'
+  amountCents: number
+  reason: string
+  createdAt: string
+  removedAt: string | null
+}
+
+/** The organizer adding a credit or charge to a guest's balance. */
+export interface BalanceAdjustmentInput {
+  kind: 'credit' | 'charge'
+  amountCents: number
+  reason: string
+}
+
+/** What a guest owes in all: their signed price with the adjustments that count. */
+export const totalDueCents = (terms: GuestTerms): number => terms.priceCents + terms.adjustmentCents
 
 /** The ways guests can pay an organizer that Travel HQ knows by name, and a free-form one ("Pay in person"). */
 export const PAYMENT_METHOD_KINDS = [
@@ -309,6 +337,10 @@ export interface GuestEvent {
     | 'refund_undone'
     | 'room_changed'
     | 'contact_changed'
+    | 'credit_added'
+    | 'charge_added'
+    | 'credit_removed'
+    | 'charge_removed'
   /** Who did it: the guest, one of the trip's organizers, or Travel HQ itself (a sample trip's setup). */
   actor: 'guest' | 'organizer' | 'system'
   /** For room_changed: the rooms' names, null for no room or a room since removed. */
@@ -316,8 +348,14 @@ export interface GuestEvent {
   toRoom: string | null
   /** For contact_changed: which details changed, never their values. */
   fields: ('name' | 'email' | 'phone')[]
-  /** For the payment kinds: what the guest said they sent, or with payment_confirmed what arrived (whole cents). */
+  /**
+   * For the payment kinds: what the guest said they sent, or with payment_confirmed what arrived (whole cents). For the
+   * adjustment kinds, the adjustment's amount.
+   */
   amount: number | null
+  /** For the adjustment kinds: the organizer's reason, and the organizer's name. */
+  reason: string | null
+  byName: string | null
 }
 
 /**
@@ -573,6 +611,8 @@ export interface MyGuest {
   terms: GuestTerms | null
   agreement: SignedAgreement | null
   payments: Payment[]
+  /** The credits and charges that count on their balance, with the organizer's reasons, oldest first. */
+  adjustments: BalanceAdjustment[]
   /**
    * How to pay the organizer: the methods and the note. Only ever sent to a guest who joined (on an accept_first
    * trip, once accepted); empty otherwise.

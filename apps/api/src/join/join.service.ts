@@ -13,7 +13,12 @@ import { runAsPublic } from '../core/tenant-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { TermsService } from '../terms/terms.service'
-import { paymentMethodsOf, paymentsOf, toSignedAgreement } from '../trips/trip-mapper'
+import {
+  adjustmentsOf,
+  paymentMethodsOf,
+  paymentsOf,
+  toSignedAgreement,
+} from '../trips/trip-mapper'
 import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
@@ -76,6 +81,8 @@ export class JoinService {
     const include = {
       agreement: true,
       payments: true,
+      // A guest sees the credits and charges that count, not ones the organizer took back.
+      adjustments: { where: { removedAt: null } },
       trip: { select: { paymentInstructions: true, paymentMethods: true } },
     } as const
     const where = {
@@ -94,6 +101,7 @@ export class JoinService {
         : await this.claimable(slug, caller, false)
     const mine = (row: (typeof rows)[number]): MyGuest => {
       const payments = paymentsOf(row.payments)
+      const adjustments = adjustmentsOf(row.adjustments)
       const pay = canPay(trip.joinMode, row)
       return {
         id: row.id,
@@ -105,9 +113,10 @@ export class JoinService {
         waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
         offeredAt: row.offeredAt?.toISOString() ?? null,
         roomId: row.roomId,
-        terms: row.agreement ? termsOf(row.agreement, payments) : null,
+        terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
         agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
         payments,
+        adjustments,
         paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
         paymentInstructions: pay ? row.trip.paymentInstructions : '',
       }

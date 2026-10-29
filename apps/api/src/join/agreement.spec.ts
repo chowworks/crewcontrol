@@ -163,6 +163,24 @@ describe('a guest’s terms', () => {
     ).toMatchObject({ paidCents: 25000, pendingCents: 5000, balanceCents: 95000 })
   })
 
+  it('counts the adjustments that still stand beside the signed price, never in it', () => {
+    const adj = (
+      kind: 'credit' | 'charge',
+      amountCents: number,
+      removedAt: string | null = null
+    ) => ({
+      kind,
+      amountCents,
+      removedAt,
+    })
+    const paid = [
+      { status: 'confirmed' as const, guestPaymentAmount: 30000, receivedPaymentAmount: 30000 },
+    ]
+    expect(
+      termsOf(sig, paid, [adj('credit', 5000), adj('charge', 4000), adj('charge', 9999, 'x')])
+    ).toMatchObject({ priceCents: 120000, adjustmentCents: -1000, balanceCents: 89000 })
+  })
+
   it('puts odd cents on the last installment, and one payment is the whole price', () => {
     expect(firstInstallmentCents(100000, 3)).toBe(33333)
     expect(firstInstallmentCents(100000, 1)).toBe(100000)

@@ -423,6 +423,98 @@ suite('trip isolation', () => {
     }
   })
 
+  it("keeps a guest's balance adjustments to the trip and that guest: removed, never edited or deleted", async () => {
+    const adjust = (id: string, trip: string, guest: string, kind = 'credit', cents = 300) =>
+      `INSERT INTO "BalanceAdjustment" (id, "tripId", "guestId", kind, "amountCents", reason, "createdByUserId") VALUES ('${id}', '${trip}', '${guest}', '${kind}', ${cents}, 'Drove the van', 'o1')`
+    await insert(db, 'Guest', {
+      id: 'G-adj',
+      tripId: 'T1',
+      userId: 'g-adj',
+      email: 'ada@example.com',
+      status: 'approved',
+      firstName: 'Ada',
+      lastName: 'Guest',
+    })
+    await db.query(adjust('A-1', 'T1', 'G-adj'))
+    await db.query(adjust('A-2', 'T2', 'G-T2-a'))
+    try {
+      await as(await person('o1'), async () => {
+        expect(await attempt(adjust('A-o', 'T1', 'G-adj', 'charge'))).toEqual({ rows: 1 })
+        expect(await attempt(adjust('A-x', 'T2', 'G-T2-a'))).toEqual({ error: refused })
+        // Never pointed at another trip's guest.
+        expect(await attempt(adjust('A-y', 'T1', 'G-T2-a'))).toEqual({
+          error: expect.stringMatching(/foreign key/),
+        })
+        expect(await ids('BalanceAdjustment')).toEqual(['A-1', 'A-o'])
+        expect(await attempt(`UPDATE "BalanceAdjustment" SET "amountCents" = 1`)).toEqual({
+          error: expect.stringMatching(/only be removed/),
+        })
+        expect(await attempt(`UPDATE "BalanceAdjustment" SET reason = 'x'`)).toEqual({
+          error: expect.stringMatching(/only be removed/),
+        })
+        expect(await attempt(`DELETE FROM "BalanceAdjustment"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('g-adj'), async () => {
+        // The guest reads their own, and adds or changes none.
+        expect(await ids('BalanceAdjustment')).toEqual(['A-1'])
+        expect(await attempt(adjust('A-g', 'T1', 'G-adj', 'credit', 900))).toEqual({
+          error: refused,
+        })
+        expect(
+          await attempt(`UPDATE "BalanceAdjustment" SET "removedAt" = now() WHERE id = 'A-1'`)
+        ).toEqual({ rows: 0 })
+        // The credit lowers what's left of the price (1000 - 300): 750 is too much, 700 fits.
+        expect(
+          await attempt(
+            `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-adj', 'T1', 'G-adj', 750, 'Zelle', 'zelle', '2026-10-24')`
+          )
+        ).toEqual({ error: expect.stringMatching(/more_than_left/) })
+        expect(
+          await attempt(
+            `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-adj', 'T1', 'G-adj', 700, 'Zelle', 'zelle', '2026-10-24')`
+          )
+        ).toEqual({ rows: 1 })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('BalanceAdjustment')).toEqual(['A-1', 'A-2'])
+        expect(await attempt(adjust('A-a', 'T1', 'G-adj'))).toEqual({ error: refused })
+      })
+      await as({ public: true }, async () => {
+        expect(await ids('BalanceAdjustment')).toEqual([])
+      })
+      await as(await person('o1'), async () => {
+        expect(
+          await attempt(
+            `UPDATE "BalanceAdjustment" SET "removedAt" = now(), "removedByUserId" = 'o1' WHERE id = 'A-1'`
+          )
+        ).toEqual({ rows: 1 })
+        // Removed once, for good.
+        expect(
+          await attempt(`UPDATE "BalanceAdjustment" SET "removedAt" = NULL WHERE id = 'A-1'`)
+        ).toEqual({ error: expect.stringMatching(/only be removed/) })
+        // Each is a line in the guest's history, with its amount and who did it (the seed's for A-1 itself).
+        const lines = await db.query<{ kind: string; amount: number; actor: string }>(
+          `SELECT kind, amount, actor FROM "GuestEvent" WHERE "adjustmentId" = 'A-1' ORDER BY n`
+        )
+        expect(lines.rows).toEqual([
+          { kind: 'credit_added', amount: 300, actor: 'system' },
+          { kind: 'credit_removed', amount: 300, actor: 'organizer' },
+        ])
+      })
+      await expect(db.query(adjust('A-0', 'T1', 'G-adj', 'credit', 0))).rejects.toThrow(
+        /BalanceAdjustment_amount_check/
+      )
+      await expect(
+        db.query(
+          `INSERT INTO "BalanceAdjustment" (id, "tripId", "guestId", kind, "amountCents", reason, "createdByUserId") VALUES ('A-r', 'T1', 'G-adj', 'charge', 100, '  ', 'o1')`
+        )
+      ).rejects.toThrow(/BalanceAdjustment_reason_check/)
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-adj'`)
+      await db.query(`DELETE FROM "BalanceAdjustment"`)
+    }
+  })
+
   it('does not count the admin mark without a person', async () => {
     await as({ admin: true }, async () => {
       expect(await ids('Trip')).toEqual([])

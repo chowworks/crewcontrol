@@ -34,6 +34,7 @@ const me = (over: Partial<MyGuest>): MyGuest =>
       firstInstallmentCents: 40000,
       paidCents: 10000,
       pendingCents: 0,
+      adjustmentCents: 0,
       balanceCents: 110000,
     },
     paymentMethods: [],

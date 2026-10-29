@@ -1,6 +1,7 @@
 // Trip Control's Trip Financials section (owner's decision, 2026-10-26): the trip's money at a glance, the totals and one line
 // per guest, and the two spreadsheet exports. Everything comes from the trip already loaded: payments are a log
-// (confirmed, waiting, not received, refunded), and each guest's price comes from the agreement they signed.
+// (confirmed, waiting, not received, refunded), and each guest's price comes from the agreement they signed, with the
+// organizer's credits and charges beside it (issue #17).
 import type { Expense, Guest, OrganizerTrip, Payment } from '@cc/types'
 import { DollarSign, Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -18,13 +19,26 @@ const sum = (payments: Payment[], status: Payment['status'], arrived = true) =>
     .filter((p) => p.status === status)
     .reduce((n, p) => n + ((arrived ? p.receivedPaymentAmount : p.guestPaymentAmount) ?? 0), 0)
 
-/** One guest's money: their price, what arrived, what's waiting for the organizer, what was refunded, and what's left. */
+/**
+ * One guest's money: their signed price, their credits and charges, what they owe in all (`price` here, the two
+ * together), what arrived, what's waiting for the organizer, what was refunded, and what's left.
+ */
 function moneyOf(g: Guest) {
   const paid = sum(g.payments, 'confirmed')
   const waiting = sum(g.payments, 'reported', false)
   const refunded = sum(g.payments, 'refunded')
-  const price = g.terms?.priceCents ?? 0
-  return { price, paid, waiting, refunded, left: g.terms ? Math.max(0, price - paid) : 0 }
+  const signed = g.terms?.priceCents ?? 0
+  const adjusted = g.terms?.adjustmentCents ?? 0
+  const price = signed + adjusted
+  return {
+    signed,
+    adjusted,
+    price,
+    paid,
+    waiting,
+    refunded,
+    left: g.terms ? Math.max(0, price - paid) : 0,
+  }
 }
 
 const STATUS: Record<Guest['status'], string> = {
@@ -69,6 +83,7 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
         'Guest',
         'Trip Status',
         'Total Price',
+        'Credits and Charges',
         'Total Paid',
         'Total Pending Confirmation',
         'Total Refund',
@@ -79,7 +94,8 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
       ...rows.map(({ g, m }) => [
         `${g.firstName} ${g.lastName}`.trim(),
         statusOf(g),
-        g.terms ? amount(m.price) : null,
+        g.terms ? amount(m.signed) : null,
+        g.terms ? amount(m.adjusted) : null,
         amount(m.paid),
         amount(m.waiting),
         amount(m.refunded),
@@ -209,7 +225,8 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
           {legend('Still to come', toCome, 'bg-royal-pale ring-1 ring-inset ring-royal/30')}
         </div>
         <p className="mt-2 text-sm text-muted">
-          Counts accepted guests: what they agreed to pay, and what came in toward it.
+          Counts accepted guests: what they agreed to pay, with any credits and charges, and what
+          came in toward it.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

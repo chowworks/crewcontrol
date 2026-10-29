@@ -19,6 +19,7 @@ import {
   type JoinInput,
   type JoinMode,
   PAYMENT_METHOD_KINDS,
+  type BalanceAdjustmentInput,
   type ExpenseInput,
   type PaymentDecision,
   type PaymentLog,
@@ -380,6 +381,18 @@ export function parsePaymentLog(raw: unknown): PaymentLog {
     method: text(body, 'method', 160),
     sentOn: date(body, 'sentOn'),
     note: text(body, 'note', 500, false),
+  }
+}
+
+/** A credit or charge on a guest's balance: which, how much, and why (required). */
+export function parseAdjustment(raw: unknown): BalanceAdjustmentInput {
+  if (!raw || typeof raw !== 'object') fail('Expected an adjustment')
+  const body = raw as Body
+  if (body.kind !== 'credit' && body.kind !== 'charge') fail('kind must be credit or charge')
+  return {
+    kind: body.kind,
+    amountCents: cents(body, 'amountCents'),
+    reason: text(body, 'reason', 200),
   }
 }
 

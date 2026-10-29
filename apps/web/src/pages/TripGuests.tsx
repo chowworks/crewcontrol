@@ -4,7 +4,9 @@
 import {
   confirmedCents,
   guestActions,
+  totalDueCents,
   waitlistSpotOpen,
+  type BalanceAdjustmentInput,
   type Guest,
   type GuestEvent,
   type GuestUpdate,
@@ -32,6 +34,7 @@ import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
 import { signupOrder, waitlist } from '@/lib/signups'
+import { AdjustBalance } from './AdjustBalance'
 import { SignedCopy, UndoConfirm } from './ControlPanelPage'
 import { GuestDetails } from './GuestDetails'
 
@@ -72,6 +75,9 @@ interface Props {
   onDecide: (paymentId: string, decision: PaymentDecision) => Promise<boolean>
   /** A payment the organizer saw arrive, logged as confirmed; true when it saved. */
   onLog: (guest: Guest, log: PaymentLog) => Promise<boolean>
+  /** A credit or charge on the guest's balance, and taking one back; true when it saved. */
+  onAdjust: (guest: Guest, input: BalanceAdjustmentInput) => Promise<boolean>
+  onRemoveAdjustment: (guest: Guest, adjustmentId: string) => Promise<boolean>
   /** Why the last change didn't save, shown in an open Details dialog (the page's own line is behind it). */
   error?: string | null
 }
@@ -588,9 +594,9 @@ function LogPayment({
   const [busy, setBusy] = useState(false)
   const cents = centsFrom(amount)
   const problems: Record<string, string> = {}
-  // What's left: the price less what arrived or is waiting to be confirmed (as the API counts it).
+  // What's left: the price with any adjustments, less what arrived or is waiting to be confirmed (as the API counts it).
   const left = g.terms
-    ? Math.max(0, g.terms.priceCents - g.terms.paidCents - g.terms.pendingCents)
+    ? Math.max(0, totalDueCents(g.terms) - g.terms.paidCents - g.terms.pendingCents)
     : Infinity
   if (!cents) problems.amount = 'Enter how much arrived.'
   else if (cents > left) problems.amount = `That’s more than the ${money(left)} left to pay.`
@@ -693,10 +699,11 @@ export function IconCircle({ icon: Icon }: { icon: LucideIcon }) {
   )
 }
 
-/** How much of a guest's price has arrived, as a bar and in words. */
+/** How much of what a guest owes (their price with any adjustments) has arrived, as a bar and in words. */
 function Paid({ terms }: { terms: NonNullable<Guest['terms']> }) {
-  const paid = terms.priceCents - terms.balanceCents
-  const pct = terms.priceCents ? Math.round((paid / terms.priceCents) * 100) : 0
+  const due = totalDueCents(terms)
+  const paid = due - terms.balanceCents
+  const pct = due ? Math.min(100, Math.round((paid / due) * 100)) : 0
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <div
@@ -710,7 +717,7 @@ function Paid({ terms }: { terms: NonNullable<Guest['terms']> }) {
         <div className="h-full rounded-full bg-royal" style={{ width: `${pct}%` }} />
       </div>
       <span className="whitespace-nowrap text-sm text-body">
-        {money(paid)} of {money(terms.priceCents)} paid
+        {money(paid)} of {money(due)} paid
       </span>
     </div>
   )
@@ -762,6 +769,7 @@ export type DetailsProps = Props & {
   onHistory: (guest: Guest) => void
   onReview: (guest: Guest, payment: Payment) => void
   onLogOpen: (guest: Guest) => void
+  onAdjustOpen: (guest: Guest) => void
   /** Choosing who looks after the guest's sign-up and payments (issue #11). */
   onManageOpen: (guest: Guest) => void
   onClose: () => void
@@ -914,7 +922,8 @@ export function PaymentLine({
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 border-t border-rule py-2 text-sm first:border-t-0">
       <span className="min-w-0">
-        <span className="font-semibold">{money(p.guestPaymentAmount)}</span> · {p.method} ·{' '}
+        {/* Signed like a statement: a payment lowers the balance, as a credit does (owner's call, 2026-10-29). */}
+        <span className="font-semibold">−{money(p.guestPaymentAmount)} payment</span> · {p.method} ·{' '}
         {shortDate(p.sentOn)}
         <span className="block text-muted">
           {logged
@@ -990,6 +999,14 @@ export function eventText(e: GuestEvent): string {
         : 'Room cleared'
     case 'contact_changed':
       return `Contact details changed: ${e.fields.join(', ')}`
+    case 'credit_added':
+    case 'charge_added':
+    case 'credit_removed':
+    case 'charge_removed': {
+      const [kind, step] = e.kind.split('_')
+      const word = kind === 'credit' ? 'Credit' : 'Charge'
+      return `${word} of${amount} ${step}${e.reason ? `: ${e.reason}` : ''}`
+    }
   }
 }
 
@@ -1013,7 +1030,11 @@ function GuestHistory({
       .catch(() => setError('The history could not be loaded.'))
   }, [tripId, guest.id, admin])
   const by = (e: GuestEvent) =>
-    e.actor === 'guest' ? guest.firstName : e.actor === 'organizer' ? 'An organizer' : 'Travel HQ'
+    e.actor === 'guest'
+      ? guest.firstName
+      : e.actor === 'organizer'
+        ? (e.byName ?? 'An organizer')
+        : 'Travel HQ'
   // Newest first, under a heading for each day, as a timeline: money and the guest's spot in royal, the rest quieter.
   const days = new Map<string, GuestEvent[]>()
   for (const e of [...(events ?? [])].reverse()) {
@@ -1027,6 +1048,8 @@ function GuestHistory({
   }
   const key = (k: GuestEvent['kind']) =>
     k.startsWith('payment') ||
+    k.startsWith('credit') ||
+    k.startsWith('charge') ||
     k === 'said_paid' ||
     k === 'accepted' ||
     k === 'turned_down' ||
@@ -1079,6 +1102,7 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
   const [history, setHistory] = useState<Guest | null>(null)
   const [review, setReview] = useState<{ guestId: string; paymentId: string } | null>(null)
   const [logging, setLogging] = useState<string | null>(null)
+  const [adjusting, setAdjusting] = useState<string | null>(null)
   const [managing, setManaging] = useState<string | null>(null)
   // The guest whose Details opened the dialog on screen: closing it goes back to their Details (owner's decision,
   // 2026-10-26), not to the page.
@@ -1093,6 +1117,7 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
   const reviewing = find(review?.guestId)
   const reviewed = reviewing?.payments.find((p) => p.id === review?.paymentId)
   const logFor = find(logging)
+  const adjustFor = find(adjusting)
   const manageFor = find(managing)
   const dialogs = (
     <>
@@ -1116,6 +1141,10 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
           onLogOpen={(x) => {
             setBack(x.id)
             setLogging(x.id)
+          }}
+          onAdjustOpen={(x) => {
+            setBack(x.id)
+            setAdjusting(x.id)
           }}
           onManageOpen={(x) => {
             setBack(x.id)
@@ -1148,6 +1177,15 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
           g={logFor}
           onLog={props.onLog}
           onClose={done(() => setLogging(null))}
+          error={props.error}
+        />
+      )}
+      {adjustFor && (
+        <AdjustBalance
+          g={adjustFor}
+          payFirst={trip.joinMode !== 'accept_first'}
+          onAdjust={props.onAdjust}
+          onClose={done(() => setAdjusting(null))}
           error={props.error}
         />
       )}

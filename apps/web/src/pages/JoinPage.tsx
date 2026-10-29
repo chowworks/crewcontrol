@@ -18,8 +18,9 @@ import { RoomCard } from '@/components/RoomCard'
 import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
-import { owed, paymentStatus } from '@/lib/payments'
+import { owed, paymentStatus, totalDueCents } from '@/lib/payments'
 import { ReportPayment } from './ReportPayment'
+import { adjustmentAmount } from './AdjustBalance'
 import { PaidBar, TravelersCard } from './TravelersCard'
 import { NotFoundPage } from './NotFoundPage'
 
@@ -844,7 +845,7 @@ function MyPlace({
         <div className="flex flex-col gap-1.5">
           <PaidBar g={me} />
           <span className="text-sm text-body">
-            {money(me.terms.paidCents)} of {money(me.terms.priceCents)} paid
+            {money(me.terms.paidCents)} of {money(totalDueCents(me.terms))} paid
           </span>
         </div>
       )}
@@ -874,7 +875,9 @@ function MyPlace({
           {reported ? 'Report another payment' : 'I’ve paid'}
         </button>
       )}
-      {me.payments.length > 0 && <MyPayments payments={me.payments} organizer={o} />}
+      {(me.payments.length > 0 || me.adjustments.length > 0) && (
+        <MyPayments payments={me.payments} adjustments={me.adjustments} organizer={o} />
+      )}
 
       {me.terms && (
         <dl className="grid grid-cols-2 gap-3 border-t border-rule pt-4 text-sm sm:grid-cols-4">
@@ -887,6 +890,12 @@ function MyPlace({
                 : `${me.terms.installmentCount} installments`
             }
           />
+          {me.terms.adjustmentCents !== 0 && (
+            <Term
+              label="Credits and charges"
+              value={`${me.terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(me.terms.adjustmentCents))}`}
+            />
+          )}
           <Term label="Left to pay" value={money(me.terms.balanceCents)} />
           <Term label="Dates" value={dateRange(me.terms.startDate, me.terms.endDate)} />
         </dl>
@@ -1030,43 +1039,68 @@ export function travelerStatus(trip: PublicTrip, g: MyGuest): string {
 }
 
 /** The guest's payments, newest first, with where each stands. */
+/**
+ * A guest's payments, newest first, with the organizer's credits and charges among them (issue #17), each with the
+ * organizer's reason.
+ */
 export function MyPayments({
   payments,
+  adjustments,
   organizer,
-  title = 'Your payments',
+  title = 'Transaction history',
 }: {
   payments: MyGuest['payments']
+  adjustments: MyGuest['adjustments']
   organizer: string
   title?: string
 }) {
+  const lines = [
+    ...payments.map((p) => ({ at: p.reportedAt, p, a: null })),
+    ...adjustments.map((a) => ({ at: a.createdAt, p: null, a })),
+  ].sort((x, y) => y.at.localeCompare(x.at))
   return (
     <div className="border-t border-rule pt-4">
       <h3 className="text-sm font-semibold text-muted">{title}</h3>
       <ul>
-        {[...payments].reverse().map((p) => (
-          <li
-            key={p.id}
-            className="flex flex-wrap justify-between gap-x-3 border-t border-rule py-2 first:border-t-0"
-          >
-            <span>
-              <span className="font-semibold">
-                {money(
-                  p.status === 'confirmed' ? (p.receivedPaymentAmount ?? 0) : p.guestPaymentAmount
-                )}
-              </span>{' '}
-              <span className="text-body">
-                · {p.method} · {shortDate(p.sentOn)}
-              </span>
-            </span>
-            <span
-              className={
-                p.status === 'not_received' ? 'font-semibold text-[#B42318]' : 'text-muted'
-              }
+        {lines.map(({ p, a }) =>
+          a ? (
+            <li
+              key={a.id}
+              className="flex flex-wrap justify-between gap-x-3 border-t border-rule py-2 first:border-t-0"
             >
-              {paymentStatus(p.status, organizer)}
-            </span>
-          </li>
-        ))}
+              <span>
+                <span className="font-semibold">{adjustmentAmount(a)}</span>{' '}
+                <span className="text-body">· {a.reason}</span>
+              </span>
+              <span className="text-muted">From {organizer}</span>
+            </li>
+          ) : (
+            <li
+              key={p.id}
+              className="flex flex-wrap justify-between gap-x-3 border-t border-rule py-2 first:border-t-0"
+            >
+              <span>
+                <span className="font-semibold">
+                  −
+                  {money(
+                    p.status === 'confirmed' ? (p.receivedPaymentAmount ?? 0) : p.guestPaymentAmount
+                  )}{' '}
+                  payment
+                </span>{' '}
+                <span className="text-body">
+                  · {p.method} · {shortDate(p.sentOn)}
+                </span>
+              </span>
+              <span
+                className={
+                  p.status === 'not_received' ? 'font-semibold text-[#B42318]' : 'text-muted'
+                }
+              >
+                {paymentStatus(p.status, organizer)}
+              </span>
+            </li>
+          )
+        )}
       </ul>
     </div>
   )

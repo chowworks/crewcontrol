@@ -1,4 +1,5 @@
 import type {
+  BalanceAdjustmentInput,
   Guest,
   GuestUpdate,
   OrganizerTrip,
@@ -151,7 +152,33 @@ export function ControlPanelPage() {
       toast({ text: `${money(log.receivedPaymentAmount)} from ${guest.firstName} logged.` })
     return saved
   }
-  const handlers = { onUpdate: updateGuest, onDecide: decidePayment, onLog: logPayment }
+  async function addAdjustment(guest: Guest, input: BalanceAdjustmentInput) {
+    const saved = await saveTrip(() => api.addAdjustment(id, guest.id, input))
+    if (!saved) return false
+    // The newest is last; Undo takes it back, which the guest's history keeps as removed.
+    const added = saved.guests.find((g) => g.id === guest.id)?.adjustments.at(-1)
+    toast({
+      text: `${money(input.amountCents)} ${input.kind} for ${guest.firstName} added.`,
+      ...(added
+        ? { action: { label: 'Undo', onClick: () => void removeAdjustment(guest, added.id) } }
+        : {}),
+    })
+    return true
+  }
+  async function removeAdjustment(guest: Guest, adjustmentId: string) {
+    const a = guest.adjustments.find((x) => x.id === adjustmentId)
+    const saved = await save(() => api.removeAdjustment(id, adjustmentId))
+    if (saved && a)
+      toast({ text: `${money(a.amountCents)} ${a.kind} for ${guest.firstName} removed.` })
+    return saved
+  }
+  const handlers = {
+    onUpdate: updateGuest,
+    onDecide: decidePayment,
+    onLog: logPayment,
+    onAdjust: addAdjustment,
+    onRemoveAdjustment: removeAdjustment,
+  }
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />

@@ -18,6 +18,7 @@ const terms = {
   firstInstallmentCents: 500,
   paidCents: 0,
   pendingCents: 0,
+  adjustmentCents: 0,
   balanceCents: 1000,
 }
 const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
@@ -48,6 +49,7 @@ const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   waitlistedAt: null,
   offeredAt: null,
   payments: [],
+  adjustments: [],
   roomId: null,
   roomNote: '',
   signedAt: at,

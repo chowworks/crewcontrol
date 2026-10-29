@@ -1,5 +1,6 @@
 import type {
   AgreementSignature as SignatureRow,
+  BalanceAdjustment as AdjustmentRow,
   Guest as GuestRow,
   Payment as PaymentRow,
   Room as RoomRow,
@@ -8,6 +9,7 @@ import type {
 import { termsOf } from '../join/agreement'
 import {
   DEFAULT_TRIP_OPTIONS,
+  type BalanceAdjustment,
   type BedType,
   type Guest,
   type GuestStatus,
@@ -28,6 +30,7 @@ import {
 type GuestWithAgreement = GuestRow & {
   agreement?: SignatureRow | null
   payments?: PaymentRow[]
+  adjustments?: AdjustmentRow[]
 }
 type TripWithGuests = TripRow & { guests: GuestWithAgreement[]; rooms?: RoomRow[] }
 
@@ -147,6 +150,19 @@ export function toPayment(row: PaymentRow): Payment {
 export const paymentsOf = (rows: PaymentRow[] | undefined): Payment[] =>
   [...(rows ?? [])].sort((a, b) => a.reportedAt.getTime() - b.reportedAt.getTime()).map(toPayment)
 
+/** A guest's balance adjustments, removed ones too, oldest first. */
+export const adjustmentsOf = (rows: AdjustmentRow[] | undefined): BalanceAdjustment[] =>
+  [...(rows ?? [])]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((row) => ({
+      id: row.id,
+      kind: row.kind as BalanceAdjustment['kind'],
+      amountCents: row.amountCents,
+      reason: row.reason,
+      createdAt: row.createdAt.toISOString(),
+      removedAt: row.removedAt?.toISOString() ?? null,
+    }))
+
 export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentMethod[] =>
   (row.paymentMethods as unknown as PaymentMethod[] | null) ?? []
 
@@ -156,6 +172,7 @@ export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentM
  */
 function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
   const payments = paymentsOf(row.payments)
+  const adjustments = adjustmentsOf(row.adjustments)
   const manager = row.managedByUserId
     ? all.find((g) => g.userId === row.managedByUserId)
     : undefined
@@ -172,10 +189,11 @@ function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
     waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
     offeredAt: row.offeredAt?.toISOString() ?? null,
     payments,
+    adjustments,
     roomId: row.roomId,
     roomNote: row.roomNote,
     signedAt: row.agreement?.signedAt.toISOString() ?? null,
-    terms: row.agreement ? termsOf(row.agreement, payments) : null,
+    terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
     hasAccount: row.userId !== null,
     managedBy: row.managedByUserId
       ? {

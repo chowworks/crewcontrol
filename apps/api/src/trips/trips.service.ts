@@ -10,7 +10,7 @@ import { ClerkService } from '../auth/clerk.service'
 import { runAsSystem } from '../core/tenant-context'
 import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
-import { agreementPreview } from '../join/agreement'
+import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
 import {
   toOrganizerTrip,
@@ -21,6 +21,7 @@ import {
 } from './trip-mapper'
 import type {
   AgreementPreview,
+  BalanceAdjustmentInput,
   BedType,
   GuestEvent,
   Guest,
@@ -40,7 +41,7 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
-import { tripActionCount } from './trip-types'
+import { totalDueCents, tripActionCount } from './trip-types'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
 async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
@@ -54,7 +55,10 @@ async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
 }
 
 const withGuests = {
-  guests: { orderBy: { createdAt: 'asc' }, include: { agreement: true, payments: true } },
+  guests: {
+    orderBy: { createdAt: 'asc' },
+    include: { agreement: true, payments: true, adjustments: true },
+  },
   rooms: { orderBy: { position: 'asc' } },
 } satisfies Prisma.TripInclude
 
@@ -349,16 +353,26 @@ export class TripsService {
     return (await this.events(id, guestId)).map((e) => e.event)
   }
 
-  /** A guest's history lines (or every guest's on the trip), oldest first, with room ids turned into names. */
+  /**
+   * A guest's history lines (or every guest's on the trip), oldest first, with room ids turned into names. Adjustment
+   * lines carry their reason and the organizer who made them, by name from sign-in (issue #17).
+   */
   private async events(tripId: string, guestId?: string) {
-    const [events, rooms] = await Promise.all([
+    const [events, rooms, adjustments] = await Promise.all([
       this.prisma.guestEvent.findMany({
         where: { tripId, ...(guestId ? { guestId } : {}) },
         orderBy: [{ at: 'asc' }, { n: 'asc' }],
       }),
       this.prisma.room.findMany({ where: { tripId }, select: { id: true, name: true } }),
+      this.prisma.balanceAdjustment.findMany({
+        where: { tripId, ...(guestId ? { guestId } : {}) },
+        select: { id: true, reason: true },
+      }),
     ])
     const roomName = (roomId: string | null) => rooms.find((r) => r.id === roomId)?.name ?? null
+    const people = await this.clerk.names([
+      ...new Set(events.flatMap((e) => (e.adjustmentId && e.actorUserId ? [e.actorUserId] : []))),
+    ])
     // Joining and signing happen in one step; at the same moment, they come first.
     const rank = (kind: string) => (kind === 'joined' ? 0 : kind === 'signed' ? 1 : 2)
     events.sort((a, b) => a.at.getTime() - b.at.getTime() || rank(a.kind) - rank(b.kind))
@@ -372,6 +386,8 @@ export class TripsService {
         toRoom: roomName(e.toRoomId),
         fields: (e.fields ? e.fields.split(',') : []) as GuestEvent['fields'],
         amount: e.amount,
+        reason: adjustments.find((a) => a.id === e.adjustmentId)?.reason ?? null,
+        byName: e.adjustmentId && e.actorUserId ? (people.get(e.actorUserId) ?? null) : null,
       } satisfies GuestEvent,
     }))
   }
@@ -704,6 +720,59 @@ export class TripsService {
     })
     await this.firstComeAccept(id, guestId, caller)
     return this.get(id, caller)
+  }
+
+  /**
+   * The organizer puts a credit or charge on a guest's balance, with a reason (issue #17), once they've agreed it
+   * outside the app. The signed price stays as signed. A credit can't take the balance below what was paid or is
+   * waiting to be confirmed, so the books never owe a guest money by accident.
+   */
+  async addAdjustment(
+    id: string,
+    guestId: string,
+    input: BalanceAdjustmentInput,
+    caller: Caller
+  ): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.id === guestId)
+    if (!guest) throw new NotFoundException('Guest not found')
+    if (guest.status === 'declined')
+      throw new BadRequestException(`${guest.firstName} was turned down`)
+    if (!guest.terms)
+      throw new BadRequestException(`${guest.firstName} hasn’t signed the trip agreement`)
+    if (input.kind === 'credit') this.creditFits(guest, input.amountCents)
+    await this.prisma.balanceAdjustment.create({
+      data: { tripId: id, guestId, ...input, createdByUserId: caller.userId },
+    })
+    return this.get(id, caller)
+  }
+
+  /** Takes an adjustment back: it stays on record, marked removed, and no longer counts. Never edited. */
+  async removeAdjustment(id: string, adjustmentId: string, caller: Caller): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.adjustments.some((a) => a.id === adjustmentId))
+    const adjustment = guest?.adjustments.find((a) => a.id === adjustmentId)
+    if (!guest || !adjustment) throw new NotFoundException('Adjustment not found')
+    if (adjustment.removedAt) return trip
+    // Taking a charge off lowers the balance the way a credit does.
+    if (adjustment.kind === 'charge') this.creditFits(guest, adjustment.amountCents)
+    await this.prisma.balanceAdjustment.update({
+      where: { id: adjustmentId },
+      data: { removedAt: new Date(), removedByUserId: caller.userId },
+    })
+    return this.get(id, caller)
+  }
+
+  /** Lowering a guest's balance by `cents` must leave at least what they paid or reported. */
+  private creditFits(guest: Guest, cents: number): void {
+    if (!guest.terms) return
+    const left = totalDueCents(guest.terms) - guest.terms.paidCents - guest.terms.pendingCents
+    if (cents > left)
+      throw new BadRequestException(
+        left > 0
+          ? `That’s more than the ${money(left)} ${guest.firstName} has left to pay`
+          : `${guest.firstName} has nothing left to pay`
+      )
   }
 
   /**

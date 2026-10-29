@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
+import { totalDueCents } from '@/lib/payments'
+import { AdjustmentLine } from './AdjustBalance'
 import { Spot } from './ControlPanelPage'
 import { Contact, PaymentLine, type DetailsProps } from './TripGuests'
 
@@ -16,8 +18,20 @@ const outlined =
 
 /** The parts of the dialog: the payments list, Log a payment, the room choice, and the buttons to other dialogs. */
 function useParts(props: DetailsProps) {
-  const { g, trip, rooms, onUpdate, onDecide, onRead, onHistory, onReview, onLogOpen, onClose } =
-    props
+  const {
+    g,
+    trip,
+    rooms,
+    onUpdate,
+    onDecide,
+    onRead,
+    onHistory,
+    onReview,
+    onLogOpen,
+    onAdjustOpen,
+    onRemoveAdjustment,
+    onClose,
+  } = props
   const admin = useAdminView()
   const canLog =
     !admin &&
@@ -36,22 +50,51 @@ function useParts(props: DetailsProps) {
       Log a payment
     </button>
   ) : null
+  // A credit or charge sits beside the signed price (issue #17), so only a guest who signed has one.
+  const adjustButton =
+    !admin && g.status !== 'declined' && g.terms ? (
+      <button
+        type="button"
+        onClick={() => {
+          onClose()
+          onAdjustOpen(g)
+        }}
+        className={outlined}
+      >
+        Add a credit or charge
+      </button>
+    ) : null
+  // One transaction history (owner's call, 2026-10-29): payments, credits and charges together, oldest first.
+  const lines = [
+    ...g.payments.map((p) => ({ at: p.reportedAt, p, a: null })),
+    ...g.adjustments.map((a) => ({ at: a.createdAt, p: null, a })),
+  ].sort((x, y) => x.at.localeCompare(y.at))
   const list = (
     <>
-      {g.payments.length > 0 ? (
+      {lines.length > 0 ? (
         <ul>
-          {g.payments.map((p: Payment) => (
-            <PaymentLine
-              key={p.id}
-              p={p}
-              g={g}
-              onReview={() => {
-                onClose()
-                onReview(g, p)
-              }}
-              onDecide={onDecide}
-            />
-          ))}
+          {lines.map(({ p, a }) =>
+            a ? (
+              <AdjustmentLine
+                key={a.id}
+                a={a}
+                g={g}
+                onRemove={onRemoveAdjustment}
+                readOnly={admin}
+              />
+            ) : (
+              <PaymentLine
+                key={p.id}
+                p={p as Payment}
+                g={g}
+                onReview={() => {
+                  onClose()
+                  onReview(g, p as Payment)
+                }}
+                onDecide={onDecide}
+              />
+            )
+          )}
         </ul>
       ) : (
         <p className="text-sm text-muted">
@@ -114,31 +157,30 @@ function useParts(props: DetailsProps) {
       )}
     </div>
   )
-  return { logButton, list, room, records }
+  return { logButton, adjustButton, list, room, records }
 }
 
 /**
  * What's paid on one line (owner's call, 2026-10-26): the amount paid, a slim bar, and what's left. The fill fades
- * from deep to royal purple; the words carry the meaning for screen readers.
+ * from deep to royal purple; the words carry the meaning for screen readers. With credits or charges, what they owe in
+ * all is the signed price with those, and a line under it says so.
  */
 function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
-  const pct = terms.priceCents
-    ? Math.min(100, Math.round((terms.paidCents / terms.priceCents) * 100))
-    : 0
+  const due = totalDueCents(terms)
+  const pct = due ? Math.min(100, Math.round((terms.paidCents / due) * 100)) : 0
   return (
     <div className="mb-4">
       <h3 className="mb-1.5 text-sm font-semibold text-muted">Paid so far</h3>
       <div className="flex items-center gap-3 text-sm">
         <span className="whitespace-nowrap font-semibold text-ink">
-          {money(terms.paidCents)}{' '}
-          <span className="font-normal text-muted">of {money(terms.priceCents)}</span>
+          {money(terms.paidCents)} <span className="font-normal text-muted">of {money(due)}</span>
         </span>
         <span
           role="progressbar"
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`${money(terms.paidCents)} of ${money(terms.priceCents)} paid`}
+          aria-label={`${money(terms.paidCents)} of ${money(due)} paid`}
           className="h-2.5 flex-1 overflow-hidden rounded-full bg-royal-pale"
         >
           <span
@@ -148,17 +190,29 @@ function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
         </span>
         <span className="whitespace-nowrap text-muted">{money(terms.balanceCents)} left</span>
       </div>
+      {terms.adjustmentCents !== 0 && (
+        <p className="mt-1 text-sm text-muted">
+          Signed price {money(terms.priceCents)},{' '}
+          {terms.adjustmentCents < 0
+            ? `less ${money(-terms.adjustmentCents)} in credits.`
+            : `plus ${money(terms.adjustmentCents)} in charges.`}
+        </p>
+      )}
     </div>
   )
 }
 
 export function GuestDetails(props: DetailsProps) {
   const { g, trip, full, onUpdate, onClose, onManageOpen, error } = props
-  const { logButton, list, room, records } = useParts(props)
+  const { logButton, adjustButton, list, room, records } = useParts(props)
   const admin = useAdminView()
   const [tab, setTab] = useState<'payments' | 'spot'>('payments')
+  const transactions = g.payments.length + g.adjustments.length
   const tabs = [
-    { key: 'payments', label: `Payments${g.payments.length ? ` (${g.payments.length})` : ''}` },
+    {
+      key: 'payments',
+      label: `Transactions${transactions ? ` (${transactions})` : ''}`,
+    },
     { key: 'spot', label: 'Trip Status & Room' },
   ] as const
   return (
@@ -197,7 +251,12 @@ export function GuestDetails(props: DetailsProps) {
         {tab === 'payments' && (
           <>
             {list}
-            {logButton && <div>{logButton}</div>}
+            {(logButton || adjustButton) && (
+              <div className="flex flex-wrap gap-2">
+                {logButton}
+                {adjustButton}
+              </div>
+            )}
           </>
         )}
         {tab === 'spot' && (
