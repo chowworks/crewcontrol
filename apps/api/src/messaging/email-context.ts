@@ -1,6 +1,11 @@
 import { money } from '../join/agreement'
 import { canPay, owed } from '../join/guest-pay'
-import { PAYMENT_METHOD_KINDS, type JoinView, type PaymentMethod } from '../trips/trip-types'
+import {
+  PAYMENT_METHOD_KINDS,
+  totalDueCents,
+  type JoinView,
+  type PaymentMethod,
+} from '../trips/trip-types'
 import type { GuestEmailContext } from './email-template'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -91,6 +96,12 @@ export function guestEmailContext(
             oneMethod: facts.paymentMethods.length === 1,
             instructions: facts.paymentInstructions,
             price: money(terms.priceCents),
+            // The organizer's credits and charges (issue #17), signed, and the price with them.
+            adjustments:
+              terms.adjustmentCents === 0
+                ? ''
+                : `${terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(terms.adjustmentCents))}`,
+            total: money(totalDueCents(terms)),
             firstPayment: money(terms.firstInstallmentCents),
             paid: money(terms.paidCents),
             pending: money(terms.pendingCents),

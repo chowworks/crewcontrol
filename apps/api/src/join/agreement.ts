@@ -306,7 +306,8 @@ export function termsOf(
     startDate: sig.startDate,
     endDate: sig.endDate,
     refundTerms: sig.refundTerms,
-    firstInstallmentCents: first,
+    // A credit can leave less than the first installment to pay; then paying everything left holds the spot.
+    firstInstallmentCents: Math.min(first, sig.priceCents + adjusted),
     paidCents: paid,
     pendingCents: sum('reported', (p) => p.guestPaymentAmount),
     adjustmentCents: adjusted,

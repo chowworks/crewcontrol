@@ -436,10 +436,14 @@ suite('trip isolation', () => {
       lastName: 'Guest',
     })
     await db.query(adjust('A-1', 'T1', 'G-adj'))
-    await db.query(adjust('A-2', 'T2', 'G-T2-a'))
+    await db.query(adjust('A-2', 'T2', 'G-T2-a', 'charge'))
     try {
       await as(await person('o1'), async () => {
         expect(await attempt(adjust('A-o', 'T1', 'G-adj', 'charge'))).toEqual({ rows: 1 })
+        // Named as made by someone else: refused.
+        expect(await attempt(adjust('A-n', 'T1', 'G-adj').replace(`'o1')`, `'u1')`))).toEqual({
+          error: refused,
+        })
         expect(await attempt(adjust('A-x', 'T2', 'G-T2-a'))).toEqual({ error: refused })
         // Never pointed at another trip's guest.
         expect(await attempt(adjust('A-y', 'T1', 'G-T2-a'))).toEqual({
@@ -483,6 +487,20 @@ suite('trip isolation', () => {
         expect(await ids('BalanceAdjustment')).toEqual([])
       })
       await as(await person('o1'), async () => {
+        // With 700 of 700 reported, a credit would leave less to pay than is on its way.
+        expect(
+          await attempt(
+            `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", method, "methodKind", "sentOn") VALUES ('P-adj', 'T1', 'G-adj', 700, 'Zelle', 'zelle', '2026-10-24')`
+          )
+        ).toEqual({ rows: 1 })
+        expect(await attempt(adjust('A-c', 'T1', 'G-adj', 'credit', 1))).toEqual({
+          error: expect.stringMatching(/more_than_left/),
+        })
+        expect(
+          await attempt(
+            `UPDATE "BalanceAdjustment" SET "removedAt" = now(), "removedByUserId" = 'u1' WHERE id = 'A-1'`
+          )
+        ).toEqual({ error: refused })
         expect(
           await attempt(
             `UPDATE "BalanceAdjustment" SET "removedAt" = now(), "removedByUserId" = 'o1' WHERE id = 'A-1'`
@@ -512,6 +530,37 @@ suite('trip isolation', () => {
     } finally {
       await db.query(`DELETE FROM "Guest" WHERE id = 'G-adj'`)
       await db.query(`DELETE FROM "BalanceAdjustment"`)
+    }
+  })
+
+  it('holds the spot once everything left is paid when a credit leaves less than the first installment', async () => {
+    // T1 is 1000 in one payment: 700 arrived, then a 300 credit pays the spot, and taking it back unpays it.
+    const paid = async () =>
+      (
+        await db.query<{ paid: boolean }>(
+          `SELECT "spotPaidAt" IS NOT NULL AS paid FROM "Guest" WHERE id = 'G-spot'`
+        )
+      ).rows[0].paid
+    await insert(db, 'Guest', {
+      id: 'G-spot',
+      tripId: 'T1',
+      email: 'bo@example.com',
+      firstName: 'Bo',
+      lastName: 'Guest',
+    })
+    try {
+      await db.query(
+        `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", "receivedPaymentAmount", status, method, "methodKind", "sentOn") VALUES ('P-spot', 'T1', 'G-spot', 700, 700, 'confirmed', 'Zelle', 'zelle', '2026-10-24')`
+      )
+      expect(await paid()).toBe(false)
+      await db.query(
+        `INSERT INTO "BalanceAdjustment" (id, "tripId", "guestId", kind, "amountCents", reason, "createdByUserId") VALUES ('A-spot', 'T1', 'G-spot', 'credit', 300, 'Drove the van', 'o1')`
+      )
+      expect(await paid()).toBe(true)
+      await db.query(`UPDATE "BalanceAdjustment" SET "removedAt" = now() WHERE id = 'A-spot'`)
+      expect(await paid()).toBe(false)
+    } finally {
+      await db.query(`DELETE FROM "Guest" WHERE id = 'G-spot'`)
     }
   })
 

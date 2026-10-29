@@ -88,6 +88,19 @@ describe('guestEmailContext', () => {
       paid: '$100',
       dueNow: '$300',
       left: '$1,100',
+      adjustments: '',
+      total: '$1,200',
+    })
+  })
+
+  it("counts the organizer's credits and charges in the total", () => {
+    const terms = { ...me({}).terms!, adjustmentCents: -5000, balanceCents: 105000 }
+    const c = guestEmailContext(view(me({ terms })), contact, '')
+    expect(c.paymentDetails).toMatchObject({
+      price: '$1,200',
+      adjustments: '−$50',
+      total: '$1,150',
+      left: '$1,050',
     })
   })
 })

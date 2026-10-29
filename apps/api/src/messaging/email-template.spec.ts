@@ -36,6 +36,8 @@ const context: GuestEmailContext = {
     oneMethod: true,
     instructions: 'Put your name in the memo.',
     price: '$1,200',
+    adjustments: '',
+    total: '$1,200',
     firstPayment: '$400',
     paid: '$0',
     pending: '$0',

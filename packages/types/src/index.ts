@@ -154,7 +154,7 @@ export interface GuestTerms {
   startDate: string
   endDate: string
   refundTerms: string
-  /** The first installment, which holds the spot. */
+  /** The first installment, which holds the spot: never more than the price with adjustments. */
   firstInstallmentCents: number
   /** What the organizer has confirmed arrived, in all. */
   paidCents: number
