@@ -159,6 +159,11 @@ export interface Guest {
   managedBy: { guestId: string | null; name: string } | null
   /** Emails to them bounced, or they marked one as spam (Resend tells the API); null when nothing's wrong. */
   emailProblem: 'bounced' | 'complained' | null
+  /**
+   * What their room costs beyond the price they signed, not yet settled (issue #30): above zero their room costs
+   * more, below zero less. The organizer settles it as a charge or credit, or leaves it; nothing changes on its own.
+   */
+  roomPriceDiffCents: number
 }
 
 /** What a guest's signed agreement holds them and the organizer to. Trip changes after signing never touch it. */
@@ -561,7 +566,23 @@ export interface TripRoom {
   bedTypes: BedType[]
   /** The fewest people the room is priced for; fewer than this pay for the empty places too. */
   minPeople: number
+  /** What a guest in this room pays, per person (issue #30); null or left out: the trip's price. */
+  priceCents?: number | null
 }
+
+/** What a guest in a room pays: its own price, or the trip's when it has none. */
+export const roomPrice = (room: { priceCents?: number | null } | undefined, tripCents: number) =>
+  room?.priceCents ?? tripCents
+
+/**
+ * Whether any room costs something other than the trip's price. Then guests must pick a room when they join, so they
+ * sign the price of the room they'll be in (owner's decision, 2026-10-29).
+ */
+export const roomsPricedApart = (rooms: { priceCents?: number | null }[], tripCents: number) =>
+  rooms.some((r) => roomPrice(r, tripCents) !== tripCents)
+
+export const ROOMS_PRICED_APART =
+  'Rooms with their own prices need guests to pick a room when they join, so they sign the price of the room they’ll be in.'
 
 export const BED_TYPES = ['king', 'queen', 'double', 'twin', 'daybed', 'sofa-bed', 'bunk'] as const
 export type BedType = (typeof BED_TYPES)[number]
@@ -585,6 +606,9 @@ export interface PublicRoom {
   capacity: number
   minPeople: number
   spotsLeft: number
+  /** What a guest who picks it pays, per person, and the trip's payment plan at that price (issue #30). */
+  priceCents: number
+  paymentPlan: PlannedPayment[]
 }
 
 /** What a signed-in guest sends from the join page: their details, and their signature on the agreement. */
@@ -696,6 +720,15 @@ export interface JoinView {
   claimable: { signedBy: string } | null
   /** Where this person stands with Travel HQ's Terms of Use: the join page asks for them if not accepted. */
   termsOfUse: TermsStatus
+  /**
+   * The agreement for each room priced apart from the trip (issue #30): picking it, the guest signs its price. Rooms
+   * not listed take `agreement` (and `agreementOnBehalf`).
+   */
+  roomAgreements: {
+    roomId: string
+    agreement: AgreementPreview
+    agreementOnBehalf: AgreementPreview
+  }[]
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
@@ -789,6 +822,8 @@ export type GuestAction =
   | { kind: 'refund'; key: string; paidCents: number }
   // Emails to them bounced (fix the address) or they marked one as spam (the organizer just needs to know).
   | { kind: 'email'; key: string; problem: 'bounced' | 'complained' }
+  // Their room costs more or less than the price they signed (issue #30): charge or credit the difference, or leave it.
+  | { kind: 'room_price'; key: string; diffCents: number }
 
 /** Money the organizer confirmed arrived from a guest (refunded payments don't count). */
 export const confirmedCents = (g: Guest): number =>
@@ -853,7 +888,10 @@ export const tripFull = (trip: OrganizerTrip): boolean =>
 /** What the organizer does next for one guest, if anything: the trip's own steps, then an email problem. */
 export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
   const steps = tripSteps(g, trip)
-  return g.emailProblem && g.status !== 'declined'
+  if (g.status === 'declined') return steps
+  if (g.terms && g.roomPriceDiffCents !== 0)
+    steps.push({ kind: 'room_price', key: `${g.id}-room-price`, diffCents: g.roomPriceDiffCents })
+  return g.emailProblem
     ? [...steps, { kind: 'email', key: `${g.id}-email`, problem: g.emailProblem }]
     : steps
 }

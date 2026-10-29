@@ -1,4 +1,5 @@
 import type { PublicRoom } from '@cc/types'
+import { money } from '@/lib/format'
 import { RoomArt, sharingLine } from './RoomArt'
 
 /** A room as a card with a picture of its beds, who shares, and what happens with fewer people. */
@@ -6,10 +7,13 @@ export function RoomCard({
   room,
   checked,
   onChange,
+  price,
 }: {
   room: PublicRoom
   checked: boolean
   onChange: () => void
+  /** Its price per person, shown when the trip's rooms are priced differently (issue #30). */
+  price?: number
 }) {
   const full = room.spotsLeft === 0
   return (
@@ -33,7 +37,10 @@ export function RoomCard({
           className="mt-1 h-4 w-4 accent-royal"
         />
         <span className="flex flex-col gap-0.5">
-          <span className="font-semibold text-ink">{room.name}</span>
+          <span className="font-semibold text-ink">
+            {room.name}
+            {price !== undefined && <> · {money(price)} per person</>}
+          </span>
           <span className="text-muted">{sharingLine(room)}</span>
           <span className="font-semibold text-royal">
             {full

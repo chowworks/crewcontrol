@@ -39,6 +39,7 @@ const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
 })
 const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   id,
+  roomPriceDiffCents: 0,
   firstName: id,
   lastName: 'X',
   email: `${id}@example.com`,
@@ -81,6 +82,16 @@ describe('what needs the organizer', () => {
       { kind: 'email', key: 'b-email', problem: 'complained' },
     ])
     expect(guestActions(guest('c', { emailProblem: 'bounced', status: 'declined' }), t)).toEqual([])
+  })
+
+  it('asks to settle a room that costs more or less than the guest signed, unless they were turned down', () => {
+    const t = trip([])
+    const moved = guest('a', { status: 'approved', roomPriceDiffCents: -20000 })
+    expect(guestActions(moved, t)).toEqual([
+      { kind: 'room_price', key: 'a-room-price', diffCents: -20000 },
+    ])
+    expect(guestActions({ ...moved, status: 'declined' }, t)).toEqual([])
+    expect(guestActions({ ...moved, roomPriceDiffCents: 0 }, t)).toEqual([])
   })
 
   it('lists each reported payment, marking a short one, and a guest ready to accept', () => {

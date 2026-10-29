@@ -23,6 +23,7 @@ import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
   paymentMethodLabel,
+  roomsPricedApart,
   type ClaimInput,
   type JoinInput,
   type JoinView,
@@ -123,6 +124,17 @@ export class JoinService {
       managed: rows.filter((r) => r !== own).map(mine),
       claimable: signedBy === null ? null : { signedBy },
       termsOfUse: await this.terms.status(caller.userId, 'use'),
+      // A room priced apart from the trip has its own agreement, at its price (issue #30).
+      roomAgreements: trip.rooms
+        .filter((r) => r.priceCents !== trip.costPerPersonCents)
+        .map((r) => {
+          const room = { ...facts, costPerPersonCents: r.priceCents, paymentPlan: r.paymentPlan }
+          return {
+            roomId: r.id,
+            agreement: agreementPreview(room),
+            agreementOnBehalf: agreementPreview(room, true),
+          }
+        }),
     }
   }
 
@@ -180,8 +192,13 @@ export class JoinService {
     const view = await this.view(slug, caller)
     const { trip, me, termsOfUse } = view
     const onBehalf = Boolean(input.onBehalf)
+    // The room they pick sets their price and plan, when it's priced apart from the trip (issue #30).
+    const room = trip.rooms.find((r) => r.id === input.roomId)
+    const priced = view.roomAgreements.find((r) => r.roomId === input.roomId) ?? view
+    const priceCents = room?.priceCents ?? trip.costPerPersonCents
+    const plan = room?.paymentPlan ?? trip.paymentPlan
     // Someone signing up a traveler they look after signs the agreement on that traveler's behalf.
-    const agreement = onBehalf ? view.agreementOnBehalf : view.agreement
+    const agreement = onBehalf ? priced.agreementOnBehalf : priced.agreement
     if (me && !onBehalf) throw new ConflictException('You’ve already joined this trip')
     // Three emails refused in ten minutes: no more joining this trip until the time is up.
     emailRefusals.check(`${caller.userId}:${slug}`)
@@ -199,7 +216,11 @@ export class JoinService {
     // A full trip keeps taking sign-ups: the database puts them on the waitlist (guest_waitlist).
     if (input.roomId && !trip.rooms.some((r) => r.id === input.roomId))
       throw new BadRequestException('That room is not on this trip')
-    if (!input.roomId && trip.options.roomRequired && trip.rooms.length > 0)
+    if (
+      !input.roomId &&
+      trip.rooms.length > 0 &&
+      (trip.options.roomRequired || roomsPricedApart(trip.rooms, trip.costPerPersonCents))
+    )
       throw new BadRequestException('Pick a room to join')
     const tripId = await this.tripId(slug)
     const [firstName, lastName] = splitName(input.name)
@@ -229,17 +250,17 @@ export class JoinService {
               templateVersion: TEMPLATE_VERSION,
               text: signedText,
               textHash: hashOf(signedText),
-              priceCents: trip.costPerPersonCents,
+              priceCents,
               installmentCount: trip.installmentCount,
               // The plan the agreement quoted: their schedule, like their price, is what they signed.
-              schedule: trip.paymentPlan as unknown as Prisma.InputJsonValue,
+              schedule: plan as unknown as Prisma.InputJsonValue,
               startDate: trip.startDate,
               endDate: trip.endDate,
               refundTerms: refundTerms(
                 trip.organizerName,
                 trip.joinMode,
                 trip.refundPolicy,
-                trip.paymentPlan[0].amountCents
+                plan[0].amountCents
               ),
               typedName: input.typedName,
               ...(onBehalf ? { signedByUserId: caller.userId } : {}),

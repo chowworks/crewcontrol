@@ -53,6 +53,7 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   roomNote: '',
   updatesStoppedAt: null,
   updatesToken: `token-${id}`,
+  roomPriceSettledCents: null,
 })
 
 const guests = [
@@ -116,6 +117,7 @@ describe('toPublicTrip', () => {
         weight: 1.75,
         bedTypes: ['king'],
         minPeople: 2,
+        priceCents: null,
       },
     ]
     const view = toPublicTrip({ ...trip, guests, rooms, roomTaken: new Map([['r1', 1]]) })
@@ -128,8 +130,32 @@ describe('toPublicTrip', () => {
         capacity: 2,
         minPeople: 2,
         spotsLeft: 1,
+        priceCents: 120000,
+        paymentPlan: [300, 300, 300, 300].map((d) => ({ dueOn: null, amountCents: d * 100 })),
       },
     ])
+  })
+
+  it('gives a room priced apart from the trip its own price and plan', () => {
+    const rooms = [
+      {
+        id: 'r1',
+        tripId: 't1',
+        position: 0,
+        name: 'Bunk room',
+        beds: '',
+        capacity: 4,
+        weight: 1,
+        bedTypes: [],
+        minPeople: 1,
+        priceCents: 80000,
+      },
+    ]
+    const view = toPublicTrip({ ...trip, guests, rooms })
+    expect(view.rooms[0]).toMatchObject({
+      priceCents: 80000,
+      paymentPlan: [200, 200, 200, 200].map((d) => ({ dueOn: null, amountCents: d * 100 })),
+    })
   })
 
   it('hides names when the organizer turns them off and guests choose no room', () => {
@@ -154,6 +180,7 @@ describe('toPublicTrip', () => {
         weight: 1,
         bedTypes: [],
         minPeople: 1,
+        priceCents: null,
       },
     ]
     const view = toPublicTrip({ ...trip, options: { vendorCosts: true }, guests, rooms })

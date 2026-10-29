@@ -37,7 +37,18 @@ export function Field({
   )
 }
 
-export function Money({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function Money({
+  value,
+  onChange,
+  placeholder = '0',
+  label,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  /** For a box with no label around it. */
+  label?: string
+}) {
   return (
     <span className="flex items-stretch overflow-hidden rounded-[10px] border border-[#5B6B80] bg-white focus-within:ring-2 focus-within:ring-royal">
       <span className="flex items-center bg-ground px-3 font-normal text-muted">$</span>
@@ -46,7 +57,8 @@ export function Money({ value, onChange }: { value: string; onChange: (value: st
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="0"
+        placeholder={placeholder}
+        aria-label={label}
       />
     </span>
   )

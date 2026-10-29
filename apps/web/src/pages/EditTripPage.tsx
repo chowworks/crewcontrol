@@ -4,6 +4,9 @@ import {
   MAX_TRIP_PHOTOS,
   PAYMENT_METHOD_KINDS,
   paymentPlan,
+  roomPrice,
+  ROOMS_PRICED_APART,
+  roomsPricedApart,
   type AgreementPreview,
   type Guest,
   type HighlightIcon,
@@ -119,6 +122,13 @@ function previewOf(
             capacity: r.capacity,
             minPeople: r.minPeople,
             spotsLeft: Math.max(0, r.capacity - guests.filter((g) => g.roomId === r.id).length),
+            priceCents: roomPrice(r, trip.costPerPersonCents),
+            paymentPlan: paymentPlan(
+              roomPrice(r, trip.costPerPersonCents),
+              trip.installmentCount,
+              trip.firstPaymentCents,
+              trip.paymentDueDates
+            ),
           }))
       : [],
     goingCount: approved.length,
@@ -179,6 +189,13 @@ export function EditTripPage() {
   const roomsDirty = Boolean(id) && JSON.stringify(rooms) !== savedRooms
   const dirty =
     JSON.stringify(trip) !== savedTrip || (link.trim() !== '' && link.trim() !== slug) || roomsDirty
+
+  // Rooms priced apart from the trip need guests to pick one (owner's decision, 2026-10-29): both switches stay on.
+  const pricedApart = roomsPricedApart(rooms, trip.costPerPersonCents)
+  useEffect(() => {
+    if (pricedApart && !(trip.options.roomChoice && trip.options.roomRequired))
+      setTrip((t) => ({ ...t, options: { ...t.options, roomChoice: true, roomRequired: true } }))
+  }, [pricedApart, trip.options.roomChoice, trip.options.roomRequired])
 
   // The browser asks before closing or reloading the page with unsaved changes.
   useEffect(() => {
@@ -832,7 +849,13 @@ export function EditTripPage() {
             {step === 3 && (
               <>
                 <Card title="Room choice">
+                  {pricedApart && (
+                    <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                      {ROOMS_PRICED_APART} Change room prices in step 4.
+                    </p>
+                  )}
                   <Toggle
+                    disabled={pricedApart}
                     checked={trip.options.roomChoice}
                     onChange={(v) =>
                       setTrip((t) => ({
@@ -849,6 +872,7 @@ export function EditTripPage() {
                   />
                   {trip.options.roomChoice && (
                     <Toggle
+                      disabled={pricedApart}
                       checked={trip.options.roomRequired}
                       onChange={(v) => setOption('roomRequired', v)}
                       label="Guests must pick a room"
@@ -866,6 +890,7 @@ export function EditTripPage() {
                   <PriceSimulator
                     tripId={id}
                     rooms={rooms}
+                    onRooms={setRooms}
                     guests={guests}
                     startDate={trip.startDate}
                     costCents={trip.costPerPersonCents}

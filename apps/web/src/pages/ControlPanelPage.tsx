@@ -189,7 +189,20 @@ export function ControlPanelPage() {
       toast({ text: `${money(a.amountCents)} ${a.kind} for ${guest.firstName} removed.` })
     return saved
   }
+  // A room that costs more or less than the guest signed (issue #30): the difference as a charge or credit, or left.
+  async function settleRoomPrice(guest: Guest, adjust: boolean) {
+    const diff = guest.roomPriceDiffCents
+    const saved = await saveTrip(() => api.settleRoomPrice(id, guest.id, adjust))
+    if (!saved) return false
+    toast({
+      text: adjust
+        ? `${money(Math.abs(diff))} ${diff > 0 ? 'charge' : 'credit'} for ${guest.firstName} added.`
+        : `${guest.firstName}’s balance stays as signed.`,
+    })
+    return true
+  }
   const handlers = {
+    onRoomPrice: settleRoomPrice,
     onUpdate: updateGuest,
     onDecide: decidePayment,
     onLog: logPayment,

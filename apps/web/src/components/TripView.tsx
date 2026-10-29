@@ -1,4 +1,4 @@
-import type { PublicTrip } from '@cc/types'
+import { roomsPricedApart, type PublicTrip } from '@cc/types'
 import { CalendarDays, MapPin } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -17,6 +17,11 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
   // A full trip keeps taking sign-ups onto its waitlist, where nobody is asked to send money.
   const full = trip.waitlisting
+  // Rooms priced apart (issue #30): the trip shows its cheapest room's price, "From $X".
+  const apart = roomsPricedApart(trip.rooms, trip.costPerPersonCents)
+  const cheapest = apart
+    ? [...trip.rooms].sort((a, b) => a.priceCents - b.priceCents)[0]
+    : undefined
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -65,10 +70,12 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
           <div className="flex flex-col gap-3.5 rounded-2xl bg-white p-6 shadow-card">
             <div className="text-sm font-semibold text-muted">Cost per person</div>
             <div className="font-display text-[44px] font-extrabold leading-none">
-              {money(trip.costPerPersonCents)}
+              {apart && <span className="text-2xl">From </span>}
+              {money(cheapest?.priceCents ?? trip.costPerPersonCents)}
             </div>
             <p className="text-[15px] text-body">
-              {installmentLine(trip.paymentPlan)}
+              {apart && 'Each room has its own price; you pick yours when you join. '}
+              {installmentLine(cheapest?.paymentPlan ?? trip.paymentPlan)}
               {trip.joinMode === 'accept_first'
                 ? ' You pay once you’re accepted.'
                 : ' The first one holds your spot.'}

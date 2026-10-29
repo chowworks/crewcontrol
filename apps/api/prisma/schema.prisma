@@ -123,6 +123,9 @@ model Guest {
   updatesStoppedAt   DateTime?
   // The guest's own secret in that link; it names this guest row and nothing else.
   updatesToken       String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  // The room price the difference from the signed price was last settled at, as a credit or charge or left alone
+  // (migration 20261029070000_room_prices); null: never.
+  roomPriceSettledCents Int?
   room               Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
   trip               Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
   agreement          AgreementSignature?
@@ -304,6 +307,8 @@ model Room {
   bedTypes  String[] @default([])
   // The fewest people the room is priced for. Fewer than this and they pay for the empty places too.
   minPeople Int      @default(1)
+  // What a guest in this room pays, per person; null: the trip's price (migration 20261029070000_room_prices).
+  priceCents Int?
   trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   guests Guest[]

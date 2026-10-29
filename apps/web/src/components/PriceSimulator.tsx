@@ -1,4 +1,11 @@
-import { paymentPlan, type Guest, type TripRoom } from '@cc/types'
+import {
+  paymentPlan,
+  roomPrice,
+  ROOMS_PRICED_APART,
+  roomsPricedApart,
+  type Guest,
+  type TripRoom,
+} from '@cc/types'
 import { useEffect, useMemo, useState } from 'react'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { Card, Field, field, Money, Stat } from '@/components/EditorParts'
@@ -49,6 +56,7 @@ function occupantsFor(r: TripRoom | undefined, occupants: Record<string, number>
 export function PriceSimulator({
   tripId,
   rooms,
+  onRooms,
   guests,
   startDate,
   costCents,
@@ -64,6 +72,8 @@ export function PriceSimulator({
 }: {
   tripId: string
   rooms: TripRoom[]
+  /** Saves each room's own price with the trip's rooms (issue #30). */
+  onRooms: (rooms: TripRoom[]) => void
   guests: Guest[]
   startDate: string
   costCents: number
@@ -117,19 +127,29 @@ export function PriceSimulator({
     [rooms, sim]
   )
 
-  // The plan guests sign, from the price they see; what the organizer collects with everyone in the rooms above.
-  const plan = useMemo(
-    () => paymentPlan(costCents, installments, firstPaymentCents, dueDates),
-    [costCents, installments, firstPaymentCents, dueDates]
-  )
-  const cash = useMemo(() => {
-    let total = 0
-    return plan.map((p) => {
-      const due = p.amountCents * pricing.people
-      total += due
-      return { date: p.dueOn, amount: p.amountCents, due, total }
-    })
-  }, [plan, pricing.people])
+  // The plan guests sign, at the trip's price and at each room's own (issue #30); what the organizer collects with
+  // everyone in the rooms above, each at their room's price.
+  const planAt = (price: number) => paymentPlan(price, installments, firstPaymentCents, dueDates)
+  const plan = planAt(costCents)
+  const apart = roomsPricedApart(rooms, costCents)
+  // One line per price, naming its rooms ("$500 · Casita 1, Casita 2").
+  const prices = [...new Set(rooms.map((r) => roomPrice(r, costCents)))]
+    .sort((a, b) => a - b)
+    .map((price) => ({
+      price,
+      plan: planAt(price),
+      rooms: rooms.filter((r) => roomPrice(r, costCents) === price).map((r) => r.name || 'Room'),
+    }))
+  let running = 0
+  const cash = plan.map((p, k) => {
+    const due = rooms.reduce(
+      (n, r) => n + planAt(roomPrice(r, costCents))[k].amountCents * occupantsFor(r, sim.occupants),
+      0
+    )
+    running += due
+    return { date: p.dueOn, amount: p.amountCents, due, total: running }
+  })
+  const lowest = Math.min(costCents, ...rooms.map((r) => roomPrice(r, costCents)))
 
   // What the organizer collects shows only once the rooms above have people in them.
   const counting = pricing.people > 0
@@ -153,6 +173,11 @@ export function PriceSimulator({
   // What each person pays on average at these prices, rounded to the dollar: a starting point for the price shown.
   const average =
     pricing.people > 0 ? Math.round(pricing.collectedCents / pricing.people / 100) * 100 : 0
+  // Each room's price above, rounded to the dollar, for "Use these prices": only when the rooms come out different.
+  const simulated = rooms.map((_, i) =>
+    occupantsOf(i) > 0 ? Math.round((pricing.rooms[i]?.perPersonCents ?? 0) / 100) * 100 : 0
+  )
+  const differ = simulated.every((p) => p > 0) && new Set(simulated).size > 1 && rooms.length > 1
   const fronted = cents(sim.fronted)
   const paidBack = fronted > 0 ? cash.find((c) => c.total >= fronted) : undefined
 
@@ -311,7 +336,10 @@ export function PriceSimulator({
         <div className="flex flex-col gap-3 border-t border-rule pt-4">
           <h3 className="text-lg font-extrabold">Price guests see</h3>
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Per person, on the trip page">
+            <Field
+              label={rooms.length ? 'Trip price, per person' : 'Per person, on the trip page'}
+              hint={rooms.length ? 'Rooms without their own price cost this' : undefined}
+            >
               <span className="block w-48">
                 <Money
                   value={costCents ? String(costCents / 100) : ''}
@@ -319,7 +347,7 @@ export function PriceSimulator({
                 />
               </span>
             </Field>
-            {average > 0 && average !== costCents && (
+            {!differ && average > 0 && average !== costCents && (
               <button
                 type="button"
                 onClick={() => onCost(average)}
@@ -329,9 +357,59 @@ export function PriceSimulator({
               </button>
             )}
           </div>
-          <p className="text-sm text-muted">
-            With rooms priced differently, put the price most people pay.
-          </p>
+          {rooms.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold">Each room’s price, per person</span>
+                {differ && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRooms(rooms.map((r, i) => ({ ...r, priceCents: simulated[i] })))
+                      onCost(Math.min(...simulated))
+                    }}
+                    className="inline-flex min-h-[44px] items-center rounded-xl border border-royal px-4 text-sm font-semibold text-royal hover:bg-royal-pale"
+                  >
+                    Use the prices above for each room
+                  </button>
+                )}
+              </div>
+              <ul className="flex flex-col">
+                {rooms.map((r, i) => (
+                  <li
+                    key={roomKey(r)}
+                    className="flex flex-wrap items-center justify-between gap-2 border-t border-rule py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="font-semibold">{r.name || 'Room'}</span>
+                      <span className="block text-sm text-muted">
+                        {r.priceCents == null ? 'The trip price' : 'Its own price'}
+                      </span>
+                    </span>
+                    <span className="block w-36">
+                      <Money
+                        value={r.priceCents == null ? '' : String(r.priceCents / 100)}
+                        placeholder={costCents ? String(costCents / 100) : '0'}
+                        label={`${r.name || 'Room'} price per person`}
+                        onChange={(v) =>
+                          onRooms(
+                            rooms.map((x, j) =>
+                              j === i ? { ...x, priceCents: cents(v) || null } : x
+                            )
+                          )
+                        }
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {apart && (
+                <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                  {ROOMS_PRICED_APART} The trip page shows “From {money(lowest)}”.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -395,7 +473,7 @@ export function PriceSimulator({
                   { value: 'first', label: 'First payment holds the spot' },
                 ]}
                 onChange={(v) =>
-                  onFirstPayment(v === 'even' ? null : Math.min(costCents, 30000) || null)
+                  onFirstPayment(v === 'even' ? null : Math.min(lowest, 30000) || null)
                 }
               />
             </Field>
@@ -405,9 +483,9 @@ export function PriceSimulator({
                   value={String(firstPaymentCents / 100)}
                   onChange={(v) => onFirstPayment(cents(v) || null)}
                 />
-                {firstPaymentCents > costCents && (
+                {firstPaymentCents > lowest && (
                   <span role="alert" className="font-semibold text-[#B42318]">
-                    More than the price, {money(costCents)}.
+                    More than the {apart ? 'lowest ' : ''}price, {money(lowest)}.
                   </span>
                 )}
               </Field>
@@ -460,7 +538,16 @@ export function PriceSimulator({
                   <span className="block text-sm font-normal text-muted sm:hidden">
                     Each guest pays
                   </span>
-                  {money(c.amount)}
+                  {apart
+                    ? prices.map((g) => (
+                        <span key={g.price} className="block">
+                          {money(g.plan[k].amountCents)}{' '}
+                          <span className="text-sm font-normal text-muted">
+                            {g.rooms.join(', ')}
+                          </span>
+                        </span>
+                      ))
+                    : money(c.amount)}
                 </span>
                 {counting && (
                   <span className="text-right">

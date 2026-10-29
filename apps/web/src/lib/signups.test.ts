@@ -47,6 +47,7 @@ const g = (
   hasAccount: true,
   managedBy: null,
   emailProblem: null,
+  roomPriceDiffCents: 0,
 })
 
 describe('signupOrder', () => {
