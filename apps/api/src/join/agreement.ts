@@ -6,6 +6,7 @@ import type {
   Payment,
   RefundPolicy,
 } from '../trips/trip-types'
+import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER } from '../trips/trip-types'
 
 /**
  * Travel HQ's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
@@ -14,7 +15,7 @@ import type {
  * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-29'
+export const TEMPLATE_VERSION = '2026-10-29.2'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -105,6 +106,8 @@ interface Fill {
   /** The organizer as the agreement names them: name, display name and email. */
   party: string
   name: string
+  /** What the opening adds when someone signs for a traveler they look after; '' otherwise. */
+  onBehalf: string
   /** "MV Beach House 2027, Martha's Vineyard, MA, from 2027-06-18 to 2027-06-21" */
   trip: string
   /** "$1,200 per person, paid in 3 installments, the first of $400" */
@@ -113,6 +116,12 @@ interface Fill {
   refunds: string
 }
 
+/** The opening's words when someone signs for a traveler they look after (fillAgreementNames fills the names in). */
+const ON_BEHALF =
+  `${AGREEMENT_SIGNER} signs it on behalf of ${AGREEMENT_TRAVELER}, the traveler, and takes on everything it asks ` +
+  `of ${AGREEMENT_TRAVELER}, including paying for their spot. Where it says "you", it means ${AGREEMENT_TRAVELER}, ` +
+  `with ${AGREEMENT_SIGNER} acting for them. `
+
 /** The agreement's sections, each a heading and its text, filled in. */
 function sections(f: Fill): { heading: string; body: string }[] {
   const o = f.o
@@ -120,8 +129,8 @@ function sections(f: Fill): { heading: string; body: string }[] {
     {
       heading: '',
       body:
-        `This agreement is between you, the guest, and ${f.party}, who organizes ${f.name}. Every promise in it ` +
-        `is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
+        `This agreement is between you, the guest, and ${f.party}, who organizes ${f.name}. ${f.onBehalf}` +
+        `Every promise in it is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
         `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
         `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
         `wrong, you and ${o} settle it between you.`,
@@ -158,8 +167,10 @@ function sections(f: Fill): { heading: string; body: string }[] {
 /**
  * The agreement for a trip as it stands now, as plain text with blank lines between sections. Every promise in it is
  * worded as the organizer's: Travel HQ supplies the form and is not a party (owner's decision, 2026-10-28).
+ * `onBehalf`: as someone signs it for a traveler they look after (a child, a roommate), which the opening says once,
+ * naming both of them (fillAgreementNames fills the names in).
  */
-export function agreementText(trip: AgreementFacts): string {
+export function agreementText(trip: AgreementFacts, onBehalf = false): string {
   const o = trip.organizerName
   // "Nia Thompson ("Nia", nia@example.com)": the organizer's name and email from sign-in, beside the name the pages use.
   const name = trip.organizer?.name.trim()
@@ -174,6 +185,7 @@ export function agreementText(trip: AgreementFacts): string {
     o,
     party: `${name || o}${aka ? ` (${aka})` : ''}`,
     name: trip.name,
+    onBehalf: onBehalf ? ON_BEHALF : '',
     trip: `${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}`,
     price: `${money(trip.costPerPersonCents)} per person, ${plan}`,
     spot: spotTerms(o, trip.joinMode as JoinMode),
@@ -215,10 +227,11 @@ export function agreementTemplate(): { heading: string; body: string }[] {
     for (const k of keys) lines.set(text(k), [...(lines.get(text(k)) ?? []), k])
     return [...lines].map(([t, ks]) => `- ${ks.map(label).join(' or ')}: "${t}"`).join('\n')
   }
-  return sections({
+  const [opening, ...rest] = sections({
     o,
     party: '[your full name] ([organizer], [your email])',
     name: '[trip name]',
+    onBehalf: '',
     trip: '[trip name], [destination], from [start date] to [end date]',
     price: '[price] per person, paid as your payment plan says',
     spot:
@@ -243,13 +256,24 @@ export function agreementTemplate(): { heading: string; body: string }[] {
       ) +
       `\nOn every trip: "${removedTerms(o)}"`,
   })
+  const signer = (text: string) =>
+    text.replaceAll(AGREEMENT_SIGNER, '[signer]').replaceAll(AGREEMENT_TRAVELER, '[traveler]')
+  return [
+    {
+      ...opening,
+      body:
+        `${opening.body}\nWhen someone signs for a traveler they look after, it adds after its first sentence: ` +
+        `"${signer(ON_BEHALF).trim()}"`,
+    },
+    ...rest,
+  ]
 }
 
 export const hashOf = (text: string): string =>
   createHash('sha256').update(text, 'utf8').digest('hex')
 
-export function agreementPreview(trip: AgreementFacts): AgreementPreview {
-  const text = agreementText(trip)
+export function agreementPreview(trip: AgreementFacts, onBehalf = false): AgreementPreview {
+  const text = agreementText(trip, onBehalf)
   return { text, textHash: hashOf(text), templateVersion: TEMPLATE_VERSION }
 }
 

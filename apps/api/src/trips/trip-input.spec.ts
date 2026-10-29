@@ -111,6 +111,23 @@ describe('payments', () => {
     )
   })
 
+  it('reads who one payment covers, with each one’s share', () => {
+    const report = {
+      guestPaymentAmount: 60000,
+      methodIndex: 0,
+      sentOn: '2026-10-24',
+      note: '',
+      certified: true,
+    }
+    const forGuests = [
+      { guestId: 'g1', amount: 30000 },
+      { guestId: 'g2', amount: 30000 },
+    ]
+    expect(parsePaymentReport({ ...report, forGuests })).toEqual({ ...report, forGuests })
+    for (const bad of [[], [{ guestId: '', amount: 1 }], [{ guestId: 'g1', amount: 0 }], 'g1'])
+      expect(() => parsePaymentReport({ ...report, forGuests: bad })).toThrow(BadRequestException)
+  })
+
   it('reads a decision, with what arrived only on a confirmation', () => {
     expect(parsePaymentDecision({ status: 'confirmed' })).toEqual({ status: 'confirmed' })
     expect(parsePaymentDecision({ status: 'confirmed', receivedPaymentAmount: 450 })).toEqual({
@@ -121,6 +138,16 @@ describe('payments', () => {
       status: 'not_received',
     })
     expect(() => parsePaymentDecision({ status: 'refunded' })).toThrow(BadRequestException)
+    // A transfer for several travelers: what arrived for each.
+    const shares = [{ paymentId: 'p1', receivedPaymentAmount: 300 }]
+    expect(parsePaymentDecision({ status: 'confirmed', shares })).toEqual({
+      status: 'confirmed',
+      shares,
+    })
+    for (const bad of [[], [{ paymentId: '', receivedPaymentAmount: 1 }], [{ paymentId: 'p1' }]])
+      expect(() => parsePaymentDecision({ status: 'confirmed', shares: bad })).toThrow(
+        BadRequestException
+      )
     // Nothing arrived is "not received", not a confirmation of $0.
     expect(() => parsePaymentDecision({ status: 'confirmed', receivedPaymentAmount: 0 })).toThrow(
       BadRequestException

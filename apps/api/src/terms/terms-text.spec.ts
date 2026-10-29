@@ -52,6 +52,10 @@ describe('the Terms version', () => {
       'Guests pay, then you accept or First come, first served: "If [organizer] does not'
     )
     expect(text).toContain('First come, first served: "Spots go first come')
+    expect(text).toContain(
+      'When someone signs for a traveler they look after, it adds after its first sentence'
+    )
+    expect(text).not.toContain('[[signer]]')
   })
 })
 

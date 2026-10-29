@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { useAdminView } from '@/components/AdminView'
 import { api } from '@/lib/api'
@@ -45,6 +46,23 @@ const outlined =
 
 const field =
   'min-h-[44px] rounded-lg border border-[#5B6B80] bg-white px-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-royal'
+
+/**
+ * The payments one transfer covered, with whose each is, when it paid for several travelers (issue #11). The organizer
+ * confirms them together; a payment for one person is its own.
+ */
+export function transferOf(trip: OrganizerTrip, p: Payment): { g: Guest; p: Payment }[] {
+  if (!p.transferId) return []
+  return trip.guests.flatMap((g) =>
+    g.payments.filter((x) => x.transferId === p.transferId).map((x) => ({ g, p: x }))
+  )
+}
+
+/** "Ava Reyes and Ben Reyes", "Ava Reyes, Ben Reyes and Cam Reyes". */
+export const names = (people: { firstName: string; lastName: string }[]): string => {
+  const all = people.map((x) => `${x.firstName} ${x.lastName}`)
+  return all.length < 2 ? (all[0] ?? '') : `${all.slice(0, -1).join(', ')} and ${all.at(-1)}`
+}
 
 interface Props {
   trip: OrganizerTrip
@@ -115,7 +133,7 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
         return {
           kind: 'payment',
           key: a.key,
-          text: `Paid ${amount} by ${methodName(p)} on ${shortDate(p.sentOn)}${!a.short && a.due ? ` · due ${money(a.due)}` : ''}`,
+          text: `${p.paidByName ? `${p.paidByName} paid ${amount} for them` : `Paid ${amount}`} by ${methodName(p)} on ${shortDate(p.sentOn)}${!a.short && a.due ? ` · due ${money(a.due)}` : ''}`,
           note: p.note,
           payment: p,
           short: a.short,
@@ -166,6 +184,7 @@ function GuestRow({
         </div>
         <div className="text-sm text-muted">
           {standing(g, trip, full)} · joined {day(g.createdAt)}
+          {g.managedBy && ` · handled by ${g.managedBy.name}`}
         </div>
         {g.terms && g.status !== 'declined' && <Paid terms={g.terms} />}
       </div>
@@ -267,10 +286,86 @@ function ActionRow({
 }
 
 /**
+ * One transfer that paid for several travelers (owner's decision, 2026-10-28): who sent it, for whom, confirmed with
+ * one tap, or reviewed when it's short; Details opens the transfer with each person's share.
+ */
+function TransferRow({
+  items,
+  onDecide,
+  onReview,
+}: {
+  items: { g: Guest; action: Action }[]
+  onDecide: Props['onDecide']
+  onReview: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const payments = items.flatMap(({ action }) => (action.kind === 'payment' ? [action] : []))
+  const first = payments[0].payment
+  const short = payments.some((a) => a.short)
+  const total = payments.reduce((n, a) => n + a.payment.guestPaymentAmount, 0)
+  async function act() {
+    if (short) return onReview()
+    setBusy(true)
+    try {
+      await onDecide(first.id, { status: 'confirmed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule py-3 first:border-t-0">
+      <div className="min-w-0 flex-[1_1_200px]">
+        <div className="font-semibold">{first.paidByName || names(items.map((x) => x.g))}</div>
+        <div className="text-sm text-body">
+          Paid {money(total)} for {names(items.map((x) => x.g))} by {methodName(first)} on{' '}
+          {shortDate(first.sentOn)}
+          {short && ', less than was due'}
+        </div>
+        {first.note && <div className="text-sm italic text-body">&ldquo;{first.note}&rdquo;</div>}
+      </div>
+      <div className="ml-auto flex gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={act}
+          className={`${filled} disabled:opacity-60`}
+        >
+          {short ? 'Review payment' : 'Confirm payment'}
+        </button>
+        <button type="button" onClick={onReview} className={outlined}>
+          Details
+        </button>
+      </div>
+    </li>
+  )
+}
+
+/**
  * Checking a reported payment (owner's decision, 2026-10-24): what the guest said they sent, how, when and why it is
  * short, with what arrived filled in from what they said, so confirming is one tap unless it differs.
  */
 function ReviewPayment({
+  g,
+  payment: p,
+  trip,
+  onDecide,
+  onClose,
+  error,
+}: {
+  g: Guest
+  payment: Payment
+  trip: OrganizerTrip
+  onDecide: Props['onDecide']
+  onClose: () => void
+  error?: string | null
+}) {
+  const members = transferOf(trip, p)
+  if (members.length > 1)
+    return <ReviewTransfer members={members} onDecide={onDecide} onClose={onClose} error={error} />
+  return <ReviewOne g={g} payment={p} onDecide={onDecide} onClose={onClose} error={error} />
+}
+
+function ReviewOne({
   g,
   payment: p,
   onDecide,
@@ -347,6 +442,116 @@ function ReviewPayment({
             className={`${filled} disabled:opacity-60`}
           >
             Confirm {cents ? money(cents) : ''}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => decide({ status: 'not_received' })}
+            className={outlined}
+          >
+            Not received
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/**
+ * One transfer that paid for several travelers (owner's decision, 2026-10-28): confirmed once, with what arrived for
+ * each filled in from what the sender said, so confirming is one tap unless it differs.
+ */
+function ReviewTransfer({
+  members,
+  onDecide,
+  onClose,
+  error,
+}: {
+  members: { g: Guest; p: Payment }[]
+  onDecide: Props['onDecide']
+  onClose: () => void
+  error?: string | null
+}) {
+  const first = members[0].p
+  const sender = first.paidByName || `${members[0].g.firstName} ${members[0].g.lastName}`
+  const sent = members.reduce((n, m) => n + m.p.guestPaymentAmount, 0)
+  const [amounts, setAmounts] = useState(() =>
+    members.map((m) => dollarsFor(m.p.receivedPaymentAmount ?? m.p.guestPaymentAmount))
+  )
+  const [busy, setBusy] = useState(false)
+  const cents = amounts.map(centsFrom)
+  const total = cents.reduce((n, c) => n + c, 0)
+  const ok = cents.every((c) => c > 0)
+  async function decide(decision: PaymentDecision) {
+    setBusy(true)
+    try {
+      if (await onDecide(first.id, decision)) onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+  function confirm(e: FormEvent) {
+    e.preventDefault()
+    if (ok)
+      void decide({
+        status: 'confirmed',
+        shares: members.map((m, i) => ({ paymentId: m.p.id, receivedPaymentAmount: cents[i] })),
+      })
+  }
+  return (
+    <Dialog title={`${sender}’s payment`} onClose={onClose}>
+      <form onSubmit={confirm} className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
+        <p className="text-body">
+          {sender} says they sent <strong>{money(sent)}</strong> by {methodName(first)} on{' '}
+          {shortDate(first.sentOn)}, for {names(members.map((m) => m.g))}. It’s one payment: confirm
+          it once.
+        </p>
+        {first.note && (
+          <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            <span className="block text-sm font-semibold">Why it’s less</span>
+            {first.note}
+          </p>
+        )}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-semibold">What arrived for each</legend>
+          {members.map((m, i) => (
+            <label
+              key={m.p.id}
+              className="flex items-center justify-between gap-3 border-t border-rule pt-2 text-sm first-of-type:border-t-0"
+            >
+              <span>
+                <span className="block font-semibold">
+                  {m.g.firstName} {m.g.lastName}
+                </span>
+                <span className="text-muted">Sent {money(m.p.guestPaymentAmount)}</span>
+              </span>
+              <input
+                className={`${field} w-28 text-right`}
+                inputMode="decimal"
+                value={amounts[i]}
+                aria-invalid={!cents[i]}
+                onChange={(e) => setAmounts(amounts.map((a, j) => (j === i ? e.target.value : a)))}
+              />
+            </label>
+          ))}
+          <p className="flex justify-between border-t border-rule pt-2 font-semibold">
+            <span>Arrived</span>
+            <span>{money(total)}</span>
+          </p>
+          {!ok && (
+            <span className="text-sm font-semibold text-[#B42318]">
+              Enter what arrived for each person, or choose Not received.
+            </span>
+          )}
+        </fieldset>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" disabled={busy || !ok} className={`${filled} disabled:opacity-60`}>
+            Confirm {ok ? money(total) : ''}
           </button>
           <button
             type="button"
@@ -557,7 +762,128 @@ export type DetailsProps = Props & {
   onHistory: (guest: Guest) => void
   onReview: (guest: Guest, payment: Payment) => void
   onLogOpen: (guest: Guest) => void
+  /** Choosing who looks after the guest's sign-up and payments (issue #11). */
+  onManageOpen: (guest: Guest) => void
   onClose: () => void
+}
+
+/**
+ * Who looks after a guest's sign-up and payments (issue #11): the guest themselves, or another guest on the trip with
+ * an account, who then sees them on their join page and can pay for them. A guest someone else signed up who hasn't
+ * signed in yet can't look after themselves.
+ */
+function ManagedBy({
+  g,
+  trip,
+  onUpdate,
+  onClose,
+  error,
+}: {
+  g: Guest
+  trip: OrganizerTrip
+  onUpdate: Props['onUpdate']
+  onClose: () => void
+  error?: string | null
+}) {
+  const current = g.managedBy ? (g.managedBy.guestId ?? 'other') : ''
+  const [pick, setPick] = useState(current)
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const others = trip.guests.filter((x) => x.id !== g.id && x.hasAccount && x.status !== 'declined')
+  const choices = [
+    ...(g.hasAccount || !g.managedBy
+      ? [
+          {
+            id: '',
+            title: `${g.firstName} themselves`,
+            line: 'They see and pay for their own spot.',
+          },
+        ]
+      : []),
+    // Someone who isn't on the trip themselves stays a choice while they look after this guest.
+    ...(g.managedBy && !g.managedBy.guestId
+      ? [
+          {
+            id: 'other',
+            title: g.managedBy.name,
+            line: 'Signed them up. Not on the trip themselves.',
+          },
+        ]
+      : []),
+    ...others.map((x) => ({
+      id: x.id,
+      title: `${x.firstName} ${x.lastName}`,
+      line: 'Sees them on their join page and can pay for them.',
+    })),
+  ]
+  async function save(sure = false) {
+    if (pick === current || pick === 'other') return onClose()
+    // Someone who isn't on the trip can't be picked again once they stop handling this guest.
+    if (current === 'other' && !sure) return setConfirming(true)
+    setConfirming(false)
+    setBusy(true)
+    const saved = await onUpdate(g, { managedBy: pick || null })
+    setBusy(false)
+    if (saved !== false) onClose()
+  }
+  return (
+    <Dialog title={`Who handles ${g.firstName}’s sign-up?`} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
+        {!g.hasAccount && g.managedBy && (
+          <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            {g.firstName} hasn’t signed in yet, so someone else has to handle their sign-up.
+          </p>
+        )}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="sr-only">Who handles it</legend>
+          {choices.map((c) => (
+            <label
+              key={c.id}
+              className={`flex min-h-[56px] cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-sm ${
+                pick === c.id ? 'border-royal bg-royal-pale' : 'border-rule bg-white'
+              }`}
+            >
+              <input
+                type="radio"
+                name="managed-by"
+                checked={pick === c.id}
+                onChange={() => setPick(c.id)}
+                className="mt-0.5 h-4 w-4 accent-royal"
+              />
+              <span>
+                <span className="block font-semibold text-ink">{c.title}</span>
+                <span className="text-muted">{c.line}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {confirming && g.managedBy && (
+          <ConfirmDialog
+            title={`Move ${g.firstName} away from ${g.managedBy.name}?`}
+            confirmLabel="Move"
+            onConfirm={() => void save(true)}
+            onCancel={() => setConfirming(false)}
+          >
+            {g.managedBy.name} isn’t on the trip, so you can’t pick them again here. They stop
+            seeing {g.firstName} on their join page.
+          </ConfirmDialog>
+        )}
+        <button
+          type="button"
+          onClick={() => void save()}
+          aria-disabled={busy}
+          className={`min-h-[48px] rounded-xl bg-royal px-5 font-semibold text-white hover:bg-royal-dark ${busy ? 'opacity-60' : ''}`}
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </Dialog>
+  )
 }
 
 /** One payment in a guest's Details: amount, how, when, where it stands, and the organizer's next step on it. */
@@ -577,9 +903,10 @@ export function PaymentLine({
   const logged = p.loggedBy === 'organizer'
   // Taking back the payment that paid a waiting guest's spot loses their place in line; otherwise only the balance moves.
   const warning =
-    g.status !== 'approved' && g.spotPaidAt
+    (p.transferId ? 'It was one payment for several travelers: this undoes all of it. ' : '') +
+    (g.status !== 'approved' && g.spotPaidAt
       ? 'They lose their place in line.'
-      : 'Their balance goes back up.'
+      : 'Their balance goes back up.')
   const arrived =
     p.status === 'confirmed' && p.receivedPaymentAmount !== p.guestPaymentAmount
       ? ` (${money(p.receivedPaymentAmount ?? 0)} arrived)`
@@ -596,6 +923,8 @@ export function PaymentLine({
               : 'Logged by an organizer · removed'
             : paymentStatus(p.status, 'you')}
           {arrived}
+          {p.paidByName && ` · sent by ${p.paidByName}`}
+          {p.transferId && ' · one payment for several travelers'}
         </span>
         {p.note && <span className="block italic text-body">&ldquo;{p.note}&rdquo;</span>}
       </span>
@@ -750,6 +1079,7 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
   const [history, setHistory] = useState<Guest | null>(null)
   const [review, setReview] = useState<{ guestId: string; paymentId: string } | null>(null)
   const [logging, setLogging] = useState<string | null>(null)
+  const [managing, setManaging] = useState<string | null>(null)
   // The guest whose Details opened the dialog on screen: closing it goes back to their Details (owner's decision,
   // 2026-10-26), not to the page.
   const [back, setBack] = useState<string | null>(null)
@@ -763,6 +1093,7 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
   const reviewing = find(review?.guestId)
   const reviewed = reviewing?.payments.find((p) => p.id === review?.paymentId)
   const logFor = find(logging)
+  const manageFor = find(managing)
   const dialogs = (
     <>
       {g && (
@@ -786,6 +1117,10 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
             setBack(x.id)
             setLogging(x.id)
           }}
+          onManageOpen={(x) => {
+            setBack(x.id)
+            setManaging(x.id)
+          }}
           onClose={() => {
             setOpen(null)
             onDetailsClose?.()
@@ -802,6 +1137,7 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
         <ReviewPayment
           g={reviewing}
           payment={reviewed}
+          trip={trip}
           onDecide={props.onDecide}
           onClose={done(() => setReview(null))}
           error={props.error}
@@ -812,6 +1148,15 @@ function useGuestDialogs(props: Props, full: boolean, onDetailsClose?: () => voi
           g={logFor}
           onLog={props.onLog}
           onClose={done(() => setLogging(null))}
+          error={props.error}
+        />
+      )}
+      {manageFor && (
+        <ManagedBy
+          g={manageFor}
+          trip={trip}
+          onUpdate={props.onUpdate}
+          onClose={done(() => setManaging(null))}
           error={props.error}
         />
       )}
@@ -1015,9 +1360,16 @@ export function ActionsCard(props: Props) {
   const { line, full } = lineOf(trip)
   const { openDetails, openReview, openWaitlist, dialogs } = useDialogs(props, full)
   const todo = line.flatMap((x) => actionsFor(x, trip).map((action) => ({ g: x, action })))
+  // One transfer for several travelers is one row (its payments share the action's key).
+  const rows: { key: string; items: typeof todo }[] = []
+  for (const item of todo) {
+    const row = rows.find((r) => r.key === item.action.key)
+    if (row) row.items.push(item)
+    else rows.push({ key: item.action.key, items: [item] })
+  }
   const spotOpen = waitlistSpotOpen(trip)
   const waiting = waitlist(trip.guests).length
-  const count = todo.length + (spotOpen ? 1 : 0)
+  const count = rows.length + (spotOpen ? 1 : 0)
   return (
     <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
@@ -1050,17 +1402,29 @@ export function ActionsCard(props: Props) {
               </div>
             </li>
           )}
-          {todo.map(({ g: x, action }) => (
-            <ActionRow
-              key={action.key}
-              g={x}
-              action={action}
-              onUpdate={onUpdate}
-              onDecide={onDecide}
-              onReview={(p) => openReview(x, p)}
-              onDetails={() => openDetails(x.id)}
-            />
-          ))}
+          {rows.map(({ key, items }) =>
+            items.length > 1 ? (
+              <TransferRow
+                key={key}
+                items={items}
+                onDecide={onDecide}
+                onReview={() => {
+                  const { g: x, action } = items[0]
+                  if (action.kind === 'payment') openReview(x, action.payment)
+                }}
+              />
+            ) : (
+              <ActionRow
+                key={key}
+                g={items[0].g}
+                action={items[0].action}
+                onUpdate={onUpdate}
+                onDecide={onDecide}
+                onReview={(p) => openReview(items[0].g, p)}
+                onDetails={() => openDetails(items[0].g.id)}
+              />
+            )
+          )}
         </ul>
       )}
       {dialogs}

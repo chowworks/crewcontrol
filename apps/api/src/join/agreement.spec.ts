@@ -5,6 +5,7 @@ import {
   hashOf,
   termsOf,
 } from './agreement'
+import { fillAgreementNames } from '../trips/trip-types'
 import { toE164 } from './send-text'
 
 const trip = {
@@ -104,6 +105,22 @@ describe('the trip agreement', () => {
     expect(agreementText({ ...trip, joinMode: 'first_come' })).toContain(
       'first come, first served, in the order Chris confirms payments arrived'
     )
+  })
+
+  it('says once, at the top, when someone signs it for a traveler they look after', () => {
+    const own = agreementText(trip)
+    const forThem = agreementText(trip, true)
+    expect(own).not.toContain('on behalf of')
+    expect(fillAgreementNames(forThem, ' Dana  Reyes', 'Ava Reyes').split('\n\n')[1]).toContain(
+      'Dana Reyes signs it on behalf of Ava Reyes, the traveler'
+    )
+    // Before the names are typed, the screen shows where they go.
+    expect(fillAgreementNames(forThem, '', '')).toContain(
+      '[your full name] signs it on behalf of [their full name]'
+    )
+    // Only the opening changes.
+    expect(forThem.split('\n\n').slice(2)).toEqual(own.split('\n\n').slice(2))
+    expect(agreementPreview(trip, true).textHash).not.toBe(agreementPreview(trip).textHash)
   })
 
   it('has a fingerprint that changes whenever a fact it quotes does', () => {

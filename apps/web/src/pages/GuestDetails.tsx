@@ -153,8 +153,9 @@ function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
 }
 
 export function GuestDetails(props: DetailsProps) {
-  const { g, trip, full, onUpdate, onClose, error } = props
+  const { g, trip, full, onUpdate, onClose, onManageOpen, error } = props
   const { logButton, list, room, records } = useParts(props)
+  const admin = useAdminView()
   const [tab, setTab] = useState<'payments' | 'spot'>('payments')
   const tabs = [
     { key: 'payments', label: `Payments${g.payments.length ? ` (${g.payments.length})` : ''}` },
@@ -228,6 +229,25 @@ export function GuestDetails(props: DetailsProps) {
                 <div>
                   <dt className="text-muted">Signed</dt>
                   <dd className="font-semibold">{g.signedAt ? day(g.signedAt) : 'Not yet'}</dd>
+                </div>
+                {/* Who signed them up and pays for them, when it wasn't them (issue #11). */}
+                <div className="col-span-2">
+                  <dt className="text-muted">Sign-up and payments handled by</dt>
+                  <dd className="flex items-center justify-between gap-3 font-semibold">
+                    {g.managedBy ? g.managedBy.name : `${g.firstName} themselves`}
+                    {!admin && g.status !== 'declined' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose()
+                          onManageOpen(g)
+                        }}
+                        className={outlined}
+                      >
+                        Change
+                      </button>
+                    )}
+                  </dd>
                 </div>
               </dl>
               {records}

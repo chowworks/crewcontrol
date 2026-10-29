@@ -5,7 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
 import type { Caller } from '../auth/caller'
+import { ClerkService } from '../auth/clerk.service'
 import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
@@ -13,7 +15,9 @@ import { TermsService } from '../terms/terms.service'
 import { paymentMethodsOf, paymentsOf, toSignedAgreement } from '../trips/trip-mapper'
 import { splitName } from '../trips/trip-input'
 import {
+  fillAgreementNames,
   paymentMethodLabel,
+  type ClaimInput,
   type GuestTerms,
   type JoinInput,
   type JoinView,
@@ -26,6 +30,7 @@ import { roomFull, TripsService } from '../trips/trips.service'
 import {
   agreementPreview,
   firstInstallmentCents,
+  hashOf,
   refundTerms,
   TEMPLATE_VERSION,
   termsOf,
@@ -67,43 +72,64 @@ export class JoinService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly trips: TripsService,
-    private readonly terms: TermsService
+    private readonly terms: TermsService,
+    private readonly clerk: ClerkService
   ) {}
 
+  /**
+   * The join page for the caller: their own place on the trip, and the travelers they signed up and look after (issue
+   * #11). A traveler someone else signed up with one of the caller's emails is offered to them (`claimable`); it
+   * becomes theirs only when they say it's them (`claim`).
+   */
   async view(slug: string, caller: Caller): Promise<JoinView> {
     const trip = await runAsPublic(() => this.trips.getPublic(slug))
-    const row = await this.prisma.guest.findFirst({
-      where: { userId: caller.userId, trip: { slug } },
-      include: {
-        agreement: true,
-        payments: true,
-        trip: { select: { paymentInstructions: true, paymentMethods: true } },
-      },
-    })
-    const payments = paymentsOf(row?.payments)
-    const pay = row !== null && canPay(trip.joinMode, row)
-    const me: MyGuest | null = row && {
-      status: row.status as MyGuest['status'],
-      firstName: row.firstName,
-      lastName: row.lastName,
-      spotPaidAt: row.spotPaidAt?.toISOString() ?? null,
-      refundSentAt: row.refundSentAt?.toISOString() ?? null,
-      waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
-      offeredAt: row.offeredAt?.toISOString() ?? null,
-      roomId: row.roomId,
-      terms: row.agreement ? termsOf(row.agreement, payments) : null,
-      agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
-      payments,
-      paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
-      paymentInstructions: pay ? row.trip.paymentInstructions : '',
+    const include = {
+      agreement: true,
+      payments: true,
+      trip: { select: { paymentInstructions: true, paymentMethods: true } },
+    } as const
+    const where = {
+      trip: { slug },
+      OR: [{ userId: caller.userId }, { managedByUserId: caller.userId }],
     }
+    const rows = await this.prisma.guest.findMany({ where, include, orderBy: { createdAt: 'asc' } })
+    // Someone who joined themselves by mistake ("Not me") is offered the right place again once an organizer turns
+    // down theirs, if nothing was paid on it (claim_managed_guest decides).
+    const own = rows.find((r) => r.userId === caller.userId)
+    const signedBy =
+      own &&
+      (own.status !== 'declined' ||
+        own.payments.some((p) => ['reported', 'confirmed', 'refunded'].includes(p.status)))
+        ? null
+        : await this.claimable(slug, caller, false)
+    const mine = (row: (typeof rows)[number]): MyGuest => {
+      const payments = paymentsOf(row.payments)
+      const pay = canPay(trip.joinMode, row)
+      return {
+        id: row.id,
+        status: row.status as MyGuest['status'],
+        firstName: row.firstName,
+        lastName: row.lastName,
+        spotPaidAt: row.spotPaidAt?.toISOString() ?? null,
+        refundSentAt: row.refundSentAt?.toISOString() ?? null,
+        waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
+        offeredAt: row.offeredAt?.toISOString() ?? null,
+        roomId: row.roomId,
+        terms: row.agreement ? termsOf(row.agreement, payments) : null,
+        agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
+        payments,
+        paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
+        paymentInstructions: pay ? row.trip.paymentInstructions : '',
+      }
+    }
+    const facts = { ...trip, organizer: await this.trips.organizerContact(await this.tripId(slug)) }
     return {
       trip,
-      agreement: agreementPreview({
-        ...trip,
-        organizer: await this.trips.organizerContact(await this.tripId(slug)),
-      }),
-      me,
+      agreement: agreementPreview(facts),
+      agreementOnBehalf: agreementPreview(facts, true),
+      me: own ? mine(own) : null,
+      managed: rows.filter((r) => r !== own).map(mine),
+      claimable: signedBy === null ? null : { signedBy },
       termsOfUse: await this.terms.status(caller.userId, 'use'),
     }
   }
@@ -115,6 +141,43 @@ export class JoinService {
     return id
   }
 
+  /** The name someone signed the caller up with on this trip, if any; with `take`, that place becomes theirs. */
+  private async claimable(slug: string, caller: Caller, take: boolean): Promise<string | null> {
+    const emails = await this.clerk.verifiedEmails(caller.userId)
+    if (emails.length === 0) return null
+    const [{ signer }] = await this.prisma.$queryRaw<{ signer: string | null }[]>`
+      SELECT "claim_managed_guest"(${slug}, ${emails}::TEXT[], ${take}) AS signer`
+    return signer
+  }
+
+  /**
+   * "That's me": the caller takes over the place someone signed them up with (issue #11), accepting Travel HQ's Terms
+   * of Use if they haven't. The agreement stays the one signed for them, and the person who signed still sees them.
+   */
+  async claim(
+    slug: string,
+    input: ClaimInput,
+    caller: Caller,
+    from: { ip: string; userAgent: string }
+  ): Promise<JoinView> {
+    const { me, claimable, termsOfUse } = await this.view(slug, caller)
+    if (me && me.status !== 'declined')
+      throw new ConflictException('You’ve already joined this trip')
+    if (!claimable) throw new NotFoundException('Nobody signed you up for this trip')
+    if (!termsOfUse.accepted && input.termsVersion !== termsOfUse.version)
+      throw new ConflictException(
+        input.termsVersion
+          ? 'Travel HQ’s Terms of Use changed since you opened this page. Read them again, then try again.'
+          : 'Tick the box to agree to Travel HQ’s Terms of Use.'
+      )
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "claim_managed_guest"(${slug}, ${await this.clerk.verifiedEmails(caller.userId)}::TEXT[], true)`
+      if (!termsOfUse.accepted) await this.terms.record(tx, caller.userId, ['use'], from)
+    })
+    if (!termsOfUse.accepted) this.terms.remember(caller.userId, ['use'])
+    return this.view(slug, caller)
+  }
+
   /** Joins the trip and signs its agreement, as one step: there is no sign-up without a signature. */
   async join(
     slug: string,
@@ -122,8 +185,12 @@ export class JoinService {
     caller: Caller,
     from: { ip: string; userAgent: string }
   ): Promise<JoinView> {
-    const { trip, agreement, me, termsOfUse } = await this.view(slug, caller)
-    if (me) throw new ConflictException('You’ve already joined this trip')
+    const view = await this.view(slug, caller)
+    const { trip, me, termsOfUse } = view
+    const onBehalf = Boolean(input.onBehalf)
+    // Someone signing up a traveler they look after signs the agreement on that traveler's behalf.
+    const agreement = onBehalf ? view.agreementOnBehalf : view.agreement
+    if (me && !onBehalf) throw new ConflictException('You’ve already joined this trip')
     // Three emails refused in ten minutes: no more joining this trip until the time is up.
     emailRefusals.check(`${caller.userId}:${slug}`)
     if (input.agreementHash !== agreement.textHash)
@@ -144,13 +211,17 @@ export class JoinService {
       throw new BadRequestException('Pick a room to join')
     const tripId = await this.tripId(slug)
     const [firstName, lastName] = splitName(input.name)
+    // Signing for someone, the text kept names both of them, as the screen showed it (fillAgreementNames).
+    const signedText = onBehalf
+      ? fillAgreementNames(agreement.text, input.typedName, input.name)
+      : agreement.text
     try {
       await roomFull(() =>
         this.prisma.$transaction(async (tx) => {
           const guest = await tx.guest.create({
             data: {
               tripId,
-              userId: caller.userId,
+              ...(onBehalf ? { managedByUserId: caller.userId } : { userId: caller.userId }),
               firstName,
               lastName,
               email: input.email,
@@ -164,8 +235,8 @@ export class JoinService {
               tripId,
               guestId: guest.id,
               templateVersion: TEMPLATE_VERSION,
-              text: agreement.text,
-              textHash: agreement.textHash,
+              text: signedText,
+              textHash: hashOf(signedText),
               priceCents: trip.costPerPersonCents,
               installmentCount: trip.installmentCount,
               startDate: trip.startDate,
@@ -177,6 +248,7 @@ export class JoinService {
                 firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
               ),
               typedName: input.typedName,
+              ...(onBehalf ? { signedByUserId: caller.userId } : {}),
               ipAddress: from.ip.slice(0, 64),
               userAgent: from.userAgent.slice(0, 500),
             },
@@ -186,8 +258,19 @@ export class JoinService {
       )
       if (!termsOfUse.accepted) this.terms.remember(caller.userId, ['use'])
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        if (String(err.meta?.target ?? '').includes('userId'))
+      if (/too_many_travelers/.test(String(err)))
+        throw new ConflictException('You can sign up at most 10 travelers on a trip.')
+      // A traveler signed up with the email of someone who joined themselves: that person is on the trip already.
+      const emailTaken = /email_taken/.test(String(err))
+      if (
+        emailTaken ||
+        (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')
+      ) {
+        if (
+          !emailTaken &&
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          String(err.meta?.target ?? '').includes('userId')
+        )
           throw new ConflictException('You’ve already joined this trip')
         // Never say whose email it is, stop anyone trying one email after another, and tell the organizers in the
         // trip log who tried (owner's decision, 2026-10-24).
@@ -208,6 +291,17 @@ export class JoinService {
     }
     // The copy of record (the guest's join page keeps it too). Email is mocked until slice 4.
     const joined = await this.view(slug, caller)
+    if (onBehalf) {
+      await sendText(
+        input.phone,
+        `${input.typedName} signed ${firstName} up for ${trip.name} and signed the trip agreement for them. ` +
+          (joined.managed.at(-1)?.waitlistedAt
+            ? `${firstName} is on the waitlist: ${trip.organizerName} will text if a spot opens. `
+            : '') +
+          `Details: ${webUrl()}/t/${slug}/join`
+      )
+      return joined
+    }
     await sendText(
       input.phone,
       `You signed the trip agreement for ${trip.name}. ` +
@@ -236,70 +330,128 @@ export class JoinService {
           as: 'organizer',
         })
     const joined = await this.prisma.guest.findMany({
-      where: { userId: caller.userId },
+      where: { OR: [{ userId: caller.userId }, { managedByUserId: caller.userId }] },
       select: { trip: { select: { slug: true } } },
     })
-    for (const { trip: j } of joined) {
-      const { trip, me } = await this.view(j.slug, caller).catch(() => ({ trip: null, me: null }))
-      if (!trip || !me?.terms || !canPay(trip.joinMode, me) || me.refundSentAt) continue
-      const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
-      if (me.status === 'interested' && full) continue
-      if (owed(me.terms).dueNow > 0)
-        items.push({ href: `/t/${trip.slug}/join`, name: trip.name, count: 1, as: 'guest' })
+    // One each for the trips they're on or signed someone up for, counting the travelers they look after too.
+    for (const slug of new Set(joined.map((j) => j.trip.slug))) {
+      const view = await this.view(slug, caller).catch(() => null)
+      if (!view) continue
+      const { trip } = view
+      const due = [view.me, ...view.managed].some(
+        (g) => g !== null && g.terms !== null && payable(trip, g) && owed(g.terms).dueNow > 0
+      )
+      if (due) items.push({ href: `/t/${trip.slug}/join`, name: trip.name, count: 1, as: 'guest' })
     }
     return { total: items.reduce((n, i) => n + i.count, 0), items }
   }
 
   /**
    * The guest reports a payment they sent: how much, how (one of the trip's methods) and when, certifying it. Less than
-   * is due now needs a note saying why. The organizer confirms what arrived.
+   * is due now needs a note saying why. The organizer confirms what arrived. Someone who looks after other travelers
+   * may send one payment for several of them, and themselves, with each one's share (issue #11): it is recorded as one
+   * payment per traveler, each naming who sent it.
    */
   async reportPayment(slug: string, input: PaymentReport, caller: Caller): Promise<JoinView> {
-    const { trip, me } = await this.view(slug, caller)
-    if (!me) throw new NotFoundException('Join the trip first')
-    if (!canPay(trip.joinMode, me) || me.refundSentAt)
-      throw new BadRequestException('You can pay once you’re accepted')
-    if (!me.terms) throw new BadRequestException('Sign the trip agreement first')
-    // A guest still waiting on a trip that filled has no spot to pay for (they're owed back what they sent).
-    if (me.status === 'interested' && trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests)
-      throw new ConflictException('Every spot on this trip is taken')
+    const { trip, me, managed } = await this.view(slug, caller)
+    if (!me && managed.length === 0) throw new NotFoundException('Join the trip first')
+    const shares =
+      input.forGuests ?? (me ? [{ guestId: me.id, amount: input.guestPaymentAmount }] : [])
+    if (shares.length === 0) throw new BadRequestException('Say who this payment is for')
+    if (shares.reduce((n, x) => n + x.amount, 0) !== input.guestPaymentAmount)
+      throw new BadRequestException('The amounts for each person don’t add up to the payment')
+    if (new Set(shares.map((x) => x.guestId)).size !== shares.length)
+      throw new BadRequestException('Name each person once')
+    const travelers = [me, ...managed].filter((g): g is MyGuest => g !== null)
+    // The trip's ways to pay are the same for everyone on it; any traveler who may pay has them.
+    const paymentMethods = travelers.find((g) => payable(trip, g))?.paymentMethods ?? []
     // A trip that lists no ways to pay says how in its note; the payment records that.
     const method: PaymentMethod | undefined =
       input.methodIndex === null
-        ? me.paymentMethods.length === 0
+        ? paymentMethods.length === 0
           ? { kind: 'custom', label: 'As the note says', handle: '' }
           : undefined
-        : me.paymentMethods[input.methodIndex]
-    if (!method) throw new BadRequestException('Pick how you paid')
-    const { left, dueNow } = owed(me.terms)
-    if (input.guestPaymentAmount > left)
-      throw new BadRequestException('That’s more than what’s left to pay')
-    if (input.guestPaymentAmount < dueNow && !input.note)
-      throw new BadRequestException('Say why it’s less than what’s due')
-    const row = await this.prisma.guest.findFirstOrThrow({
-      where: { userId: caller.userId, trip: { slug } },
-      select: { id: true, tripId: true },
-    })
-    try {
-      await this.prisma.payment.create({
-        data: {
-          tripId: row.tripId,
-          guestId: row.id,
-          guestPaymentAmount: input.guestPaymentAmount,
-          method: paymentMethodLabel(method),
-          methodKind: method.kind,
-          sentOn: input.sentOn,
-          note: input.note,
-        },
-      })
-    } catch (err) {
-      // Another report from the same guest landed first (payment_self_limits counts them one at a time).
-      if (/more_than_left/.test(String(err)))
-        throw new BadRequestException('That’s more than what’s left to pay')
-      throw err
+        : paymentMethods[input.methodIndex]
+    for (const share of shares) {
+      const g = travelers.find((t) => t.id === share.guestId)
+      if (!g)
+        throw new BadRequestException(
+          'You can pay only for yourself and the travelers you signed up'
+        )
+      const who = g === me ? 'You' : g.firstName
+      if (!payable(trip, g))
+        throw new BadRequestException(
+          // A guest still waiting on a trip that filled has no spot to pay for (they're owed back what they sent).
+          g.status === 'interested' && trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+            ? 'Every spot on this trip is taken'
+            : g === me
+              ? 'You can pay once you’re accepted'
+              : `${g.firstName} can’t be paid for yet`
+        )
+      if (!g.terms) throw new BadRequestException(`${who} hasn’t signed the trip agreement`)
+      const { left, dueNow } = owed(g.terms)
+      if (share.amount > left)
+        throw new BadRequestException(
+          g === me
+            ? 'That’s more than what’s left to pay'
+            : `That’s more than ${g.firstName} has left to pay`
+        )
+      if (share.amount < dueNow && !input.note)
+        throw new BadRequestException('Say why it’s less than what’s due')
     }
+    if (!method) throw new BadRequestException('Pick how you paid')
+    // Who sent it, for the organizer, when it was for someone else: the payer's own name on the trip, or the name they
+    // signed that traveler up with.
+    const payer = me
+      ? `${me.firstName} ${me.lastName}`
+      : (managed.find((g) => g.id === shares[0].guestId)?.agreement?.typedName ?? '')
+    const { id: tripId } = await runAsPublic(() =>
+      this.prisma.trip.findUniqueOrThrow({ where: { slug }, select: { id: true } })
+    )
+    // Several travelers in one transfer: the organizer confirms it once.
+    const transferId = shares.length > 1 ? randomUUID() : null
+    await this.prisma.$transaction(async (tx) => {
+      for (const share of shares)
+        await tx.payment
+          .create({
+            data: {
+              tripId,
+              guestId: share.guestId,
+              guestPaymentAmount: share.amount,
+              method: paymentMethodLabel(method),
+              methodKind: method.kind,
+              sentOn: input.sentOn,
+              note: input.note,
+              paidByName: share.guestId === me?.id ? '' : payer,
+              transferId,
+            },
+          })
+          .catch((err: unknown) => {
+            // Another report for the same guest landed first (payment_self_limits counts them one at a time).
+            if (!/more_than_left/.test(String(err))) throw err
+            const g = travelers.find((t) => t.id === share.guestId)
+            throw new BadRequestException(
+              g && g !== me
+                ? `That’s more than ${g.firstName} has left to pay`
+                : 'That’s more than what’s left to pay'
+            )
+          })
+    })
     return this.view(slug, caller)
   }
+}
+
+/** Whether a guest may be paid for now: may see how to pay, no refund sent, and not waiting on a trip that filled. */
+function payable(
+  trip: { joinMode: string; maxGuests: number | null; spotsTaken: number },
+  g: MyGuest
+): boolean {
+  if (!canPay(trip.joinMode, g) || g.refundSentAt) return false
+  return !(
+    g.status === 'interested' &&
+    trip.maxGuests !== null &&
+    trip.spotsTaken >= trip.maxGuests
+  )
 }
 
 /**

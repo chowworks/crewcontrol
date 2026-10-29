@@ -21,6 +21,15 @@ describe('parseJoin', () => {
     })
   })
 
+  it('signing up someone else, takes the signer’s own typed name', () => {
+    expect(parseJoin({ ...ok, typedName: 'Dana Price', onBehalf: true })).toMatchObject({
+      name: 'Jordan Price',
+      typedName: 'Dana Price',
+      onBehalf: true,
+    })
+    expect(parseJoin(ok)).not.toHaveProperty('onBehalf')
+  })
+
   it('keeps the Terms of Use version the guest ticked, when sent', () => {
     expect(parseJoin({ ...ok, termsVersion: 'abc123', termsAgreed: true })).toMatchObject({
       termsVersion: 'abc123',
