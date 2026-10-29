@@ -25,7 +25,8 @@ export const EMAIL_KINDS: EmailKind[] = [
 {{#if guest.waitlisted}}
 <p>The trip is full right now, so you're on the waitlist. {{trip.organizerName}} will let you know if a spot opens.</p>
 {{else}}{{#if guest.canPay}}
-<p>If you haven't paid yet, send {{trip.organizerName}} <strong>{{paymentDetails.dueNow}}</strong> to hold your spot, {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+<p>If you haven't paid yet, send {{trip.organizerName}} {{#if paymentDetails.deposit}}your deposit, <strong>{{paymentDetails.dueNow}}</strong>,{{else}}<strong>{{paymentDetails.dueNow}}</strong>{{/if}} to save your spot, {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+{{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if you drop out later.</p>{{/if}}
 <ul>
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
@@ -46,7 +47,7 @@ export const EMAIL_KINDS: EmailKind[] = [
     body: `<p>Hi {{guest.firstName}},</p>
 <p>{{trip.organizerName}} accepted you for <strong>{{trip.name}}</strong>, {{trip.dates}}. You’re going!</p>
 {{#if guest.canPay}}
-<p>Your first payment, <strong>{{paymentDetails.firstPayment}}</strong>, holds your spot. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+<p>{{#if paymentDetails.deposit}}Your deposit{{else}}Your first payment{{/if}}, <strong>{{paymentDetails.firstPayment}}</strong>, saves your spot{{#if paymentDetails.depositKept}} and isn't refundable if you drop out later{{/if}}. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 <ul>
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
@@ -212,6 +213,8 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       adjustments: '',
       total: '$1,200',
       firstPayment: '$400',
+      deposit: true,
+      depositKept: false,
       paid: '$0',
       pending: '$0',
       left: '$1,200',

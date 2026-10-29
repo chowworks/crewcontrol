@@ -94,6 +94,28 @@ describe('guestEmailContext', () => {
     })
   })
 
+  it('says when the plan starts with a deposit, and whether the trip keeps it', () => {
+    const schedule = [
+      { dueOn: null, amountCents: 30000 },
+      { dueOn: null, amountCents: 45000 },
+      { dueOn: null, amountCents: 45000 },
+    ]
+    const withDeposit = me({ terms: { ...me({}).terms!, schedule } })
+    const kept = { ...trip, refundPolicy: 'first_payment_kept' } as unknown as PublicTrip
+    expect(guestEmailContext(view(withDeposit), contact, '').paymentDetails).toMatchObject({
+      deposit: true,
+      depositKept: false,
+    })
+    expect(
+      guestEmailContext(
+        { trip: { ...kept, joinMode: 'accept_first' }, me: withDeposit } as never,
+        contact,
+        ''
+      ).paymentDetails
+    ).toMatchObject({ deposit: true, depositKept: true })
+    expect(guestEmailContext(view(me({})), contact, '').paymentDetails?.deposit).toBe(false)
+  })
+
   it("counts the organizer's credits and charges in the total", () => {
     const terms = { ...me({}).terms!, adjustmentCents: -5000, balanceCents: 105000 }
     const c = guestEmailContext(view(me({ terms })), contact, '')
@@ -121,7 +143,7 @@ describe('the default emails', () => {
   it('tells each kind of guest the right next step', () => {
     const joined = EMAIL_KINDS.find((k) => k.kind === 'joined')!
     expect(render(joined, sampleContext('can_pay')).text).toContain(
-      'send Nia $400 to hold your spot, one of these ways'
+      'send Nia your deposit, $400, to save your spot, one of these ways'
     )
     expect(render(joined, sampleContext('not_yet')).text).toContain("Once you're accepted")
     expect(render(joined, sampleContext('waitlisted')).text).toContain('on the waitlist')

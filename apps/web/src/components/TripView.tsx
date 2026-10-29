@@ -1,4 +1,5 @@
 import { roomsPricedApart, type PublicTrip } from '@cc/types'
+import { RoomCard } from '@/components/RoomCard'
 import { CalendarDays, MapPin } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -120,6 +121,18 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
                   {h.detail && <div className="text-sm text-muted">{h.detail}</div>}
                 </div>
               ))}
+            </section>
+          )}
+
+          {trip.options.roomChoice && trip.rooms.length > 0 && (
+            <section className="flex flex-col gap-3.5">
+              <h2 className={h2}>Rooms</h2>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+                {trip.rooms.map((r) => (
+                  <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
+                ))}
+              </div>
+              <p className="text-sm text-muted">You pick your room when you join.</p>
             </section>
           )}
 

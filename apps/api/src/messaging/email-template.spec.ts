@@ -39,6 +39,8 @@ const context: GuestEmailContext = {
     adjustments: '',
     total: '$1,200',
     firstPayment: '$400',
+    deposit: false,
+    depositKept: false,
     paid: '$0',
     pending: '$0',
     left: '$1,200',

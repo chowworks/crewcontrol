@@ -511,8 +511,8 @@ function JoinForm({
       {!trip.waitlisting && !behalf && (
         <p className="text-body">
           {trip.joinMode === 'accept_first'
-            ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you pay your first installment.`
-            : `Sign the trip agreement, then pay ${trip.organizerName} your first installment. ${
+            ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you make your first payment.`
+            : `Sign the trip agreement, then make your first payment to ${trip.organizerName}. ${
                 trip.joinMode === 'first_come'
                   ? 'Spots go first come, first served, in the order payments are confirmed.'
                   : `${trip.organizerName} accepts the crew once payments arrive.`
@@ -835,7 +835,7 @@ function MyPlace({
                   : paidCents > 0
                     ? [
                         'Part paid',
-                        `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more holds your spot.`,
+                        `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more saves your spot.`,
                       ]
                     : me.offeredAt
                       ? ['A spot opened', `${o} offered you a spot. Pay ${first} to take it.`]
@@ -844,7 +844,7 @@ function MyPlace({
                             'The trip filled up',
                             `Every spot is taken. ${o} will text you if one opens. Don’t send money until then.`,
                           ]
-                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
+                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to save your spot.`]
 
   return (
     <div className="flex flex-col gap-4">
