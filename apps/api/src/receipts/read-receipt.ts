@@ -35,7 +35,7 @@ const ENTITIES: Record<string, string> = {
 export function htmlToText(html: string): string {
   return html
     .slice(0, 500_000)
-    .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<(head|style|script|title)\b[\s\S]*?<\/\1\b[^>]*>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote|section)\s*>/gi, '\n')
     .replace(/<(td|th)\b[^>]*>/gi, ' ')

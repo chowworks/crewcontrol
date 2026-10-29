@@ -86,6 +86,7 @@ describe('the email’s text', () => {
       '<html><head><style>p{color:red}</style></head><body><p>Kendra Smith sent you &#36;300.00</p><div>Zelle&reg;&nbsp;payment</div></body></html>'
     expect(plainText(null, html)).toBe('Kendra Smith sent you $300.00\nZelle® payment')
     expect(htmlToText('<td>Amount</td><td>$5</td>')).toContain('Amount $5')
+    expect(htmlToText('<script>x()</script\t\nfoo="bar">Paid $5')).toBe(' Paid $5')
   })
 
   it('drops the quote marks of a forwarded reply', () => {
