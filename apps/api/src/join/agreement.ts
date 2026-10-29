@@ -45,6 +45,27 @@ export function firstInstallmentCents(priceCents: number, installmentCount: numb
   return installmentCount <= 1 ? priceCents : Math.floor(priceCents / installmentCount)
 }
 
+/** What happens when a guest drops out, under the refund policy the organizer picked. */
+function dropOutTerms(organizer: string, refundPolicy: string, firstPayment: string): string {
+  return (refundPolicy as RefundPolicy) === 'first_payment_kept'
+    ? `If you drop out after you're accepted, your first payment (${firstPayment}) isn't refunded. Money you paid ` +
+        `after it comes back only if ${organizer} fills your spot, and only as much as that person pays for it.`
+    : `If you drop out after you're accepted, money you paid comes back only if ${organizer} fills your spot, and ` +
+        `only as much as that person pays for it.`
+}
+
+/** The refund a guest is owed when they don't get a spot, which depends on how the trip lets guests in. */
+function notAcceptedTerms(organizer: string, joinMode: string): string {
+  return joinMode === 'accept_first'
+    ? `You pay nothing until ${organizer} accepts you. If ${organizer} turns you down after you paid anything, ` +
+        `${organizer} refunds it in full.`
+    : `If ${organizer} does not accept you, or the trip is full by the time your payment is confirmed, ` +
+        `${organizer} refunds everything you paid, in full.`
+}
+
+const removedTerms = (organizer: string) =>
+  `If ${organizer} removes you from the trip, ${organizer} refunds everything you paid.`
+
 /**
  * The refund terms. The drop-out rule is the organizer's pick (the trip's refund policy); the rest every trip on
  * Travel HQ has, and organizers accept them in the Organizer Terms. Turning a paid guest down needs the organizer to say
@@ -56,23 +77,10 @@ export function refundTerms(
   refundPolicy: string,
   firstCents: number
 ): string {
-  const dropOut =
-    (refundPolicy as RefundPolicy) === 'first_payment_kept'
-      ? `If you drop out after you're accepted, your first payment (${money(firstCents)}) isn't refunded. Money ` +
-        `you paid after it comes back only if ${organizer} fills your spot, and only as much as that person pays ` +
-        `for it.`
-      : `If you drop out after you're accepted, money you paid comes back only if ${organizer} fills your spot, ` +
-        `and only as much as that person pays for it.`
-  const before =
-    joinMode === 'accept_first'
-      ? `You pay nothing until ${organizer} accepts you. If ${organizer} turns you down after you paid anything, ` +
-        `${organizer} refunds it in full.`
-      : `If ${organizer} does not accept you, or the trip is full by the time your payment is confirmed, ` +
-        `${organizer} refunds everything you paid, in full.`
   return (
-    `${organizer} chose this for the trip: ${dropOut} Every trip run on Travel HQ also has these terms, and ` +
-    `${organizer} agreed to them: ${before} If ${organizer} removes you from the trip, ${organizer} refunds ` +
-    `everything you paid.`
+    `${organizer} chose this for the trip: ${dropOutTerms(organizer, refundPolicy, money(firstCents))} Every trip ` +
+    `run on Travel HQ also has these terms, and ${organizer} agreed to them: ` +
+    `${notAcceptedTerms(organizer, joinMode)} ${removedTerms(organizer)}`
   )
 }
 
@@ -90,6 +98,63 @@ function spotTerms(organizer: string, joinMode: JoinMode): string {
   )
 }
 
+/** The words that differ from trip to trip; the rest of the agreement is the same for every trip. */
+interface Fill {
+  /** The name the trip's pages use for the organizer. */
+  o: string
+  /** The organizer as the agreement names them: name, display name and email. */
+  party: string
+  name: string
+  /** "MV Beach House 2027, Martha's Vineyard, MA, from 2027-06-18 to 2027-06-21" */
+  trip: string
+  /** "$1,200 per person, paid in 3 installments, the first of $400" */
+  price: string
+  spot: string
+  refunds: string
+}
+
+/** The agreement's sections, each a heading and its text, filled in. */
+function sections(f: Fill): { heading: string; body: string }[] {
+  const o = f.o
+  return [
+    {
+      heading: '',
+      body:
+        `This agreement is between you, the guest, and ${f.party}, who organizes ${f.name}. Every promise in it ` +
+        `is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
+        `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
+        `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
+        `wrong, you and ${o} settle it between you.`,
+    },
+    {
+      heading: '1. The trip',
+      body: `${f.trip}. ${o} can change the trip's details; section 5 says what happens if ${o} does.`,
+    },
+    {
+      heading: '2. Your price',
+      body:
+        `${f.price}. You pay ${o} directly, the way ${o}'s payment instructions say. ${o} can't raise your price ` +
+        `after you sign. Travel HQ keeps a record of the payments you and ${o} report; when ${o} confirms a ` +
+        `payment there, that is ${o}'s receipt, not Travel HQ's.`,
+    },
+    { heading: '3. Your spot', body: f.spot },
+    { heading: `4. ${o}'s refund terms`, body: f.refunds },
+    {
+      heading: '5. If the trip changes or is cancelled',
+      body:
+        `If ${o} changes the trip's dates or destination after you sign, ${o} tells you. If you can't make the new ` +
+        `plan, or ${o} cancels the trip, ${o} refunds what you paid, less any money ${o} already spent on the trip ` +
+        `and can't get back; ${o} shows you what that was.`,
+    },
+    {
+      heading: '6. Signing',
+      body:
+        `You're signing electronically: your typed name and ticking "I agree" are your signature. You can ask ${o} ` +
+        `for a paper copy instead. Travel HQ keeps a copy of what you signed, and you and ${o} can see it any time.`,
+    },
+  ]
+}
+
 /**
  * The agreement for a trip as it stands now, as plain text with blank lines between sections. Every promise in it is
  * worded as the organizer's: Travel HQ supplies the form and is not a party (owner's decision, 2026-10-28).
@@ -100,34 +165,84 @@ export function agreementText(trip: AgreementFacts): string {
   const name = trip.organizer?.name.trim()
   const email = trip.organizer?.email.trim()
   const aka = [name && name !== o ? `"${o}"` : '', email].filter(Boolean).join(', ')
-  const party = `${name || o}${aka ? ` (${aka})` : ''}`
   const first = firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
   const plan =
     trip.installmentCount <= 1
       ? `paid in one payment of ${money(trip.costPerPersonCents)}`
       : `paid in ${trip.installmentCount} installments, the first of ${money(first)}`
+  const fill: Fill = {
+    o,
+    party: `${name || o}${aka ? ` (${aka})` : ''}`,
+    name: trip.name,
+    trip: `${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}`,
+    price: `${money(trip.costPerPersonCents)} per person, ${plan}`,
+    spot: spotTerms(o, trip.joinMode as JoinMode),
+    refunds: refundTerms(o, trip.joinMode, trip.refundPolicy, first),
+  }
   return [
     `Trip agreement between you and ${o}`,
-    `This agreement is between you, the guest, and ${party}, who organizes ${trip.name}. Every promise in it ` +
-      `is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
-      `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
-      `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
-      `wrong, you and ${o} settle it between you.`,
-    `1. The trip\n${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}. ${o} can ` +
-      `change the trip's details; section 5 says what happens if ${o} does.`,
-    `2. Your price\n${money(trip.costPerPersonCents)} per person, ${plan}. You pay ${o} directly, the way ` +
-      `${o}'s payment instructions say. ${o} can't raise your price after you sign. Travel HQ keeps a record of ` +
-      `the payments you and ${o} report; when ${o} confirms a payment there, that is ${o}'s receipt, not ` +
-      `Travel HQ's.`,
-    `3. Your spot\n${spotTerms(o, trip.joinMode as JoinMode)}`,
-    `4. ${o}'s refund terms\n${refundTerms(o, trip.joinMode, trip.refundPolicy, first)}`,
-    `5. If the trip changes or is cancelled\nIf ${o} changes the trip's dates or destination after you sign, ` +
-      `${o} tells you. If you can't make the new plan, or ${o} cancels the trip, ${o} refunds what you paid, ` +
-      `less any money ${o} already spent on the trip and can't get back; ${o} shows you what that was.`,
-    `6. Signing\nYou're signing electronically: your typed name and ticking "I agree" are your signature. You ` +
-      `can ask ${o} for a paper copy instead. Travel HQ keeps a copy of what you signed, and you and ${o} can ` +
-      `see it any time.`,
+    ...sections(fill).map((s) => (s.heading ? `${s.heading}\n${s.body}` : s.body)),
   ].join('\n\n')
+}
+
+/** How each of a trip's settings reads in the agreement, as the trip editor names the choices. */
+const JOIN_MODE_LABELS: Record<JoinMode, string> = {
+  accept_first: 'You accept each guest, then they pay',
+  pay_first: 'Guests pay, then you accept',
+  first_come: 'First come, first served',
+}
+const REFUND_POLICY_LABELS: Record<RefundPolicy, string> = {
+  spot_filled: 'Refund only if you fill their spot',
+  first_payment_kept: 'Keep the first payment',
+}
+
+/**
+ * The agreement every guest signs, with your trip's details as [placeholders] and each version a trip setting
+ * chooses between: the Organizer Terms' addendum (owner's decision, 2026-10-29), so organizers know what they agree to
+ * with each guest. Built from the same sections as agreementText, so the two can't drift apart.
+ */
+export function agreementTemplate(): { heading: string; body: string }[] {
+  const o = '[organizer]'
+  const modes = Object.keys(JOIN_MODE_LABELS) as JoinMode[]
+  const policies = Object.keys(REFUND_POLICY_LABELS) as RefundPolicy[]
+  // One line per version; trip settings that read the same are named together.
+  const versions = <K extends string>(
+    keys: K[],
+    label: (k: K) => string,
+    text: (k: K) => string
+  ) => {
+    const lines = new Map<string, K[]>()
+    for (const k of keys) lines.set(text(k), [...(lines.get(text(k)) ?? []), k])
+    return [...lines].map(([t, ks]) => `- ${ks.map(label).join(' or ')}: "${t}"`).join('\n')
+  }
+  return sections({
+    o,
+    party: '[your full name] ([organizer], [your email])',
+    name: '[trip name]',
+    trip: '[trip name], [destination], from [start date] to [end date]',
+    price: '[price] per person, paid as your payment plan says',
+    spot:
+      'It depends on how your trip lets guests in:\n' +
+      versions(
+        modes,
+        (m) => JOIN_MODE_LABELS[m],
+        (m) => spotTerms(o, m)
+      ),
+    refunds:
+      'The refund terms you pick for the trip:\n' +
+      versions(
+        policies,
+        (p) => REFUND_POLICY_LABELS[p],
+        (p) => dropOutTerms(o, p, '[first payment]')
+      ) +
+      '\nOn every trip, depending on how it lets guests in:\n' +
+      versions(
+        modes,
+        (m) => JOIN_MODE_LABELS[m],
+        (m) => notAcceptedTerms(o, m)
+      ) +
+      `\nOn every trip: "${removedTerms(o)}"`,
+  })
 }
 
 export const hashOf = (text: string): string =>

@@ -10,7 +10,7 @@ export function TermsText({ doc, level = 2 }: { doc: TermsDocument; level?: 2 | 
       {doc.sections.map((s) => (
         <div key={s.heading} className="flex flex-col gap-1">
           <Heading className="font-bold text-ink">{s.heading}</Heading>
-          <p className="text-body">{s.body}</p>
+          <p className="whitespace-pre-line text-body">{s.body}</p>
         </div>
       ))}
     </section>

@@ -37,6 +37,22 @@ describe('the Terms version', () => {
   it('has the Organizer Terms say organizers are responsible for licensing where it is required', () => {
     expect(TERMS.organizer.sections.map((s) => s.heading)).toContain('4. Licenses and registration')
   })
+
+  it('carries the trip agreement guests sign as an addendum, every version of it', () => {
+    const text = TERMS.organizer.sections.map((s) => `${s.heading}\n${s.body}`).join('\n')
+    expect(text).toContain('Addendum: the trip agreement your guests sign')
+    expect(text).toContain('Agreement: 5. If the trip changes or is cancelled')
+    expect(text).toContain('[your full name] ([organizer], [your email])')
+    // Both refund presets and every way in are spelled out.
+    expect(text).toContain(
+      'Keep the first payment: "If you drop out after you\'re accepted, your first payment'
+    )
+    expect(text).toContain('Refund only if you fill their spot: "')
+    expect(text).toContain(
+      'Guests pay, then you accept or First come, first served: "If [organizer] does not'
+    )
+    expect(text).toContain('First come, first served: "Spots go first come')
+  })
 })
 
 describe('accepting the Terms', () => {

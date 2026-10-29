@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { agreementTemplate } from '../join/agreement'
 import type { TermsDocument, TermsKind, TermsSection } from '../trips/trip-types'
 
 /**
@@ -106,7 +107,8 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
         'refund to a guest you turn down or remove, and a ' +
         'refund, less money already spent that you can’t get back, if you cancel the trip or a guest can’t make ' +
         'a change to its dates or destination. You agree to them by running a trip here. You are responsible for ' +
-        'your trip’s details being right and for keeping every promise the agreement makes in your name.',
+        'your trip’s details being right and for keeping every promise the agreement makes in your name. Its ' +
+        'full wording is the addendum below.',
     },
     {
       heading: '6. Your guests’ information',
@@ -114,6 +116,19 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
         'Use your guests’ names and contact details only to run the trip. Do not sell them or share them with ' +
         'anyone who is not helping you run it.',
     },
+    {
+      heading: 'Addendum: the trip agreement your guests sign',
+      body:
+        'Every guest who joins your trip signs this agreement with you, filled in from your trip. [organizer] is ' +
+        'the name your trip page shows for you; your full name and email come from your sign-in, and every guest ' +
+        'who opens the agreement sees them. The other words in [brackets] come from your trip. Where your trip’s ' +
+        'settings choose between versions, each one is shown.',
+    },
+    // Built from the agreement itself, so changing its wording changes these Terms' version and asks organizers again.
+    ...agreementTemplate().map((s) => ({
+      heading: `Agreement: ${s.heading || 'who it is between'}`,
+      body: s.body,
+    })),
   ],
 }
 
