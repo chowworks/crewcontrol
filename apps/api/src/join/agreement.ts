@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type {
   AgreementPreview,
+  BalanceAdjustment,
   GuestTerms,
   JoinMode,
   Payment,
@@ -277,7 +278,10 @@ export function agreementPreview(trip: AgreementFacts, onBehalf = false): Agreem
   return { text, textHash: hashOf(text), templateVersion: TEMPLATE_VERSION }
 }
 
-/** The terms a signature saved, with the balance worked out from them and the payments the organizer confirmed. */
+/**
+ * The terms a signature saved, with the balance worked out from them, the organizer's adjustments that still count
+ * (issue #17) and the payments the organizer confirmed. The signed price itself never changes.
+ */
 export function termsOf(
   sig: {
     priceCents: number
@@ -286,12 +290,16 @@ export function termsOf(
     endDate: string
     refundTerms: string
   },
-  payments: Pick<Payment, 'status' | 'guestPaymentAmount' | 'receivedPaymentAmount'>[]
+  payments: Pick<Payment, 'status' | 'guestPaymentAmount' | 'receivedPaymentAmount'>[],
+  adjustments: Pick<BalanceAdjustment, 'kind' | 'amountCents' | 'removedAt'>[] = []
 ): GuestTerms {
   const first = firstInstallmentCents(sig.priceCents, sig.installmentCount)
   const sum = (status: Payment['status'], amount: (p: (typeof payments)[number]) => number) =>
     payments.filter((p) => p.status === status).reduce((n, p) => n + amount(p), 0)
   const paid = sum('confirmed', (p) => p.receivedPaymentAmount ?? 0)
+  const adjusted = adjustments
+    .filter((a) => !a.removedAt)
+    .reduce((n, a) => n + (a.kind === 'charge' ? a.amountCents : -a.amountCents), 0)
   return {
     priceCents: sig.priceCents,
     installmentCount: sig.installmentCount,
@@ -301,6 +309,7 @@ export function termsOf(
     firstInstallmentCents: first,
     paidCents: paid,
     pendingCents: sum('reported', (p) => p.guestPaymentAmount),
-    balanceCents: sig.priceCents - paid,
+    adjustmentCents: adjusted,
+    balanceCents: sig.priceCents + adjusted - paid,
   }
 }

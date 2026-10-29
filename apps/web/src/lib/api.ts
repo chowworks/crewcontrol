@@ -2,6 +2,7 @@ import {
   TERMS_REQUIRED_CODE,
   type AcceptTermsInput,
   type AgreementPreview,
+  type BalanceAdjustmentInput,
   type ContactInput,
   type EmailPreview,
   type EmailPreviewGuest,
@@ -160,6 +161,11 @@ export const api = {
     request<OrganizerTrip>(`/trips/${id}/payments/${paymentId}`, json('PATCH', decision)),
   logPayment: (id: string, guestId: string, log: PaymentLog) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/payments`, json('POST', log)),
+  // A credit or charge on a guest's balance (issue #17); removing one keeps it on record, marked removed.
+  addAdjustment: (id: string, guestId: string, input: BalanceAdjustmentInput) =>
+    request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/adjustments`, json('POST', input)),
+  removeAdjustment: (id: string, adjustmentId: string) =>
+    request<OrganizerTrip>(`/trips/${id}/adjustments/${adjustmentId}`, { method: 'DELETE' }),
   // Trip Financials' vendor expenses; `admin` reads them through the Admin toolbox.
   getExpenses: (id: string, admin = false) => request<Expense[]>(`${tripBase(id, admin)}/expenses`),
   addExpense: (id: string, input: ExpenseInput) =>

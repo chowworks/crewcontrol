@@ -5,6 +5,7 @@ import type { PrismaService } from '../prisma/prisma.service'
 import type { TermsService } from '../terms/terms.service'
 import type { PaymentReport } from '../trips/trip-types'
 import type { TripsService } from '../trips/trips.service'
+import { owed } from './guest-pay'
 import { JoinService } from './join.service'
 
 // One payment for several travelers (issue #11), on a stand-in database: the person who signed travelers up pays for
@@ -185,5 +186,30 @@ describe('a traveler someone else signed up', () => {
     expect(
       prisma.$queryRaw.mock.calls.some((c: unknown[]) => JSON.stringify(c).includes('true)'))
     ).toBe(true)
+  })
+})
+
+describe('owed', () => {
+  const terms = {
+    priceCents: 120000,
+    installmentCount: 4,
+    startDate: '2027-06-18',
+    endDate: '2027-06-21',
+    refundTerms: 'r',
+    firstInstallmentCents: 30000,
+    paidCents: 0,
+    pendingCents: 0,
+    adjustmentCents: 0,
+    balanceCents: 120000,
+  }
+
+  it("counts the organizer's adjustments in what's left, and never asks for more than that now", () => {
+    expect(owed({ ...terms, adjustmentCents: 4000 })).toEqual({ left: 124000, dueNow: 30000 })
+    expect(owed({ ...terms, paidCents: 100000, adjustmentCents: -5000 })).toEqual({
+      left: 15000,
+      dueNow: 0,
+    })
+    // A credit that leaves less than the first payment: only what's left is due.
+    expect(owed({ ...terms, adjustmentCents: -100000 })).toEqual({ left: 20000, dueNow: 20000 })
   })
 })

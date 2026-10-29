@@ -59,6 +59,7 @@ model Trip {
   agreements          AgreementSignature[]
   payments            Payment[]
   expenses            Expense[]
+  adjustments         BalanceAdjustment[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -111,6 +112,7 @@ model Guest {
   agreement          AgreementSignature?
   events             GuestEvent[]
   payments           Payment[]
+  adjustments        BalanceAdjustment[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -167,6 +169,8 @@ model GuestEvent {
   // organizer confirmed arrived).
   paymentId   String?
   amount      Int?
+  // For the adjustment kinds: which adjustment (its reason is there).
+  adjustmentId String?
   n           Int      @default(autoincrement())
   guest       Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 
@@ -189,6 +193,26 @@ model Expense {
   trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([tripId])
+}
+
+// A credit or charge the organizer puts on a guest's balance by hand, with a reason (migration
+// 20261029010000_balance_adjustments). Not a payment: recorded only. Never edited; removing it keeps it, marked removed.
+model BalanceAdjustment {
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId          String
+  guestId         String
+  kind            String // 'credit' | 'charge'
+  amountCents     Int
+  reason          String
+  createdAt       DateTime  @default(now())
+  createdByUserId String
+  removedAt       DateTime?
+  removedByUserId String?
+  trip            Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest           Guest     @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([guestId])
 }
 
 // One payment a guest sent the organizer, for any installment (migration 20261025010000_payment_log). The guest
