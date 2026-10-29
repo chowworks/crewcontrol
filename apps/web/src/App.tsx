@@ -4,6 +4,7 @@ import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
 import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
+import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
 import { AdminEmailPage, AdminEmailsPage } from './pages/AdminEmailsPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
@@ -164,6 +165,14 @@ export default function App() {
         element={
           <RequireSignIn>
             <AdminEmailProblemsPage />
+          </RequireSignIn>
+        }
+      />
+      <Route
+        path="/admin/forwarded-receipts"
+        element={
+          <RequireSignIn>
+            <AdminForwardedReceiptsPage />
           </RequireSignIn>
         }
       />

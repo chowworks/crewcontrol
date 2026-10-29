@@ -2,7 +2,7 @@
 // Every person here is made up. Run with `npm run db:seed --workspace @cc/api`; it replaces the demo trips.
 // The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
 import '../scripts/lib/owner-env'
-import { PrismaClient, type Prisma } from '@prisma/client'
+import { PrismaClient, type Guest, type Prisma } from '@prisma/client'
 import { agreementPreview, refundTerms, TEMPLATE_VERSION } from '../src/join/agreement'
 import { planOf } from '../src/trips/trip-mapper'
 import {
@@ -270,8 +270,15 @@ async function main() {
     where: { tripId: { in: old.map((t) => t.id) } },
     include: { trip: { select: { slug: true } }, guest: { select: { email: true } } },
   })
-  await prisma.accessLog.deleteMany({ where: { tripId: { in: old.map((t) => t.id) } } })
-  await prisma.trip.deleteMany({ where: { isSample: true } })
+  // Forwarded receipts (issue #12): the sample trips' emails go with them, and so do their addresses, which deleting a
+  // trip would otherwise hold until an admin released them, so the new sample trips can take them again. One step, so
+  // a crash never leaves addresses held by trips that are gone.
+  const ids = old.map((t) => t.id)
+  await prisma.$transaction([
+    prisma.accessLog.deleteMany({ where: { tripId: { in: ids } } }),
+    prisma.trip.deleteMany({ where: { isSample: true } }),
+    prisma.receiptsAddress.deleteMany({ where: { tripId: { in: ids } } }),
+  ])
   for (const {
     approved,
     interested,
@@ -323,9 +330,15 @@ async function main() {
         confirmedAt: paid,
       })),
     ]
+    // Each sample trip's receipts address is its link, unless another trip holds it.
+    const held = await prisma.receiptsAddress.findFirst({
+      where: { address: trip.slug, releasedAt: null },
+      select: { id: true },
+    })
     const created = await prisma.trip.create({
       data: {
         ...trip,
+        receiptsAddress: held ? null : trip.slug,
         photos: photos as unknown as Prisma.InputJsonValue,
         highlights: highlights as unknown as Prisma.InputJsonValue,
         keyDates: keyDates as unknown as Prisma.InputJsonValue,
@@ -414,8 +427,79 @@ async function main() {
           data: { at: new Date(g.confirmedAt.getTime() + 60_000) },
         })
     }
+    if (trip.slug === 'tulum-40th-2027') await seedReceipts(created, first, paid)
     console.log(`Seeded ${trip.name} → /t/${trip.slug}`)
   }
+}
+
+/**
+ * Forwarded receipts on the villa trip (issue #12): the first accepted guest's payment came from a receipt they
+ * forwarded, kept as its proof, and a receipt from someone not on the trip waits in Actions, naming a guest who hasn't
+ * paid. Fictional people and addresses only.
+ */
+async function seedReceipts(
+  trip: { id: string; receiptsAddress: string | null; organizerName: string; guests: Guest[] },
+  amount: number,
+  paid: Date
+) {
+  const to = `${trip.receiptsAddress ?? 'tulum-40th-2027'}@${process.env.RECEIPTS_DOMAIN || 'receipts.example.com'}`
+  const dollars = (c: number) => `$${(c / 100).toFixed(2)}`
+  const organizer = trip.organizerName
+  const day = paid.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const byJoin = [...trip.guests].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  const payer = byJoin.find((g) => g.status === 'approved')
+  const payment = payer
+    ? await prisma.payment.findFirst({ where: { guestId: payer.id, status: 'confirmed' } })
+    : null
+  if (payer && payment) {
+    await prisma.payment.update({ where: { id: payment.id }, data: { loggedBy: 'email' } })
+    await prisma.forwardedReceipt.create({
+      data: {
+        emailId: `seed-${trip.id}-recorded`,
+        toAddress: to,
+        fromAddress: payer.email,
+        subject: 'Fwd: You sent money with Zelle',
+        receivedAt: new Date(paid.getTime() + 30 * 60_000),
+        tripId: trip.id,
+        status: 'recorded',
+        attempts: 1,
+        senderVerified: true,
+        amountCents: amount,
+        payerName: organizer,
+        methodKind: 'zelle',
+        sentOn: paid.toISOString().slice(0, 10),
+        excerpt: `---------- Forwarded message ---------\nFrom: Zelle <alerts@bank.example.com>\nDate: ${day}\nSubject: You sent money with Zelle\nYou sent ${dollars(amount)} to ${organizer}\nMemo: ${payer.firstName} TULUM40\nThe money is usually available in minutes.`,
+        guestId: payer.id,
+        paymentId: payment.id,
+      },
+    })
+  }
+  // The guest who paid less than due: a relative sent the rest, from an address not on the trip.
+  const paidShort = await prisma.payment.findFirst({
+    where: { tripId: trip.id, status: 'reported', guestPaymentAmount: { lt: amount } },
+  })
+  const unpaid = trip.guests.find((g) => g.id === paidShort?.guestId)
+  if (unpaid && paidShort)
+    await prisma.forwardedReceipt.create({
+      data: {
+        emailId: `seed-${trip.id}-unmatched`,
+        toAddress: to,
+        fromAddress: 'pat.morgan@example.com',
+        subject: 'Fwd: Your Zelle payment is complete',
+        receivedAt: new Date(paid.getTime() + 26 * 3600_000),
+        tripId: trip.id,
+        status: 'unmatched',
+        attempts: 1,
+        reason: 'It came from an address that isn’t on this trip.',
+        senderVerified: true,
+        amountCents: amount - paidShort.guestPaymentAmount,
+        payerName: 'Pat Morgan',
+        methodKind: 'zelle',
+        sentOn: new Date(paid.getTime() + 86_400_000).toISOString().slice(0, 10),
+        excerpt: `---------- Forwarded message ---------\nFrom: Zelle <alerts@bank.example.com>\nSubject: Your Zelle payment is complete\nPat Morgan sent ${dollars(amount - paidShort.guestPaymentAmount)} to ${organizer}\nMemo: the rest for ${unpaid.firstName}, TULUM40`,
+        suggestedGuestId: unpaid.id,
+      },
+    })
 }
 
 main()

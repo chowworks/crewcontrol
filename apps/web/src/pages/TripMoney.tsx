@@ -138,7 +138,11 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
           p.note,
           stamp(p.reportedAt),
           stamp(p.decidedAt),
-          p.loggedBy === 'organizer' ? 'Organizer' : 'Guest',
+          p.loggedBy === 'organizer'
+            ? 'Organizer'
+            : p.loggedBy === 'email'
+              ? 'Forwarded receipt'
+              : 'Guest',
         ])
       ),
     ])

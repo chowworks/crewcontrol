@@ -66,6 +66,7 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
     maxGuests: null,
     waitlistBufferPercent: 10,
     guests,
+    receipts: { address: null, email: null, domain: null, on: false, unmatched: [] },
     ...extra,
   }) as OrganizerTrip
 
@@ -138,5 +139,16 @@ describe('what needs the organizer', () => {
     ])
     expect(guestActions(t.guests[0], t)[0].key).toBe('tr1')
     expect(tripActionCount(t)).toBe(1)
+  })
+
+  it('counts each forwarded receipt waiting to be matched', () => {
+    const waiting = { id: 'r1' } as OrganizerTrip['receipts']['unmatched'][number]
+    const t = trip([guest('a')])
+    expect(
+      tripActionCount({
+        ...t,
+        receipts: { ...t.receipts, unmatched: [waiting, { ...waiting, id: 'r2' }] },
+      })
+    ).toBe(tripActionCount(t) + 2)
   })
 })

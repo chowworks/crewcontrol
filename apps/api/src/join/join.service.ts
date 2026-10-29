@@ -12,6 +12,7 @@ import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { receiptsConfig, receiptsEmail } from '../receipts/receipts-config'
 import { TermsService } from '../terms/terms.service'
 import {
   adjustmentsOf,
@@ -76,7 +77,7 @@ export class JoinService {
       payments: true,
       // A guest sees the credits and charges that count, not ones the organizer took back.
       adjustments: { where: { removedAt: null } },
-      trip: { select: { paymentInstructions: true, paymentMethods: true } },
+      trip: { select: { paymentInstructions: true, paymentMethods: true, receiptsAddress: true } },
     } as const
     const where = {
       trip: { slug },
@@ -112,6 +113,8 @@ export class JoinService {
         adjustments,
         paymentMethods: pay ? paymentMethodsOf(row.trip) : [],
         paymentInstructions: pay ? row.trip.paymentInstructions : '',
+        // Where to forward a receipt instead of reporting by hand, under the same rule as how to pay.
+        receiptsEmail: pay && receiptsConfig() ? receiptsEmail(row.trip.receiptsAddress) : null,
       }
     }
     const facts = { ...trip, organizer: await this.trips.organizerContact(await this.tripId(slug)) }

@@ -1,7 +1,10 @@
 import type {
   BalanceAdjustmentInput,
+  DismissReceiptReason,
+  ForwardedReceiptItem,
   Guest,
   GuestUpdate,
+  MatchReceiptInput,
   OrganizerTrip,
   PaymentDecision,
   PaymentLog,
@@ -125,7 +128,16 @@ export function ControlPanelPage() {
       onClick: async () => {
         for (const g of tookSpot)
           if (!(await save(() => api.updateGuest(id, g.id, { status: 'interested' })))) return
-        void decidePayment(paymentId, { status: 'reported' })
+        // A forwarded receipt's payment marked not received goes back to how it was (it was never the guest's
+        // word waiting for you); any other goes back to waiting.
+        void decidePayment(paymentId, {
+          status:
+            payment.loggedBy === 'email' && decision.status === 'not_received'
+              ? payment.status === 'refunded'
+                ? 'reported'
+                : payment.status
+              : 'reported',
+        })
       },
     }
     const who =
@@ -189,13 +201,44 @@ export function ControlPanelPage() {
       toast({ text: `${money(a.amountCents)} ${a.kind} for ${guest.firstName} removed.` })
     return saved
   }
+  async function matchReceipt(r: ForwardedReceiptItem, input: MatchReceiptInput) {
+    const saved = await saveTrip(() => api.matchReceipt(id, r.id, input))
+    const guest = trip?.guests.find((g) => g.id === input.guestId)
+    if (!saved || !guest) return Boolean(saved)
+    // On a first come trip, confirming may have given them a spot too.
+    const spot =
+      guest.status !== 'approved' &&
+      saved.guests.find((g) => g.id === guest.id)?.status === 'approved'
+        ? ' They have a spot.'
+        : ''
+    toast({
+      text: input.confirm
+        ? `${money(input.amountCents)} from ${guest.firstName} confirmed.${spot}`
+        : `${money(input.amountCents)} receipt matched to ${guest.firstName}.`,
+    })
+    return true
+  }
+  async function dismissReceipt(r: ForwardedReceiptItem, reason: DismissReceiptReason) {
+    const saved = await save(() => api.dismissReceipt(id, r.id, reason))
+    if (saved) toast({ text: 'Receipt dismissed.' })
+    return saved
+  }
+  async function forgetSender(guest: Guest, senderId: string) {
+    const s = trip?.receipts.senders.find((x) => x.id === senderId)
+    const saved = await save(() => api.forgetReceiptSender(id, senderId))
+    if (saved && s)
+      toast({ text: `Receipts from ${s.address} won’t be filed on ${guest.firstName} now.` })
+    return saved
+  }
   const handlers = {
     onUpdate: updateGuest,
     onDecide: decidePayment,
     onLog: logPayment,
     onAdjust: addAdjustment,
     onRemoveAdjustment: removeAdjustment,
+    onForgetSender: forgetSender,
   }
+  const receiptHandlers = { onMatchReceipt: matchReceipt, onDismissReceipt: dismissReceipt }
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
@@ -239,7 +282,15 @@ export function ControlPanelPage() {
           </p>
         )}
         {/* What needs the organizer is theirs to do, not an admin's. */}
-        {!admin && <ActionsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />}
+        {!admin && (
+          <ActionsCard
+            trip={trip}
+            rooms={rooms}
+            {...handlers}
+            {...receiptHandlers}
+            error={guestError}
+          />
+        )}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         {!admin && <RemindersCard trip={trip} />}
@@ -570,9 +621,13 @@ export function SignedCopy({
 export function UndoConfirm({
   onUndo,
   warning = 'They lose their place in line.',
+  label = 'Undo',
+  title = 'Undo this payment?',
 }: {
   onUndo: () => void
   warning?: string
+  label?: string
+  title?: string
 }) {
   const [asking, setAsking] = useState(false)
   return (
@@ -582,12 +637,12 @@ export function UndoConfirm({
         onClick={() => setAsking(true)}
         className="inline-flex min-h-[44px] items-center rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
       >
-        Undo
+        {label}
       </button>
       {asking && (
         <ConfirmDialog
-          title="Undo this payment?"
-          confirmLabel="Undo payment"
+          title={title}
+          confirmLabel={label === 'Undo' ? 'Undo payment' : label}
           onConfirm={() => {
             setAsking(false)
             onUndo()

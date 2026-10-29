@@ -108,6 +108,7 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: '',
       vendorCosts: false,
+      confirmReceipts: false,
     })
   })
 
@@ -118,6 +119,7 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: 'Bring a towel',
       vendorCosts: false,
+      confirmReceipts: false,
     })
   })
 

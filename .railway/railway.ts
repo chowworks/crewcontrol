@@ -81,6 +81,11 @@ export default defineRailway((ctx) => {
         // The developer address every dev email goes to instead, marked as a test that names who it was for
         // (send-email.ts), set by hand. Unset, dev emails go to whoever they're for. Never set in production.
         DEV_EMAIL_TO: preserve(),
+        // Forwarded receipts (issue #12): the subdomain Resend receives trips' receipts on (its MX points at Resend,
+        // as DEVELOPMENT.md says) and a Full access Resend key to read each email, both set by hand. Either unset,
+        // receiving is off. The webhook above also takes email.received.
+        RECEIPTS_DOMAIN: preserve(),
+        RESEND_RECEIVING_API_KEY: preserve(),
         // Clerk's secret key for this environment, set by hand in Railway.
         CLERK_SECRET_KEY: preserve(),
       },
@@ -117,6 +122,9 @@ export default defineRailway((ctx) => {
       RESEND_API_KEY: preserve(),
       EMAIL_FROM: 'Travel HQ <trips@travel-hq.app>',
       RESEND_WEBHOOK_SECRET: preserve(),
+      // Forwarded receipts, as in dev: production's receiving subdomain and Full access key, set by hand.
+      RECEIPTS_DOMAIN: preserve(),
+      RESEND_RECEIVING_API_KEY: preserve(),
       CLERK_SECRET_KEY: preserve(),
     },
   })

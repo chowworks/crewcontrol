@@ -82,6 +82,24 @@ To make a bucket: in Cloudflare, create the R2 bucket (for dev, `crewcontrol-pho
 off, then create an R2 API token with Object Read & Write on that bucket only. Set `R2_ACCOUNT_ID`,
 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_PHOTOS_BUCKET` on the API service in Railway.
 
+## Forwarded receipts
+
+Each trip has its own address (`<name>@RECEIPTS_DOMAIN`) that guests and organizers forward payment emails to
+(issue #12). Resend receives the mail and calls the existing webhook (`/api/webhooks/resend`) with `email.received`;
+the API queues it and a worker inside the API reads it every 30 seconds (`src/receipts/`). Without
+`RECEIPTS_DOMAIN` and `RESEND_RECEIVING_API_KEY` receiving is off, as it is on a laptop.
+
+To switch it on for an environment, in that environment's Resend account:
+
+1. Add the receiving subdomain (dev: `receipts.dev.travel-hq.app`, production: `receipts.travel-hq.app`) under
+   Receiving, and add the MX record Resend shows at the DNS host. Use a subdomain so the main domain's mail is untouched.
+2. On the existing webhook, also tick `email.received`.
+3. Create an API key with Full access (a sending-only key can't read received mail).
+4. Set `RECEIPTS_DOMAIN` and `RESEND_RECEIVING_API_KEY` on the API service in Railway (both are declared in
+   `.railway/railway.ts`).
+
+The Admin toolbox's Forwarded receipts page lists every email received and every address a trip has used.
+
 ## The shared dev environment (Railway)
 
 Travel HQ has a `dev` environment on Railway, set up the way Interview and Audit Differently's are: a Postgres

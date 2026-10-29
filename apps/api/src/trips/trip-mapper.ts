@@ -1,17 +1,22 @@
 import type {
   AgreementSignature as SignatureRow,
   BalanceAdjustment as AdjustmentRow,
+  ForwardedReceipt as ForwardedReceiptRow,
+  PayerAddress as PayerAddressRow,
   Guest as GuestRow,
   Payment as PaymentRow,
   Room as RoomRow,
   Trip as TripRow,
 } from '@prisma/client'
 import { termsOf } from '../join/agreement'
+import { FROM_STRANGER } from '../receipts/place-receipt'
+import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/receipts-config'
 import {
   DEFAULT_TRIP_OPTIONS,
   paymentPlan,
   type BalanceAdjustment,
   type BedType,
+  type ForwardedReceiptItem,
   type Guest,
   type GuestStatus,
   type JoinMode,
@@ -26,6 +31,7 @@ import {
   type TripKeyDate,
   type TripOptions,
   type TripPhoto,
+  type TripReceipts,
   type TripSummary,
 } from './trip-types'
 
@@ -34,7 +40,44 @@ type GuestWithAgreement = GuestRow & {
   payments?: PaymentRow[]
   adjustments?: AdjustmentRow[]
 }
-type TripWithGuests = TripRow & { guests: GuestWithAgreement[]; rooms?: RoomRow[] }
+type TripWithGuests = TripRow & {
+  guests: GuestWithAgreement[]
+  rooms?: RoomRow[]
+  /** The forwarded receipts waiting for an organizer (status 'unmatched'), when the query asked for them. */
+  forwardedReceipts?: ForwardedReceiptRow[]
+  payerAddresses?: PayerAddressRow[]
+}
+
+/** A trip's receipts address and the forwarded receipts waiting for an organizer. */
+export function receiptsOf(
+  row: Pick<TripRow, 'receiptsAddress'>,
+  unmatched: ForwardedReceiptRow[] = [],
+  senders: PayerAddressRow[] = []
+): TripReceipts {
+  return {
+    address: row.receiptsAddress,
+    email: receiptsEmail(row.receiptsAddress),
+    domain: receiptsDomain(),
+    on: !!receiptsConfig(),
+    unmatched: unmatched
+      .filter((r) => r.status === 'unmatched')
+      .map((r): ForwardedReceiptItem => ({
+        id: r.id,
+        receivedAt: r.receivedAt.toISOString(),
+        fromAddress: r.fromAddress,
+        subject: r.subject,
+        reason: r.reason ?? '',
+        amountCents: r.amountCents,
+        payerName: r.payerName,
+        methodKind: r.methodKind as ForwardedReceiptItem['methodKind'],
+        sentOn: r.sentOn,
+        excerpt: r.excerpt,
+        suggestedGuestId: r.suggestedGuestId,
+        fromStranger: r.reason === FROM_STRANGER && !!r.fromAddress,
+      })),
+    senders: senders.map((p) => ({ id: p.id, guestId: p.guestId, address: p.address })),
+  }
+}
 
 /** What the public page gets of a guest (public_trip_guests): a status, and a name only once approved. */
 export type PublicGuestRow = { status: string; firstName: string | null; lastName: string | null }
@@ -257,6 +300,7 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
     guests: row.guests.map((g) => toGuest(g, row.guests)),
+    receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,
   }
