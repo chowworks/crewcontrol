@@ -17,20 +17,23 @@ export function Field({
   label,
   hint,
   children,
+  as: Tag = 'label',
 }: {
   label: string
   /** A short line under the label; give every field in a row one, so their boxes line up. */
   hint?: string
   children: ReactNode
+  /** 'div' around a control that is a button (a Dropdown), which a label would click again. */
+  as?: 'label' | 'div'
 }) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm font-semibold">
+    <Tag className="flex flex-col gap-1.5 text-sm font-semibold">
       <span>
         {label}
         {hint && <span className="block font-normal text-muted">{hint}</span>}
       </span>
       {children}
-    </label>
+    </Tag>
   )
 }
 

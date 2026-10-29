@@ -68,7 +68,7 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
               {money(trip.costPerPersonCents)}
             </div>
             <p className="text-[15px] text-body">
-              {installmentLine(trip.costPerPersonCents, trip.installmentCount)}
+              {installmentLine(trip.paymentPlan)}
               {trip.joinMode === 'accept_first'
                 ? ' You pay once you’re accepted.'
                 : ' The first one holds your spot.'}

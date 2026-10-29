@@ -1,10 +1,11 @@
-import type { Guest, TripRoom } from '@cc/types'
+import { paymentPlan, type Guest, type TripRoom } from '@cc/types'
 import { useEffect, useMemo, useState } from 'react'
+import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { Card, Field, field, Money, Stat } from '@/components/EditorParts'
 import { money, shortDate } from '@/lib/format'
-import { PRICING_METHODS, paymentSchedule, priceRooms, type PricingMethod } from '@/lib/pricing'
+import { PRICING_METHODS, priceRooms, spreadDates, type PricingMethod } from '@/lib/pricing'
 
-// The price per person and payment schedule simulator (step 4 of the trip editor). Its money inputs (the lease total,
+// The price per person simulator and payment plan (step 4 of the trip editor). Its money inputs (the lease total,
 // what the organizer fronted) stay in this browser only, never on the server: they are the organizer's working
 // numbers, not the trip's.
 
@@ -16,8 +17,6 @@ interface Sim {
   method: PricingMethod
   /** People per room, by room (its id, or "new:<name>" before it's saved). Missing means full. */
   occupants: Record<string, number>
-  firstDue: string
-  deposit: string
 }
 
 const cents = (dollars: string) => Math.round((Number(dollars.replace(/[$,\s]/g, '')) || 0) * 100)
@@ -43,8 +42,9 @@ function occupantsFor(r: TripRoom | undefined, occupants: Record<string, number>
 }
 
 /**
- * Price per person and Payment schedule, worked out from the trip's rooms. The price guests see and the number of
- * installments are the trip's own (saved with it); the rest is the organizer's working numbers.
+ * Price per person, worked out from the trip's rooms, and the Payment plan guests sign. The price guests see and the
+ * plan (payments, due dates, split, reminders) are the trip's own, saved with it; the rest is the organizer's working
+ * numbers.
  */
 export function PriceSimulator({
   tripId,
@@ -55,6 +55,12 @@ export function PriceSimulator({
   onCost,
   installments,
   onInstallments,
+  dueDates,
+  onDueDates,
+  firstPaymentCents,
+  onFirstPayment,
+  reminderDays,
+  onReminderDays,
 }: {
   tripId: string
   rooms: TripRoom[]
@@ -64,6 +70,12 @@ export function PriceSimulator({
   onCost: (cents: number) => void
   installments: number
   onInstallments: (n: number) => void
+  dueDates: string[]
+  onDueDates: (dates: string[]) => void
+  firstPaymentCents: number | null
+  onFirstPayment: (cents: number | null) => void
+  reminderDays: number | null
+  onReminderDays: (days: number | null) => void
 }) {
   const id = tripId
   const [sim, setSim] = useState<Sim>(() => ({
@@ -73,8 +85,6 @@ export function PriceSimulator({
     fronted: '',
     method: 'hybrid',
     occupants: {},
-    firstDue: '',
-    deposit: '300',
     ...loadSim(id),
   }))
 
@@ -107,34 +117,39 @@ export function PriceSimulator({
     [rooms, sim]
   )
 
-  const schedules = useMemo(
-    () =>
-      sim.firstDue
-        ? pricing.rooms
-            .filter((r) => r.occupants > 0)
-            .map((r) => ({
-              ...r,
-              installments: paymentSchedule({
-                perPersonCents: r.perPersonCents,
-                installments: Math.min(24, Math.max(1, installments)),
-                firstDue: sim.firstDue,
-                depositCents: cents(sim.deposit),
-              }),
-            }))
-        : [],
-    [pricing, sim, installments]
+  // The plan guests sign, from the price they see; what the organizer collects with everyone in the rooms above.
+  const plan = useMemo(
+    () => paymentPlan(costCents, installments, firstPaymentCents, dueDates),
+    [costCents, installments, firstPaymentCents, dueDates]
   )
-
-  // What the organizer has collected after each due date, against what they fronted.
   const cash = useMemo(() => {
-    if (!schedules.length) return []
     let total = 0
-    return schedules[0].installments.map((inst, k) => {
-      const due = schedules.reduce((n, s) => n + s.installments[k].amountCents * s.occupants, 0)
+    return plan.map((p) => {
+      const due = p.amountCents * pricing.people
       total += due
-      return { date: inst.date, due, total }
+      return { date: p.dueOn, amount: p.amountCents, due, total }
     })
-  }, [schedules])
+  }, [plan, pricing.people])
+
+  // What the organizer collects shows only once the rooms above have people in them.
+  const counting = pricing.people > 0
+  const cols = counting ? 'sm:grid-cols-[1fr_1fr_1fr_1fr]' : 'sm:grid-cols-[1fr_1fr]'
+
+  // The first and last due dates; until both are set (with more than one payment), they wait here unsaved.
+  const [ends, setEnds] = useState({ first: '', last: '' })
+  const first = dueDates[0] ?? ends.first
+  const last =
+    installments > 1 ? (dueDates.length > 1 ? dueDates[dueDates.length - 1] : ends.last) : first
+  function changeEnds(f: string, l: string, n = installments) {
+    setEnds({ first: f, last: l })
+    if (n === 1) onDueDates(f ? [f] : [])
+    else onDueDates(f && l && f <= l ? spreadDates(f, l, n) : [])
+  }
+  function changeCount(n: number) {
+    onInstallments(n)
+    changeEnds(first, installments === 1 ? ends.last : last, n)
+  }
+
   // What each person pays on average at these prices, rounded to the dollar: a starting point for the price shown.
   const average =
     pricing.people > 0 ? Math.round(pricing.collectedCents / pricing.people / 100) * 100 : 0
@@ -159,12 +174,12 @@ export function PriceSimulator({
               Enter what the trip costs: the rent, shared fees, and anything you cover yourself.
             </li>
             <li>Pick how to split it. The rooms from step 3 set each room&apos;s share.</li>
-            <li>Set the price guests see, then the payment schedule.</li>
+            <li>Set the price guests see, then the payment plan.</li>
           </ol>
           <p className="mt-1 text-sm">
-            Only the price guests see and the number of installments are saved to the trip. The rest
-            is your working numbers, kept in this browser. Guests pay you directly; Travel HQ never
-            handles the money.
+            The price guests see and the payment plan are saved to the trip, and go into the
+            agreement guests sign. The rest is your working numbers, kept in this browser. Guests
+            pay you directly; Travel HQ never handles the money.
           </p>
         </div>
       </div>
@@ -320,9 +335,13 @@ export function PriceSimulator({
         </div>
       </Card>
 
-      <Card title="Payment schedule">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Field label="Installments">
+      <Card title="Payment plan">
+        <p className="text-body">
+          The plan every guest signs: what they pay, and by when. Changing it later applies to new
+          sign-ups only; guests who already signed keep the plan they agreed to.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Payments" hint="1 to 24">
             <input
               className={field}
               type="number"
@@ -330,84 +349,173 @@ export function PriceSimulator({
               max={24}
               value={installments}
               onChange={(e) =>
-                onInstallments(Math.min(24, Math.max(1, Math.round(Number(e.target.value) || 1))))
+                changeCount(Math.min(24, Math.max(1, Math.round(Number(e.target.value) || 1))))
               }
             />
           </Field>
-          <Field label="First one due">
+          <Field
+            label={installments === 1 ? 'Due by' : 'First one due'}
+            hint={installments === 1 ? 'The whole price' : 'Payment 1'}
+          >
             <input
               className={field}
               type="date"
-              value={sim.firstDue}
-              onChange={(e) => set('firstDue', e.target.value)}
+              value={first}
+              onChange={(e) => changeEnds(e.target.value, last)}
             />
           </Field>
-          <Field label="First installment">
-            <Money value={sim.deposit} onChange={(v) => set('deposit', v)} />
+          {installments > 1 && (
+            <Field label="Last one due" hint="The ones between are spaced evenly">
+              <input
+                className={field}
+                type="date"
+                value={last}
+                onChange={(e) => changeEnds(first, e.target.value)}
+              />
+            </Field>
+          )}
+        </div>
+        {first && last && installments > 1 && first > last && (
+          <p role="alert" className="text-sm font-semibold text-[#B42318]">
+            The last payment can’t be due before the first.
+          </p>
+        )}
+        {installments > 1 && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              as="div"
+              label="How to split it"
+              hint="Even split unless the first payment holds the spot"
+            >
+              <Dropdown
+                label="How to split it"
+                value={firstPaymentCents === null ? 'even' : 'first'}
+                options={[
+                  { value: 'even', label: 'Even split' },
+                  { value: 'first', label: 'First payment holds the spot' },
+                ]}
+                onChange={(v) =>
+                  onFirstPayment(v === 'even' ? null : Math.min(costCents, 30000) || null)
+                }
+              />
+            </Field>
+            {firstPaymentCents !== null && (
+              <Field label="First payment" hint="The rest is split evenly">
+                <Money
+                  value={String(firstPaymentCents / 100)}
+                  onChange={(v) => onFirstPayment(cents(v) || null)}
+                />
+                {firstPaymentCents > costCents && (
+                  <span role="alert" className="font-semibold text-[#B42318]">
+                    More than the price, {money(costCents)}.
+                  </span>
+                )}
+              </Field>
+            )}
+          </div>
+        )}
+
+        {costCents === 0 ? (
+          <p className="rounded-xl bg-ground p-4 text-body">
+            Set the price guests see above to see the plan.
+          </p>
+        ) : (
+          <ol className="flex flex-col">
+            <li className={`hidden gap-3 pb-2 text-sm font-semibold text-muted sm:grid ${cols}`}>
+              <span>Due by</span>
+              <span className="text-right">Each guest pays</span>
+              {counting && <span className="text-right">You collect</span>}
+              {counting && <span className="text-right">Running total</span>}
+            </li>
+            {cash.map((c, k) => (
+              <li
+                key={k}
+                className={`grid grid-cols-2 items-center gap-x-3 gap-y-1 border-t border-rule py-2.5 ${cols}`}
+              >
+                <span className="col-span-2 flex flex-col gap-1 sm:col-span-1">
+                  <span className="text-sm font-semibold">
+                    Payment {k + 1} of {plan.length}
+                  </span>
+                  {dueDates.length === plan.length ? (
+                    <input
+                      className={field}
+                      type="date"
+                      aria-label={`Payment ${k + 1} due by`}
+                      value={dueDates[k]}
+                      onChange={(e) =>
+                        e.target.value &&
+                        onDueDates(dueDates.map((d, j) => (j === k ? e.target.value : d)))
+                      }
+                    />
+                  ) : (
+                    <span className="text-sm text-muted">No date yet</span>
+                  )}
+                  {k > 0 && dueDates[k] && dueDates[k] < dueDates[k - 1] && (
+                    <span role="alert" className="text-sm font-semibold text-[#B42318]">
+                      Before payment {k}’s date.
+                    </span>
+                  )}
+                </span>
+                <span className="font-semibold sm:text-right">
+                  <span className="block text-sm font-normal text-muted sm:hidden">
+                    Each guest pays
+                  </span>
+                  {money(c.amount)}
+                </span>
+                {counting && (
+                  <span className="text-right">
+                    <span className="block text-sm text-muted sm:hidden">
+                      You collect, {pricing.people} going
+                    </span>
+                    {money(c.due)}
+                  </span>
+                )}
+                {counting && (
+                  <span
+                    className={`hidden text-right font-semibold sm:block ${
+                      fronted > 0 && c.total >= fronted ? 'text-royal' : ''
+                    }`}
+                  >
+                    {money(c.total)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {startDate && dueDates.length > 0 && dueDates[dueDates.length - 1] > startDate && (
+          <p className="rounded-xl bg-ground px-4 py-3 text-ink">
+            The last payment falls after the trip starts. Try an earlier last due date.
+          </p>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field as="div" label="Email guests who still owe" hint="A reminder before each due date">
+            <Dropdown
+              label="Email guests who still owe"
+              value={reminderDays}
+              options={REMIND_OPTIONS}
+              onChange={onReminderDays}
+            />
           </Field>
-          <Field label="You've fronted">
+          <Field label="You've fronted" hint="Only you see this">
             <Money value={sim.fronted} onChange={(v) => set('fronted', v)} />
           </Field>
         </div>
-
-        {!sim.firstDue || schedules.length === 0 ? (
-          <p className="rounded-xl bg-ground p-4 text-body">
-            Set the prices above and a first due date to see the schedule.
+        {reminderDays !== null && dueDates.length === 0 && (
+          <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            Reminders go out once the payments have due dates.
           </p>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left">
-                <thead className="text-sm text-muted">
-                  <tr>
-                    <th className="py-2 font-semibold">Due</th>
-                    {schedules.map((s, i) => (
-                      <th key={i} className="py-2 text-right font-semibold">
-                        {s.name}
-                      </th>
-                    ))}
-                    <th className="py-2 text-right font-semibold">You collect</th>
-                    <th className="py-2 text-right font-semibold">Running total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cash.map((c, k) => (
-                    <tr key={c.date} className="border-t border-rule">
-                      <td className="py-2.5 font-semibold">
-                        {shortDate(c.date)}, {c.date.slice(0, 4)}
-                      </td>
-                      {schedules.map((s, i) => (
-                        <td key={i} className="py-2.5 text-right">
-                          {money(s.installments[k].amountCents)}
-                        </td>
-                      ))}
-                      <td className="py-2.5 text-right">{money(c.due)}</td>
-                      <td
-                        className={`py-2.5 text-right font-semibold ${
-                          fronted > 0 && c.total >= fronted ? 'text-royal' : ''
-                        }`}
-                      >
-                        {money(c.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {fronted > 0 && (
-              <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
-                {paidBack
-                  ? `You get back the ${money(fronted)} you fronted by ${shortDate(paidBack.date)}, ${paidBack.date.slice(0, 4)}, if everyone pays on time.`
-                  : `After the last installment you are still ${money(fronted - (cash.at(-1)?.total ?? 0))} short of what you fronted.`}
-              </p>
-            )}
-            {startDate && cash.length > 0 && cash[cash.length - 1].date > startDate && (
-              <p className="rounded-xl bg-ground px-4 py-3 text-ink">
-                The last installment falls after the trip starts. Try fewer installments or an
-                earlier first due date.
-              </p>
-            )}
-          </>
+        )}
+        {fronted > 0 && counting && (
+          <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            {paidBack
+              ? paidBack.date
+                ? `You get back the ${money(fronted)} you fronted by ${shortDate(paidBack.date)}, ${paidBack.date.slice(0, 4)}, if everyone pays on time.`
+                : `You get back the ${money(fronted)} you fronted by payment ${cash.indexOf(paidBack) + 1}, if everyone pays on time.`
+              : `After the last payment you are still ${money(fronted - (cash.at(-1)?.total ?? 0))} short of what you fronted.`}
+          </p>
         )}
       </Card>
     </>

@@ -81,6 +81,10 @@ function service(rows: ReturnType<typeof row>[]) {
       organizerName: 'Chris',
       costPerPersonCents: 1000,
       installmentCount: 2,
+      paymentPlan: [
+        { dueOn: null, amountCents: 500 },
+        { dueOn: null, amountCents: 500 },
+      ],
       joinMode: 'pay_first',
       refundPolicy: 'spot_filled',
       maxGuests: null,
@@ -201,6 +205,7 @@ describe('owed', () => {
     pendingCents: 0,
     adjustmentCents: 0,
     balanceCents: 120000,
+    schedule: [],
   }
 
   it("counts the organizer's adjustments in what's left, and never asks for more than that now", () => {

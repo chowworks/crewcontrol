@@ -36,6 +36,7 @@ const me = (over: Partial<MyGuest>): MyGuest =>
       pendingCents: 0,
       adjustmentCents: 0,
       balanceCents: 110000,
+      schedule: [],
     },
     paymentMethods: [],
     paymentInstructions: '',

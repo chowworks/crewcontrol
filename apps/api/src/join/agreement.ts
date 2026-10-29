@@ -5,9 +5,10 @@ import type {
   GuestTerms,
   JoinMode,
   Payment,
+  PlannedPayment,
   RefundPolicy,
 } from '../trips/trip-types'
-import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER } from '../trips/trip-types'
+import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER, paymentPlan } from '../trips/trip-types'
 
 /**
  * Travel HQ's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
@@ -16,7 +17,7 @@ import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER } from '../trips/trip-types'
  * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-29.2'
+export const TEMPLATE_VERSION = '2026-10-29.3'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -29,6 +30,8 @@ export interface AgreementFacts {
   organizer?: { name: string; email: string } | null
   costPerPersonCents: number
   installmentCount: number
+  /** Each installment's amount and due date, as the trip editor set them (paymentPlan). */
+  paymentPlan: PlannedPayment[]
   joinMode: string
   refundPolicy: string
 }
@@ -98,6 +101,18 @@ function spotTerms(organizer: string, joinMode: JoinMode): string {
     `Signing does not guarantee a spot: ${organizer} accepts who comes. Once ${organizer} accepts you, you pay the ` +
     `first installment the way ${organizer}'s payment instructions say.`
   )
+}
+
+/**
+ * "paid in one payment of $1,200, due by 2027-11-01", or "paid in 3 installments: $400 due by 2027-11-01, $400 due by
+ * 2028-01-01 and $400 due by 2028-03-01" (without "due by" when the trip has no dates).
+ */
+function planText(plan: PlannedPayment[]): string {
+  const one = (p: PlannedPayment) => `${money(p.amountCents)}${p.dueOn ? ` due by ${p.dueOn}` : ''}`
+  if (plan.length <= 1)
+    return `paid in one payment of ${one(plan[0] ?? { dueOn: null, amountCents: 0 })}`
+  const lines = plan.map(one)
+  return `paid in ${plan.length} installments: ${lines.slice(0, -1).join(', ')} and ${lines.at(-1)}`
 }
 
 /** The words that differ from trip to trip; the rest of the agreement is the same for every trip. */
@@ -177,11 +192,8 @@ export function agreementText(trip: AgreementFacts, onBehalf = false): string {
   const name = trip.organizer?.name.trim()
   const email = trip.organizer?.email.trim()
   const aka = [name && name !== o ? `"${o}"` : '', email].filter(Boolean).join(', ')
-  const first = firstInstallmentCents(trip.costPerPersonCents, trip.installmentCount)
-  const plan =
-    trip.installmentCount <= 1
-      ? `paid in one payment of ${money(trip.costPerPersonCents)}`
-      : `paid in ${trip.installmentCount} installments, the first of ${money(first)}`
+  const first = trip.paymentPlan[0]?.amountCents ?? trip.costPerPersonCents
+  const plan = planText(trip.paymentPlan)
   const fill: Fill = {
     o,
     party: `${name || o}${aka ? ` (${aka})` : ''}`,
@@ -289,11 +301,18 @@ export function termsOf(
     startDate: string
     endDate: string
     refundTerms: string
+    /** The plan as signed (PlannedPayment[]); [] on agreements from before plans had dates. */
+    schedule?: unknown
   },
   payments: Pick<Payment, 'status' | 'guestPaymentAmount' | 'receivedPaymentAmount'>[],
   adjustments: Pick<BalanceAdjustment, 'kind' | 'amountCents' | 'removedAt'>[] = []
 ): GuestTerms {
-  const first = firstInstallmentCents(sig.priceCents, sig.installmentCount)
+  const signed = Array.isArray(sig.schedule) ? (sig.schedule as PlannedPayment[]) : []
+  // Agreements from before plans had dates kept no schedule: theirs is the even split, with no dates.
+  const schedule = signed.length
+    ? signed
+    : paymentPlan(sig.priceCents, sig.installmentCount, null, [])
+  const first = schedule[0].amountCents
   const sum = (status: Payment['status'], amount: (p: (typeof payments)[number]) => number) =>
     payments.filter((p) => p.status === status).reduce((n, p) => n + amount(p), 0)
   const paid = sum('confirmed', (p) => p.receivedPaymentAmount ?? 0)
@@ -312,5 +331,6 @@ export function termsOf(
     pendingCents: sum('reported', (p) => p.guestPaymentAmount),
     adjustmentCents: adjusted,
     balanceCents: sig.priceCents + adjusted - paid,
+    schedule,
   }
 }

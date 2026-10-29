@@ -62,6 +62,22 @@ export interface EmailContext {
     dueNow: string
     installmentCount: number
   }
+  /** In a reminder: the key date it's about, and for a payment, what's owed by then. */
+  reminder?: {
+    label: string
+    /** "Jun 12, 2027" */
+    date: string
+    /** "in 7 days", "tomorrow", "today" */
+    when: string
+    paymentDue: boolean
+    /** What the guest owes by the date, after what they paid or reported ("$400"); "" unless a payment is due. */
+    amountDue: string
+  }
+  /**
+   * A reminder's "Stop updates for this trip" link. Not a variable: when it's there the footer always shows it, so no
+   * template can drop it.
+   */
+  stopLink?: string
   /** In the contact form's email to Travel HQ support: who wrote, about what, and their message. */
   contact?: {
     name: string
@@ -93,7 +109,7 @@ export type GuestEmailContext = EmailContext & {
   guest: NonNullable<EmailContext['guest']>
 }
 
-export type VariableGroup = 'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite'
+export type VariableGroup = 'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite' | 'reminder'
 
 export interface Variable {
   path: string
@@ -144,6 +160,13 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'guest.canPay', label: 'Can pay now (yes or no)' },
     { path: 'guest.waitlisted', label: 'On the waitlist (yes or no)' },
     { path: 'guest.room', label: 'Room' },
+  ],
+  reminder: [
+    { path: 'reminder.label', label: 'What happens' },
+    { path: 'reminder.date', label: 'The date' },
+    { path: 'reminder.when', label: 'How soon (like “in 7 days”)' },
+    { path: 'reminder.paymentDue', label: 'A payment is due (yes or no)' },
+    { path: 'reminder.amountDue', label: 'Owed by the date' },
   ],
   contact: [
     { path: 'contact.name', label: 'Their name' },
@@ -359,14 +382,18 @@ export function render(
     trip: Handlebars.escapeExpression(context.invite.tripName),
     by: Handlebars.escapeExpression(context.invite.inviterName),
   }
-  const footer = context.trip
-    ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
-      `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
-      `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
-    : invite
-      ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
-        `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-      : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+  const footer = context.stopLink
+    ? `You’re getting this reminder because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
+      `Don’t want reminders like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
+      `Travel HQ never handles money: you pay ${organizer} directly.`
+    : context.trip
+      ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
+        `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
+        `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
+      : invite
+        ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
+          `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
+        : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

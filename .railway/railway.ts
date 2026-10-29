@@ -78,6 +78,9 @@ export default defineRailway((ctx) => {
         EMAIL_FROM: preserve(),
         // The signing secret of this environment's Resend webhook (bounces and spam complaints), set by hand.
         RESEND_WEBHOOK_SECRET: preserve(),
+        // The developer address every dev email goes to instead, marked as a test that names who it was for
+        // (send-email.ts), set by hand. Unset, dev emails go to whoever they're for. Never set in production.
+        DEV_EMAIL_TO: preserve(),
         // Clerk's secret key for this environment, set by hand in Railway.
         CLERK_SECRET_KEY: preserve(),
       },

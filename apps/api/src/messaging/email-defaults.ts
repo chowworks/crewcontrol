@@ -9,6 +9,8 @@ export interface EmailKind {
   groups: VariableGroup[]
   subject: string
   body: string
+  /** A reminder: optional, so it carries "Stop updates for this trip" in its footer. */
+  stopLink?: true
 }
 
 export const EMAIL_KINDS: EmailKind[] = [
@@ -72,6 +74,38 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>Questions? Reply to this email and it goes to {{invite.inviterName}}.</p>`,
   },
   {
+    kind: 'payment_reminder',
+    name: 'Payment reminder',
+    when: 'To each guest who still owes something by an installment’s due date, the days before it the organizer chose.',
+    groups: ['trip', 'guest', 'paymentDetails', 'reminder'],
+    stopLink: true,
+    subject: '{{reminder.amountDue}} due {{reminder.when}} for {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>A payment for <strong>{{trip.name}}</strong> is due {{reminder.when}}, on {{reminder.date}}. By then, send {{trip.organizerName}} <strong>{{reminder.amountDue}}</strong>.</p>
+{{#if guest.canPay}}
+<p>Send it {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+<ul>
+{{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
+{{/each}}</ul>
+{{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
+<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
+{{/if}}
+<p>So far you've paid {{paymentDetails.paid}} of {{paymentDetails.total}}.</p>
+<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
+    kind: 'date_reminder',
+    name: 'Key date reminder',
+    when: 'To each accepted guest, the days before a key date the organizer chose (book flights, ferry, rental car).',
+    groups: ['trip', 'guest', 'reminder'],
+    stopLink: true,
+    subject: 'Coming up {{reminder.when}}: {{reminder.label}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>A reminder for <strong>{{trip.name}}</strong>: <strong>{{reminder.label}}</strong> is {{reminder.when}}, on {{reminder.date}}.</p>
+<p>Questions? Reply to this email to reach {{trip.organizerName}}.</p>
+<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
@@ -94,7 +128,16 @@ export type PreviewGuest = 'can_pay' | 'not_yet' | 'waitlisted'
 /** The sample for a preview, with only the groups this email has (so a contact email has no trip). */
 export function sampleFor(k: EmailKind, guest: PreviewGuest): EmailContext {
   const all = sampleContext(guest)
-  return Object.fromEntries(k.groups.map((g) => [g, all[g]])) as EmailContext
+  const groups = Object.fromEntries(k.groups.map((g) => [g, all[g]])) as EmailContext
+  // A payment reminder's sample is the second of three payments; any other reminder's, a key date.
+  if (groups.reminder && k.groups.includes('paymentDetails'))
+    groups.reminder = {
+      ...groups.reminder,
+      label: 'Payment 2 of 3',
+      paymentDue: true,
+      amountDue: '$800',
+    }
+  return k.stopLink ? { ...groups, stopLink: all.stopLink } : groups
 }
 
 export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
@@ -132,6 +175,14 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       waitlisted: guest === 'waitlisted',
       room: '',
     },
+    reminder: {
+      label: 'Book your flight',
+      date: 'Feb 1, 2028',
+      when: 'in 1 week',
+      paymentDue: false,
+      amountDue: '',
+    },
+    stopLink: 'https://travel-hq.app/stop/sample',
     contact: {
       name: 'Dana Reyes',
       email: 'dana.reyes@example.com',

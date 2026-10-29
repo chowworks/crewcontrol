@@ -19,6 +19,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { SignInPage } from './pages/SignInPage'
+import { StopUpdatesPage } from './pages/StopUpdatesPage'
 import { TermsPage } from './pages/TermsPage'
 import { TripsPage } from './pages/TripsPage'
 
@@ -40,6 +41,7 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/contact" element={<ContactPage />} />
+      <Route path="/stop/:token" element={<StopUpdatesPage />} />
       <Route path="/t/:slug" element={<GuestTripPage />} />
       <Route
         path="/t/:slug/join"

@@ -19,6 +19,7 @@ import {
   type JoinInput,
   type JoinMode,
   PAYMENT_METHOD_KINDS,
+  REMIND_DAYS,
   type BalanceAdjustmentInput,
   type ExpenseInput,
   type PaymentDecision,
@@ -113,8 +114,47 @@ function paymentMethod(item: Body): PaymentMethod {
   }
 }
 
+/** Days before a date to remind guests: one of REMIND_DAYS, or null for no reminder. */
+function remindDays(body: Body, key: string): number | null {
+  const days = body[key]
+  if (days === undefined || days === null) return null
+  if (!REMIND_DAYS.includes(days as (typeof REMIND_DAYS)[number]))
+    fail(`${key} must be one of ${REMIND_DAYS.join(', ')}`)
+  return days as number
+}
+
 function keyDate(item: Body): TripKeyDate {
-  return { date: date(item, 'date'), label: text(item, 'label', 160) }
+  const d: TripKeyDate = { date: date(item, 'date'), label: text(item, 'label', 160) }
+  // The reminder setting is kept only when set, so a date without one stays as it was.
+  const days = remindDays(item, 'remindDaysBefore')
+  if (days !== null) d.remindDaysBefore = days
+  return d
+}
+
+/** The first payment the organizer set, or null for an even split (and always with one payment). */
+function firstPayment(body: Body, installmentCount: number, priceCents: number): number | null {
+  if (body.firstPaymentCents === undefined || body.firstPaymentCents === null) return null
+  const cents = int(body, 'firstPaymentCents', 1, 100_000_00)
+  if (installmentCount <= 1) return null
+  if (cents > priceCents) fail('The first payment can’t be more than the price')
+  return cents
+}
+
+/** The installments' due dates: none, or one per installment, each on or after the one before. */
+function dueDates(body: Body, installmentCount: number): string[] {
+  const raw = body.paymentDueDates
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) fail('paymentDueDates must be a list')
+  const dates = raw.map((d) =>
+    typeof d === 'string' && DATE.test(d) && !Number.isNaN(Date.parse(d))
+      ? d
+      : fail('Each due date must be a date (YYYY-MM-DD)')
+  )
+  if (dates.length > 0 && dates.length !== installmentCount)
+    fail('Give a due date for each installment')
+  if (dates.some((d, i) => i > 0 && d < dates[i - 1]))
+    fail('Each installment must be due on or after the one before')
+  return dates
 }
 
 /** Checks a trip body from the organizer editor and returns it cleaned up, or throws a 400 naming the problem. */
@@ -124,6 +164,8 @@ export function parseTripInput(raw: unknown): TripInput {
   const startDate = date(body, 'startDate')
   const endDate = date(body, 'endDate')
   if (endDate < startDate) fail('endDate must be on or after startDate')
+  const installmentCount = int(body, 'installmentCount', 1, 24)
+  const costPerPersonCents = int(body, 'costPerPersonCents', 0, 100_000_00)
   const maxGuests =
     body.maxGuests === null || body.maxGuests === undefined ? null : int(body, 'maxGuests', 1, 200)
   const joinMode = body.joinMode === undefined ? 'accept_first' : body.joinMode
@@ -139,8 +181,11 @@ export function parseTripInput(raw: unknown): TripInput {
     endDate,
     organizerName: text(body, 'organizerName', 60),
     description: text(body, 'description', 2000, false),
-    costPerPersonCents: int(body, 'costPerPersonCents', 0, 100_000_00),
-    installmentCount: int(body, 'installmentCount', 1, 24),
+    costPerPersonCents,
+    installmentCount,
+    paymentDueDates: dueDates(body, installmentCount),
+    paymentReminderDays: remindDays(body, 'paymentReminderDays'),
+    firstPaymentCents: firstPayment(body, installmentCount, costPerPersonCents),
     galleryTitle: text(body, 'galleryTitle', 40, false) || 'Photos',
     showGuestNames: bool(body, 'showGuestNames'),
     paymentMethods:

@@ -1,3 +1,5 @@
+import type { PlannedPayment } from '@cc/types'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const LONG_MONTHS = [
   'January',
@@ -46,11 +48,21 @@ export function dateRange(start: string, end: string): string {
 }
 
 /** How the cost is split: "Paid in 4 installments of $300." */
-export function installmentLine(costCents: number, count: number): string {
-  if (count <= 1) return 'Paid in one payment.'
-  const each = Math.floor(costCents / count)
-  const last = costCents - each * (count - 1)
-  return each === last
-    ? `Paid in ${count} installments of ${money(each)}.`
-    : `Paid in ${count} installments of about ${money(each)}.`
+export function installmentLine(plan: PlannedPayment[]): string {
+  const due = (p: PlannedPayment | undefined) =>
+    p?.dueOn ? `${shortDate(p.dueOn)}, ${p.dueOn.slice(0, 4)}` : null
+  if (plan.length <= 1) {
+    const by = due(plan[0])
+    return by ? `Paid in one payment, due by ${by}.` : 'Paid in one payment.'
+  }
+  const [first, second] = plan
+  const last = plan[plan.length - 1]
+  const about = last.amountCents === second.amountCents ? '' : 'about '
+  const rest = plan.length - 1
+  const line =
+    first.amountCents === second.amountCents
+      ? `Paid in ${plan.length} installments of ${about}${money(second.amountCents)}`
+      : `${money(first.amountCents)} first, then ${rest} installment${rest === 1 ? '' : 's'} of ${about}${money(second.amountCents)}`
+  const by = due(last)
+  return by ? `${line}, the last due by ${by}.` : `${line}.`
 }

@@ -28,7 +28,9 @@ import {
   type PublicTerms,
   type PublicTrip,
   type SignedAgreement,
+  type StopUpdatesView,
   type SystemSettings,
+  type TripReminders,
   type TripInput,
   type TripLogEntry,
   type TripPeople,
@@ -194,6 +196,11 @@ export const api = {
   seatOnTrip: (id: string, asOwner = false) =>
     request<void>(`/admin/trips/${id}/seat`, json('POST', { asOwner })),
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
+  // Trip Control's Reminders section, and the "Stop updates for this trip" link in each reminder.
+  getReminders: (id: string) => request<TripReminders>(`/trips/${id}/reminders`),
+  getStopUpdates: (token: string) => request<StopUpdatesView>(`/public/stop-updates/${token}`),
+  setStopUpdates: (token: string, stopped: boolean) =>
+    request<StopUpdatesView>(`/public/stop-updates/${token}`, json('POST', { stopped })),
   sendContact: (input: ContactInput) => request<void>('/contact', json('POST', input)),
   // Travel HQ's own Terms: the documents (public), and the signed-in person's acceptances.
   getTerms: () => request<PublicTerms>('/public/terms'),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, paymentSchedule, priceRooms, type PricingRoom } from './pricing'
+import { priceRooms, spreadDates, type PricingRoom } from './pricing'
 
 // A made-up house: total $22,611.34, of which $2,150 is shared fees.
 const rooms: PricingRoom[] = [
@@ -68,35 +68,29 @@ describe('priceRooms', () => {
   })
 })
 
-describe('paymentSchedule', () => {
-  it('takes the deposit first, then splits the rest, with rounding on the last', () => {
-    expect(
-      paymentSchedule({
-        perPersonCents: 188_400,
-        installments: 4,
-        firstDue: '2026-11-01',
-        depositCents: 30_000,
-      })
-    ).toEqual([
-      { date: '2026-11-01', amountCents: 30_000 },
-      { date: '2026-12-01', amountCents: 52_800 },
-      { date: '2027-01-01', amountCents: 52_800 },
-      { date: '2027-02-01', amountCents: 52_800 },
-    ])
-  })
+describe('spreadDates', () => {
+  it('keeps the same day of the month when the months divide evenly', () =>
+    expect(spreadDates('2026-11-01', '2027-05-01', 4)).toEqual([
+      '2026-11-01',
+      '2027-01-01',
+      '2027-03-01',
+      '2027-05-01',
+    ]))
 
-  it('splits evenly with no deposit and adds up exactly', () => {
-    const s = paymentSchedule({
-      perPersonCents: 100_001,
-      installments: 3,
-      firstDue: '2027-01-31',
-      depositCents: 0,
-    })
-    expect(s.map((x) => x.amountCents)).toEqual([33_333, 33_333, 33_335])
-    expect(s.map((x) => x.date)).toEqual(['2027-01-31', '2027-02-28', '2027-03-31'])
-  })
-})
+  it('clamps to the end of a shorter month', () =>
+    expect(spreadDates('2027-01-31', '2027-03-31', 3)).toEqual([
+      '2027-01-31',
+      '2027-02-28',
+      '2027-03-31',
+    ]))
 
-describe('addMonths', () => {
-  it('crosses years', () => expect(addMonths('2026-12-15', 2)).toBe('2027-02-15'))
+  it('otherwise spaces by days', () =>
+    expect(spreadDates('2027-01-01', '2027-01-20', 3)).toEqual([
+      '2027-01-01',
+      '2027-01-11',
+      '2027-01-20',
+    ]))
+
+  it('gives one date for one payment', () =>
+    expect(spreadDates('2027-01-01', '2027-02-01', 1)).toEqual(['2027-01-01']))
 })

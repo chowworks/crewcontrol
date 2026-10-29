@@ -8,6 +8,7 @@ import { join, relative } from 'node:path'
  */
 const TRUSTED_CALL_SITES = [
   'messaging/resend-webhook.controller.ts', // Resend's signed notice that a guest's email bounced or was marked spam
+  'reminders/reminders.service.ts', // the hourly reminder run reads every trip; a stop link names a guest by its secret
   'trips/people.service.ts', // an invite turned into the membership of the person it was for, when they sign in
   'trips/trips.service.ts', // a new trip and its owner row, as one step
 ]
