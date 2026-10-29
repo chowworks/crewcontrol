@@ -76,6 +76,8 @@ export default defineRailway((ctx) => {
         // uses its own Resend account, so EMAIL_FROM is an address on a domain verified there, set by hand too.
         RESEND_API_KEY: preserve(),
         EMAIL_FROM: preserve(),
+        // The signing secret of this environment's Resend webhook (bounces and spam complaints), set by hand.
+        RESEND_WEBHOOK_SECRET: preserve(),
         // Clerk's secret key for this environment, set by hand in Railway.
         CLERK_SECRET_KEY: preserve(),
       },
@@ -111,6 +113,7 @@ export default defineRailway((ctx) => {
       // Production's own Resend account, with travel-hq.app verified there.
       RESEND_API_KEY: preserve(),
       EMAIL_FROM: 'Travel HQ <trips@travel-hq.app>',
+      RESEND_WEBHOOK_SECRET: preserve(),
       CLERK_SECRET_KEY: preserve(),
     },
   })
