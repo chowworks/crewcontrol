@@ -50,6 +50,8 @@ export function htmlToText(html: string): string {
       }
       return ENTITIES[e.toLowerCase()] ?? m
     })
+    // No angle brackets survive, whether from a broken tag or an encoded one: it is only ever read as text.
+    .replace(/[<>]/g, ' ')
 }
 
 /** The email's text, one trimmed line per line, blank lines dropped: the text part, else the HTML made plain. */
