@@ -12,6 +12,7 @@ import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
 import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
+import { EmailsService } from '../messaging/emails.service'
 import {
   toOrganizerTrip,
   toPublicTrip,
@@ -77,7 +78,8 @@ function data(input: TripInput) {
 export class TripsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly clerk: ClerkService
+    private readonly clerk: ClerkService,
+    private readonly emails: EmailsService
   ) {}
 
   /** The system settings (one row), as the Admin toolbox's System Settings shows them. */
@@ -606,7 +608,36 @@ export class TripsService {
         guest.phone,
         `The spot ${trip.organizerName} offered you on ${trip.name} was taken back. You're still on the waitlist.`
       )
-    return this.get(id, caller)
+    const after = await this.get(id, caller)
+    // On an accept-first trip, accepting is when the guest learns how to pay: the "accepted" email (issue #12), whose
+    // wording the admin edits on the Emails page. On the other two they already knew, having paid first.
+    if (trip.joinMode === 'accept_first' && status === 'approved' && guest.status !== 'approved')
+      await this.sendAccepted(after, guestId)
+    return after
+  }
+
+  /** The "accepted" email to a guest, built from Trip Control's data as their join page would show it. */
+  private async sendAccepted(trip: OrganizerTrip, guestId: string): Promise<void> {
+    const me = trip.guests.find((g) => g.id === guestId)
+    if (!me) return
+    const room = me.roomId
+      ? await this.prisma.room.findFirst({
+          where: { id: me.roomId },
+          select: { id: true, name: true },
+        })
+      : null
+    await this.emails.sendToGuest(
+      'accepted',
+      { trip: { ...trip, rooms: room ? [room] : [] }, me },
+      {
+        email: me.email,
+        phone: me.phone,
+        paymentMethods: trip.paymentMethods,
+        paymentInstructions: trip.paymentInstructions,
+        replyTo: (await this.organizerContact(trip.id))?.email || undefined,
+      },
+      (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
+    )
   }
 
   /**

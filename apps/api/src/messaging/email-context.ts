@@ -4,6 +4,7 @@ import {
   PAYMENT_METHOD_KINDS,
   totalDueCents,
   type JoinView,
+  type MyGuest,
   type PaymentMethod,
 } from '../trips/trip-types'
 import type { GuestEmailContext } from './email-template'
@@ -46,8 +47,34 @@ export interface GuestFacts {
   replyTo?: string
 }
 
+/**
+ * What an email to a guest uses of their join page's view: the trip and their own place on it. An organizer's step
+ * (accepting a guest) builds the same from Trip Control's data.
+ */
+export interface GuestEmailView {
+  trip: Pick<
+    JoinView['trip'],
+    | 'slug'
+    | 'name'
+    | 'destination'
+    | 'startDate'
+    | 'endDate'
+    | 'organizerName'
+    | 'description'
+    | 'costPerPersonCents'
+    | 'installmentCount'
+    | 'highlights'
+    | 'keyDates'
+    | 'joinMode'
+  > & { rooms: { id: string; name: string }[] }
+  me: Pick<
+    MyGuest,
+    'firstName' | 'lastName' | 'status' | 'roomId' | 'waitlistedAt' | 'offeredAt' | 'terms'
+  > | null
+}
+
 export function guestEmailContext(
-  view: JoinView,
+  view: GuestEmailView,
   facts: GuestFacts,
   webUrl: string
 ): GuestEmailContext {

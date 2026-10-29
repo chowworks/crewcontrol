@@ -72,7 +72,11 @@ export function ControlPanelPage() {
       toast({ text: `Offer to ${name} withdrawn. They’re back on the waitlist.` })
     else if (update.status === 'approved' && guest.status !== 'approved')
       toast({
-        text: `${name} is on the trip.`,
+        // An accept-first guest is emailed how to pay as they're accepted; Undo can't take that back.
+        text:
+          trip?.joinMode === 'accept_first'
+            ? `${name} is on the trip. We emailed them how to pay.`
+            : `${name} is on the trip.`,
         action: { label: 'Undo', onClick: () => void updateGuest(guest, { status: 'interested' }) },
       })
     else if (update.status === 'declined') toast({ text: `${name} was turned down.` })
