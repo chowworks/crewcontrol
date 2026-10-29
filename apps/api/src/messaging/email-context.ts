@@ -66,6 +66,7 @@ export interface GuestEmailView {
     | 'highlights'
     | 'keyDates'
     | 'joinMode'
+    | 'refundPolicy'
   > & { rooms: { id: string; name: string }[] }
   me: Pick<
     MyGuest,
@@ -82,6 +83,8 @@ export function guestEmailContext(
   if (!me) throw new Error('An email to a guest needs a guest who joined')
   const terms = me.terms
   const left = terms ? owed(terms) : null
+  const plan = terms?.schedule ?? []
+  const hasDeposit = plan.length > 1 && plan[0].amountCents !== plan[1].amountCents
   return {
     trip: {
       name: trip.name,
@@ -130,6 +133,9 @@ export function guestEmailContext(
                 : `${terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(terms.adjustmentCents))}`,
             total: money(totalDueCents(terms)),
             firstPayment: money(terms.firstInstallmentCents),
+            // A deposit: the signed plan's first payment differs from the rest ("Deposit first").
+            deposit: hasDeposit,
+            depositKept: hasDeposit && trip.refundPolicy === 'first_payment_kept',
             paid: money(terms.paidCents),
             pending: money(terms.pendingCents),
             left: money(left.left),

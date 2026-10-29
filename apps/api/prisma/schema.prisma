@@ -93,50 +93,53 @@ model TripMember {
 // Someone joining a trip. They sign in, sign the agreement and pay the organizer; then the organizer accepts them
 // (or, on a first come, first served trip, confirming their payment does).
 model Guest {
-  id               String              @id @default(cuid())
-  tripId           String
+  id                    String              @id @default(cuid())
+  tripId                String
   // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in, and for a
   // traveler someone else signed up until that traveler signs in themselves (claim_managed_guest).
-  userId           String?
+  userId                String?
   // Whose account signed this traveler up and looks after them (a parent, a friend paying for a roommate), when it
   // wasn't the traveler (migration 20261028050000_responsible_party). Organizers can change it.
-  managedByUserId  String?
+  managedByUserId       String?
   // Emails to them bounced or they marked one as spam (Resend's webhook, migration 20261029040000_email_problems):
   // 'bounced' | 'complained', cleared when an organizer fixes the address or says they've seen it.
-  emailProblem     String?
-  emailProblemAt   DateTime?
-  firstName        String
-  lastName         String
-  email            String
-  phone            String
-  status           String              @default("interested") // 'interested' | 'approved' | 'declined'
-  createdAt        DateTime            @default(now())
+  emailProblem          String?
+  emailProblemAt        DateTime?
+  firstName             String
+  lastName              String
+  email                 String
+  phone                 String
+  status                String              @default("interested") // 'interested' | 'approved' | 'declined'
+  createdAt             DateTime            @default(now())
   // When the payments the organizer confirmed first added up to the first payment the guest's agreement asked for
   // (kept by the database from Payment, migration 20261025010000_payment_log). On a first come, first served trip
   // spots go in this order.
-  spotPaidAt       DateTime?
+  spotPaidAt            DateTime?
   // When they joined onto the waitlist (the trip was full), and when an organizer offered them a spot that opened
   // (migration 20261026020000_waitlist). Waitlisted and not offered: no way to pay shown, and no payment taken.
-  waitlistedAt     DateTime?
-  offeredAt        DateTime?
+  waitlistedAt          DateTime?
+  offeredAt             DateTime?
   // When the organizer, turning a paid guest down, said the refund went out. Records it; moves no money.
-  refundSentAt     DateTime?
+  refundSentAt          DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
-  roomId           String?
-  roomNote         String              @default("")
+  roomId                String?
+  roomNote              String              @default("")
   // When the guest pressed "Stop updates for this trip" in a reminder email (migration 20261029060000_reminders):
   // reminders skip them. Trip business emails (signing, being accepted) still go.
-  updatesStoppedAt DateTime?
+  updatesStoppedAt      DateTime?
   // The guest's own secret in that link; it names this guest row and nothing else.
-  updatesToken     String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
-  room             Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  trip             Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  agreement        AgreementSignature?
-  events           GuestEvent[]
-  payments         Payment[]
-  adjustments      BalanceAdjustment[]
-  payerAddresses   PayerAddress[]
-  reminderSends    ReminderSend[]
+  updatesToken          String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  // The room price the difference from the signed price was last settled at, as a credit or charge or left alone
+  // (migration 20261029070000_room_prices); null: never.
+  roomPriceSettledCents Int?
+  room                  Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  trip                  Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  agreement             AgreementSignature?
+  events                GuestEvent[]
+  payments              Payment[]
+  adjustments           BalanceAdjustment[]
+  payerAddresses        PayerAddress[]
+  reminderSends         ReminderSend[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -300,18 +303,20 @@ model Payment {
 
 // A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.
 model Room {
-  id        String   @id @default(cuid())
-  tripId    String
-  position  Int
-  name      String
-  beds      String   @default("")
-  capacity  Int
-  weight    Float    @default(1)
+  id         String   @id @default(cuid())
+  tripId     String
+  position   Int
+  name       String
+  beds       String   @default("")
+  capacity   Int
+  weight     Float    @default(1)
   // The beds in it, in order (BED_TYPES), for the room pictures guests choose from.
-  bedTypes  String[] @default([])
+  bedTypes   String[] @default([])
   // The fewest people the room is priced for. Fewer than this and they pay for the empty places too.
-  minPeople Int      @default(1)
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  minPeople  Int      @default(1)
+  // What a guest in this room pays, per person; null: the trip's price (migration 20261029070000_room_prices).
+  priceCents Int?
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   guests Guest[]
 

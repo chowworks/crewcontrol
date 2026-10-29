@@ -108,6 +108,7 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: '',
       vendorCosts: false,
+      roomPricing: 'same',
       confirmReceipts: false,
     })
   })
@@ -119,13 +120,18 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: 'Bring a towel',
       vendorCosts: false,
+      roomPricing: 'same',
       confirmReceipts: false,
     })
+    expect(
+      parseTripInput({ ...valid, options: { roomPricing: 'weights' } }).options.roomPricing
+    ).toBe('weights')
   })
 
   it.each([
     ['a non-object', 'yes'],
     ['a non-boolean flag', { roomChoice: 'on' }],
+    ['an unknown way to price rooms', { roomPricing: 'guess' }],
   ])('rejects %s', (_label, options) => {
     expect(() => parseTripInput({ ...valid, options })).toThrow(BadRequestException)
   })

@@ -89,6 +89,7 @@ function service(rows: ReturnType<typeof row>[]) {
       refundPolicy: 'spot_filled',
       maxGuests: null,
       spotsTaken: 0,
+      rooms: [],
     })),
   }
   const terms = { status: jest.fn(async () => ({ accepted: true, version: 'v' })) }

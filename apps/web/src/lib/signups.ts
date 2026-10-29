@@ -26,7 +26,7 @@ export function defaultSignupNote(organizerName: string, joinMode: JoinMode): st
   const o = organizerName || 'the host'
   return joinMode === 'accept_first'
     ? `Sign the trip agreement, and once ${o} accepts you, you’re on your way.`
-    : 'Sign the trip agreement, pay your first installment, and you’re on your way.'
+    : 'Sign the trip agreement, make your first payment, and you’re on your way.'
 }
 
 // The waitlist and when joining goes to it: shared with the API (packages/types).

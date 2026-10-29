@@ -1,4 +1,5 @@
-import type { PublicTrip } from '@cc/types'
+import { roomsPricedApart, type PublicTrip } from '@cc/types'
+import { RoomCard } from '@/components/RoomCard'
 import { CalendarDays, MapPin } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -17,6 +18,15 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
   // A full trip keeps taking sign-ups onto its waitlist, where nobody is asked to send money.
   const full = trip.waitlisting
+  // Rooms priced apart (issue #30): the trip shows its cheapest room's price, "From $X".
+  const apart = roomsPricedApart(trip.rooms, trip.costPerPersonCents)
+  const cheapest = apart
+    ? [...trip.rooms].sort((a, b) => a.priceCents - b.priceCents)[0]
+    : undefined
+  // A deposit: the organizer set a first payment different from the rest ("Deposit first").
+  const plan = cheapest?.paymentPlan ?? trip.paymentPlan
+  const deposit = plan.length > 1 && plan[0].amountCents !== plan[1].amountCents
+  const keptDeposit = deposit && trip.refundPolicy === 'first_payment_kept'
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -65,13 +75,17 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
           <div className="flex flex-col gap-3.5 rounded-2xl bg-white p-6 shadow-card">
             <div className="text-sm font-semibold text-muted">Cost per person</div>
             <div className="font-display text-[44px] font-extrabold leading-none">
-              {money(trip.costPerPersonCents)}
+              {apart && <span className="text-2xl">From </span>}
+              {money(cheapest?.priceCents ?? trip.costPerPersonCents)}
             </div>
             <p className="text-[15px] text-body">
-              {installmentLine(trip.paymentPlan)}
+              {apart && 'Each room has its own price; you pick yours when you join. '}
+              {installmentLine(plan)}
               {trip.joinMode === 'accept_first'
                 ? ' You pay once you’re accepted.'
-                : ' The first one holds your spot.'}
+                : deposit
+                  ? ` Your deposit saves your spot${keptDeposit ? ' and isn’t refundable' : ''}.`
+                  : ' Your first payment saves your spot.'}
             </p>
             <p className="rounded-[10px] bg-royal-pale px-3 py-2.5 text-sm text-body">
               {trip.joinMode === 'first_come'
@@ -107,6 +121,18 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
                   {h.detail && <div className="text-sm text-muted">{h.detail}</div>}
                 </div>
               ))}
+            </section>
+          )}
+
+          {trip.options.roomChoice && trip.rooms.length > 0 && (
+            <section className="flex flex-col gap-3.5">
+              <h2 className={h2}>Rooms</h2>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+                {trip.rooms.map((r) => (
+                  <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
+                ))}
+              </div>
+              <p className="text-sm text-muted">You pick your room when you join.</p>
             </section>
           )}
 

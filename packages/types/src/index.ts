@@ -159,6 +159,11 @@ export interface Guest {
   managedBy: { guestId: string | null; name: string } | null
   /** Emails to them bounced, or they marked one as spam (Resend tells the API); null when nothing's wrong. */
   emailProblem: 'bounced' | 'complained' | null
+  /**
+   * What their room costs beyond the price they signed, not yet settled (issue #30): above zero their room costs
+   * more, below zero less. The organizer settles it as a charge or credit, or leaves it; nothing changes on its own.
+   */
+  roomPriceDiffCents: number
 }
 
 /** What a guest's signed agreement holds them and the organizer to. Trip changes after signing never touch it. */
@@ -193,8 +198,9 @@ export interface PlannedPayment {
 
 /**
  * A trip's payment plan for a price: `count` installments, the first `firstPaymentCents` when the organizer set one
- * (never more than the price) or an even share, the rest split evenly with any odd cents on the last, each with its
- * due date when the trip has them. The agreement quotes it and the signature keeps it.
+ * (never more than the price) or an even share, the rest split evenly, each with its due date when the trip has them.
+ * Shares are whole dollars, with what's left over on the last payment (owner's decision, 2026-10-29: nobody sends
+ * $466.66). The agreement quotes it and the signature keeps it.
  */
 export function paymentPlan(
   priceCents: number,
@@ -205,8 +211,9 @@ export function paymentPlan(
   const n = Math.max(1, Math.floor(count))
   const due = (i: number) => dueDates[i] ?? null
   if (n === 1) return [{ dueOn: due(0), amountCents: priceCents }]
-  const first = Math.min(priceCents, firstPaymentCents ?? Math.floor(priceCents / n))
-  const each = Math.floor((priceCents - first) / (n - 1))
+  const dollars = (cents: number) => Math.floor(cents / 100) * 100
+  const first = Math.min(priceCents, firstPaymentCents ?? dollars(priceCents / n))
+  const each = dollars((priceCents - first) / (n - 1))
   return Array.from({ length: n }, (_, i) => ({
     dueOn: due(i),
     amountCents: i === 0 ? first : i === n - 1 ? priceCents - first - each * (n - 2) : each,
@@ -453,6 +460,11 @@ export interface TripOptions {
   /** Trip Financials tracks what the organizer pays vendors (issue #16). Organizer-only: never on a guest's page. */
   vendorCosts: boolean
   /**
+   * How the trip's rooms are priced (owner's decision, 2026-10-29): all the same (the trip's price), each its own price
+   * typed per room (a resort), or the trip's cost split by each room's weight in the editor (a house). Organizer-only.
+   */
+  roomPricing: RoomPricing
+  /**
    * A guest's forwarded receipt that names its guest is confirmed as it arrives; off, it waits in Actions for the
    * organizer to confirm (owner's decision, 2026-10-29: it's about how much the organizer trusts the crew). An
    * organizer's own forward is always confirmed. Organizer-only.
@@ -460,16 +472,19 @@ export interface TripOptions {
   confirmReceipts: boolean
 }
 
+export type RoomPricing = 'same' | 'typed' | 'weights'
+
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
   roomRequired: false,
   signupNote: '',
   vendorCosts: false,
+  roomPricing: 'same',
   confirmReceipts: false,
 }
 
 /** The options a guest's page sees: the organizer-only ones left out. */
-export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'confirmReceipts'>
+export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'roomPricing' | 'confirmReceipts'>
 
 export interface TripInput {
   name: string
@@ -571,7 +586,23 @@ export interface TripRoom {
   bedTypes: BedType[]
   /** The fewest people the room is priced for; fewer than this pay for the empty places too. */
   minPeople: number
+  /** What a guest in this room pays, per person (issue #30); null or left out: the trip's price. */
+  priceCents?: number | null
 }
+
+/** What a guest in a room pays: its own price, or the trip's when it has none. */
+export const roomPrice = (room: { priceCents?: number | null } | undefined, tripCents: number) =>
+  room?.priceCents ?? tripCents
+
+/**
+ * Whether any room costs something other than the trip's price. Then guests must pick a room when they join, so they
+ * sign the price of the room they'll be in (owner's decision, 2026-10-29).
+ */
+export const roomsPricedApart = (rooms: { priceCents?: number | null }[], tripCents: number) =>
+  rooms.some((r) => roomPrice(r, tripCents) !== tripCents)
+
+export const ROOMS_PRICED_APART =
+  'Rooms with their own prices need guests to pick a room when they join, so they sign the price of the room they’ll be in.'
 
 export const BED_TYPES = ['king', 'queen', 'double', 'twin', 'daybed', 'sofa-bed', 'bunk'] as const
 export type BedType = (typeof BED_TYPES)[number]
@@ -595,6 +626,9 @@ export interface PublicRoom {
   capacity: number
   minPeople: number
   spotsLeft: number
+  /** What a guest who picks it pays, per person, and the trip's payment plan at that price (issue #30). */
+  priceCents: number
+  paymentPlan: PlannedPayment[]
 }
 
 /** What a signed-in guest sends from the join page: their details, and their signature on the agreement. */
@@ -708,6 +742,15 @@ export interface JoinView {
   claimable: { signedBy: string } | null
   /** Where this person stands with Travel HQ's Terms of Use: the join page asks for them if not accepted. */
   termsOfUse: TermsStatus
+  /**
+   * The agreement for each room priced apart from the trip (issue #30): picking it, the guest signs its price. Rooms
+   * not listed take `agreement` (and `agreementOnBehalf`).
+   */
+  roomAgreements: {
+    roomId: string
+    agreement: AgreementPreview
+    agreementOnBehalf: AgreementPreview
+  }[]
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
@@ -801,6 +844,8 @@ export type GuestAction =
   | { kind: 'refund'; key: string; paidCents: number }
   // Emails to them bounced (fix the address) or they marked one as spam (the organizer just needs to know).
   | { kind: 'email'; key: string; problem: 'bounced' | 'complained' }
+  // Their room costs more or less than the price they signed (issue #30): charge or credit the difference, or leave it.
+  | { kind: 'room_price'; key: string; diffCents: number }
 
 /** Money the organizer confirmed arrived from a guest (refunded payments don't count). */
 export const confirmedCents = (g: Guest): number =>
@@ -865,7 +910,10 @@ export const tripFull = (trip: OrganizerTrip): boolean =>
 /** What the organizer does next for one guest, if anything: the trip's own steps, then an email problem. */
 export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
   const steps = tripSteps(g, trip)
-  return g.emailProblem && g.status !== 'declined'
+  if (g.status === 'declined') return steps
+  if (g.terms && g.roomPriceDiffCents !== 0)
+    steps.push({ kind: 'room_price', key: `${g.id}-room-price`, diffCents: g.roomPriceDiffCents })
+  return g.emailProblem
     ? [...steps, { kind: 'email', key: `${g.id}-email`, problem: g.emailProblem }]
     : steps
 }

@@ -54,6 +54,9 @@ export interface EmailContext {
     adjustments: string
     total: string
     firstPayment: string
+    /** The plan starts with a deposit ("Deposit first"), and whether the trip keeps it when a guest drops out. */
+    deposit: boolean
+    depositKept: boolean
     paid: string
     pending: string
     /** What's left after confirmed and reported payments. */
@@ -202,7 +205,12 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
       label: 'Credits and charges (like −$50, empty when none)',
     },
     { path: 'paymentDetails.total', label: 'Price with credits and charges' },
-    { path: 'paymentDetails.firstPayment', label: 'First payment' },
+    {
+      path: 'paymentDetails.firstPayment',
+      label: 'First payment (the deposit, when there is one)',
+    },
+    { path: 'paymentDetails.deposit', label: 'Starts with a deposit (yes or no)' },
+    { path: 'paymentDetails.depositKept', label: 'Deposit is non-refundable (yes or no)' },
     { path: 'paymentDetails.paid', label: 'Paid (confirmed)' },
     { path: 'paymentDetails.pending', label: 'Reported, not yet confirmed' },
     { path: 'paymentDetails.left', label: 'Left to pay' },

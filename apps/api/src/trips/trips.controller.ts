@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -144,6 +145,20 @@ export class TripsController {
     @CurrentCaller() caller: Caller
   ) {
     return this.trips.addAdjustment(id, guestId, parseAdjustment(body), caller)
+  }
+
+  // A guest's room costs more or less than they signed (issue #30): charge or credit the difference, or leave it.
+  @Post(':id/guests/:guestId/room-price')
+  settleRoomPrice(
+    @Param('id') id: string,
+    @Param('guestId') guestId: string,
+    @Body() body: unknown,
+    @CurrentCaller() caller: Caller
+  ) {
+    const adjust = (body as { adjust?: unknown } | null)?.adjust
+    if (typeof adjust !== 'boolean')
+      throw new BadRequestException('Say whether to adjust the balance')
+    return this.trips.settleRoomPrice(id, guestId, adjust, caller)
   }
 
   @Delete(':id/adjustments/:adjustmentId')

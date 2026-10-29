@@ -192,6 +192,8 @@ export const api = {
   // A credit or charge on a guest's balance (issue #17); removing one keeps it on record, marked removed.
   addAdjustment: (id: string, guestId: string, input: BalanceAdjustmentInput) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/adjustments`, json('POST', input)),
+  settleRoomPrice: (id: string, guestId: string, adjust: boolean) =>
+    request<OrganizerTrip>(`/trips/${id}/guests/${guestId}/room-price`, json('POST', { adjust })),
   removeAdjustment: (id: string, adjustmentId: string) =>
     request<OrganizerTrip>(`/trips/${id}/adjustments/${adjustmentId}`, { method: 'DELETE' }),
   // Trip Financials' vendor expenses; `admin` reads them through the Admin toolbox.

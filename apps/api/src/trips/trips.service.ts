@@ -42,7 +42,13 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
-import { paymentPlan, totalDueCents, tripActionCount } from './trip-types'
+import {
+  paymentPlan,
+  ROOMS_PRICED_APART,
+  roomsPricedApart,
+  totalDueCents,
+  tripActionCount,
+} from './trip-types'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
 async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
@@ -223,6 +229,12 @@ export class TripsService {
       throw new BadRequestException(
         'Guests have signed under the current refund terms, so they can’t change now.'
       )
+    const rooms = await this.prisma.room.findMany({ where: { tripId: id } })
+    if (
+      roomsPricedApart(rooms, input.costPerPersonCents) &&
+      !(input.options.roomChoice && input.options.roomRequired)
+    )
+      throw new BadRequestException(ROOMS_PRICED_APART)
     const row = await uniqueSlug(() =>
       this.prisma.trip.update({
         where: { id },
@@ -278,7 +290,7 @@ export class TripsService {
       where: { tripId: id },
       orderBy: { position: 'asc' },
     })
-    return rows.map(({ id, name, beds, capacity, weight, bedTypes, minPeople }) => ({
+    return rows.map(({ id, name, beds, capacity, weight, bedTypes, minPeople, priceCents }) => ({
       id,
       name,
       beds,
@@ -286,6 +298,7 @@ export class TripsService {
       weight,
       bedTypes: bedTypes as BedType[],
       minPeople,
+      priceCents,
     }))
   }
 
@@ -294,7 +307,12 @@ export class TripsService {
    * ones are added, and rooms left out are removed (their guests keep their sign-up, with no room).
    */
   async setRooms(id: string, rooms: TripRoom[], caller: Caller): Promise<TripRoom[]> {
-    await this.get(id, caller)
+    const trip = await this.get(id, caller)
+    if (
+      roomsPricedApart(rooms, trip.costPerPersonCents) &&
+      !(trip.options.roomChoice && trip.options.roomRequired)
+    )
+      throw new BadRequestException(ROOMS_PRICED_APART)
     const existing = new Set(
       (await this.prisma.room.findMany({ where: { tripId: id }, select: { id: true } })).map(
         (r) => r.id
@@ -810,6 +828,42 @@ export class TripsService {
     )
     // A credit can pay the spot with what already arrived.
     await this.firstComeAccept(id, guestId, caller)
+    return this.get(id, caller)
+  }
+
+  /**
+   * Settles what a guest's room costs beyond what they signed (issue #30): as a charge or credit for the difference,
+   * or left as it is. Either way Trip Control stops asking until they move to a room priced differently again.
+   */
+  async settleRoomPrice(
+    id: string,
+    guestId: string,
+    adjust: boolean,
+    caller: Caller
+  ): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const guest = trip.guests.find((g) => g.id === guestId)
+    if (!guest) throw new NotFoundException('Guest not found')
+    const diff = guest.roomPriceDiffCents
+    if (diff === 0 || !guest.terms) return trip
+    const room = await this.prisma.room.findFirst({ where: { id: guest.roomId ?? '', tripId: id } })
+    if (!room) return trip
+    const price = room.priceCents ?? trip.costPerPersonCents
+    if (adjust)
+      await this.addAdjustment(
+        id,
+        guestId,
+        {
+          kind: diff > 0 ? 'charge' : 'credit',
+          amountCents: Math.abs(diff),
+          reason: `${room.name} costs ${money(price)} a person`,
+        },
+        caller
+      )
+    await this.prisma.guest.update({
+      where: { id: guestId },
+      data: { roomPriceSettledCents: price },
+    })
     return this.get(id, caller)
   }
 

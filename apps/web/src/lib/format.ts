@@ -62,7 +62,7 @@ export function installmentLine(plan: PlannedPayment[]): string {
   const line =
     first.amountCents === second.amountCents
       ? `Paid in ${plan.length} installments of ${about}${money(second.amountCents)}`
-      : `${money(first.amountCents)} first, then ${rest} installment${rest === 1 ? '' : 's'} of ${about}${money(second.amountCents)}`
+      : `A ${money(first.amountCents)} deposit, then ${rest} installment${rest === 1 ? '' : 's'} of ${about}${money(second.amountCents)}`
   const by = due(last)
   return by ? `${line}, the last due by ${by}.` : `${line}.`
 }

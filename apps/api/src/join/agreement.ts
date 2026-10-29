@@ -17,7 +17,7 @@ import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER, paymentPlan } from '../trips/trip
  * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-29.3'
+export const TEMPLATE_VERSION = '2026-10-29.4'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -53,8 +53,9 @@ export function firstInstallmentCents(priceCents: number, installmentCount: numb
 /** What happens when a guest drops out, under the refund policy the organizer picked. */
 function dropOutTerms(organizer: string, refundPolicy: string, firstPayment: string): string {
   return (refundPolicy as RefundPolicy) === 'first_payment_kept'
-    ? `If you drop out after you're accepted, your first payment (${firstPayment}) isn't refunded. Money you paid ` +
-        `after it comes back only if ${organizer} fills your spot, and only as much as that person pays for it.`
+    ? `If you drop out after you're accepted, your deposit, the first payment (${firstPayment}), isn't refunded. ` +
+        `Money you paid after it comes back only if ${organizer} fills your spot, and only as much as that person ` +
+        `pays for it.`
     : `If you drop out after you're accepted, money you paid comes back only if ${organizer} fills your spot, and ` +
         `only as much as that person pays for it.`
 }
@@ -218,7 +219,7 @@ const JOIN_MODE_LABELS: Record<JoinMode, string> = {
 }
 const REFUND_POLICY_LABELS: Record<RefundPolicy, string> = {
   spot_filled: 'Refund only if you fill their spot',
-  first_payment_kept: 'Keep the first payment',
+  first_payment_kept: 'Keep the deposit',
 }
 
 /**
@@ -259,7 +260,7 @@ export function agreementTemplate(): { heading: string; body: string }[] {
       versions(
         policies,
         (p) => REFUND_POLICY_LABELS[p],
-        (p) => dropOutTerms(o, p, '[first payment]')
+        (p) => dropOutTerms(o, p, '[deposit]')
       ) +
       '\nOn every trip, depending on how it lets guests in:\n' +
       versions(

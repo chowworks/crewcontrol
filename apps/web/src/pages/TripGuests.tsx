@@ -82,6 +82,8 @@ interface Props {
   /** A credit or charge on the guest's balance, and taking one back; true when it saved. */
   onAdjust: (guest: Guest, input: BalanceAdjustmentInput) => Promise<boolean>
   onRemoveAdjustment: (guest: Guest, adjustmentId: string) => Promise<boolean>
+  /** Their room costs more or less than they signed: add the difference to their balance, or leave it. */
+  onRoomPrice: (guest: Guest, adjust: boolean) => Promise<boolean>
   /** A forwarded receipt nobody could place, matched to a guest or put aside (issue #12); true when it saved. */
   onMatchReceipt?: (receipt: ForwardedReceiptItem, input: MatchReceiptInput) => Promise<boolean>
   onDismissReceipt?: (
@@ -140,6 +142,8 @@ type Action =
   | { kind: 'refund'; key: string; text: string }
   // Emails to them bounced (fix the address) or they marked one as spam (noted with "Got it").
   | { kind: 'email'; key: string; text: string; problem: 'bounced' | 'complained' }
+  // Their room costs more or less than they signed (issue #30): charge or credit the difference, or leave it.
+  | { kind: 'room_price'; key: string; text: string; diffCents: number }
 
 function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
   const first = g.terms ? money(g.terms.firstInstallmentCents) : 'the first payment'
@@ -169,6 +173,14 @@ function actionsFor(g: Guest, trip: OrganizerTrip): Action[] {
               ? `Emails to ${g.email} bounced. Check the address with them and fix it.`
               : 'Marked a Travel HQ email as spam, so they won’t get any more. Reach them another way.',
         }
+      case 'room_price': {
+        return {
+          kind: 'room_price',
+          key: a.key,
+          diffCents: a.diffCents,
+          text: `Their room costs ${money(Math.abs(a.diffCents))} ${a.diffCents > 0 ? 'more' : 'less'} than the ${money(g.terms?.priceCents ?? 0)} they signed`,
+        }
+      }
       case 'refund':
         return {
           kind: 'refund',
@@ -237,6 +249,7 @@ function ActionRow({
   action,
   onUpdate,
   onDecide,
+  onRoomPrice,
   onReview,
   onDetails,
 }: {
@@ -245,6 +258,7 @@ function ActionRow({
   action: Action
   onUpdate: Props['onUpdate']
   onDecide: Props['onDecide']
+  onRoomPrice: Props['onRoomPrice']
   onReview: (payment: Payment) => void
   onDetails: () => void
 }) {
@@ -262,9 +276,20 @@ function ActionRow({
           ? action.problem === 'bounced'
             ? 'Fix email'
             : 'Got it'
-          : 'Refund and turn down'
+          : action.kind === 'room_price'
+            ? `Add ${money(Math.abs(action.diffCents))} ${action.diffCents > 0 ? 'charge' : 'credit'}`
+            : 'Refund and turn down'
+  async function settle(adjust: boolean) {
+    setBusy(true)
+    try {
+      await onRoomPrice(g, adjust)
+    } finally {
+      setBusy(false)
+    }
+  }
   async function act() {
     if (action.kind === 'refund') return onDetails()
+    if (action.kind === 'room_price') return settle(true)
     if (action.kind === 'email' && action.problem === 'bounced') return setFixing(true)
     if (action.kind === 'payment' && action.short) return onReview(action.payment)
     setBusy(true)
@@ -311,6 +336,16 @@ function ActionRow({
         >
           {button}
         </button>
+        {action.kind === 'room_price' && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void settle(false)}
+            className={`${outlined} disabled:opacity-60`}
+          >
+            Leave it
+          </button>
+        )}
         {action.kind === 'payment' && action.payment.loggedBy === 'email' && (
           <ReceiptProofButton tripId={tripId} paymentId={action.payment.id} admin={false} />
         )}
@@ -1456,7 +1491,7 @@ export function GuestsCard(props: Props) {
  * (reminders, payments due) will join it.
  */
 export function ActionsCard(props: Props) {
-  const { trip, onUpdate, onDecide } = props
+  const { trip, onUpdate, onDecide, onRoomPrice } = props
   const { line, full } = lineOf(trip)
   const { openDetails, openReview, openWaitlist, dialogs } = useDialogs(props, full)
   const todo = line.flatMap((x) => actionsFor(x, trip).map((action) => ({ g: x, action })))
@@ -1532,6 +1567,7 @@ export function ActionsCard(props: Props) {
                 action={items[0].action}
                 onUpdate={onUpdate}
                 onDecide={onDecide}
+                onRoomPrice={onRoomPrice}
                 onReview={(p) => openReview(items[0].g, p)}
                 onDetails={() => openDetails(items[0].g.id)}
               />

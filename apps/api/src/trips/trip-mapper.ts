@@ -14,6 +14,7 @@ import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/recei
 import {
   DEFAULT_TRIP_OPTIONS,
   paymentPlan,
+  roomPrice,
   type BalanceAdjustment,
   type BedType,
   type ForwardedReceiptItem,
@@ -162,6 +163,8 @@ export function toPublicTrip(
       capacity: r.capacity,
       minPeople: r.minPeople,
       spotsLeft: Math.max(0, r.capacity - (row.roomTaken?.get(r.id) ?? 0)),
+      priceCents: roomPrice(r, row.costPerPersonCents),
+      paymentPlan: planOf({ ...row, costPerPersonCents: roomPrice(r, row.costPerPersonCents) }),
     })),
   }
 }
@@ -234,7 +237,11 @@ export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentM
  * `all` is every guest on the trip, to name who looks after this one: the guest with that account if they're on the
  * trip, otherwise the name they signed this traveler's agreement with.
  */
-function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
+function toGuest(
+  row: GuestWithAgreement,
+  all: GuestWithAgreement[],
+  priceOfRoom: (roomId: string) => number | null
+): Guest {
   const payments = paymentsOf(row.payments)
   const adjustments = adjustmentsOf(row.adjustments)
   const manager = row.managedByUserId
@@ -260,6 +267,7 @@ function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
     terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
     hasAccount: row.userId !== null,
     emailProblem: (row.emailProblem as Guest['emailProblem']) ?? null,
+    roomPriceDiffCents: roomPriceDiff(row, priceOfRoom),
     managedBy: row.managedByUserId
       ? {
           guestId: manager?.id ?? null,
@@ -269,6 +277,19 @@ function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
         }
       : null,
   }
+}
+
+/**
+ * What a signed guest's room costs beyond what they signed (issue #30), since it was last settled: zero with no room,
+ * or when the room is gone or costs what they signed.
+ */
+function roomPriceDiff(
+  row: GuestWithAgreement,
+  priceOfRoom: (roomId: string) => number | null
+): number {
+  const price = row.roomId && row.agreement ? priceOfRoom(row.roomId) : null
+  if (price === null) return 0
+  return price - (row.roomPriceSettledCents ?? row.agreement!.priceCents)
 }
 
 /** `waitlistBufferPercent` is the system setting (SystemSettings), handed along for Trip Control's waitlist. */
@@ -299,7 +320,12 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
-    guests: row.guests.map((g) => toGuest(g, row.guests)),
+    guests: row.guests.map((g) =>
+      toGuest(g, row.guests, (roomId) => {
+        const room = row.rooms?.find((r) => r.id === roomId)
+        return room ? roomPrice(room, row.costPerPersonCents) : null
+      })
+    ),
     receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,

@@ -2,6 +2,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   fillAgreementNames,
   paymentMethodLabel,
+  roomsPricedApart,
   type JoinInput,
   type JoinView,
   type MyGuest,
@@ -313,7 +314,6 @@ function JoinForm({
   )
   const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   const theyWait = full || (view.me ? meWaiting : trip.waitlisting)
-  const agreement = behalf ? view.agreementOnBehalf : view.agreement
   const mine = () => ({
     name: user?.fullName ?? '',
     phone: user?.primaryPhoneNumber?.phoneNumber ?? '',
@@ -328,6 +328,12 @@ function JoinForm({
     agreed: false,
     termsAccepted: false,
   }))
+  // The room they pick sets the price they sign, when it's priced apart from the trip (issue #30).
+  const agreementFor = (v: JoinView, roomId: string) => {
+    const priced = v.roomAgreements.find((r) => r.roomId === roomId) ?? v
+    return behalf ? priced.agreementOnBehalf : priced.agreement
+  }
+  const agreement = agreementFor(view, draft.roomId)
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -341,7 +347,8 @@ function JoinForm({
     const el = agreementRef.current
     if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReadTo(agreement.textHash)
   }
-  const roomRequired = trip.options.roomRequired && trip.rooms.length > 0
+  const pricedApart = roomsPricedApart(trip.rooms, trip.costPerPersonCents)
+  const roomRequired = trip.rooms.length > 0 && (trip.options.roomRequired || pricedApart)
   const problems = joinProblems(draft, roomRequired, termsAsked, readAll, behalf)
   // A field's problem shows once the guest has left it, and every one shows after they press Sign.
   const [left, setLeft] = useState<Partial<Record<keyof Draft, true>>>({})
@@ -417,9 +424,7 @@ function JoinForm({
           .then((v) => {
             setDraft((d) => ({
               ...d,
-              agreed:
-                (behalf ? v.agreementOnBehalf : v.agreement).textHash === agreement.textHash &&
-                d.agreed,
+              agreed: agreementFor(v, d.roomId).textHash === agreement.textHash && d.agreed,
               termsAccepted:
                 v.termsOfUse.version === termsOfUse.version && termsAsked && d.termsAccepted,
             }))
@@ -506,8 +511,8 @@ function JoinForm({
       {!trip.waitlisting && !behalf && (
         <p className="text-body">
           {trip.joinMode === 'accept_first'
-            ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you pay your first installment.`
-            : `Sign the trip agreement, then pay ${trip.organizerName} your first installment. ${
+            ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you make your first payment.`
+            : `Sign the trip agreement, then make your first payment to ${trip.organizerName}. ${
                 trip.joinMode === 'first_come'
                   ? 'Spots go first come, first served, in the order payments are confirmed.'
                   : `${trip.organizerName} accepts the crew once payments arrive.`
@@ -578,7 +583,15 @@ function JoinForm({
                 key={r.id}
                 room={r}
                 checked={draft.roomId === r.id}
-                onChange={() => set('roomId', r.id)}
+                price={pricedApart ? r.priceCents : undefined}
+                onChange={() =>
+                  // Another price is another agreement: it's agreed to again.
+                  setDraft((d) => ({
+                    ...d,
+                    roomId: r.id,
+                    agreed: d.agreed && agreementFor(view, r.id).textHash === agreement.textHash,
+                  }))
+                }
               />
             ))}
             {!roomRequired && (
@@ -822,7 +835,7 @@ function MyPlace({
                   : paidCents > 0
                     ? [
                         'Part paid',
-                        `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more holds your spot.`,
+                        `${o} confirmed ${money(paidCents)}. ${money(dueNow)} more saves your spot.`,
                       ]
                     : me.offeredAt
                       ? ['A spot opened', `${o} offered you a spot. Pay ${first} to take it.`]
@@ -831,7 +844,7 @@ function MyPlace({
                             'The trip filled up',
                             `Every spot is taken. ${o} will text you if one opens. Don’t send money until then.`,
                           ]
-                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to hold your spot.`]
+                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to save your spot.`]
 
   return (
     <div className="flex flex-col gap-4">
