@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
 import type { ClerkService } from '../auth/clerk.service'
+import type { EmailsService } from '../messaging/emails.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import { TripsService } from './trips.service'
 
@@ -128,6 +129,7 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
   const prisma = {
     trip: { findFirst: async () => row },
     room: { findFirst: async () => null },
+    tripMember: { findFirst: async () => ({ userId: 'owner' }) },
     systemSettings: { findUnique: async () => ({ waitlistBufferPercent: 10 }) },
     guest: {
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -175,8 +177,13 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   }
-  const service = new TripsService(prisma as unknown as PrismaService, {} as ClerkService)
-  return { service, writes, guests }
+  const emails = { sendToGuest: jest.fn() }
+  const service = new TripsService(
+    prisma as unknown as PrismaService,
+    { contact: async () => ({ name: 'Sam', email: 'sam@example.com' }) } as unknown as ClerkService,
+    emails as unknown as EmailsService
+  )
+  return { service, writes, guests, emails }
 }
 
 describe('a guest’s spot in Trip Control', () => {
@@ -214,6 +221,25 @@ describe('a guest’s spot in Trip Control', () => {
     ).rejects.toThrow(/hasn’t signed/)
     await service.updateGuest('t1', 'signed', { status: 'approved' }, caller)
     expect(writes).toEqual([expect.objectContaining({ status: 'approved' })])
+  })
+
+  it('on an accept-first trip, emails the guest how to pay once, as they are accepted', async () => {
+    const { service, emails } = setup({ joinMode: 'accept_first' }, [guest('signed')])
+    await service.updateGuest('t1', 'signed', { status: 'approved' }, caller)
+    expect(emails.sendToGuest).toHaveBeenCalledTimes(1)
+    const [kind, view, facts] = emails.sendToGuest.mock.calls[0]
+    expect(kind).toBe('accepted')
+    expect(view.me).toMatchObject({ id: 'signed', status: 'approved' })
+    expect(facts).toMatchObject({ email: 'signed@example.com', replyTo: 'sam@example.com' })
+    // Saving an accepted guest again (a room change) sends nothing more.
+    await service.updateGuest('t1', 'signed', { status: 'approved' }, caller)
+    expect(emails.sendToGuest).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends no accepted email on a pay-first trip: the guest already knew how to pay', async () => {
+    const { service, emails } = setup({}, [paidGuest('ready')])
+    await service.updateGuest('t1', 'ready', { status: 'approved' }, caller)
+    expect(emails.sendToGuest).not.toHaveBeenCalled()
   })
 
   it('on an accept-first trip, lets the organizer undo an accepted guest’s payment', async () => {

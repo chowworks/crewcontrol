@@ -6,10 +6,9 @@ import type {
   EmailPreviewGuest,
   EmailTemplateInput,
   EmailTemplateView,
-  JoinView,
 } from '../trips/trip-types'
 import { EMAIL_KINDS, emailKind, sampleFor, type EmailKind } from './email-defaults'
-import { guestEmailContext, type GuestFacts } from './email-context'
+import { guestEmailContext, type GuestEmailView, type GuestFacts } from './email-context'
 import {
   checkTemplate,
   LOGO_DATA_URL,
@@ -124,12 +123,12 @@ export class EmailsService {
   }
 
   /**
-   * Sends a guest who joined one of the emails, from their join page's view. A failure is logged, never thrown: the
+   * Sends a guest who joined one of the emails, from their join page's view (or the same facts from Trip Control). A failure is logged, never thrown: the
    * step that sent it (joining, say) has already happened, and the guest's page has everything the email does.
    */
   async sendToGuest(
     kind: string,
-    view: JoinView,
+    view: GuestEmailView,
     facts: GuestFacts,
     webUrl: string
   ): Promise<void> {

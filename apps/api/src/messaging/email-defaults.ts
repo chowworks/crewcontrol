@@ -36,6 +36,25 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>Your copy of the agreement is there too.</p>`,
   },
   {
+    kind: 'accepted',
+    name: 'Accepted onto the trip',
+    when: 'To a guest when the organizer accepts them on a trip where the organizer accepts each guest first, with how to pay.',
+    groups: ['trip', 'guest', 'paymentDetails'],
+    subject: 'You’re in: {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{trip.organizerName}} accepted you for <strong>{{trip.name}}</strong>, {{trip.dates}}. You’re going!</p>
+{{#if guest.canPay}}
+<p>Your first payment, <strong>{{paymentDetails.firstPayment}}</strong>, holds your spot. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+<ul>
+{{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
+{{/each}}</ul>
+{{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
+<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
+{{/if}}
+<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
+<p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
