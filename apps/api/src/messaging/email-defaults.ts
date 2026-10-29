@@ -111,6 +111,8 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       oneMethod: false,
       instructions: 'Put "Aruba" and your name in the note.',
       price: '$1,200',
+      adjustments: '',
+      total: '$1,200',
       firstPayment: '$400',
       paid: '$0',
       pending: '$0',

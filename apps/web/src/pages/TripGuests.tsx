@@ -922,9 +922,13 @@ export function PaymentLine({
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 border-t border-rule py-2 text-sm first:border-t-0">
       <span className="min-w-0">
-        {/* Signed like a statement: a payment lowers the balance, as a credit does (owner's call, 2026-10-29). */}
-        <span className="font-semibold">−{money(p.guestPaymentAmount)} payment</span> · {p.method} ·{' '}
-        {shortDate(p.sentOn)}
+        {/* Signed like a statement: a payment lowers the balance, as a credit does (owner's call, 2026-10-29); one that
+            never arrived or was refunded doesn't. */}
+        <span className="font-semibold">
+          {(p.status === 'confirmed' || p.status === 'reported') && '−'}
+          {money(p.guestPaymentAmount)} payment
+        </span>{' '}
+        · {p.method} · {shortDate(p.sentOn)}
         <span className="block text-muted">
           {logged
             ? p.status === 'confirmed'

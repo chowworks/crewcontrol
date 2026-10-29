@@ -155,12 +155,21 @@ export function ControlPanelPage() {
   async function addAdjustment(guest: Guest, input: BalanceAdjustmentInput) {
     const saved = await saveTrip(() => api.addAdjustment(id, guest.id, input))
     if (!saved) return false
-    // The newest is last; Undo takes it back, which the guest's history keeps as removed.
-    const added = saved.guests.find((g) => g.id === guest.id)?.adjustments.at(-1)
+    // The one that wasn't there before (not simply the newest: another organizer may have added one too); Undo takes
+    // it back, which the guest's history keeps as removed.
+    const before = new Set(guest.adjustments.map((a) => a.id))
+    const added = saved.guests
+      .find((g) => g.id === guest.id)
+      ?.adjustments.find((a) => !before.has(a.id))
     toast({
       text: `${money(input.amountCents)} ${input.kind} for ${guest.firstName} added.`,
       ...(added
-        ? { action: { label: 'Undo', onClick: () => void removeAdjustment(guest, added.id) } }
+        ? {
+            action: {
+              label: 'Undo',
+              onClick: () => void removeAdjustment({ ...guest, adjustments: [added] }, added.id),
+            },
+          }
         : {}),
     })
     return true

@@ -741,9 +741,13 @@ export class TripsService {
     if (!guest.terms)
       throw new BadRequestException(`${guest.firstName} hasn’t signed the trip agreement`)
     if (input.kind === 'credit') this.creditFits(guest, input.amountCents)
-    await this.prisma.balanceAdjustment.create({
-      data: { tripId: id, guestId, ...input, createdByUserId: caller.userId },
-    })
+    await this.leftToPay(guest, () =>
+      this.prisma.balanceAdjustment.create({
+        data: { tripId: id, guestId, ...input, createdByUserId: caller.userId },
+      })
+    )
+    // A credit can pay the spot with what already arrived.
+    await this.firstComeAccept(id, guestId, caller)
     return this.get(id, caller)
   }
 
@@ -756,11 +760,25 @@ export class TripsService {
     if (adjustment.removedAt) return trip
     // Taking a charge off lowers the balance the way a credit does.
     if (adjustment.kind === 'charge') this.creditFits(guest, adjustment.amountCents)
-    await this.prisma.balanceAdjustment.update({
-      where: { id: adjustmentId },
-      data: { removedAt: new Date(), removedByUserId: caller.userId },
-    })
+    // Removed already (two clicks, or another organizer a moment ago): nothing more to do.
+    await this.leftToPay(guest, () =>
+      this.prisma.balanceAdjustment.updateMany({
+        where: { id: adjustmentId, removedAt: null },
+        data: { removedAt: new Date(), removedByUserId: caller.userId },
+      })
+    )
+    await this.firstComeAccept(id, guest.id, caller)
     return this.get(id, caller)
+  }
+
+  /** The database checks the balance again with the guest's row locked: a payment reported a moment ago counts. */
+  private async leftToPay(guest: Guest, write: () => Promise<unknown>): Promise<void> {
+    try {
+      await write()
+    } catch (err) {
+      if (!/more_than_left/.test(String(err))) throw err
+      throw new BadRequestException(`That’s more than ${guest.firstName} has left to pay`)
+    }
   }
 
   /** Lowering a guest's balance by `cents` must leave at least what they paid or reported. */

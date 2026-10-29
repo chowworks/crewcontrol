@@ -880,7 +880,9 @@ function MyPlace({
       )}
 
       {me.terms && (
-        <dl className="grid grid-cols-2 gap-3 border-t border-rule pt-4 text-sm sm:grid-cols-4">
+        <dl
+          className={`grid grid-cols-2 gap-3 border-t border-rule pt-4 text-sm ${me.terms.adjustmentCents !== 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}
+        >
           <Term label="Your price" value={money(me.terms.priceCents)} />
           <Term
             label="Plan"
@@ -1038,7 +1040,6 @@ export function travelerStatus(trip: PublicTrip, g: MyGuest): string {
   return 'Pay to hold their spot'
 }
 
-/** The guest's payments, newest first, with where each stands. */
 /**
  * A guest's payments, newest first, with the organizer's credits and charges among them (issue #17), each with the
  * organizer's reason.
@@ -1081,7 +1082,8 @@ export function MyPayments({
             >
               <span>
                 <span className="font-semibold">
-                  −
+                  {/* Only a payment that arrived or is on its way lowers the balance. */}
+                  {(p.status === 'confirmed' || p.status === 'reported') && '−'}
                   {money(
                     p.status === 'confirmed' ? (p.receivedPaymentAmount ?? 0) : p.guestPaymentAmount
                   )}{' '}

@@ -51,6 +51,8 @@ export interface EmailContext {
     oneMethod: boolean
     instructions: string
     price: string
+    adjustments: string
+    total: string
     firstPayment: string
     paid: string
     pending: string
@@ -145,6 +147,11 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'paymentDetails.oneMethod', label: 'Only one way to pay (yes or no)' },
     { path: 'paymentDetails.instructions', label: 'Payment note' },
     { path: 'paymentDetails.price', label: 'Their price' },
+    {
+      path: 'paymentDetails.adjustments',
+      label: 'Credits and charges (like −$50, empty when none)',
+    },
+    { path: 'paymentDetails.total', label: 'Price with credits and charges' },
     { path: 'paymentDetails.firstPayment', label: 'First payment' },
     { path: 'paymentDetails.paid', label: 'Paid (confirmed)' },
     { path: 'paymentDetails.pending', label: 'Reported, not yet confirmed' },

@@ -66,6 +66,14 @@ function TravelerDialog({ g, view, onClose }: { g: MyGuest; view: JoinView; onCl
               <dt className="text-muted">Price</dt>
               <dd className="font-semibold">{money(g.terms.priceCents)}</dd>
             </div>
+            {g.terms.adjustmentCents !== 0 && (
+              <div>
+                <dt className="text-muted">Credits and charges</dt>
+                <dd className="font-semibold">
+                  {`${g.terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(g.terms.adjustmentCents))}`}
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-muted">Left to pay</dt>
               <dd className="font-semibold">{money(g.terms.balanceCents)}</dd>
