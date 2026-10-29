@@ -25,6 +25,10 @@ export const FAQ: { q: string; a: string }[] = [
     a: 'You set the key dates and payment plan once, and Travel HQ reminds your crew before each one, so you stop sending the same text.',
   },
   {
+    q: 'Can one person sign up and pay for others, like a parent for their kids?',
+    a: 'Yes. When they join, they pick "Someone I look after", sign the trip agreement for that person, then add the next one. Someone who joined as themselves can sign others up from their own page too. The people they sign up wait where they wait: if they’re on the waitlist, so is everyone they signed up. Each traveler gets their own spot and balance, and one payment can cover several of them. You see who signed each person up, and you can change it later. A traveler with their own email can sign in and take over their place. If they joined as someone new by mistake, turn down that new place (with nothing paid on it), and they’re offered the right one again.',
+  },
+  {
     q: 'Can I run more than one trip?',
     a: 'Yes. Every trip gets its own page, guest list and payment plan, and you see them all in one place.',
   },

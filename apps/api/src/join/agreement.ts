@@ -6,6 +6,7 @@ import type {
   Payment,
   RefundPolicy,
 } from '../trips/trip-types'
+import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER } from '../trips/trip-types'
 
 /**
  * Travel HQ's trip agreement: one fixed template, filled from the trip's own facts. Organizers cannot edit it (owner's
@@ -14,7 +15,7 @@ import type {
  * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-29'
+export const TEMPLATE_VERSION = '2026-10-29.2'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -93,8 +94,10 @@ function spotTerms(organizer: string, joinMode: JoinMode): string {
 /**
  * The agreement for a trip as it stands now, as plain text with blank lines between sections. Every promise in it is
  * worded as the organizer's: Travel HQ supplies the form and is not a party (owner's decision, 2026-10-28).
+ * `onBehalf`: as someone signs it for a traveler they look after (a child, a roommate), which the opening says once,
+ * naming both of them (fillAgreementNames fills the names in).
  */
-export function agreementText(trip: AgreementFacts): string {
+export function agreementText(trip: AgreementFacts, onBehalf = false): string {
   const o = trip.organizerName
   // "Nia Thompson ("Nia", nia@example.com)": the organizer's name and email from sign-in, beside the name the pages use.
   const name = trip.organizer?.name.trim()
@@ -108,8 +111,13 @@ export function agreementText(trip: AgreementFacts): string {
       : `paid in ${trip.installmentCount} installments, the first of ${money(first)}`
   return [
     `Trip agreement between you and ${o}`,
-    `This agreement is between you, the guest, and ${party}, who organizes ${trip.name}. Every promise in it ` +
-      `is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
+    `This agreement is between you, the guest, and ${party}, who organizes ${trip.name}. ` +
+      (onBehalf
+        ? `${AGREEMENT_SIGNER} signs it on behalf of ${AGREEMENT_TRAVELER}, the traveler, and takes on ` +
+          `everything it asks of ${AGREEMENT_TRAVELER}, including paying for their spot. Where it says "you", ` +
+          `it means ${AGREEMENT_TRAVELER}, with ${AGREEMENT_SIGNER} acting for them. `
+        : '') +
+      `Every promise in it is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
       `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
       `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
       `wrong, you and ${o} settle it between you.`,
@@ -133,8 +141,8 @@ export function agreementText(trip: AgreementFacts): string {
 export const hashOf = (text: string): string =>
   createHash('sha256').update(text, 'utf8').digest('hex')
 
-export function agreementPreview(trip: AgreementFacts): AgreementPreview {
-  const text = agreementText(trip)
+export function agreementPreview(trip: AgreementFacts, onBehalf = false): AgreementPreview {
+  const text = agreementText(trip, onBehalf)
   return { text, textHash: hashOf(text), templateVersion: TEMPLATE_VERSION }
 }
 

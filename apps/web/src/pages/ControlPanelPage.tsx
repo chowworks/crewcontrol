@@ -18,7 +18,7 @@ import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
-import { ActionsCard, GuestsCard } from './TripGuests'
+import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import { TripLogCard } from './TripLog'
 import { MoneyCard } from './TripMoney'
 
@@ -78,37 +78,71 @@ export function ControlPanelPage() {
     else if (update.status === 'interested' && guest.status !== 'interested')
       toast({ text: `${name} is back to waiting.` })
     else if (update.roomId !== undefined) toast({ text: `${name}’s room changed.` })
+    else if (update.managedBy !== undefined) {
+      const by = trip?.guests.find((g) => g.id === update.managedBy)
+      // Undo puts back who handled it before, when that's someone who can be picked again.
+      const before = guest.managedBy ? guest.managedBy.guestId : null
+      toast({
+        text: by
+          ? `${by.firstName} now handles ${name}’s sign-up and payments.`
+          : `${name} now handles their own sign-up and payments.`,
+        ...(guest.managedBy && !before
+          ? {}
+          : {
+              action: {
+                label: 'Undo',
+                onClick: () => void updateGuest(guest, { managedBy: before }),
+              },
+            }),
+      })
+    }
     return true
   }
   async function decidePayment(paymentId: string, decision: PaymentDecision) {
     const guest = trip?.guests.find((g) => g.payments.some((p) => p.id === paymentId))
+    const payment = guest?.payments.find((p) => p.id === paymentId)
+    // One transfer for several travelers is decided as one (issue #11).
+    const members = trip && payment ? transferOf(trip, payment) : []
     const saved = await saveTrip(() => api.decidePayment(id, paymentId, decision))
-    if (!saved || !guest) return Boolean(saved)
+    if (!saved || !guest || !payment) return Boolean(saved)
     // On a first come trip confirming may have given them the spot too: Undo gives it back first.
-    const tookSpot =
-      guest.status !== 'approved' &&
-      saved.guests.find((g) => g.id === guest.id)?.status === 'approved'
+    const people = members.length > 1 ? members.map((m) => m.g) : [guest]
+    const tookSpot = people.filter(
+      (g) =>
+        g.status !== 'approved' && saved.guests.find((x) => x.id === g.id)?.status === 'approved'
+    )
     const undo = {
       label: 'Undo',
       onClick: async () => {
-        if (
-          tookSpot &&
-          !(await save(() => api.updateGuest(id, guest.id, { status: 'interested' })))
-        )
-          return
+        for (const g of tookSpot)
+          if (!(await save(() => api.updateGuest(id, g.id, { status: 'interested' })))) return
         void decidePayment(paymentId, { status: 'reported' })
       },
     }
+    const who =
+      members.length > 1
+        ? `${payment.paidByName || guest.firstName} for ${people.map((g) => g.firstName).join(' and ')}`
+        : guest.firstName
+    const spot =
+      tookSpot.length === 0
+        ? ''
+        : members.length > 1
+          ? ` ${tookSpot.map((g) => g.firstName).join(' and ')} got a spot.`
+          : ' They have a spot.'
     if (decision.status === 'confirmed') {
-      const p = guest.payments.find((x) => x.id === paymentId)
-      const amount = decision.receivedPaymentAmount ?? p?.guestPaymentAmount
-      toast({
-        text: `${amount ? money(amount) : 'Payment'} from ${guest.firstName} confirmed.${tookSpot ? ' They have a spot.' : ''}`,
-        action: undo,
-      })
-    } else if (decision.status === 'not_received')
-      toast({ text: `Marked ${guest.firstName}’s payment not received.`, action: undo })
-    else toast({ text: `${guest.firstName}’s payment is waiting again.` })
+      const amount =
+        decision.shares?.reduce((n, x) => n + x.receivedPaymentAmount, 0) ??
+        decision.receivedPaymentAmount ??
+        (members.length > 1
+          ? members.reduce((n, m) => n + m.p.guestPaymentAmount, 0)
+          : payment.guestPaymentAmount)
+      toast({ text: `${money(amount)} from ${who} confirmed.${spot}`, action: undo })
+    }
+    const theirs = members.length > 1 ? `the payment from ${who}` : `${guest.firstName}’s payment`
+    if (decision.status === 'not_received')
+      toast({ text: `Marked ${theirs} not received.`, action: undo })
+    else if (decision.status === 'reported')
+      toast({ text: `${theirs[0].toUpperCase()}${theirs.slice(1)} is waiting again.` })
     return true
   }
   async function logPayment(guest: Guest, log: PaymentLog) {

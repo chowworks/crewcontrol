@@ -138,6 +138,13 @@ export interface Guest {
   signedAt: string | null
   /** The terms their signed agreement quoted, which their balance uses; null if unsigned. */
   terms: GuestTerms | null
+  /** Whether they have an account of their own (signed in to join, or took over a sign-up made for them). */
+  hasAccount: boolean
+  /**
+   * Who signed them up and looks after them, when it wasn't them (a parent, a friend paying for a roommate): the guest
+   * on this trip with that account, if they're on it, and the name to show. Null when they look after themselves.
+   */
+  managedBy: { guestId: string | null; name: string } | null
 }
 
 /** What a guest's signed agreement holds them and the organizer to. Trip changes after signing never touch it. */
@@ -206,6 +213,10 @@ export interface Payment {
   note: string
   status: 'reported' | 'confirmed' | 'not_received' | 'refunded'
   loggedBy: 'guest' | 'organizer'
+  /** Who sent it, by name, when someone paid for this traveler; '' when the traveler reported it themselves. */
+  paidByName: string
+  /** One transfer for several travelers: their payments share this and are decided together. Null for one person. */
+  transferId: string | null
   reportedAt: string
   decidedAt: string | null
 }
@@ -220,6 +231,11 @@ export interface PaymentReport {
   note: string
   /** "I sent this payment": the guest certifies it. */
   certified: boolean
+  /**
+   * Who one payment covers, when it covers more than the payer (themselves and the travelers they look after), with
+   * each one's share. The shares add up to `guestPaymentAmount`. Left out, it is all for the payer.
+   */
+  forGuests?: { guestId: string; amount: number }[]
 }
 
 /** The organizer's decision on a reported payment: it arrived (with how much), it didn't, or undo the decision. */
@@ -227,6 +243,8 @@ export interface PaymentDecision {
   status: 'confirmed' | 'not_received' | 'reported'
   /** With confirmed: what arrived. Left out, it is what the guest said they sent. */
   receivedPaymentAmount?: number
+  /** With confirmed, on a transfer for several travelers: what arrived for each, by payment. Left out, as reported. */
+  shares?: { paymentId: string; receivedPaymentAmount: number }[]
 }
 
 /** The organizer logging a payment handed over in person: it is confirmed as it is logged. */
@@ -498,6 +516,41 @@ export interface JoinInput {
   termsVersion?: string
   /** The Terms of Use box, ticked; required with `termsVersion`. */
   termsAgreed?: boolean
+  /**
+   * Signing up someone else (a child, a roommate) whom the signer looks after: the name, phone and email are the
+   * traveler's (theirs or the signer's), the typed name is the signer's, and they sign the agreement on the
+   * traveler's behalf (`JoinView.agreementOnBehalf`).
+   */
+  onBehalf?: boolean
+}
+
+/** Taking over the place someone signed you up with: the Terms of Use, when the join page asked for them. */
+export interface ClaimInput {
+  termsVersion?: string
+  termsAgreed?: boolean
+}
+
+/** Where the on-behalf agreement names the person signing and the traveler, filled in as they type them. */
+export const AGREEMENT_SIGNER = '[[signer]]'
+export const AGREEMENT_TRAVELER = '[[traveler]]'
+
+/**
+ * The on-behalf agreement with both names in it (owner's decision, 2026-10-28), as the screen shows it and as it's
+ * kept once signed: the same function on both sides, so what's kept is what was shown. A name not typed yet shows as
+ * `blank`.
+ */
+export function fillAgreementNames(
+  text: string,
+  signer: string,
+  traveler: string,
+  blank = { signer: '[your full name]', traveler: '[their full name]' }
+): string {
+  const tidy = (name: string, empty: string) => name.trim().replace(/\s+/g, ' ') || empty
+  return text
+    .split(AGREEMENT_SIGNER)
+    .join(tidy(signer, blank.signer))
+    .split(AGREEMENT_TRAVELER)
+    .join(tidy(traveler, blank.traveler))
 }
 
 /** The trip agreement as it stands for a trip today, before anyone signs it. */
@@ -509,6 +562,7 @@ export interface AgreementPreview {
 
 /** The signed-in guest's own place on a trip, as their join page shows it. */
 export interface MyGuest {
+  id: string
   status: GuestStatus
   firstName: string
   lastName: string
@@ -534,6 +588,18 @@ export interface JoinView {
   trip: PublicTrip
   agreement: AgreementPreview
   me: MyGuest | null
+  /**
+   * The agreement as someone signs it on behalf of a traveler they look after, with AGREEMENT_SIGNER and
+   * AGREEMENT_TRAVELER where the names go (fillAgreementNames); its fingerprint is of this text, before the names.
+   */
+  agreementOnBehalf: AgreementPreview
+  /** The travelers this person signed up and looks after on this trip, in the order they signed them up. */
+  managed: MyGuest[]
+  /**
+   * Someone signed this person up with one of their emails and they haven't joined themselves: who signed (the name
+   * they typed). Saying "That's me" takes over that place (ClaimInput).
+   */
+  claimable: { signedBy: string } | null
   /** Where this person stands with Travel HQ's Terms of Use: the join page asks for them if not accepted. */
   termsOfUse: TermsStatus
 }
@@ -550,6 +616,8 @@ export interface GuestUpdate {
   refundSent?: boolean
   /** Move the guest to a room, or null for no room. */
   roomId?: string | null
+  /** Who looks after them: another guest on the trip with an account (by guest id), or null for themselves. */
+  managedBy?: string | null
 }
 
 /**
@@ -614,7 +682,8 @@ export interface SystemSettings {
 
 /** One thing the organizer does next for a guest. */
 export type GuestAction =
-  // A payment the guest reported, to confirm (in one tap) or, when it is short of what was due, to review.
+  // A payment the guest reported, to confirm (in one tap) or, when it is short of what was due, to review. One transfer
+  // for several travelers is one action: its payments share the key (the transfer).
   | { kind: 'payment'; key: string; payment: Payment; due: number; short: boolean }
   // A guest ready to accept: signed, and on the pay-first trips some payment arrived.
   | { kind: 'accept'; key: string }
@@ -693,7 +762,13 @@ export function guestActions(g: Guest, trip: OrganizerTrip): GuestAction[] {
     .filter((p) => p.status === 'reported')
     .map((p) => {
       const due = g.terms ? dueWhenSent(p, g.payments, g.terms) : 0
-      return { kind: 'payment', key: p.id, payment: p, due, short: p.guestPaymentAmount < due }
+      return {
+        kind: 'payment',
+        key: p.transferId ?? p.id,
+        payment: p,
+        due,
+        short: p.guestPaymentAmount < due,
+      }
     })
   if (g.status !== 'interested') return out
   if (full) {
@@ -724,7 +799,7 @@ export function waitlistSpotOpen(trip: OrganizerTrip): boolean {
 
 /** Everything that needs the organizer on a trip: the red count beside Actions. */
 export const tripActionCount = (trip: OrganizerTrip): number =>
-  trip.guests.reduce((n, g) => n + guestActions(g, trip).length, 0) +
+  new Set(trip.guests.flatMap((g) => guestActions(g, trip).map((a) => a.key))).size +
   (waitlistSpotOpen(trip) ? 1 : 0)
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */

@@ -136,6 +136,8 @@ export function toPayment(row: PaymentRow): Payment {
     note: row.note,
     status: row.status as Payment['status'],
     loggedBy: row.loggedBy as Payment['loggedBy'],
+    paidByName: row.paidByName,
+    transferId: row.transferId,
     reportedAt: row.reportedAt.toISOString(),
     decidedAt: row.decidedAt?.toISOString() ?? null,
   }
@@ -148,8 +150,15 @@ export const paymentsOf = (rows: PaymentRow[] | undefined): Payment[] =>
 export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentMethod[] =>
   (row.paymentMethods as unknown as PaymentMethod[] | null) ?? []
 
-function toGuest(row: GuestWithAgreement): Guest {
+/**
+ * `all` is every guest on the trip, to name who looks after this one: the guest with that account if they're on the
+ * trip, otherwise the name they signed this traveler's agreement with.
+ */
+function toGuest(row: GuestWithAgreement, all: GuestWithAgreement[]): Guest {
   const payments = paymentsOf(row.payments)
+  const manager = row.managedByUserId
+    ? all.find((g) => g.userId === row.managedByUserId)
+    : undefined
   return {
     id: row.id,
     firstName: row.firstName,
@@ -167,6 +176,15 @@ function toGuest(row: GuestWithAgreement): Guest {
     roomNote: row.roomNote,
     signedAt: row.agreement?.signedAt.toISOString() ?? null,
     terms: row.agreement ? termsOf(row.agreement, payments) : null,
+    hasAccount: row.userId !== null,
+    managedBy: row.managedByUserId
+      ? {
+          guestId: manager?.id ?? null,
+          name: manager
+            ? `${manager.firstName} ${manager.lastName}`
+            : (row.agreement?.typedName ?? 'Someone else'),
+        }
+      : null,
   }
 }
 
@@ -195,7 +213,7 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
-    guests: row.guests.map(toGuest),
+    guests: row.guests.map((g) => toGuest(g, row.guests)),
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,
   }

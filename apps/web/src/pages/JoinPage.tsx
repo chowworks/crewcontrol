@@ -1,5 +1,6 @@
 import { useUser } from '@clerk/clerk-react'
 import {
+  fillAgreementNames,
   paymentMethodLabel,
   type JoinInput,
   type JoinView,
@@ -10,18 +11,23 @@ import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { RoomCard } from '@/components/RoomCard'
 import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
-import { centsFrom, owed, paymentStatus, today } from '@/lib/payments'
+import { owed, paymentStatus } from '@/lib/payments'
+import { ReportPayment } from './ReportPayment'
+import { PaidBar, TravelersCard } from './TravelersCard'
 import { NotFoundPage } from './NotFoundPage'
 
 // The join page, /t/<slug>/join, opened from "I want to join" on the trip page. A signed-in guest fills in their
 // details and signs the trip agreement in one step, then sees how to pay the organizer and reports each payment they
 // send. After that the same card shows where they stand and their payments. Payment instructions reach a guest only here.
+// Someone can also sign up travelers they look after (a child, a roommate; issue #11): they sign for each one, and pay
+// for any of them in one payment. Those travelers get a card of their own below.
 
 const input =
   'rounded-[10px] border border-[#5B6B80] bg-white px-3.5 py-3 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal'
@@ -37,6 +43,7 @@ export function JoinPage() {
   const { slug = '' } = useParams()
   const [view, setView] = useState<JoinView | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [joinAnyway, setJoinAnyway] = useState(false)
 
   useEffect(() => {
     api
@@ -60,7 +67,7 @@ export function JoinPage() {
     )
   if (error) return <NotFoundPage message={error} />
   if (!view) return <div className="min-h-screen bg-ground" aria-busy="true" />
-  const { trip, me } = view
+  const { trip, me, managed } = view
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -83,13 +90,23 @@ export function JoinPage() {
           </p>
           <SpotsLine trip={trip} />
         </div>
-        <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
-          {me ? (
-            <MyPlace trip={trip} me={me} onChange={setView} />
-          ) : (
-            <JoinForm view={view} onChange={setView} />
-          )}
-        </section>
+        {(me || managed.length === 0) && (
+          <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
+            {view.claimable && !joinAnyway ? (
+              // Someone signed them up; on a place of their own turned down (joined by mistake), there's no "Not me".
+              <Claim
+                view={view}
+                onChange={setView}
+                onNotMe={me ? undefined : () => setJoinAnyway(true)}
+              />
+            ) : me ? (
+              <MyPlace view={view} me={me} onChange={setView} />
+            ) : (
+              <JoinForm view={view} onChange={setView} />
+            )}
+          </section>
+        )}
+        {managed.length > 0 && <Travelers view={view} onChange={setView} />}
       </main>
     </div>
   )
@@ -121,19 +138,28 @@ interface Draft {
 const sameName = (a: string, b: string) =>
   a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
-/** Every problem with the form, by field, so they show at once beside their fields. */
+/**
+ * Every problem with the form, by field, so they show at once beside their fields. `behalf`: signing up someone else,
+ * so the name, phone and email are theirs and the signature is the signer's own name.
+ */
 export function joinProblems(
   d: Draft,
   roomRequired = false,
   termsAsked = false,
-  readAgreement = true
+  readAgreement = true,
+  behalf = false
 ): Partial<Record<keyof Draft, string>> {
   const out: Partial<Record<keyof Draft, string>> = {}
-  if (!d.name.trim()) out.name = 'Add your name.'
+  if (!d.name.trim()) out.name = behalf ? 'Add their name.' : 'Add your name.'
   if (d.phone.replace(/\D/g, '').length < 7) out.phone = 'Add a phone number we can text.'
   if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(d.email.trim())) out.email = 'Add an email address.'
-  if (!d.typedName.trim()) out.typedName = 'Type your full name to sign.'
-  else if (d.name.trim() && !sameName(d.typedName, d.name))
+  if (!d.typedName.trim())
+    out.typedName = behalf
+      ? 'Type your own full name to sign for them.'
+      : 'Type your full name to sign.'
+  else if (behalf && sameName(d.typedName, d.name))
+    out.typedName = 'Type your own name, not theirs.'
+  else if (!behalf && d.name.trim() && !sameName(d.typedName, d.name))
     out.typedName = 'Type your name exactly as you wrote it above.'
   if (roomRequired && !d.roomId) out.roomId = 'Pick a room.'
   if (!readAgreement) out.agreed = 'Scroll to the end of the trip agreement first.'
@@ -142,19 +168,159 @@ export function joinProblems(
   return out
 }
 
+/**
+ * Someone signed the caller up for this trip with an email the caller has verified (issue #11): "That's me" takes
+ * over that place, with the agreement signed for them. Anyone else joins for themselves.
+ */
+function Claim({
+  view,
+  onChange,
+  onNotMe,
+}: {
+  view: JoinView
+  onChange: (v: JoinView) => void
+  onNotMe?: () => void
+}) {
+  const [notMe, setNotMe] = useState(false)
+  const { trip, termsOfUse } = view
+  const termsAsked = !termsOfUse.accepted
+  const [terms, setTerms] = useState(false)
+  const [tried, setTried] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const toast = useToast()
+  const signer = view.claimable?.signedBy || 'Someone'
+
+  async function take() {
+    setTried(true)
+    if (termsAsked && !terms) return
+    setBusy(true)
+    setError('')
+    try {
+      onChange(
+        await api.claim(
+          trip.slug,
+          termsAsked ? { termsVersion: termsOfUse.version, termsAgreed: true } : {}
+        )
+      )
+      toast({ text: 'This place is yours now.' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That didn’t work. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && (
+        <p role="alert" className="font-semibold text-[#B42318]">
+          {error}
+        </p>
+      )}
+      <div>
+        <h2 className="text-xl font-extrabold">{signer} signed you up for this trip</h2>
+        <p className="text-body">
+          Is this you? Say so to see your place, your payments and how to pay. {signer} signed the
+          trip agreement for you, and can still see your place and pay for you.
+        </p>
+      </div>
+      {termsAsked && (
+        <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={terms}
+            onChange={(e) => setTerms(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
+          />
+          <span>
+            {tried && !terms && <Problem>Tick this to take your place.</Problem>}
+            <span className="block">
+              I agree to Travel HQ&apos;s{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-royal underline"
+              >
+                Terms of Use
+              </a>
+              .
+            </span>
+          </span>
+        </label>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <button type="button" className={primary} onClick={take} disabled={busy}>
+          That’s me
+        </button>
+        {onNotMe && (
+          <button type="button" className={outlined} onClick={() => setNotMe(true)}>
+            Not me, join myself
+          </button>
+        )}
+      </div>
+      {notMe && onNotMe && (
+        <ConfirmDialog
+          title="Join as someone new?"
+          confirmLabel="Join as someone new"
+          onConfirm={onNotMe}
+          onCancel={() => setNotMe(false)}
+        >
+          <p className="text-body">
+            {signer} signed up a traveler with your email. If that’s you, choose That’s me instead:
+            joining as someone new gives you a second place on the trip, and only{' '}
+            {trip.organizerName} can undo that.
+          </p>
+        </ConfirmDialog>
+      )}
+    </div>
+  )
+}
+
 function Problem({ children }: { children: ReactNode }) {
   return <span className="font-semibold text-[#B42318]">{children}</span>
 }
 
-/** The guest's details, the agreement and their signature, sent as one step. */
-function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) => void }) {
-  const { trip, agreement, termsOfUse } = view
+/**
+ * The guest's details, the agreement and their signature, sent as one step. The first time, it asks who they're
+ * signing up: themselves, or someone they look after (issue #11). `fixed` skips that question: adding another traveler,
+ * or joining themselves after signing others up.
+ */
+function JoinForm({
+  view,
+  onChange,
+  onRefresh,
+  fixed,
+}: {
+  view: JoinView
+  /** They joined, or signed someone up. */
+  onChange: (v: JoinView) => void
+  /** The page reloaded after the server refused (the trip changed): the form stays open with its error. */
+  onRefresh?: (v: JoinView) => void
+  fixed?: 'self' | 'behalf'
+}) {
+  const { trip, termsOfUse } = view
   const termsAsked = !termsOfUse.accepted
   const { user } = useUser()
-  const [draft, setDraft] = useState<Draft>(() => ({
+  const toast = useToast()
+  const [who, setWho] = useState<'self' | 'behalf'>(fixed ?? 'self')
+  const behalf = who === 'behalf'
+  // Someone they sign up waits where they wait (owner's decision, 2026-10-28); the database decides (guest_waitlist).
+  const meWaiting = Boolean(
+    view.me && view.me.status === 'interested' && view.me.waitlistedAt && !view.me.offeredAt
+  )
+  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+  const theyWait = full || (view.me ? meWaiting : trip.waitlisting)
+  const agreement = behalf ? view.agreementOnBehalf : view.agreement
+  const mine = () => ({
     name: user?.fullName ?? '',
     phone: user?.primaryPhoneNumber?.phoneNumber ?? '',
     email: user?.primaryEmailAddress?.emailAddress ?? '',
+  })
+  const theirs = { name: '', phone: '', email: '' }
+  const [draft, setDraft] = useState<Draft>(() => ({
+    ...(behalf ? theirs : mine()),
     roomId: '',
     roomNote: '',
     typedName: '',
@@ -175,7 +341,7 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
     if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReadTo(agreement.textHash)
   }
   const roomRequired = trip.options.roomRequired && trip.rooms.length > 0
-  const problems = joinProblems(draft, roomRequired, termsAsked, readAll)
+  const problems = joinProblems(draft, roomRequired, termsAsked, readAll, behalf)
   // A field's problem shows once the guest has left it, and every one shows after they press Sign.
   const [left, setLeft] = useState<Partial<Record<keyof Draft, true>>>({})
   const shown = tried
@@ -184,6 +350,21 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
   const leave = (key: keyof Draft) => () => setLeft((l) => ({ ...l, [key]: true }))
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
+  // Switching who it's for starts the details over: the signer's own, or blank for someone else's.
+  const choose = (next: 'self' | 'behalf') => {
+    if (next === who) return
+    setWho(next)
+    setDraft((d) => ({
+      ...d,
+      ...(next === 'behalf' ? theirs : mine()),
+      roomId: '',
+      roomNote: '',
+      typedName: '',
+      agreed: false,
+    }))
+    setLeft({})
+    setTried(false)
+  }
 
   // The end already in view (short text, a bigger window, fonts that loaded late): nothing more to read.
   useEffect(() => {
@@ -220,9 +401,11 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
       agreed: draft.agreed,
       agreementHash: agreement.textHash,
       ...(termsAsked ? { termsVersion: termsOfUse.version, termsAgreed: draft.termsAccepted } : {}),
+      ...(behalf ? { onBehalf: true } : {}),
     }
     try {
       onChange(await api.join(trip.slug, body))
+      if (behalf) toast({ text: `${draft.name.trim().split(/\s+/)[0]} is signed up.` })
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         // The trip or the Terms changed under them: show them as they are now, and untick whichever changed, so
@@ -233,11 +416,13 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
           .then((v) => {
             setDraft((d) => ({
               ...d,
-              agreed: v.agreement.textHash === agreement.textHash && d.agreed,
+              agreed:
+                (behalf ? v.agreementOnBehalf : v.agreement).textHash === agreement.textHash &&
+                d.agreed,
               termsAccepted:
                 v.termsOfUse.version === termsOfUse.version && termsAsked && d.termsAccepted,
             }))
-            onChange(v)
+            ;(onRefresh ?? onChange)(v)
           })
           .catch(() => undefined)
       } else
@@ -253,10 +438,48 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <h2 className="text-xl font-extrabold">
-        {trip.waitlisting ? 'Join the waitlist' : 'Join the trip'}
-      </h2>
-      {trip.waitlisting && (
+      {!fixed && (
+        <h2 className="text-xl font-extrabold">
+          {behalf ? 'Sign someone up' : trip.waitlisting ? 'Join the waitlist' : 'Join the trip'}
+        </h2>
+      )}
+      {!fixed && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1.5 text-sm font-semibold">Who are you signing up?</legend>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {(
+              [
+                ['self', 'Me', 'I’m going on this trip.'],
+                [
+                  'behalf',
+                  'Someone I look after',
+                  'A child or a roommate. You sign and pay for them, and can add more after.',
+                ],
+              ] as const
+            ).map(([key, title, line]) => (
+              <label
+                key={key}
+                className={`flex min-h-[56px] cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-sm ${
+                  who === key ? 'border-royal bg-royal-pale' : 'border-rule bg-white'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="who"
+                  checked={who === key}
+                  onChange={() => choose(key)}
+                  className="mt-0.5 h-4 w-4 accent-royal"
+                />
+                <span>
+                  <span className="block font-semibold text-ink">{title}</span>
+                  <span className="text-muted">{line}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {trip.waitlisting && !behalf && (
         <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
           Every spot is spoken for. Sign to join the waitlist: {trip.organizerName} texts you if a
           spot opens, and you pay nothing until then.
@@ -265,8 +488,21 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
       {trip.options.signupNote.trim() && (
         <p className="whitespace-pre-line font-semibold text-ink">{trip.options.signupNote}</p>
       )}
+      {behalf && theyWait && (
+        <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+          {meWaiting
+            ? 'You’re on the waitlist, so they join it with you.'
+            : 'Every spot is spoken for, so they join the waitlist.'}{' '}
+          {trip.organizerName} texts you if a spot opens, and you pay nothing for them until then.
+        </p>
+      )}
+      {behalf && (
+        <p className="text-body">
+          Sign the trip agreement for them. They get a spot of their own, and you can pay for them.
+        </p>
+      )}
       {/* On the waitlist there's nothing to pay yet, so the usual "sign, then pay" line would mislead. */}
-      {!trip.waitlisting && (
+      {!trip.waitlisting && !behalf && (
         <p className="text-body">
           {trip.joinMode === 'accept_first'
             ? `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you pay your first installment.`
@@ -283,20 +519,20 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
         </p>
       )}
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
-        Full name
+        {behalf ? 'Their full name' : 'Full name'}
         <input
           className={input}
           value={draft.name}
           onChange={(e) => set('name', e.target.value)}
           onBlur={leave('name')}
           maxLength={120}
-          autoComplete="name"
+          autoComplete={behalf ? 'off' : 'name'}
         />
         {shown.name && <Problem>{shown.name}</Problem>}
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
-          Phone
+          {behalf ? 'Their phone' : 'Phone'}
           <input
             className={input}
             value={draft.phone}
@@ -304,13 +540,13 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
             onBlur={leave('phone')}
             type="tel"
             maxLength={40}
-            autoComplete="tel"
+            autoComplete={behalf ? 'off' : 'tel'}
             placeholder="(555) 555-0100"
           />
           {shown.phone && <Problem>{shown.phone}</Problem>}
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
-          Email
+          {behalf ? 'Their email' : 'Email'}
           <input
             className={input}
             value={draft.email}
@@ -318,14 +554,22 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
             onBlur={leave('email')}
             type="email"
             maxLength={254}
-            autoComplete="email"
+            autoComplete={behalf ? 'off' : 'email'}
           />
           {shown.email && <Problem>{shown.email}</Problem>}
         </label>
+        {behalf && (
+          <p className="-mt-2 text-sm text-muted sm:col-span-2">
+            Theirs, or yours if they don&apos;t have one. With their own email they can sign in and
+            see their trip.
+          </p>
+        )}
       </div>
       {trip.rooms.length > 0 && (
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-sm font-semibold">Which room would you like?</legend>
+          <legend className="mb-1.5 text-sm font-semibold">
+            {behalf ? 'Which room would they like?' : 'Which room would you like?'}
+          </legend>
           {shown.roomId && <Problem>{shown.roomId}</Problem>}
           <div className="grid gap-2.5 sm:grid-cols-2">
             {trip.rooms.map((r) => (
@@ -351,13 +595,17 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
                 />
                 <span>
                   <span className="block font-semibold text-ink">No preference</span>
-                  <span className="text-muted">{trip.organizerName} will place you.</span>
+                  <span className="text-muted">
+                    {trip.organizerName} will place {behalf ? 'them' : 'you'}.
+                  </span>
                 </span>
               </label>
             )}
           </div>
           <label className="mt-1 flex flex-col gap-1.5 text-sm font-semibold">
-            Anyone you&apos;d like to share with? (optional)
+            {behalf
+              ? 'Anyone they’d like to share with? (optional)'
+              : 'Anyone you’d like to share with? (optional)'}
             <input
               className={input}
               value={draft.roomNote}
@@ -378,7 +626,9 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
           onScroll={checkRead}
           className="max-h-80 overflow-y-auto whitespace-pre-line rounded-xl bg-ground p-4 text-[15px] text-body focus:outline-none focus:ring-2 focus:ring-royal"
         >
-          {agreement.text}
+          {behalf
+            ? fillAgreementNames(agreement.text, draft.typedName, draft.name)
+            : agreement.text}
         </div>
         <p
           id="agreement-read"
@@ -391,7 +641,7 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
         </p>
       </div>
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
-        Type your full name to sign
+        {behalf ? 'Type your own full name to sign for them' : 'Type your full name to sign'}
         <input
           className={input}
           value={draft.typedName}
@@ -414,7 +664,9 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
           {shown.agreed && (
             <span className="block font-semibold text-[#B42318]">{shown.agreed}</span>
           )}
-          I agree to the trip agreement above.
+          {behalf
+            ? 'I agree to the trip agreement above, for them.'
+            : 'I agree to the trip agreement above.'}
         </span>
       </label>
       {termsAsked && (
@@ -468,37 +720,56 @@ function JoinForm({ view, onChange }: { view: JoinView; onChange: (v: JoinView) 
         aria-disabled={busy}
         className={`${primary} ${busy ? 'opacity-60' : ''}`}
       >
-        {busy ? 'Signing…' : 'Sign'}
+        {busy ? 'Signing…' : behalf ? 'Sign them up' : 'Sign'}
       </button>
     </form>
   )
 }
 
+/**
+ * Whether someone on the trip can be paid for now. On an accept-first trip a guest pays once accepted; on the other
+ * two, before the organizer decides. A guest still waiting on a trip that filled has nothing to pay for (they're owed
+ * back what they sent), and nor has one on the waitlist with no spot offered yet.
+ */
+function payable(trip: PublicTrip, g: MyGuest): boolean {
+  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+  const waiting = g.status === 'interested' && Boolean(g.waitlistedAt) && !g.offeredAt
+  return (
+    g.status !== 'declined' &&
+    !g.refundSentAt &&
+    !waiting &&
+    !(g.status === 'interested' && full) &&
+    (trip.joinMode !== 'accept_first' || g.status === 'approved')
+  )
+}
+
+/** Everyone the signed-in person can pay for now, with something left to pay: themselves first. */
+export const payees = (view: JoinView) =>
+  [view.me, ...view.managed].filter(
+    (g): g is MyGuest =>
+      g !== null && g.terms !== null && payable(view.trip, g) && owed(g.terms).left > 0
+  )
+
 /** Where the guest stands, once they've signed: how to pay and their payments, then waiting, accepted or turned down. */
 function MyPlace({
-  trip,
+  view,
   me,
   onChange,
 }: {
-  trip: PublicTrip
+  view: JoinView
   me: MyGuest
   onChange: (v: JoinView) => void
 }) {
+  const { trip } = view
   const [reading, setReading] = useState(false)
   const [reporting, setReporting] = useState(false)
+  const [adding, setAdding] = useState(false)
   const toast = useToast()
   const o = trip.organizerName
-  // On an accept-first trip a guest pays once accepted; on the other two, before the organizer decides.
-  // A guest still waiting on a trip that filled has nothing to pay for (they're owed back what they sent).
   const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   // On the waitlist with no spot offered yet: nothing to pay.
   const waiting = me.status === 'interested' && Boolean(me.waitlistedAt) && !me.offeredAt
-  const canPay =
-    me.status !== 'declined' &&
-    !me.refundSentAt &&
-    !waiting &&
-    !(me.status === 'interested' && full) &&
-    (trip.joinMode !== 'accept_first' || me.status === 'approved')
+  const canPay = payable(trip, me)
   const { left, dueNow } = me.terms ? owed(me.terms) : { left: 0, dueNow: 0 }
   const first = me.terms ? money(me.terms.firstInstallmentCents) : 'your first installment'
   const paidCents = me.terms?.paidCents ?? 0
@@ -569,6 +840,14 @@ function MyPlace({
         </h2>
         <p className="text-body">{line}</p>
       </div>
+      {me.terms && me.status !== 'declined' && (
+        <div className="flex flex-col gap-1.5">
+          <PaidBar g={me} />
+          <span className="text-sm text-body">
+            {money(me.terms.paidCents)} of {money(me.terms.priceCents)} paid
+          </span>
+        </div>
+      )}
 
       {canPay && (me.paymentMethods.length > 0 || me.paymentInstructions) && (
         <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
@@ -617,6 +896,32 @@ function MyPlace({
           Read what you signed
         </button>
       )}
+      {/* Once they look after someone, the Travelers card below has this. */}
+      {view.managed.length === 0 && me.status !== 'declined' && (
+        <div className="flex flex-col gap-2 border-t border-rule pt-4">
+          <p className="text-sm font-semibold">Signing up a child or someone you look after?</p>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className={`${outlined} self-start`}
+          >
+            Sign someone up
+          </button>
+        </div>
+      )}
+      {adding && (
+        <Dialog title="Sign someone up" onClose={() => setAdding(false)}>
+          <JoinForm
+            view={view}
+            fixed="behalf"
+            onChange={(v) => {
+              setAdding(false)
+              onChange(v)
+            }}
+            onRefresh={onChange}
+          />
+        </Dialog>
+      )}
       {reading && me.agreement && (
         <Dialog title="Your signed agreement" onClose={() => setReading(false)}>
           <div className="whitespace-pre-line rounded-xl bg-ground p-4 text-[15px] text-body">
@@ -630,10 +935,8 @@ function MyPlace({
       )}
       {reporting && me.terms && (
         <ReportPayment
-          trip={trip}
-          me={me}
-          left={left}
-          dueNow={dueNow}
+          view={view}
+          people={payees(view)}
           onDone={(v) => {
             setReporting(false)
             onChange(v)
@@ -647,11 +950,98 @@ function MyPlace({
   )
 }
 
+/**
+ * The travelers someone signed up and looks after (issue #11): where each one stands and what's paid, how to pay when
+ * the signer isn't on the trip themselves, adding another while a spot is left, and joining themselves too.
+ */
+function Travelers({ view, onChange }: { view: JoinView; onChange: (v: JoinView) => void }) {
+  const { trip } = view
+  const o = trip.organizerName
+  const toast = useToast()
+  const [adding, setAdding] = useState<'behalf' | 'self' | null>(null)
+  const [reporting, setReporting] = useState(false)
+  const people = payees(view)
+  const dialogs = (
+    <>
+      {adding && (
+        <Dialog
+          title={
+            adding === 'behalf'
+              ? 'Add another traveler'
+              : trip.waitlisting
+                ? 'Join the waitlist yourself'
+                : 'Join the trip yourself'
+          }
+          onClose={() => setAdding(null)}
+        >
+          <JoinForm
+            view={view}
+            fixed={adding}
+            onChange={(v) => {
+              setAdding(null)
+              onChange(v)
+              if (adding === 'self') toast({ text: 'You’re signed up too.' })
+            }}
+            onRefresh={onChange}
+          />
+        </Dialog>
+      )}
+      {reporting && (
+        <ReportPayment
+          view={view}
+          people={people}
+          onDone={(v) => {
+            setReporting(false)
+            onChange(v)
+            toast({ text: `Payment reported to ${o}. They’ll confirm it arrived.` })
+            window.dispatchEvent(new Event('cc:actions-changed'))
+          }}
+          onClose={() => setReporting(false)}
+        />
+      )}
+    </>
+  )
+  return (
+    <>
+      <TravelersCard
+        view={view}
+        onPay={() => setReporting(true)}
+        onAdd={() => setAdding('behalf')}
+        onJoinMyself={() => setAdding('self')}
+      />
+      {dialogs}
+    </>
+  )
+}
+
+/** Where a traveler someone signed up stands, in a few words. */
+export function travelerStatus(trip: PublicTrip, g: MyGuest): string {
+  const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
+  if (g.status === 'declined') return g.refundSentAt ? 'Not taken, refunded' : 'Not taken'
+  if (g.status === 'approved') return 'Accepted'
+  if (trip.joinMode === 'accept_first') return `Waiting for ${trip.organizerName} to accept`
+  if (g.refundSentAt) return 'Payment refunded'
+  if (g.waitlistedAt && !g.offeredAt) return 'On the waitlist'
+  if (g.spotPaidAt)
+    return full ? 'The trip filled first, refund coming' : 'Paid, waiting to be accepted'
+  if (g.payments.some((p) => p.status === 'reported')) return 'Payment sent'
+  if (!payable(trip, g)) return 'Every spot is taken'
+  return 'Pay to hold their spot'
+}
+
 /** The guest's payments, newest first, with where each stands. */
-function MyPayments({ payments, organizer }: { payments: MyGuest['payments']; organizer: string }) {
+export function MyPayments({
+  payments,
+  organizer,
+  title = 'Your payments',
+}: {
+  payments: MyGuest['payments']
+  organizer: string
+  title?: string
+}) {
   return (
     <div className="border-t border-rule pt-4">
-      <h3 className="text-sm font-semibold text-muted">Your payments</h3>
+      <h3 className="text-sm font-semibold text-muted">{title}</h3>
       <ul>
         {[...payments].reverse().map((p) => (
           <li
@@ -684,186 +1074,9 @@ function MyPayments({ payments, organizer }: { payments: MyGuest['payments']; or
 
 /**
  * Reporting a payment (owner's decision, 2026-10-24): how much they sent, how and when, and that they sent it. Less
- * than is due now needs a line saying why. Every problem shows beside its field before they press the button.
+ * than is due now needs a line saying why. Every problem shows beside its field before they press the button. Someone
+ * who looks after other travelers says who the payment is for, with each one's share (issue #11).
  */
-function ReportPayment({
-  trip,
-  me,
-  left,
-  dueNow,
-  onDone,
-  onClose,
-}: {
-  trip: PublicTrip
-  me: MyGuest
-  left: number
-  dueNow: number
-  onDone: (v: JoinView) => void
-  onClose: () => void
-}) {
-  const o = trip.organizerName
-  const methods = me.paymentMethods
-  const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState<number | null>(methods.length === 1 ? 0 : null)
-  const [sentOn, setSentOn] = useState(today())
-  const [note, setNote] = useState('')
-  const [certified, setCertified] = useState(false)
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [tried, setTried] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const cents = centsFrom(amount)
-  const short = cents > 0 && cents < dueNow
-
-  const problems: Record<string, string> = {}
-  if (!cents) problems.amount = 'Enter how much you sent.'
-  else if (cents > left) problems.amount = `That’s more than the ${money(left)} left to pay.`
-  // A trip that lists no ways to pay says how in its note: there's nothing to pick.
-  if (method === null && methods.length > 0) problems.method = 'Pick how you paid.'
-  if (!sentOn) problems.sentOn = 'Enter the day you sent it.'
-  else if (sentOn > today()) problems.sentOn = 'That day hasn’t happened yet.'
-  if (short && !note.trim()) problems.note = 'Say why it’s less than what’s due.'
-  if (!certified) problems.certified = `Tick this to report your payment to ${o}.`
-  const show = (k: string) => (tried || touched[k] ? problems[k] : undefined)
-  const touch = (k: string) => setTouched((t) => ({ ...t, [k]: true }))
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setTried(true)
-    if (Object.keys(problems).length > 0 || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      onDone(
-        await api.reportPayment(trip.slug, {
-          guestPaymentAmount: cents,
-          methodIndex: method,
-          sentOn,
-          note: short ? note.trim() : '',
-          certified: true,
-        })
-      )
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "That didn't go through. Please try again.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog title="Report a payment" onClose={onClose}>
-      <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-        {error && (
-          <p role="alert" className="font-semibold text-[#B42318]">
-            {error}
-          </p>
-        )}
-        <label className="flex flex-col gap-1.5 font-semibold">
-          Amount you sent
-          <input
-            className={input}
-            inputMode="decimal"
-            autoComplete="off"
-            placeholder="$0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onBlur={() => touch('amount')}
-            aria-invalid={Boolean(show('amount'))}
-          />
-          <span className="text-sm font-normal text-muted">
-            {dueNow > 0 ? `Due now: ${money(dueNow)}` : `Left to pay: ${money(left)}`}
-          </span>
-          {show('amount') && <Problem>{show('amount')}</Problem>}
-        </label>
-
-        {methods.length > 0 && (
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1.5 font-semibold">How you paid</legend>
-            {methods.length === 1 ? (
-              <p className="text-body">{paymentMethodLabel(methods[0])}</p>
-            ) : (
-              methods.map((m, i) => (
-                <label
-                  key={i}
-                  className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border px-3.5 ${
-                    method === i ? 'border-royal bg-royal-pale' : 'border-rule'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="method"
-                    checked={method === i}
-                    onChange={() => {
-                      setMethod(i)
-                      touch('method')
-                    }}
-                    className="h-5 w-5 accent-royal"
-                  />
-                  {paymentMethodLabel(m)}
-                </label>
-              ))
-            )}
-            {show('method') && <Problem>{show('method')}</Problem>}
-          </fieldset>
-        )}
-
-        <label className="flex flex-col gap-1.5 font-semibold">
-          Day you sent it
-          <input
-            type="date"
-            className={input}
-            value={sentOn}
-            max={today()}
-            onChange={(e) => setSentOn(e.target.value)}
-            onBlur={() => touch('sentOn')}
-            aria-invalid={Boolean(show('sentOn'))}
-          />
-          {show('sentOn') && <Problem>{show('sentOn')}</Problem>}
-        </label>
-
-        {short && (
-          <label className="flex flex-col gap-1.5 font-semibold">
-            Why it’s less than {money(dueNow)}
-            <textarea
-              className={`${input} min-h-[80px]`}
-              value={note}
-              maxLength={500}
-              onChange={(e) => setNote(e.target.value)}
-              onBlur={() => touch('note')}
-              placeholder="For example: the rest on Friday, after payday."
-              aria-invalid={Boolean(show('note'))}
-            />
-            {show('note') && <Problem>{show('note')}</Problem>}
-          </label>
-        )}
-
-        <div>
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={certified}
-              onChange={(e) => {
-                setCertified(e.target.checked)
-                touch('certified')
-              }}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
-            />
-            <span>
-              I sent this payment to {o}
-              {cents ? `: ${money(cents)}` : ''}.
-            </span>
-          </label>
-          {show('certified') && <Problem>{show('certified')}</Problem>}
-        </div>
-
-        <button type="submit" aria-disabled={busy} className={primary}>
-          {busy ? 'Sending…' : 'Report payment'}
-        </button>
-      </form>
-    </Dialog>
-  )
-}
-
 function Term({ label, value }: { label: string; value: string }) {
   return (
     <div>

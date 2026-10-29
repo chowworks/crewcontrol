@@ -7,6 +7,7 @@ import {
   type ExpenseInput,
   type GuestEvent,
   type GuestUpdate,
+  type ClaimInput,
   type JoinInput,
   type JoinMode,
   type JoinView,
@@ -146,6 +147,9 @@ export const api = {
   // The join page: a signed-in guest's own place on a trip.
   getJoin: (slug: string) => request<JoinView>(`/join/${slug}`),
   join: (slug: string, input: JoinInput) => request<JoinView>(`/join/${slug}`, json('POST', input)),
+  // "That's me": a traveler takes over the place someone signed them up with.
+  claim: (slug: string, input: ClaimInput) =>
+    request<JoinView>(`/join/${slug}/claim`, json('POST', input)),
   reportPayment: (slug: string, report: PaymentReport) =>
     request<JoinView>(`/join/${slug}/payments`, json('POST', report)),
   decidePayment: (id: string, paymentId: string, decision: PaymentDecision) =>

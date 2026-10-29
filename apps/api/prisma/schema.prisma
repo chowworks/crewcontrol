@@ -81,8 +81,12 @@ model TripMember {
 model Guest {
   id                 String              @id @default(cuid())
   tripId             String
-  // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in.
+  // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in, and for a
+  // traveler someone else signed up until that traveler signs in themselves (claim_managed_guest).
   userId             String?
+  // Whose account signed this traveler up and looks after them (a parent, a friend paying for a roommate), when it
+  // wasn't the traveler (migration 20261028050000_responsible_party). Organizers can change it.
+  managedByUserId    String?
   firstName          String
   lastName           String
   email              String
@@ -112,6 +116,7 @@ model Guest {
   @@unique([id, tripId])
   @@index([tripId])
   @@index([userId])
+  @@index([managedByUserId])
 }
 
 // The trip agreement a guest signed, never changed once written (migration 20261023020000_join_and_agreements): the
@@ -130,6 +135,8 @@ model AgreementSignature {
   endDate          String
   refundTerms      String
   typedName        String
+  // Whose account signed it on the traveler's behalf (issue #11); null when the traveler signed it themselves.
+  signedByUserId   String?
   signedAt         DateTime @default(now())
   ipAddress        String
   userAgent        String
@@ -203,6 +210,10 @@ model Payment {
   note                  String    @default("")
   status                String    @default("reported") // 'reported' | 'confirmed' | 'not_received'
   loggedBy              String    @default("guest") // 'guest' | 'organizer'
+  // Who sent it, by name, when someone paid for this traveler ('' when the traveler reported it themselves).
+  paidByName            String    @default("")
+  // One transfer for several travelers: the rows it pays share this, and are confirmed together. Null for one person.
+  transferId            String?
   reportedAt            DateTime  @default(now())
   decidedAt             DateTime?
   decidedByUserId       String?
@@ -214,6 +225,7 @@ model Payment {
 
   @@index([tripId])
   @@index([guestId, reportedAt])
+  @@index([tripId, transferId])
 }
 
 // A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.
