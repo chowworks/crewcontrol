@@ -55,6 +55,23 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
   },
   {
+    kind: 'invite',
+    name: 'Added to help run a trip',
+    when: 'To someone a trip’s owner adds on its People screen, as an organizer or an owner. Replies go to whoever added them.',
+    groups: ['invite'],
+    subject: '{{invite.inviterName}} added you to help run {{invite.tripName}}',
+    body: `<p>Hi,</p>
+<p>{{invite.inviterName}} added you as {{#if invite.isOwner}}an owner{{else}}an organizer{{/if}} of <strong>{{invite.tripName}}</strong>, {{invite.dates}}, on Travel HQ.</p>
+<p>{{#if invite.isOwner}}You can run everything {{invite.inviterName}} can: the trip page, its guests and their payments, and who helps run it.{{else}}You can help with the trip page, its guests and their payments.{{/if}}</p>
+{{#if invite.signedUp}}
+<p><a href="{{invite.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip</a></p>
+{{else}}
+<p>To get in, make a Travel HQ account with this email address, <strong>{{invite.email}}</strong>. The trip is there as soon as you sign in.</p>
+<p><a href="{{invite.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Make your account</a></p>
+{{/if}}
+<p>Questions? Reply to this email and it goes to {{invite.inviterName}}.</p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
@@ -121,6 +138,17 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       topic: 'Help with a trip',
       message:
         'Hi! I joined the Aruba trip but picked the wrong room.\nCan the organizer change it, or do I?',
+    },
+    invite: {
+      tripName: 'Aruba Crew Getaway 2028',
+      destination: 'Aruba',
+      dates: 'Mar 3 – 8, 2028',
+      inviterName: 'Nia Brooks',
+      role: 'organizer',
+      isOwner: false,
+      email: 'dana.reyes@example.com',
+      signedUp: false,
+      link: 'https://travel-hq.app/sign-up',
     },
     paymentDetails: {
       methods: [

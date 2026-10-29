@@ -88,7 +88,9 @@ export function PeoplePage({ admin = false }: { admin?: boolean }) {
         action: {
           label: 'Undo',
           onClick: () =>
-            void save(() => api.addPerson(id, { email: i.email, role: i.role }, admin)),
+            void save(() =>
+              api.addPerson(id, { email: i.email, role: i.role, notify: false }, admin)
+            ),
         },
       })
   }
@@ -116,7 +118,9 @@ export function PeoplePage({ admin = false }: { admin?: boolean }) {
         ? {
             label: 'Undo',
             onClick: () =>
-              void save(() => api.addPerson(id, { email: p.email, role: p.role }, admin)),
+              void save(() =>
+                api.addPerson(id, { email: p.email, role: p.role, notify: false }, admin)
+              ),
           }
         : undefined,
     })
@@ -262,8 +266,8 @@ export function PeoplePage({ admin = false }: { admin?: boolean }) {
             const added = saved.people.find((p) => p.email.toLowerCase() === email)
             toast({
               text: added
-                ? `${added.name} now helps run this trip.`
-                : `${email} is invited. They join when they first sign in.`,
+                ? `${added.name} now helps run this trip.${added.userId === user?.id ? '' : ' We emailed them.'}`
+                : `${email} is invited. We emailed them how to sign up.`,
             })
           }}
         />

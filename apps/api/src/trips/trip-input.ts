@@ -437,5 +437,5 @@ export function parseTripPerson(raw: unknown): TripPersonInput {
   if (!raw || typeof raw !== 'object') fail('Expected a person')
   const email = text(raw as Body, 'email', 254).toLowerCase()
   if (!EMAIL.test(email)) fail('Enter an email address')
-  return { email, role: parseTripRole(raw) }
+  return { email, role: parseTripRole(raw), notify: (raw as Body).notify !== false }
 }

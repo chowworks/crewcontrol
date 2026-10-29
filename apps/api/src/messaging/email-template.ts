@@ -69,6 +69,22 @@ export interface EmailContext {
     topic: string
     message: string
   }
+  /** In the email to someone added to help run a trip (issue #12): the trip, who added them, and how to get in. */
+  invite?: {
+    tripName: string
+    destination: string
+    /** "Jun 12 – 19, 2027" */
+    dates: string
+    inviterName: string
+    /** "organizer" or "owner". */
+    role: string
+    isOwner: boolean
+    /** The email they were added with: someone without an account signs up with it to get in. */
+    email: string
+    /** They already have a Travel HQ account, so the link opens the trip's Control panel rather than sign-up. */
+    signedUp: boolean
+    link: string
+  }
 }
 
 /** An email to a guest: always has their trip and them. */
@@ -77,7 +93,7 @@ export type GuestEmailContext = EmailContext & {
   guest: NonNullable<EmailContext['guest']>
 }
 
-export type VariableGroup = 'trip' | 'guest' | 'paymentDetails' | 'contact'
+export type VariableGroup = 'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite'
 
 export interface Variable {
   path: string
@@ -134,6 +150,17 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'contact.email', label: 'Their email' },
     { path: 'contact.topic', label: 'Topic' },
     { path: 'contact.message', label: 'Their message' },
+  ],
+  invite: [
+    { path: 'invite.tripName', label: 'Trip name' },
+    { path: 'invite.destination', label: 'Destination' },
+    { path: 'invite.dates', label: 'Dates, written out' },
+    { path: 'invite.inviterName', label: 'Who added them' },
+    { path: 'invite.role', label: 'Their role (organizer or owner)' },
+    { path: 'invite.isOwner', label: 'Added as an owner (yes or no)' },
+    { path: 'invite.email', label: 'The email they were added with' },
+    { path: 'invite.signedUp', label: 'Already has an account (yes or no)' },
+    { path: 'invite.link', label: 'Link: the Control panel, or sign-up for someone new' },
   ],
   paymentDetails: [
     {
@@ -328,11 +355,18 @@ export function render(
   const body = fill(template.body, context)
   const trip = context.trip && Handlebars.escapeExpression(context.trip.name)
   const organizer = context.trip && Handlebars.escapeExpression(context.trip.organizerName)
+  const invite = context.invite && {
+    trip: Handlebars.escapeExpression(context.invite.tripName),
+    by: Handlebars.escapeExpression(context.invite.inviterName),
+  }
   const footer = context.trip
     ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
       `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
       `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
-    : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+    : invite
+      ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
+        `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
+      : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

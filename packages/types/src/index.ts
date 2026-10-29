@@ -111,6 +111,8 @@ export interface TripPeople {
 export interface TripPersonInput {
   email: string
   role: TripRole
+  /** Email them that they were added (the default); false on Undo, which puts back someone who was already told. */
+  notify?: boolean
 }
 
 export interface Guest {

@@ -9,6 +9,8 @@ import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { ClerkService } from '../auth/clerk.service'
 import { runAsSystem } from '../core/tenant-context'
+import { dateRange } from '../messaging/email-context'
+import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import type { TripPeople, TripPersonInput, TripRole } from './trip-types'
 
@@ -23,7 +25,8 @@ import type { TripPeople, TripPersonInput, TripRole } from './trip-types'
 export class PeopleService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly clerk: ClerkService
+    private readonly clerk: ClerkService,
+    private readonly emails: EmailsService
   ) {}
 
   async list(tripId: string, caller: Caller, admin: boolean): Promise<TripPeople> {
@@ -53,6 +56,7 @@ export class PeopleService {
     const userId = await this.clerk.userIdByEmail(input.email)
     if (userId && trip.members.some((m) => m.userId === userId))
       throw new ConflictException('They already help run this trip.')
+    let added = true
     try {
       // Someone who hasn't signed in yet is invited, and joins when they first sign in with this email.
       if (userId)
@@ -64,8 +68,38 @@ export class PeopleService {
     } catch (err) {
       // A double click: the other request added them first.
       if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err
+      added = false
     }
+    // Not when an admin seats themselves, nor on Undo, which puts back someone who was already told.
+    if (added && input.notify !== false && userId !== caller.userId)
+      await this.sendInvite(trip, input, Boolean(userId), tripId, caller)
     return this.list(tripId, caller, admin)
+  }
+
+  /** The "invite" email (issue #12): the Control panel for someone with an account, sign-up for someone new. */
+  private async sendInvite(
+    trip: { name: string; destination: string; startDate: string; endDate: string },
+    input: TripPersonInput,
+    signedUp: boolean,
+    tripId: string,
+    caller: Caller
+  ): Promise<void> {
+    const by = await this.clerk.contact(caller.userId)
+    const web = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
+    await this.emails.sendInvite(
+      {
+        tripName: trip.name,
+        destination: trip.destination,
+        dates: dateRange(trip.startDate, trip.endDate),
+        inviterName: by.name || by.email || 'A Travel HQ organizer',
+        role: input.role,
+        isOwner: input.role === 'owner',
+        email: input.email,
+        signedUp,
+        link: signedUp ? `${web}/organize/${tripId}/control` : `${web}/sign-up`,
+      },
+      by.email || undefined
+    )
   }
 
   async setRole(tripId: string, userId: string, role: TripRole, caller: Caller, admin: boolean) {
@@ -149,6 +183,9 @@ export class PeopleService {
       select: {
         name: true,
         isSample: true,
+        destination: true,
+        startDate: true,
+        endDate: true,
         members: { select: { userId: true, role: true } },
         invites: { select: { email: true, role: true }, orderBy: { createdAt: 'asc' } },
       },
