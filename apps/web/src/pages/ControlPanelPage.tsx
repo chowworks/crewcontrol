@@ -23,6 +23,7 @@ import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
+import { DangerZone } from './DeleteTrip'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import { TripLogCard } from './TripLog'
 import { AnnouncementsCard } from './TripAnnouncements'
@@ -331,6 +332,8 @@ export function ControlPanelPage() {
         <TripLogCard trip={trip} />
         {/* Last on the page (owner's decision, 2026-10-30). */}
         {questions.card}
+        {/* Below everything, owners only (owner's decision, 2026-10-30); the admin never deletes a trip. */}
+        {!admin && <DangerZone tripId={trip.id} tripName={trip.name} />}
       </main>
     </div>
   )

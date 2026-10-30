@@ -37,6 +37,8 @@ import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
 import { ExpensesService } from './expenses.service'
 import { PeopleService } from './people.service'
+import { TripDeletionService } from './trip-deletion.service'
+import { TripExportService } from './trip-export.service'
 import { TripsService } from './trips.service'
 
 // Organizer endpoints: signed in with Clerk, the Organizer Terms accepted, and only for the caller's own trips
@@ -48,7 +50,9 @@ export class TripsController {
     private readonly trips: TripsService,
     private readonly people: PeopleService,
     private readonly expenses: ExpensesService,
-    private readonly clerk: ClerkService
+    private readonly clerk: ClerkService,
+    private readonly deletion: TripDeletionService,
+    private readonly exports: TripExportService
   ) {}
 
   @Get()
@@ -81,6 +85,12 @@ export class TripsController {
       return
     }
     return new StreamableFile(photo.bytes, { type: photo.type })
+  }
+
+  // Download everything: the signed agreements as PDFs and the photos, as a zip the browser adds the rest to.
+  @Get(':id/export-files')
+  async exportFiles(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return new StreamableFile(await this.exports.files(id, caller), { type: 'application/zip' })
   }
 
   // The agreement as this trip's guests would sign it today (read-only: organizers can't edit it).
@@ -224,6 +234,18 @@ export class TripsController {
   }
 
   // The trip's People screen: who runs it. Its owners add, change and remove them.
+  // Owners only: hidden at once, erased for good 30 days later unless an owner restores it.
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.deletion.remove(id, caller)
+  }
+
+  @Post(':id/restore')
+  @HttpCode(204)
+  restore(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.deletion.restore(id, caller)
+  }
+
   @Get(':id/people')
   listPeople(@Param('id') id: string, @CurrentCaller() caller: Caller) {
     return this.people.list(id, caller, false)

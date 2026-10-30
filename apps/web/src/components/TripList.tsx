@@ -3,10 +3,17 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { SampleTripBadge } from '@/components/SampleTripBadge'
 import type { ListedTrip } from '@/lib/api'
 import { dateRange } from '@/lib/format'
+import { eraseDay } from '@/pages/DeleteTrip'
 
 const owner = (t: ListedTrip) => (t.isSample ? 'Sample trip' : (t.ownerName ?? 'No owner yet'))
 
 function Status({ t }: { t: ListedTrip }) {
+  if (t.eraseOn)
+    return (
+      <span className="rounded-full bg-[#FEE4E2] px-2.5 py-0.5 text-xs font-semibold text-[#B42318]">
+        Deleted · erases {eraseDay(t.eraseOn)}
+      </span>
+    )
   return (
     <span
       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -84,7 +91,12 @@ export function TripList({
   const [sort, setSort] = useState<SortKey>('soonest')
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-    return trips.filter((t) => words.every((w) => haystack(t).includes(w))).sort(SORTS[sort].by)
+    // Deleted trips (waiting to be erased) last, whatever the order.
+    return trips
+      .filter((t) => words.every((w) => haystack(t).includes(w)))
+      .sort(
+        (a, b) => Number(Boolean(a.eraseOn)) - Number(Boolean(b.eraseOn)) || SORTS[sort].by(a, b)
+      )
   }, [trips, query, sort])
 
   const field =

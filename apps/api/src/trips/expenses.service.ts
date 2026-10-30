@@ -66,7 +66,7 @@ export class ExpensesService {
   /** A trip the caller works on (the admin: any trip); anyone else's reads as not found. */
   private async trip(id: string, caller: Caller, admin = false): Promise<void> {
     const found = await this.prisma.trip.findFirst({
-      where: admin ? { id } : { id, members: { some: { userId: caller.userId } } },
+      where: admin ? { id } : { id, deletedAt: null, members: { some: { userId: caller.userId } } },
       select: { id: true },
     })
     if (!found) throw new NotFoundException('Trip not found')

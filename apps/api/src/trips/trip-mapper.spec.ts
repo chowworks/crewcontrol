@@ -30,6 +30,8 @@ const trip: Trip = {
   options: { roomChoice: true },
   createdAt: new Date(),
   receiptsAddress: null,
+  deletedAt: null,
+  deletedByUserId: null,
   updatedAt: new Date(),
 }
 

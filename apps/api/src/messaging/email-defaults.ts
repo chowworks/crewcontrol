@@ -144,6 +144,23 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
   },
   {
+    kind: 'trip_deleted',
+    name: 'Trip deleted',
+    when: 'To each guest who signed, when an owner deletes their trip: their signed agreement and payments, to keep.',
+    groups: ['trip', 'guest', 'paymentDetails', 'deletion'],
+    subject: 'Your copy of {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{trip.organizerName}} deleted <strong>{{trip.name}}</strong> ({{trip.dates}}) from Travel HQ, so its trip page is gone. Travel HQ erases the trip on {{deletion.eraseDate}}.</p>
+<p>Here is your own record of it to keep: what you paid, and the agreement you signed, attached in full. If you're not sure what this means for the trip, reply to this email to ask {{trip.organizerName}}.</p>
+<h3 style="margin:24px 0 8px;font-size:17px;">Your payments</h3>
+{{#if deletion.payments}}<ul>
+{{#each deletion.payments}}<li>{{date}}: {{amount}} by {{how}} ({{status}})</li>
+{{/each}}</ul>{{else}}<p>No payments were recorded.</p>{{/if}}
+<p>Price {{paymentDetails.total}} · Paid {{paymentDetails.paid}} · Left to pay {{paymentDetails.left}}</p>
+<h3 style="margin:24px 0 8px;font-size:17px;">The agreement you signed</h3>
+<p>You signed it on {{deletion.signedOn}} as {{deletion.signedName}}. Your copy is attached, exactly as you signed it.</p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
@@ -259,6 +276,17 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       email: 'dana.reyes@example.com',
       signedUp: false,
       link: 'https://travel-hq.app/sign-up',
+    },
+    deletion: {
+      eraseDate: 'Nov 29, 2026',
+      agreement:
+        'Trip agreement: Aruba Crew Getaway 2028\n\nThis agreement is between Nia (the organizer) and Dana Reyes (the guest)…',
+      signedName: 'Dana Reyes',
+      signedOn: 'Oct 21, 2026',
+      payments: [
+        { date: 'Oct 22, 2026', amount: '$400', how: 'Zelle', status: 'confirmed' },
+        { date: 'Dec 1, 2026', amount: '$400', how: 'Cash App', status: 'reported' },
+      ],
     },
     paymentDetails: {
       methods: [

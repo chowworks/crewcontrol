@@ -9,7 +9,7 @@ import { useAdminView } from '@/components/AdminView'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
-import { amount, downloadCsv, fileSlug, stamp } from '@/lib/csv'
+import { amount, type Cell, downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { signupOrder } from '@/lib/signups'
 import { Expenses } from './TripExpenses'
 import { IconCircle } from './TripGuests'
@@ -52,6 +52,96 @@ const statusOf = (g: Guest) =>
 const outlined =
   'inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale'
 
+/** Guests and balances as spreadsheet rows: Trip Financials' export, and part of Download everything. */
+export function guestRows(trip: OrganizerTrip): Cell[][] {
+  const rows = signupOrder(trip.guests).map((g) => ({ g, m: moneyOf(g) }))
+  return [
+    [
+      'Guest',
+      'Trip Status',
+      'Total Price',
+      'Credits and Charges',
+      'Total Paid',
+      'Total Pending Confirmation',
+      'Total Refund',
+      'Balance',
+      'Joined',
+      'Spot Paid',
+    ],
+    ...rows.map(({ g, m }) => [
+      `${g.firstName} ${g.lastName}`.trim(),
+      statusOf(g),
+      g.terms ? amount(m.signed) : null,
+      g.terms ? amount(m.adjusted) : null,
+      amount(m.paid),
+      amount(m.waiting),
+      amount(m.refunded),
+      g.terms ? amount(m.left) : null,
+      stamp(g.createdAt),
+      stamp(g.spotPaidAt),
+    ]),
+  ]
+}
+
+/** Every payment as spreadsheet rows, as above. */
+export function paymentRows(trip: OrganizerTrip): Cell[][] {
+  const line = signupOrder(trip.guests)
+  const STATUSES: Record<Payment['status'], string> = {
+    reported: 'Pending confirmation',
+    confirmed: 'Confirmed',
+    not_received: 'Not received',
+    refunded: 'Refunded',
+  }
+  return [
+    [
+      'Guest',
+      'Payment Amount Sent',
+      'Payment Amount Confirmed',
+      'Payment Status',
+      'Payment Method',
+      'Payment Sent Date',
+      'Note',
+      'Payment Reported Date',
+      'Payment Confirmed Date',
+      'Entered By',
+    ],
+    ...line.flatMap((g) =>
+      g.payments.map((p) => [
+        `${g.firstName} ${g.lastName}`.trim(),
+        amount(p.guestPaymentAmount),
+        amount(p.receivedPaymentAmount),
+        STATUSES[p.status],
+        p.method,
+        p.sentOn,
+        p.note,
+        stamp(p.reportedAt),
+        stamp(p.decidedAt),
+        p.loggedBy === 'organizer'
+          ? 'Organizer'
+          : p.loggedBy === 'email'
+            ? 'Forwarded receipt'
+            : 'Guest',
+      ])
+    ),
+  ]
+}
+
+/** Vendor costs as spreadsheet rows, as above. */
+export function expenseRows(expenses: Expense[]): Cell[][] {
+  return [
+    ['Paid To', 'For', 'Amount', 'Status', 'Paid Date', 'Due Date', 'Added'],
+    ...expenses.map((e) => [
+      e.payee,
+      e.description,
+      amount(e.amountCents),
+      e.paidOn ? 'Paid' : 'Owed',
+      e.paidOn,
+      e.dueOn,
+      stamp(e.createdAt),
+    ]),
+  ]
+}
+
 export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
   const admin = useAdminView()
   const toast = useToast()
@@ -78,90 +168,17 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
   const file = fileSlug(trip.name)
 
   function exportGuests() {
-    downloadCsv(`${file}-guests-and-balances`, [
-      [
-        'Guest',
-        'Trip Status',
-        'Total Price',
-        'Credits and Charges',
-        'Total Paid',
-        'Total Pending Confirmation',
-        'Total Refund',
-        'Balance',
-        'Joined',
-        'Spot Paid',
-      ],
-      ...rows.map(({ g, m }) => [
-        `${g.firstName} ${g.lastName}`.trim(),
-        statusOf(g),
-        g.terms ? amount(m.signed) : null,
-        g.terms ? amount(m.adjusted) : null,
-        amount(m.paid),
-        amount(m.waiting),
-        amount(m.refunded),
-        g.terms ? amount(m.left) : null,
-        stamp(g.createdAt),
-        stamp(g.spotPaidAt),
-      ]),
-    ])
+    downloadCsv(`${file}-guests-and-balances`, guestRows(trip))
     toast({ text: 'Downloaded Guests and balances.' })
   }
 
   function exportPayments() {
-    const STATUSES: Record<Payment['status'], string> = {
-      reported: 'Pending confirmation',
-      confirmed: 'Confirmed',
-      not_received: 'Not received',
-      refunded: 'Refunded',
-    }
-    downloadCsv(`${file}-payments`, [
-      [
-        'Guest',
-        'Payment Amount Sent',
-        'Payment Amount Confirmed',
-        'Payment Status',
-        'Payment Method',
-        'Payment Sent Date',
-        'Note',
-        'Payment Reported Date',
-        'Payment Confirmed Date',
-        'Entered By',
-      ],
-      ...line.flatMap((g) =>
-        g.payments.map((p) => [
-          `${g.firstName} ${g.lastName}`.trim(),
-          amount(p.guestPaymentAmount),
-          amount(p.receivedPaymentAmount),
-          STATUSES[p.status],
-          p.method,
-          p.sentOn,
-          p.note,
-          stamp(p.reportedAt),
-          stamp(p.decidedAt),
-          p.loggedBy === 'organizer'
-            ? 'Organizer'
-            : p.loggedBy === 'email'
-              ? 'Forwarded receipt'
-              : 'Guest',
-        ])
-      ),
-    ])
+    downloadCsv(`${file}-payments`, paymentRows(trip))
     toast({ text: 'Downloaded Every payment.' })
   }
 
   function exportExpenses() {
-    downloadCsv(`${file}-vendor-costs`, [
-      ['Paid To', 'For', 'Amount', 'Status', 'Paid Date', 'Due Date', 'Added'],
-      ...(expenses ?? []).map((e) => [
-        e.payee,
-        e.description,
-        amount(e.amountCents),
-        e.paidOn ? 'Paid' : 'Owed',
-        e.paidOn,
-        e.dueOn,
-        stamp(e.createdAt),
-      ]),
-    ])
+    downloadCsv(`${file}-vendor-costs`, expenseRows(expenses ?? []))
     toast({ text: 'Downloaded Vendor costs.' })
   }
 

@@ -100,6 +100,11 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
 - Uploads: JPEG, PNG or WebP, at most 8 MB, and the bytes must begin the way that type does (`looksLikeImage`);
   the browser's claimed type alone is never trusted. The web app shrinks photos before upload (`lib/resize.ts`).
   At most `MAX_TRIP_PHOTOS` (15) per trip.
+- **Deleting a trip** (owner's decision, 2026-10-30): only an owner deletes one, from the Danger zone at the bottom of
+  Trip Control, after downloading everything on it as one zip (a two-step dialog; the API adds the signed agreements as PDFs and the photos, `TripExportService`). It is hidden at once from everyone but the admin (`trips_of_user` skips it, and it is
+  unpublished), each guest who signed is emailed their signed agreement and payments, an owner can restore it from
+  Your trips for 30 days, and then the hourly run erases it, photos too (`TripDeletionService`). A query that lists
+  a member's trips filters `deletedAt: null` as well, for when row-level security is off.
 - Passport and flight details are Phase 3 and need the PII research first (what to collect, how long to keep it,
   who may export it). Do not add fields for them before that.
 

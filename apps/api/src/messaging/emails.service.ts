@@ -18,7 +18,7 @@ import {
   type EmailContext,
   type VariableGroup,
 } from './email-template'
-import { sendEmail } from './send-email'
+import { sendEmail, type Email } from './send-email'
 
 const GROUP_NAMES: Record<VariableGroup, string> = {
   trip: 'Trip',
@@ -29,6 +29,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   reminder: 'Reminder',
   announcement: 'Announcement',
   question: 'Question',
+  deletion: 'Trip deleted',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -136,8 +137,9 @@ export class EmailsService {
     view: GuestEmailView,
     facts: GuestFacts,
     webUrl: string,
-    /** A reminder's date or an announcement, and the "Stop updates for this trip" link. */
-    extra: Pick<EmailContext, 'reminder' | 'announcement' | 'stopLink'> = {}
+    /** A reminder's date, an announcement or a deleted trip's record, and the "Stop updates for this trip" link. */
+    extra: Pick<EmailContext, 'reminder' | 'announcement' | 'deletion' | 'stopLink'> = {},
+    attachments?: Email['attachments']
   ): Promise<void> {
     try {
       const k = this.kindOf(kind)
@@ -145,7 +147,7 @@ export class EmailsService {
         ...guestEmailContext(view, facts, webUrl),
         ...extra,
       })
-      await sendEmail({ to: facts.email, replyTo: facts.replyTo, ...email })
+      await sendEmail({ to: facts.email, replyTo: facts.replyTo, ...email, attachments })
     } catch (err) {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`

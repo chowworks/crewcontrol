@@ -123,6 +123,20 @@ export interface EmailContext {
     signedUp: boolean
     link: string
   }
+  /**
+   * In the email to each guest who signed, when an owner deletes their trip (issue #2): their own record to keep, since
+   * Travel HQ erases the trip on `eraseDate`.
+   */
+  deletion?: {
+    /** "Nov 29, 2026" */
+    eraseDate: string
+    /** The agreement exactly as they signed it, and the name they typed. */
+    agreement: string
+    signedName: string
+    /** "Oct 21, 2026" */
+    signedOn: string
+    payments: { date: string; amount: string; how: string; status: string }[]
+  }
 }
 
 /** An email to a guest: always has their trip and them. */
@@ -140,6 +154,7 @@ export type VariableGroup =
   | 'reminder'
   | 'announcement'
   | 'question'
+  | 'deletion'
 
 export interface Variable {
   path: string
@@ -229,6 +244,22 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'invite.email', label: 'The email they were added with' },
     { path: 'invite.signedUp', label: 'Already has an account (yes or no)' },
     { path: 'invite.link', label: 'Link: the Control panel, or sign-up for someone new' },
+  ],
+  deletion: [
+    { path: 'deletion.eraseDate', label: 'The day Travel HQ erases the trip' },
+    { path: 'deletion.agreement', label: 'Their signed agreement, as they signed it' },
+    { path: 'deletion.signedName', label: 'The name they typed to sign' },
+    { path: 'deletion.signedOn', label: 'The day they signed' },
+    {
+      path: 'deletion.payments',
+      label: 'Their payments',
+      fields: [
+        { name: 'date', label: 'Sent on' },
+        { name: 'amount', label: 'Amount' },
+        { name: 'how', label: 'How' },
+        { name: 'status', label: 'Status' },
+      ],
+    },
   ],
   paymentDetails: [
     {
@@ -440,19 +471,22 @@ export function render(
     ? `You’re getting this ${context.announcement ? 'update' : 'reminder'} because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
       `Don’t want ${context.announcement ? 'updates' : 'reminders'} like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
       `Travel HQ never handles money: you pay ${organizer} directly.`
-    : context.trip
-      ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
-        `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
-        `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
-      : invite
-        ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
-          `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-        : question
-          ? question.answered
-            ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-            : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-              'Reply to this email to answer them directly.'
-          : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+    : context.deletion
+      ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} deleted from Travel HQ. ` +
+        `Travel HQ never handles money: payments go to ${organizer} directly.`
+      : context.trip
+        ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
+          `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
+          `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
+        : invite
+          ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
+            `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
+          : question
+            ? question.answered
+              ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+              : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                'Reply to this email to answer them directly.'
+            : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

@@ -179,7 +179,9 @@ export class PeopleService {
   /** The trip and its people: any trip for the admin, otherwise only one the caller helps run. */
   private async trip(tripId: string, caller: Caller, admin: boolean) {
     const trip = await this.prisma.trip.findFirst({
-      where: admin ? { id: tripId } : { id: tripId, members: { some: { userId: caller.userId } } },
+      where: admin
+        ? { id: tripId }
+        : { id: tripId, deletedAt: null, members: { some: { userId: caller.userId } } },
       select: {
         name: true,
         isSample: true,

@@ -243,7 +243,8 @@ export class ForwardedReceiptsService implements OnApplicationBootstrap, OnModul
     const trip = local
       ? await runAsSystem(() =>
           this.prisma.trip.findFirst({
-            where: { receiptsAddress: local },
+            // A deleted trip takes no more receipts.
+            where: { receiptsAddress: local, deletedAt: null },
             include: {
               members: { select: { userId: true } },
               payerAddresses: { select: { address: true, guestId: true } },

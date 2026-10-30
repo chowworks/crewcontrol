@@ -12,6 +12,8 @@ export interface Email {
   /** The designed version, when there is one (email-template.ts). */
   html?: string
   replyTo?: string
+  /** Files sent with it, such as a guest's signed agreement when their trip is deleted. */
+  attachments?: { filename: string; content: string | Buffer }[]
 }
 
 /** What happened to an email: sent (with the provider's id), logged (no key, so mocked), or skipped (and why). */
@@ -85,6 +87,16 @@ export async function sendEmail(original: Email): Promise<EmailResult> {
     logger.log(`[mock email to ${to}] ${email.subject}\n${email.text}`)
     return { sent: false, reason: 'mocked' }
   }
+  const attachments = [
+    // The logo travels inside the email (email-template.ts).
+    ...(email.html?.includes(`cid:${LOGO_CID}`)
+      ? [{ filename: 'travel-hq.png', content: LOGO_PNG, contentId: LOGO_CID }]
+      : []),
+    ...(email.attachments ?? []).map((a) => ({
+      filename: a.filename,
+      content: typeof a.content === 'string' ? Buffer.from(a.content, 'utf8') : a.content,
+    })),
+  ]
   const { data, error } = await api.emails.send({
     from: process.env.EMAIL_FROM || 'Travel HQ <trips@travel-hq.app>',
     to: email.to,
@@ -92,10 +104,7 @@ export async function sendEmail(original: Email): Promise<EmailResult> {
     text: email.text,
     html: email.html,
     replyTo: email.replyTo,
-    // The logo travels inside the email (email-template.ts).
-    attachments: email.html?.includes(`cid:${LOGO_CID}`)
-      ? [{ filename: 'travel-hq.png', content: LOGO_PNG, contentId: LOGO_CID }]
-      : undefined,
+    attachments: attachments.length ? attachments : undefined,
   })
   if (error || !data) throw new Error(`Email to ${to} failed: ${error?.message ?? 'no response'}`)
   logger.log(`Emailed ${to}: ${email.subject} (${data.id})`)

@@ -34,8 +34,8 @@ export function StepsFrame({ title, steps, step, onStep, children }: FrameProps)
   )
 }
 
-/** Each step's circle, styled by where it is against the current step. */
-const circle = (on: boolean, done: boolean) =>
+/** Each step's circle, styled by where it is against the current step (the delete dialog's steps use it too). */
+export const circle = (on: boolean, done: boolean) =>
   `grid h-[44px] w-[44px] shrink-0 place-items-center rounded-full border-2 text-base font-extrabold ${
     on
       ? 'border-royal bg-royal text-white'

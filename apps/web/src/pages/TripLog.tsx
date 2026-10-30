@@ -3,7 +3,7 @@ import { Download, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAdminView } from '@/components/AdminView'
 import { api } from '@/lib/api'
-import { downloadCsv, fileSlug, stamp } from '@/lib/csv'
+import { type Cell, downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { eventText, IconCircle } from './TripGuests'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
@@ -117,6 +117,14 @@ function row(e: TripLogEntry): (string | null)[] {
   return [stamp(e.at), eventText(e.event), e.guestName, who, null, null, null]
 }
 
+/** The whole trip log as spreadsheet rows: the log's Export, and part of Download everything. */
+export function tripLogRows(entries: TripLogEntry[]): Cell[][] {
+  return [
+    ['When', 'What happened', 'Guest', 'Who', 'Typed', 'From', 'Browser'],
+    ...entries.map(row),
+  ]
+}
+
 /** The trip log, reloaded whenever the trip changes so a change just made shows up. */
 export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const [entries, setEntries] = useState<TripLogEntry[] | null>(null)
@@ -147,12 +155,7 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
         {entries && entries.length > 0 && (
           <button
             type="button"
-            onClick={() =>
-              downloadCsv(`${fileSlug(trip.name)}-trip-log`, [
-                ['When', 'What happened', 'Guest', 'Who', 'Typed', 'From', 'Browser'],
-                ...entries.map(row),
-              ])
-            }
+            onClick={() => downloadCsv(`${fileSlug(trip.name)}-trip-log`, tripLogRows(entries))}
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
