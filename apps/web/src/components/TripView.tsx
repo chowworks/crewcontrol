@@ -24,10 +24,13 @@ export function TripView({
   trip,
   preview = false,
   mine,
+  questions,
 }: {
   trip: PublicTrip
   preview?: boolean
   mine?: { place: ReactNode; announcements: ReactNode }
+  /** The trip's Questions (issue #13), last on the page, after Key dates (owner's decision, 2026-10-30). */
+  questions?: ReactNode
 }) {
   const cover = trip.photos[0]
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
@@ -207,6 +210,7 @@ export function TripView({
               </ol>
             </section>
           )}
+          {questions}
         </main>
       </div>
 

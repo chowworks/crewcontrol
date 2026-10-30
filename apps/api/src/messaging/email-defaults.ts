@@ -120,6 +120,30 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
   {
+    kind: 'question_asked',
+    name: 'Question asked',
+    when: 'To each owner and organizer of a trip when someone asks a question on its trip page. Replying answers the person who asked.',
+    groups: ['question'],
+    subject: 'New question about {{question.tripName}}, from {{question.askerName}}',
+    body: `<p>{{question.askerName}} asked a question about <strong>{{question.tripName}}</strong>:</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{question.question}}</div>
+<p>You or another organizer can answer it in Trip Control, for everyone on the trip page or just for {{question.askerName}}. Either way, we email them the answer.</p>
+<p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Answer in Trip Control</a></p>`,
+  },
+  {
+    kind: 'question_answered',
+    name: 'Question answered',
+    when: 'To the person who asked a question on a trip page, when an organizer answers it.',
+    groups: ['question'],
+    subject: 'Your question about {{question.tripName}} was answered',
+    body: `<p>Hi {{question.askerName}},</p>
+<p>You asked about <strong>{{question.tripName}}</strong>:</p>
+<p style="font-weight:600;">{{question.question}}</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{question.answer}}</div>
+<p>{{#if question.private}}Only you see this answer on the trip page.{{else}}It's on the trip page for everyone, without your name.{{/if}}</p>
+<p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
@@ -150,6 +174,14 @@ export function sampleFor(k: EmailKind, guest: PreviewGuest): EmailContext {
       label: 'Payment 2 of 3',
       paymentDue: true,
       amountDue: '$800',
+    }
+  // The owner's email about a question comes before any answer, and leads to Trip Control.
+  if (groups.question && k.kind === 'question_asked')
+    groups.question = {
+      ...groups.question,
+      askerName: 'Dana Reyes',
+      answer: '',
+      link: 'https://travel-hq.app/organize/sample/control',
     }
   return k.stopLink ? { ...groups, stopLink: all.stopLink } : groups
 }
@@ -200,6 +232,15 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
     announcement: {
       from: 'Nia',
       body: 'The resort sent our room list. Check-in is 3 PM on Mar 3, and the airport shuttle leaves at 1 PM.\nPack something white for the beach dinner on the last night!',
+    },
+    question: {
+      tripName: 'Aruba Crew Getaway 2028',
+      askerName: 'Dana',
+      question: 'Is there an airport shuttle, or should I book a taxi?',
+      answer:
+        'The resort shuttle meets every flight on Mar 3. Look for the sign with our group name.',
+      private: false,
+      link: 'https://travel-hq.app/t/aruba-2028',
     },
     contact: {
       name: 'Dana Reyes',

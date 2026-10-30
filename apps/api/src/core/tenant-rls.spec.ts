@@ -1378,6 +1378,66 @@ suite('trip isolation', () => {
     }
   })
 
+  it('shows answers for everyone on the trip page, and a question only to its trip and who asked', async () => {
+    // On T1: one public answer, one private answer for v1, and a question v2 is waiting on. On T2 (a draft): one public.
+    const q = (id: string, tripId: string, status: string, asker: string | null) =>
+      insert(db, 'TripQuestion', {
+        id,
+        tripId,
+        status,
+        askerUserId: asker,
+        question: 'Parking?',
+        answer: status === 'waiting' ? null : 'Yes',
+      })
+    await q('Q-pub', 'T1', 'public', null)
+    await q('Q-priv', 'T1', 'private', 'v1')
+    await q('Q-wait', 'T1', 'waiting', 'v2')
+    await q('Q-T2', 'T2', 'public', null)
+    const ask = (id: string, trip: string, user: string, extra = '') =>
+      attempt(
+        `INSERT INTO "TripQuestion" (id, "tripId", "askerUserId", question${extra ? ', answer, status' : ''}) VALUES ('${id}', '${trip}', '${user}', 'Hot tub?'${extra}) RETURNING id`
+      )
+    try {
+      await expect(
+        db.query(`UPDATE "TripQuestion" SET answer = NULL WHERE id = 'Q-pub'`)
+      ).rejects.toThrow(/TripQuestion_answered_check/)
+      await expect(
+        db.query(`UPDATE "TripQuestion" SET status = 'private' WHERE id = 'Q-pub'`)
+      ).rejects.toThrow(/TripQuestion_private_check/)
+      // The trip page: public answers on a published trip only.
+      await as({ public: true }, async () => {
+        expect(await ids('TripQuestion')).toEqual(['Q-pub'])
+        expect(await ask('Q-x', 'T1', 'v3')).toEqual({ error: refused })
+      })
+      await as(await person('o1'), async () => {
+        expect(await ids('TripQuestion')).toEqual(['Q-priv', 'Q-pub', 'Q-wait'])
+        expect(await attempt(`UPDATE "TripQuestion" SET position = 2`)).toEqual({ rows: 3 })
+        expect(await attempt(`DELETE FROM "TripQuestion" WHERE id = 'Q-wait'`)).toEqual({ rows: 1 })
+      })
+      await as(await person('u2'), async () => {
+        expect(await ids('TripQuestion')).toEqual(['Q-T2'])
+        expect(await attempt(`DELETE FROM "TripQuestion" WHERE "tripId" = 'T1'`)).toEqual({
+          rows: 0,
+        })
+      })
+      // Someone signed in reads their own questions, asks on a published trip, and never answers or edits.
+      await as(await person('v1'), async () => {
+        expect(await ids('TripQuestion')).toEqual(['Q-priv'])
+        expect(await ask('Q-v1', 'T1', 'v1')).toEqual({ rows: 1 })
+        expect(await ask('Q-v1b', 'T1', 'v2')).toEqual({ error: refused })
+        expect(await ask('Q-v1c', 'T2', 'v1')).toEqual({ error: refused })
+        expect(await ask('Q-v1d', 'T1', 'v1', ", 'Mine', 'public'")).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "TripQuestion" SET question = 'x'`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "TripQuestion"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('v2'), async () => {
+        expect(await ids('TripQuestion')).toEqual(['Q-wait'])
+      })
+    } finally {
+      await db.query(`DELETE FROM "TripQuestion"`)
+    }
+  })
+
   it('accepts only the two roles', async () => {
     await expect(
       db.query(

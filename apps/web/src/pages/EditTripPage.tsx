@@ -106,6 +106,8 @@ function previewOf(
     ...trip,
     slug,
     isSample: false,
+    // The trip's questions live in Trip Control; the editor's preview leaves them out.
+    faq: [],
     keyDates: trip.keyDates.map(({ date, label }) => ({ date, label })),
     paymentPlan: paymentPlan(
       trip.costPerPersonCents,

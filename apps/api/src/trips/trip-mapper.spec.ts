@@ -101,6 +101,21 @@ describe('toPublicTrip', () => {
     expect(JSON.stringify(toPublicTrip({ ...trip, guests }))).not.toContain('token-')
   })
 
+  it('shows the questions answered for everyone, never who asked', () => {
+    // A whole question row, as if a query handed one over: only the question and answer come through.
+    const row = {
+      id: 'q1',
+      question: 'Parking?',
+      answer: 'Three cars.',
+      askerName: 'Morgan Reed',
+      askerEmail: 'morgan@example.com',
+      askerUserId: 'user_9',
+    }
+    const view = toPublicTrip({ ...trip, guests, faq: [row] })
+    expect(view.faq).toEqual([{ id: 'q1', question: 'Parking?', answer: 'Three cars.' }])
+    expect(JSON.stringify(view)).not.toMatch(/Morgan|morgan@|user_9/)
+  })
+
   it('carries no agreement or signature', () => {
     const json = JSON.stringify(toPublicTrip({ ...trip, guests }))
     expect(json).not.toMatch(/agreement|signed|typedName|textHash/i)

@@ -82,6 +82,8 @@ export interface PublicTrip {
   rooms: PublicRoom[]
   /** Room choice, whether a room is required, and the lines beside the sign-up button. */
   options: PublicTripOptions
+  /** The trip's questions answered for everyone (issue #13), in the organizer's order: never who asked. */
+  faq: FaqEntry[]
   /** Spots taken against maxGuests: accepted guests. */
   spotsTaken: number
   /** Someone joining now goes on the waitlist: the trip is full (or, where guests pay first, enough people can pay). */
@@ -444,6 +446,20 @@ export type TripLogEntry =
       oldRole: TripRole | null
     }
   | { kind: 'guest'; at: string; guestId: string; guestName: string; event: GuestEvent }
+  | {
+      /**
+       * A question on the trip page (issue #13): asked by someone, answered (for everyone or the asker only), or added
+       * by an organizer. Kept with the question, so one deleted leaves the log too.
+       */
+      kind: 'question'
+      at: string
+      action: 'asked' | 'answered' | 'added'
+      /** Who asked, or who answered or added it. */
+      name: string
+      askerName: string | null
+      question: string
+      status: QuestionStatus
+    }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**
@@ -529,6 +545,8 @@ export interface OrganizerTrip extends TripInput {
   receipts: TripReceipts
   /** The system's waitlist buffer (System Settings), so Trip Control can tell when a spot opened as the database does. */
   waitlistBufferPercent: number
+  /** Guests' questions nobody has answered yet (issue #13): each is one of Trip Control's Actions. */
+  questionsWaiting: number
   updatedAt: string
 }
 
@@ -968,7 +986,8 @@ export function waitlistSpotOpen(trip: OrganizerTrip): boolean {
 export const tripActionCount = (trip: OrganizerTrip): number =>
   new Set(trip.guests.flatMap((g) => guestActions(g, trip).map((a) => a.key))).size +
   (waitlistSpotOpen(trip) ? 1 : 0) +
-  trip.receipts.unmatched.length
+  trip.receipts.unmatched.length +
+  trip.questionsWaiting
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
 export interface MyActions {
@@ -1143,6 +1162,60 @@ export interface TripAnnouncements {
 export interface GuestAnnouncements {
   announcements: AnnouncementView[]
   canReply: boolean
+}
+
+// ── Questions, the trip page's FAQ (issue #13) ─────────────────────────────────
+
+export const QUESTION_MAX = 500
+export const ANSWER_MAX = 4000
+
+/**
+ * Where a question stands: waiting for the organizers, answered for everyone (on the trip page), or answered for the
+ * person who asked only (owner's decisions, 2026-10-28 and 2026-10-30).
+ */
+export type QuestionStatus = 'waiting' | 'public' | 'private'
+
+/** A question and its answer as the trip page shows it to everyone. */
+export interface FaqEntry {
+  id: string
+  question: string
+  answer: string
+}
+
+/** One of the signed-in caller's own questions on a trip: their private answers and the ones still waiting. */
+export interface MyQuestion {
+  id: string
+  question: string
+  answer: string | null
+  status: QuestionStatus
+  createdAt: string
+}
+
+/** Trip Control's view of a question: who asked (null for one an organizer added), and its answer. */
+export interface TripQuestion {
+  id: string
+  question: string
+  answer: string | null
+  status: QuestionStatus
+  /** "Kendra M.", and whether they're a guest on the trip; null when an organizer added it. */
+  askerName: string | null
+  askerOnTrip: boolean
+  createdAt: string
+  answeredAt: string | null
+}
+
+/** Trip Control's Questions: waiting ones first (oldest first), then the trip page's in order, then private answers. */
+export interface TripQuestions {
+  waiting: TripQuestion[]
+  published: TripQuestion[]
+  private: TripQuestion[]
+}
+
+/** Answering a question, or adding or editing an entry: who sees the answer is 'public' or 'private'. */
+export interface QuestionAnswerInput {
+  question: string
+  answer: string
+  status: 'public' | 'private'
 }
 
 // ── Forwarded receipts (issue #12, receipts@) ──────────────────────────────────
