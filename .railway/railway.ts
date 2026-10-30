@@ -1,11 +1,11 @@
-import { defineRailway, github, postgres, preserve, project, service, volume } from 'railway/iac'
+import { defineRailway, github, postgres, preserve, project, service } from 'railway/iac'
 
 /**
  * Travel HQ on Railway, declared in code the way Interview and Audit Differently are. `railway config plan`
  * shows what would change; CI applies this file on a push to main once deploys are switched on
  * (.github/workflows/ci.yml). Nothing here holds a secret: values marked preserve() are set by hand in Railway
- * and left alone. A project token is tied to one environment, so the file is applied to dev or production
- * depending on which token CI holds (DEVELOPMENT.md, "The shared dev environment").
+ * and left alone. CI's project token is dev's, so CI applies this file to dev only; production's half is applied by
+ * hand (DEVELOPMENT.md, "Releasing to production").
  *
  * Before the first apply: create the Railway project and its `dev` environment (`railway environment new dev`;
  * IaC can't create one), add RAILWAY_TOKEN as a repository secret, then `railway config pull` to bring
@@ -20,16 +20,6 @@ const build = {
   buildEnvironment: 'V3',
   builder: 'NIXPACKS',
 } as const
-
-// Trip photos now live in R2 (R2_*, below). The volume where they used to be written stays until the photos already
-// on it are copied to R2 and their trips point there; then it and its mount can go.
-const UPLOADS_MOUNT = '/data'
-const uploads = () =>
-  volume('uploads', {
-    alerts: { usage: { '100': {}, '80': {}, '95': {} } },
-    region: REGION,
-    sizeMB: 500,
-  })
 
 // Set by hand in each environment: the R2 bucket's keys hold a secret, and each environment has its own bucket.
 const photoBucket = {
@@ -57,7 +47,6 @@ export default defineRailway((ctx) => {
         'npx prisma migrate deploy && npm run role:ensure && npm run db:seed && node dist/main.js',
       deploy: { restartPolicyMaxRetries: 3 },
       replicas: { [REGION]: 1 },
-      volumeMounts: { [UPLOADS_MOUNT]: uploads() },
       env: {
         NODE_ENV: 'development',
         // Row-level security (docs/tenant-isolation.md): the API connects as the restricted role cc_app, set by hand
@@ -94,9 +83,12 @@ export default defineRailway((ctx) => {
   }
 
   // Production: private network only, and no seed on start, so a trip an organizer made is never touched by it.
+  // Railway deploys the `production` branch, never main: a push to main reaches dev only, and production moves when
+  // main is pushed to `production` (DEVELOPMENT.md, "Releasing to production").
   Postgres.networking = { privateNetworkEndpoint: 'postgres' }
   const api = service('crewcontrol-api', {
     source: github('chowworks/crewcontrol', {
+      branch: 'production',
       checkSuites: true,
       rootDirectory: '/apps/api',
     }),
@@ -105,7 +97,6 @@ export default defineRailway((ctx) => {
     start: 'npx prisma migrate deploy && npm run role:ensure && node dist/main.js',
     deploy: { restartPolicyMaxRetries: 3 },
     replicas: { [REGION]: 1 },
-    volumeMounts: { [UPLOADS_MOUNT]: uploads() },
     env: {
       NODE_ENV: 'production',
       // Row-level security, as in dev: the API connects as the restricted role cc_app, set by hand because it holds

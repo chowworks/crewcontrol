@@ -29,10 +29,9 @@ jobs:
 
   # Deploys switch on once the Railway project and Vercel project exist: set the repository variable
   # DEPLOY_ENABLED=true and the secrets RAILWAY_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
-  # They are aimed the way Audit Differently's are, so the same jobs serve dev now and production later:
-  # RAILWAY_TOKEN is a project token for ONE Railway environment (dev for now), so the config apply and the deploy
-  # touch only that environment, and the repository variable RAILWAY_API_SERVICE names the API service in it
-  # (api-dev now, crewcontrol-api for production).
+  # RAILWAY_TOKEN is a project token for Railway's dev environment only, so the config apply and the deploy touch
+  # only dev, and the repository variable RAILWAY_API_SERVICE names the API service there (api-dev). A push to main
+  # never reaches production: it deploys from the `production` branch (DEVELOPMENT.md, "Releasing to production").
   # The web app goes out after the API it calls, so a new page never reaches guests before its API does.
   deploy-web:
     name: Deploy Web (Vercel)

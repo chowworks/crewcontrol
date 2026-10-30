@@ -148,10 +148,22 @@ The database is shared, so:
 
 ### Production
 
-Declared in the same file: the GitHub source, `NODE_ENV=production`, no TCP proxy on Postgres, and no seed in the
-start command, so a trip an organizer made is never replaced by it. The seed refuses to run in any Railway
-environment but `dev`. When production exists, CI is pointed at it by swapping `RAILWAY_TOKEN` for a production
-token and `RAILWAY_API_SERVICE` for `crewcontrol-api`.
+Declared in the same file: `NODE_ENV=production`, no TCP proxy on Postgres, and no seed in the start command, so a
+trip an organizer made is never replaced by it. The seed refuses to run in any Railway environment but `dev`.
+
+CI's `RAILWAY_TOKEN` is dev's and stays dev's: a push to `main` never reaches production. Production's
+`crewcontrol-api` deploys from GitHub itself, from the `production` branch.
+
+### Releasing to production
+
+1. Check `main` on dev first.
+2. Move `production` up to it: `git push origin main:production`. Railway builds and deploys that commit, running
+   its migrations against the production database.
+3. A change to `.railway/railway.ts` is applied to production by hand, after reading the plan:
+   `railway config plan --environment production`, then `railway config apply --environment production`.
+
+A fix that can't wait for `main` goes on a branch from `production`, is pushed to `production`, and is merged back
+into `main`.
 
 ## Checks (what CI runs)
 
