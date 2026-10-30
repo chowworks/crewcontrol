@@ -11,13 +11,14 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft, Users } from 'lucide-react'
+import { ArrowLeft, FileImage, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminView } from '@/components/AdminView'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
+import { FlyerDialog } from '@/components/FlyerDialog'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
@@ -39,6 +40,7 @@ export function ControlPanelPage() {
   const [error, setError] = useState<string | null>(null)
   const toast = useToast()
   const admin = useAdminView()
+  const [flyer, setFlyer] = useState(false)
 
   useEffect(() => {
     Promise.all([api.getTrip(id, admin), api.getRooms(id, admin)])
@@ -271,6 +273,17 @@ export function ControlPanelPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Trip admin' : 'Your trips'}</span>
           </Link>
+          {!admin && (
+            <button
+              type="button"
+              onClick={() => setFlyer(true)}
+              aria-label="Flyer"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
+            >
+              <FileImage className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Flyer</span>
+            </button>
+          )}
           <Link
             to={admin ? `/admin/trips/${id}/people` : `/organize/${id}/people`}
             aria-label="People"
@@ -282,6 +295,7 @@ export function ControlPanelPage() {
           <AccountMenu />
         </div>
       </header>
+      {flyer && <FlyerDialog trip={trip} onClose={() => setFlyer(false)} />}
 
       <main className="mx-auto flex max-w-[960px] flex-col gap-6 px-5">
         <div>

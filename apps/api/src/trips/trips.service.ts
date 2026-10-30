@@ -3,12 +3,19 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { ClerkService } from '../auth/clerk.service'
 import { runAsSystem } from '../core/tenant-context'
-import { withCoverLink, withPhotoLinks } from '../photos/photo-bucket'
+import {
+  isPhotoRef,
+  photoBucket,
+  photoUrl,
+  withCoverLink,
+  withPhotoLinks,
+} from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
 import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
@@ -37,6 +44,7 @@ import type {
   SystemSettings,
   TripInput,
   TripLogEntry,
+  TripPhoto,
   TripRole,
   TripRoom,
   TripSummary,
@@ -188,6 +196,26 @@ export class TripsService {
     })
     if (!row) throw new NotFoundException('Trip not found')
     return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
+  }
+
+  /**
+   * The cover photo's bytes, for the flyer the organizer makes in the browser: the photo bucket has no CORS rule, so a
+   * browser can't draw a signed link onto a canvas. Null when the cover isn't in the bucket (the browser loads it).
+   */
+  async coverPhoto(id: string, caller: Caller): Promise<{ bytes: Buffer; type: string } | null> {
+    const row = await this.prisma.trip.findFirst({
+      where: { id, members: { some: { userId: caller.userId } } },
+      select: { photos: true },
+    })
+    if (!row) throw new NotFoundException('Trip not found')
+    const ref = (row.photos as unknown as TripPhoto[])[0]?.url
+    if (!ref || !isPhotoRef(ref) || !photoBucket()) return null
+    const res = await fetch(await photoUrl(ref))
+    if (!res.ok) throw new ServiceUnavailableException('The cover photo could not be loaded')
+    return {
+      bytes: Buffer.from(await res.arrayBuffer()),
+      type: res.headers.get('content-type') ?? 'image/jpeg',
+    }
   }
 
   /**
