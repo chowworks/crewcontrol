@@ -1,11 +1,11 @@
-import { defineRailway, github, postgres, preserve, project, service } from 'railway/iac'
+import { bucket, defineRailway, github, postgres, preserve, project, service } from 'railway/iac'
 
 /**
  * Travel HQ on Railway, declared in code the way Interview and Audit Differently are. `railway config plan`
  * shows what would change; CI applies this file on a push to main once deploys are switched on
  * (.github/workflows/ci.yml). Nothing here holds a secret: values marked preserve() are set by hand in Railway
- * and left alone. CI's project token is dev's, so CI applies this file to dev only; production's half is applied by
- * hand (DEVELOPMENT.md, "Releasing to production").
+ * and left alone. CI's project token is production's, so CI applies this file to production; dev's half is applied
+ * by hand (DEVELOPMENT.md, "The shared dev environment").
  *
  * Before the first apply: create the Railway project and its `dev` environment (`railway environment new dev`;
  * IaC can't create one), add RAILWAY_TOKEN as a repository secret, then `railway config pull` to bring
@@ -83,12 +83,12 @@ export default defineRailway((ctx) => {
   }
 
   // Production: private network only, and no seed on start, so a trip an organizer made is never touched by it.
-  // Railway deploys the `production` branch, never main: a push to main reaches dev only, and production moves when
-  // main is pushed to `production` (DEVELOPMENT.md, "Releasing to production").
+  // A push to main deploys here; try a change on dev first with apps/api/scripts/deploy-dev.sh.
   Postgres.networking = { privateNetworkEndpoint: 'postgres' }
+  // Railway's point-in-time recovery for Postgres keeps its log in this bucket (switched on in the dashboard).
+  const PostgresPITR = bucket('Postgres-PITR', { region: 'iad' })
   const api = service('crewcontrol-api', {
     source: github('chowworks/crewcontrol', {
-      branch: 'production',
       checkSuites: true,
       rootDirectory: '/apps/api',
     }),
@@ -120,5 +120,5 @@ export default defineRailway((ctx) => {
     },
   })
 
-  return project('crewcontrol', { resources: [Postgres, api] })
+  return project('crewcontrol', { resources: [Postgres, PostgresPITR, api] })
 })
