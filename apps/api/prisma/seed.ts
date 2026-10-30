@@ -197,7 +197,7 @@ const trips: Seed[] = [
     faq: [
       [
         'Is the villa on the beach?',
-        "It's a five minute walk to the beach, with a pool at the villa.",
+        "No, it's ten minutes away by bike or shuttle. The villa has its own pool.",
       ],
       [
         "What's the dress code for the birthday dinner?",
