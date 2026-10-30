@@ -96,6 +96,14 @@ function tokenSoon(): Promise<string | null> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init)
+  // An action with nothing to return (seating the admin) answers with an empty body, 201 or 204.
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
+}
+
+/** The answer to a request that went through, or the reason it didn't as an ApiError. */
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const token = isPublic(path) ? null : await tokenSoon()
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -110,9 +118,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       window.dispatchEvent(new Event(TERMS_REQUIRED_EVENT))
     throw new ApiError(message ?? `Request failed (${res.status})`, res.status, body?.code)
   }
-  // An action with nothing to return (seating the admin) answers with an empty body, 201 or 204.
-  const text = await res.text()
-  return (text ? JSON.parse(text) : undefined) as T
+  return res
 }
 
 const json = (method: string, body: unknown): RequestInit => ({
@@ -133,6 +139,11 @@ export const api = {
     request<OrganizerTrip>('/trips', json('POST', { ...input, slug })),
   updateTrip: (id: string, input: TripInput, slug?: string) =>
     request<OrganizerTrip>(`/trips/${id}`, json('PUT', { ...input, slug })),
+  /** The cover photo for the trip flyer, or null when the browser can load the cover itself. */
+  getFlyerCover: async (id: string) => {
+    const res = await send(`/trips/${id}/flyer-cover`)
+    return res.status === 204 ? null : res.blob()
+  },
   listSampleTrips: () => request<TripSummary[]>('/public/sample-trips'),
   getRooms: (id: string, admin = false) => request<TripRoom[]>(`${tripBase(id, admin)}/rooms`),
   setRooms: (id: string, rooms: TripRoom[]) =>

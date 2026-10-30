@@ -9,8 +9,11 @@ import {
   Patch,
   Post,
   Put,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common'
+import type { Response } from 'express'
 import { RateLimiter } from '../core/rate-limit'
 import type { Caller } from '../auth/caller'
 import { runAsPublic } from '../core/tenant-context'
@@ -63,6 +66,21 @@ export class TripsController {
   @Get(':id')
   get(@Param('id') id: string, @CurrentCaller() caller: Caller) {
     return this.trips.get(id, caller)
+  }
+
+  // The cover photo's bytes for the trip flyer, which the browser draws; nothing when the browser can load it itself.
+  @Get(':id/flyer-cover')
+  async flyerCover(
+    @Param('id') id: string,
+    @CurrentCaller() caller: Caller,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    const photo = await this.trips.coverPhoto(id, caller)
+    if (!photo) {
+      res.status(204)
+      return
+    }
+    return new StreamableFile(photo.bytes, { type: photo.type })
   }
 
   // The agreement as this trip's guests would sign it today (read-only: organizers can't edit it).
