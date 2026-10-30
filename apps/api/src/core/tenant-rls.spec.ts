@@ -1287,6 +1287,97 @@ suite('trip isolation', () => {
     }
   })
 
+  it('keeps announcements and their replies to the trip and its accepted guests', async () => {
+    // On T1, g-ann and g-ivy are accepted and g-wes is waiting. One post for everyone on the trip, one for those who
+    // owed (Ivy only), each with a reply from the trip.
+    for (const [id, userId, status] of [
+      ['G-AN-a', 'g-ann', 'approved'],
+      ['G-AN-i', 'g-ivy', 'approved'],
+      ['G-AN-w', 'g-wes', 'interested'],
+    ])
+      await insert(db, 'Guest', {
+        id,
+        tripId: 'T1',
+        userId,
+        status,
+        email: `${userId}@example.com`,
+      })
+    for (const [id, audience] of [
+      ['AN-acc', 'accepted'],
+      ['AN-owe', 'owing'],
+    ])
+      await insert(db, 'Announcement', {
+        id,
+        tripId: 'T1',
+        authorUserId: 'u1',
+        authorName: 'Una',
+        body: 'Hi',
+        audience,
+      })
+    await insert(db, 'AnnouncementRecipient', {
+      id: 'AR-owe',
+      announcementId: 'AN-owe',
+      tripId: 'T1',
+      guestId: 'G-AN-i',
+    })
+    for (const a of ['AN-acc', 'AN-owe'])
+      await insert(db, 'AnnouncementReply', {
+        id: `RP-${a}`,
+        announcementId: a,
+        tripId: 'T1',
+        authorUserId: 'u1',
+        authorName: 'Una',
+        body: 'Yes',
+      })
+    const reply = (id: string, announcement: string, guest: string, user: string) =>
+      attempt(
+        `INSERT INTO "AnnouncementReply" (id, "announcementId", "tripId", "guestId", "authorUserId", "authorName", body) VALUES ('${id}', '${announcement}', 'T1', '${guest}', '${user}', 'G.', 'Ok')`
+      )
+    try {
+      await expect(
+        db.query(`UPDATE "Announcement" SET audience = 'joined' WHERE id = 'AN-acc'`)
+      ).rejects.toThrow(/Announcement_audience_check/)
+      await as(await person('o1'), async () => {
+        expect(await ids('Announcement')).toEqual(['AN-acc', 'AN-owe'])
+        expect(await attempt(`UPDATE "Announcement" SET pinned = true`)).toEqual({ rows: 2 })
+      })
+      await as(await person('u2'), async () => {
+        expect(await ids('Announcement')).toEqual([])
+        expect(await ids('AnnouncementReply')).toEqual([])
+        expect(await attempt(`DELETE FROM "Announcement"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('g-ann'), async () => {
+        expect(await ids('Announcement')).toEqual(['AN-acc'])
+        expect(await ids('AnnouncementReply')).toEqual(['RP-AN-acc'])
+        expect(await reply('RP-a1', 'AN-acc', 'G-AN-a', 'g-ann')).toEqual({ rows: 1 })
+        // Not under a post that isn't for them, not as someone else, and never changing a post.
+        expect(await reply('RP-a2', 'AN-owe', 'G-AN-a', 'g-ann')).toEqual({ error: refused })
+        expect(await reply('RP-a3', 'AN-acc', 'G-AN-i', 'g-ann')).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "Announcement" SET pinned = true`)).toEqual({ rows: 0 })
+        // Their own reply goes; the organizer's stays.
+        expect(await attempt(`DELETE FROM "AnnouncementReply"`)).toEqual({ rows: 1 })
+      })
+      await as(await person('g-ivy'), async () => {
+        expect(await ids('Announcement')).toEqual(['AN-acc', 'AN-owe'])
+        expect(await ids('AnnouncementRecipient')).toEqual(['AR-owe'])
+      })
+      // Not accepted yet: no announcements, and no replying.
+      await as(await person('g-wes'), async () => {
+        expect(await ids('Announcement')).toEqual([])
+        expect(await ids('AnnouncementReply')).toEqual([])
+        expect(await reply('RP-w1', 'AN-acc', 'G-AN-w', 'g-wes')).toEqual({ error: refused })
+      })
+      // Turned down, they see nothing, not even a post that went to them.
+      await db.query(`UPDATE "Guest" SET status = 'declined' WHERE id = 'G-AN-i'`)
+      await as(await person('g-ivy'), async () => {
+        expect(await ids('Announcement')).toEqual([])
+      })
+    } finally {
+      await db.query(`DELETE FROM "Announcement"`)
+      await db.query(`DELETE FROM "Guest" WHERE id IN ('G-AN-a', 'G-AN-i', 'G-AN-w')`)
+    }
+  })
+
   it('accepts only the two roles', async () => {
     await expect(
       db.query(

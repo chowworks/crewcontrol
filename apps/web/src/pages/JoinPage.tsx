@@ -10,7 +10,7 @@ import {
 } from '@cc/types'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
@@ -70,6 +70,8 @@ export function JoinPage() {
   if (error) return <NotFoundPage message={error} />
   if (!view) return <div className="min-h-screen bg-ground" aria-busy="true" />
   const { trip, me, managed } = view
+  // Someone on the trip has it all on the trip page (owner's decision, 2026-10-29); this page is for signing up.
+  if (hasJoined(view) && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -764,6 +766,31 @@ export const payees = (view: JoinView) =>
       g !== null && g.terms !== null && payable(view.trip, g) && owed(g.terms).left > 0
   )
 
+/** Whether the caller is on the trip: their own place, not turned down, or travelers they signed up. */
+export const hasJoined = (view: JoinView) =>
+  (view.me !== null && view.me.status !== 'declined') || view.managed.length > 0
+
+/** The trip page's column for someone on the trip: their place, then the travelers they look after. */
+export function MyTripPanel({
+  view,
+  onChange,
+}: {
+  view: JoinView
+  onChange: (v: JoinView) => void
+}) {
+  const { me } = view
+  return (
+    <>
+      {me && me.status !== 'declined' && (
+        <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
+          <MyPlace view={view} me={me} onChange={onChange} />
+        </section>
+      )}
+      {view.managed.length > 0 && <Travelers view={view} onChange={onChange} />}
+    </>
+  )
+}
+
 /** Where the guest stands, once they've signed: how to pay and their payments, then waiting, accepted or turned down. */
 function MyPlace({
   view,
@@ -785,6 +812,9 @@ function MyPlace({
   const waiting = me.status === 'interested' && Boolean(me.waitlistedAt) && !me.offeredAt
   const canPay = payable(trip, me)
   const { left, dueNow } = me.terms ? owed(me.terms) : { left: 0, dueNow: 0 }
+  const datedPlan = Boolean(
+    me.terms && me.terms.schedule.length > 1 && me.terms.schedule.every((p) => p.dueOn)
+  )
   const first = me.terms ? money(me.terms.firstInstallmentCents) : 'your first installment'
   const paidCents = me.terms?.paidCents ?? 0
   const reported = me.payments.some((p) => p.status === 'reported')
@@ -801,15 +831,14 @@ function MyPlace({
               : `${o} didn’t take you on this trip.`,
         ]
       : me.status === 'approved'
-        ? [
-            'You’re in',
-            trip.joinMode !== 'accept_first'
-              ? `${o} accepted you. Your spot is held.`
-              : me.spotPaidAt
-                ? `${o} accepted you and confirmed your payment.`
-                : reported
-                  ? `${o} accepted you. Payment sent: ${o} will confirm it arrived.`
-                  : `${o} accepted you. Now pay ${o} ${dueNow ? money(dueNow) : first}.`,
+        ? // Once they're in, the card is about their payments (owner's decision, 2026-10-29); a line only when they act.
+          [
+            'Payment details',
+            trip.joinMode !== 'accept_first' || me.spotPaidAt
+              ? ''
+              : reported
+                ? `Payment sent: ${o} will confirm it arrived.`
+                : `Now pay ${o} ${dueNow ? money(dueNow) : first} to hold your spot.`,
           ]
         : waiting
           ? [
@@ -852,13 +881,17 @@ function MyPlace({
         <h2 role="status" className="text-xl font-extrabold">
           {title}
         </h2>
-        <p className="text-body">{line}</p>
+        {line && <p className="text-body">{line}</p>}
       </div>
       {me.terms && me.status !== 'declined' && (
         <div className="flex flex-col gap-1.5">
           <PaidBar g={me} />
           <span className="text-sm text-body">
             {money(me.terms.paidCents)} of {money(totalDueCents(me.terms))} paid
+            {me.terms.balanceCents > 0 && ` · ${money(me.terms.balanceCents)} left`}
+            {!datedPlan &&
+              me.terms.installmentCount > 1 &&
+              ` · ${me.terms.installmentCount} installments`}
           </span>
         </div>
       )}
@@ -896,49 +929,44 @@ function MyPlace({
           {reported ? 'Report another payment' : 'I’ve paid'}
         </button>
       )}
+      {/* The plan right after "I've paid", then what was paid (owner's decision, 2026-10-29). */}
+      {me.terms && datedPlan && (
+        <div className="flex flex-col gap-1 text-sm">
+          <p className="flex justify-between text-muted">
+            <span>Your payment plan, due by</span>
+            <span>Amount</span>
+          </p>
+          <ol className="flex flex-col">
+            {me.terms.schedule.map((p, i) => {
+              // Struck through once what they paid covers it and every payment before it.
+              const covered =
+                me.terms!.paidCents >=
+                me.terms!.schedule.slice(0, i + 1).reduce((sum, x) => sum + x.amountCents, 0)
+              return (
+                <li
+                  key={i}
+                  className={`flex justify-between border-t border-rule py-1.5 ${covered ? 'text-muted line-through' : ''}`}
+                >
+                  <span>
+                    {dateRange(p.dueOn!, p.dueOn!)}
+                    {covered && <span className="sr-only"> (paid)</span>}
+                  </span>
+                  <span className={covered ? '' : 'font-semibold text-ink'}>
+                    {money(p.amountCents)}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      )}
       {(me.payments.length > 0 || me.adjustments.length > 0) && (
         <MyPayments payments={me.payments} adjustments={me.adjustments} organizer={o} />
       )}
 
-      {me.terms && (
-        <dl
-          className={`grid grid-cols-2 gap-3 border-t border-rule pt-4 text-sm ${me.terms.adjustmentCents !== 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}
-        >
-          <Term label="Your price" value={money(me.terms.priceCents)} />
-          <Term
-            label="Plan"
-            value={
-              me.terms.installmentCount <= 1
-                ? 'One payment'
-                : `${me.terms.installmentCount} installments`
-            }
-          />
-          {me.terms.adjustmentCents !== 0 && (
-            <Term
-              label="Credits and charges"
-              value={`${me.terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(me.terms.adjustmentCents))}`}
-            />
-          )}
-          <Term label="Left to pay" value={money(me.terms.balanceCents)} />
-          <Term label="Dates" value={dateRange(me.terms.startDate, me.terms.endDate)} />
-        </dl>
-      )}
-      {me.terms && me.terms.schedule.length > 1 && me.terms.schedule.every((p) => p.dueOn) && (
-        <div className="flex flex-col gap-1 text-sm">
-          <p className="text-muted">Your payment plan, as you signed it</p>
-          <ol className="flex flex-col">
-            {me.terms.schedule.map((p, i) => (
-              <li key={i} className="flex justify-between border-t border-rule py-1.5">
-                <span>Due by {dateRange(p.dueOn!, p.dueOn!)}</span>
-                <span className="font-semibold text-ink">{money(p.amountCents)}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
       {me.agreement && (
         <button type="button" onClick={() => setReading(true)} className={`${outlined} self-start`}>
-          Read what you signed
+          Review signed trip agreement
         </button>
       )}
       {/* Once they look after someone, the Travelers card below has this. */}
@@ -1147,11 +1175,3 @@ export function MyPayments({
  * than is due now needs a line saying why. Every problem shows beside its field before they press the button. Someone
  * who looks after other travelers says who the payment is for, with each one's share (issue #11).
  */
-function Term({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-semibold text-ink">{value}</dd>
-    </div>
-  )
-}

@@ -43,6 +43,9 @@ import {
   type TripRole,
   type TripRoom,
   type TripSummary,
+  type AnnouncementInput,
+  type GuestAnnouncements,
+  type TripAnnouncements,
 } from '@cc/types'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -225,6 +228,31 @@ export const api = {
   getPublicTrip: (slug: string) => request<PublicTrip>(`/public/trips/${slug}`),
   // Trip Control's Reminders section, and the "Stop updates for this trip" link in each reminder.
   getReminders: (id: string) => request<TripReminders>(`/trips/${id}/reminders`),
+  // Announcements (issue #12): Trip Control's, and the join page's for the signed-in guest.
+  getAnnouncements: (id: string) => request<TripAnnouncements>(`/trips/${id}/announcements`),
+  postAnnouncement: (id: string, input: AnnouncementInput) =>
+    request<TripAnnouncements>(`/trips/${id}/announcements`, json('POST', input)),
+  pinAnnouncement: (id: string, aid: string, pinned: boolean) =>
+    request<TripAnnouncements>(`/trips/${id}/announcements/${aid}`, json('PATCH', { pinned })),
+  removeAnnouncement: (id: string, aid: string) =>
+    request<TripAnnouncements>(`/trips/${id}/announcements/${aid}`, { method: 'DELETE' }),
+  replyAsOrganizer: (id: string, aid: string, body: string) =>
+    request<TripAnnouncements>(`/trips/${id}/announcements/${aid}/replies`, json('POST', { body })),
+  removeReplyAsOrganizer: (id: string, aid: string, rid: string) =>
+    request<TripAnnouncements>(`/trips/${id}/announcements/${aid}/replies/${rid}`, {
+      method: 'DELETE',
+    }),
+  getGuestAnnouncements: (slug: string) =>
+    request<GuestAnnouncements>(`/join/${slug}/announcements`),
+  replyAsGuest: (slug: string, aid: string, body: string) =>
+    request<GuestAnnouncements>(
+      `/join/${slug}/announcements/${aid}/replies`,
+      json('POST', { body })
+    ),
+  removeOwnReply: (slug: string, aid: string, rid: string) =>
+    request<GuestAnnouncements>(`/join/${slug}/announcements/${aid}/replies/${rid}`, {
+      method: 'DELETE',
+    }),
   getStopUpdates: (token: string) => request<StopUpdatesView>(`/public/stop-updates/${token}`),
   setStopUpdates: (token: string, stopped: boolean) =>
     request<StopUpdatesView>(`/public/stop-updates/${token}`, json('POST', { stopped })),

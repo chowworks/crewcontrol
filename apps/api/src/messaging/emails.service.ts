@@ -27,6 +27,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   contact: 'Contact form',
   invite: 'Invite',
   reminder: 'Reminder',
+  announcement: 'Announcement',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -134,8 +135,8 @@ export class EmailsService {
     view: GuestEmailView,
     facts: GuestFacts,
     webUrl: string,
-    /** A reminder's date and its "Stop updates for this trip" link. */
-    extra: Pick<EmailContext, 'reminder' | 'stopLink'> = {}
+    /** A reminder's date or an announcement, and the "Stop updates for this trip" link. */
+    extra: Pick<EmailContext, 'reminder' | 'announcement' | 'stopLink'> = {}
   ): Promise<void> {
     try {
       const k = this.kindOf(kind)

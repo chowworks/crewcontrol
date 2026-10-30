@@ -73,6 +73,7 @@ model Trip {
   adjustments         BalanceAdjustment[]
   forwardedReceipts   ForwardedReceipt[]
   payerAddresses      PayerAddress[]
+  announcements       Announcement[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -93,7 +94,7 @@ model TripMember {
 // Someone joining a trip. They sign in, sign the agreement and pay the organizer; then the organizer accepts them
 // (or, on a first come, first served trip, confirming their payment does).
 model Guest {
-  id                    String              @id @default(cuid())
+  id                    String                  @id @default(cuid())
   tripId                String
   // The signed-in person who joined (the sign-in provider's user id). Null for guests added before sign-in, and for a
   // traveler someone else signed up until that traveler signs in themselves (claim_managed_guest).
@@ -109,8 +110,8 @@ model Guest {
   lastName              String
   email                 String
   phone                 String
-  status                String              @default("interested") // 'interested' | 'approved' | 'declined'
-  createdAt             DateTime            @default(now())
+  status                String                  @default("interested") // 'interested' | 'approved' | 'declined'
+  createdAt             DateTime                @default(now())
   // When the payments the organizer confirmed first added up to the first payment the guest's agreement asked for
   // (kept by the database from Payment, migration 20261025010000_payment_log). On a first come, first served trip
   // spots go in this order.
@@ -123,23 +124,25 @@ model Guest {
   refundSentAt          DateTime?
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
   roomId                String?
-  roomNote              String              @default("")
+  roomNote              String                  @default("")
   // When the guest pressed "Stop updates for this trip" in a reminder email (migration 20261029060000_reminders):
   // reminders skip them. Trip business emails (signing, being accepted) still go.
   updatesStoppedAt      DateTime?
   // The guest's own secret in that link; it names this guest row and nothing else.
-  updatesToken          String              @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  updatesToken          String                  @unique @default(dbgenerated("(gen_random_uuid())::text"))
   // The room price the difference from the signed price was last settled at, as a credit or charge or left alone
   // (migration 20261029070000_room_prices); null: never.
   roomPriceSettledCents Int?
-  room                  Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  trip                  Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  room                  Room?                   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  trip                  Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   agreement             AgreementSignature?
   events                GuestEvent[]
   payments              Payment[]
   adjustments           BalanceAdjustment[]
   payerAddresses        PayerAddress[]
   reminderSends         ReminderSend[]
+  announcementsFor      AnnouncementRecipient[]
+  announcementReplies   AnnouncementReply[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -261,6 +264,55 @@ model ReminderSend {
   guest      Guest    @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 
   @@unique([guestId, key])
+  @@index([tripId])
+}
+
+// An organizer's post to the guests who joined, and the replies under it (migration 20261029090000_announcements).
+model Announcement {
+  id           String                  @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId       String
+  authorUserId String
+  authorName   String
+  body         String
+  audience     String // AnnouncementAudience
+  pinned       Boolean                 @default(false)
+  emailed      Boolean                 @default(false)
+  createdAt    DateTime                @default(now())
+  trip         Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  recipients   AnnouncementRecipient[]
+  replies      AnnouncementReply[]
+
+  @@unique([id, tripId])
+  @@index([tripId])
+}
+
+model AnnouncementRecipient {
+  id             String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  announcementId String
+  tripId         String
+  guestId        String
+  emailedAt      DateTime?
+  announcement   Announcement @relation(fields: [announcementId, tripId], references: [id, tripId], onDelete: Cascade)
+  guest          Guest        @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@unique([announcementId, guestId])
+  @@index([tripId])
+  @@index([guestId])
+}
+
+model AnnouncementReply {
+  id             String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  announcementId String
+  tripId         String
+  guestId        String?
+  authorUserId   String
+  authorName     String
+  body           String
+  createdAt      DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId, tripId], references: [id, tripId], onDelete: Cascade)
+  guest          Guest?       @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@index([announcementId])
   @@index([tripId])
 }
 

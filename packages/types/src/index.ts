@@ -1089,6 +1089,62 @@ export interface StopUpdatesView {
   stopped: boolean
 }
 
+// ── Announcements (issue #12) ──────────────────────────────────────────────────
+
+/**
+ * Who a post is for: everyone accepted onto the trip, or the accepted guests who still owe when it goes. Guests who
+ * haven't been accepted yet see no announcements (owner's decision, 2026-10-29).
+ */
+export type AnnouncementAudience = 'accepted' | 'owing'
+
+export const ANNOUNCEMENT_MAX = 4000
+export const REPLY_MAX = 2000
+
+/** What an organizer writes in "Post an announcement". */
+export interface AnnouncementInput {
+  body: string
+  audience: AnnouncementAudience
+  /** Email it as well; guests who stopped updates still see it on their join page. */
+  email: boolean
+  pinned: boolean
+}
+
+export interface AnnouncementReplyView {
+  id: string
+  /** "Monique H." for a guest; the organizer's first name. */
+  authorName: string
+  fromOrganizer: boolean
+  body: string
+  createdAt: string
+  /** The caller wrote it, so they may remove it (organizers may remove any). */
+  mine: boolean
+}
+
+export interface AnnouncementView {
+  id: string
+  authorName: string
+  body: string
+  audience: AnnouncementAudience
+  pinned: boolean
+  createdAt: string
+  replies: AnnouncementReplyView[]
+  /** Trip Control only: how many guests it was for when it went, and how many it was emailed to. */
+  sentTo?: number
+  emailedTo?: number
+}
+
+/** Trip Control's Announcements: the posts, pinned first, and who each audience reaches now (for the dialog). */
+export interface TripAnnouncements {
+  announcements: AnnouncementView[]
+  audiences: Record<AnnouncementAudience, { guests: number; stopped: number }>
+}
+
+/** The join page's Announcements: the posts for the caller (none until they're accepted), and whether they may reply. */
+export interface GuestAnnouncements {
+  announcements: AnnouncementView[]
+  canReply: boolean
+}
+
 // ── Forwarded receipts (issue #12, receipts@) ──────────────────────────────────
 
 /** The part before the @ of a trip's receipts address: 3 to 40 lowercase letters, digits and hyphens. */

@@ -39,6 +39,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'admin_email_problems()',
   // Whether a receipts address is taken, in use or retired and not released (yes or no only).
   'receipts_address_taken(text)',
+  // Whether the caller is on a trip as a guest, and accepted (yes or no only): who reads an announcement.
+  'app_on_trip(text,boolean)',
 ]
 
 /** SQL that gives `role` its table access and exactly the functions above, and nothing else. `role` is a plain identifier. */

@@ -61,19 +61,21 @@ export function StopUpdatesPage() {
             <>
               <h1 className="text-2xl font-extrabold">Updates stopped</h1>
               <p className="text-body">
-                {view.firstName}, you won’t get reminders for {view.tripName} any more. Emails about
-                your spot, like being accepted, still come.
+                {view.firstName}, you won’t get reminders or announcement emails for {view.tripName}
+                any more. Announcements still show on your trip page, and emails about your spot,
+                like being accepted, still come.
               </p>
               <button type="button" disabled={busy} onClick={() => set(false)} className={outlined}>
-                Turn reminders back on
+                Turn updates back on
               </button>
             </>
           ) : (
             <>
               <h1 className="text-2xl font-extrabold">Stop updates for {view.tripName}?</h1>
               <p className="text-body">
-                {view.firstName}, you’ll stop getting reminders about payments and key dates for
-                this trip. You can turn them back on here any time.
+                {view.firstName}, you’ll stop getting emailed reminders and announcements for this
+                trip. Announcements still show on your trip page, and you can turn emails back on
+                here any time.
               </p>
               <button type="button" disabled={busy} onClick={() => set(true)} className={filled}>
                 Stop updates

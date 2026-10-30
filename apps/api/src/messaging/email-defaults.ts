@@ -35,7 +35,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 {{else}}
 <p>{{trip.organizerName}} will look at your spot next. Once you're accepted, your trip page shows how to pay.</p>
 {{/if}}{{/if}}
-<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
 <p>Your copy of the agreement is there too.</p>`,
   },
   {
@@ -54,7 +54,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
 <p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
 {{/if}}
-<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
 <p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
   },
   {
@@ -92,7 +92,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
 {{/if}}
 <p>So far you've paid {{paymentDetails.paid}} of {{paymentDetails.total}}.</p>
-<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
   {
     kind: 'date_reminder',
@@ -104,7 +104,20 @@ export const EMAIL_KINDS: EmailKind[] = [
     body: `<p>Hi {{guest.firstName}},</p>
 <p>A reminder for <strong>{{trip.name}}</strong>: <strong>{{reminder.label}}</strong> is {{reminder.when}}, on {{reminder.date}}.</p>
 <p>Questions? Reply to this email to reach {{trip.organizerName}}.</p>
-<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
+    kind: 'announcement',
+    name: 'Announcement',
+    when: 'To the accepted guests an organizer posts an announcement to, when they tick “Email it to them too”.',
+    groups: ['trip', 'guest', 'announcement'],
+    stopLink: true,
+    subject: '{{announcement.from}} posted an update for {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{announcement.from}} posted an update for <strong>{{trip.name}}</strong>:</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{announcement.body}}</div>
+<p>Questions? Reply under it on your trip page so everyone sees the answer, or reply to this email to reach {{trip.organizerName}}.</p>
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
   {
     kind: 'contact',
@@ -184,6 +197,10 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       amountDue: '',
     },
     stopLink: 'https://travel-hq.app/stop/sample',
+    announcement: {
+      from: 'Nia',
+      body: 'The resort sent our room list. Check-in is 3 PM on Mar 3, and the airport shuttle leaves at 1 PM.\nPack something white for the beach dinner on the last night!',
+    },
     contact: {
       name: 'Dana Reyes',
       email: 'dana.reyes@example.com',

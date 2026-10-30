@@ -81,6 +81,11 @@ export interface EmailContext {
    * template can drop it.
    */
   stopLink?: string
+  /** In an announcement (issue #12): who posted it and what they wrote. */
+  announcement?: {
+    from: string
+    body: string
+  }
   /** In the contact form's email to Travel HQ support: who wrote, about what, and their message. */
   contact?: {
     name: string
@@ -112,7 +117,8 @@ export type GuestEmailContext = EmailContext & {
   guest: NonNullable<EmailContext['guest']>
 }
 
-export type VariableGroup = 'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite' | 'reminder'
+export type VariableGroup =
+  'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite' | 'reminder' | 'announcement'
 
 export interface Variable {
   path: string
@@ -170,6 +176,10 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'reminder.when', label: 'How soon (like “in 7 days”)' },
     { path: 'reminder.paymentDue', label: 'A payment is due (yes or no)' },
     { path: 'reminder.amountDue', label: 'Owed by the date' },
+  ],
+  announcement: [
+    { path: 'announcement.from', label: 'Who posted it' },
+    { path: 'announcement.body', label: 'What they wrote' },
   ],
   contact: [
     { path: 'contact.name', label: 'Their name' },
@@ -391,8 +401,8 @@ export function render(
     by: Handlebars.escapeExpression(context.invite.inviterName),
   }
   const footer = context.stopLink
-    ? `You’re getting this reminder because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
-      `Don’t want reminders like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
+    ? `You’re getting this ${context.announcement ? 'update' : 'reminder'} because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
+      `Don’t want ${context.announcement ? 'updates' : 'reminders'} like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
       `Travel HQ never handles money: you pay ${organizer} directly.`
     : context.trip
       ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +

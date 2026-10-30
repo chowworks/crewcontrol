@@ -27,7 +27,10 @@ export function Dialog({
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         ) ?? []
       ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null)
-    ;(focusables().find((el) => el.tagName === 'INPUT') ?? focusables()[0])?.focus()
+    ;(
+      focusables().find((el) => el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ??
+      focusables()[0]
+    )?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close.current()
       if (e.key !== 'Tab') return

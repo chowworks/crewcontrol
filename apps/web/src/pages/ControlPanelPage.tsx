@@ -24,6 +24,7 @@ import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import { TripLogCard } from './TripLog'
+import { AnnouncementsCard } from './TripAnnouncements'
 import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
 
@@ -304,6 +305,7 @@ export function ControlPanelPage() {
             error={guestError}
           />
         )}
+        {!admin && <AnnouncementsCard trip={trip} />}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         {!admin && <RemindersCard trip={trip} />}

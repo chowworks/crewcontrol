@@ -7,13 +7,28 @@ import { defaultSignupNote } from '@/lib/signups'
 import { dateRange, installmentLine, money, shortDate } from '@/lib/format'
 import { HighlightIcon } from './HighlightIcon'
 import { Logo } from './Logo'
+import { TileArt } from './TileArt'
+import { AccountMenu } from './AccountMenu'
 import { PhotoGallery } from './PhotoGallery'
 import { SampleTripBadge } from './SampleTripBadge'
 
 const h2 = 'text-[26px] font-extrabold'
 
-/** The guest-facing trip page. Also rendered as the organizer's live preview. */
-export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?: boolean }) {
+/**
+ * The guest-facing trip page. Also rendered as the organizer's live preview. For a signed-in guest who already joined
+ * (`mine`), the side column is their own place on the trip instead of the price and "Want in?", and the
+ * announcements come first: at the top of that column on a phone, above "The trip" on a wide screen (owner's
+ * decisions, 2026-10-29). The two columns sit side by side from 948px wide (320 + 28 + 560, plus the page's padding).
+ */
+export function TripView({
+  trip,
+  preview = false,
+  mine,
+}: {
+  trip: PublicTrip
+  preview?: boolean
+  mine?: { place: ReactNode; announcements: ReactNode }
+}) {
   const cover = trip.photos[0]
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
   // A full trip keeps taking sign-ups onto its waitlist, where nobody is asked to send money.
@@ -32,6 +47,7 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
     <div className="min-h-screen bg-ground text-ink">
       <header className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 py-4">
         <Logo />
+        {!preview && <AccountMenu />}
       </header>
 
       <section className="mx-auto max-w-[1120px] px-5">
@@ -71,34 +87,49 @@ export function TripView({ trip, preview = false }: { trip: PublicTrip; preview?
       </section>
 
       <div className="mx-auto flex max-w-[1120px] flex-row-reverse flex-wrap items-start gap-7 px-5 pb-12 pt-7">
-        <aside className="flex min-w-0 flex-[1_1_320px] flex-col gap-4 lg:sticky lg:top-4">
-          <div className="flex flex-col gap-3.5 rounded-2xl bg-white p-6 shadow-card">
-            <div className="text-sm font-semibold text-muted">Cost per person</div>
-            <div className="font-display text-[44px] font-extrabold leading-none">
-              {apart && <span className="text-2xl">From </span>}
-              {money(cheapest?.priceCents ?? trip.costPerPersonCents)}
-            </div>
-            <p className="text-[15px] text-body">
-              {apart && 'Each room has its own price; you pick yours when you join. '}
-              {installmentLine(plan)}
-              {trip.joinMode === 'accept_first'
-                ? ' You pay once you’re accepted.'
-                : deposit
-                  ? ` Your deposit saves your spot${keptDeposit ? ' and isn’t refundable' : ''}.`
-                  : ' Your first payment saves your spot.'}
-            </p>
-            <p className="rounded-[10px] bg-royal-pale px-3 py-2.5 text-sm text-body">
-              {trip.joinMode === 'first_come'
-                ? `Sign the trip agreement and pay ${trip.organizerName}. Spots go first come, first served, in the order payments are confirmed. If the trip fills first, ${trip.organizerName} refunds you in full.`
-                : trip.joinMode === 'pay_first'
-                  ? `Sign the trip agreement and pay ${trip.organizerName}, who then accepts the crew. If you’re not accepted, ${trip.organizerName} refunds you in full.`
-                  : `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you’ll see how to pay.`}
-            </p>
-          </div>
-          <WantInTile trip={trip} preview={preview} full={full} />
+        {/* A guest's own column can be taller than the screen, so it scrolls with the page. */}
+        <aside
+          className={`flex min-w-0 flex-[1_1_320px] flex-col gap-4 ${mine ? '' : 'lg:sticky lg:top-4'}`}
+        >
+          {mine ? (
+            <>
+              <div className="flex flex-col gap-4 min-[948px]:hidden">{mine.announcements}</div>
+              {mine.place}
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3.5 rounded-2xl bg-white p-6 shadow-card">
+                <div className="text-sm font-semibold text-muted">Cost per person</div>
+                <div className="font-display text-[44px] font-extrabold leading-none">
+                  {apart && <span className="text-2xl">From </span>}
+                  {money(cheapest?.priceCents ?? trip.costPerPersonCents)}
+                </div>
+                <p className="text-[15px] text-body">
+                  {apart && 'Each room has its own price; you pick yours when you join. '}
+                  {installmentLine(plan)}
+                  {trip.joinMode === 'accept_first'
+                    ? ' You pay once you’re accepted.'
+                    : deposit
+                      ? ` Your deposit saves your spot${keptDeposit ? ' and isn’t refundable' : ''}.`
+                      : ' Your first payment saves your spot.'}
+                </p>
+                <p className="rounded-[10px] bg-royal-pale px-3 py-2.5 text-sm text-body">
+                  {trip.joinMode === 'first_come'
+                    ? `Sign the trip agreement and pay ${trip.organizerName}. Spots go first come, first served, in the order payments are confirmed. If the trip fills first, ${trip.organizerName} refunds you in full.`
+                    : trip.joinMode === 'pay_first'
+                      ? `Sign the trip agreement and pay ${trip.organizerName}, who then accepts the crew. If you’re not accepted, ${trip.organizerName} refunds you in full.`
+                      : `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you’ll see how to pay.`}
+                </p>
+              </div>
+              <WantInTile trip={trip} preview={preview} full={full} />
+            </>
+          )}
         </aside>
 
         <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-8">
+          {mine && (
+            <div className="flex flex-col gap-4 max-[947px]:hidden">{mine.announcements}</div>
+          )}
           {trip.description && (
             <section className="flex flex-col gap-2.5">
               <h2 className={h2}>The trip</h2>
@@ -246,25 +277,7 @@ function WantInTile({
   const faces = (trip.guestNames ?? []).slice(0, 4)
   return (
     <div className="relative overflow-hidden rounded-2xl bg-royal p-6 text-white shadow-card">
-      <svg
-        viewBox="0 0 200 120"
-        className="pointer-events-none absolute -right-4 -top-3 h-20 w-auto opacity-90"
-        aria-hidden="true"
-      >
-        <path
-          d="M108 22H70a22 22 0 0 0-22 22v30a22 22 0 0 0 22 22h8v20l26-20h28a22 22 0 0 0 22-22v-8"
-          fill="none"
-          stroke="#fff"
-          strokeOpacity="0.35"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <g transform="translate(112 0) scale(2.1)">
-          <path d="M0 11 21 1 15 22 9.5 14.5Z" fill="#F2B33D" />
-          <path d="M9.5 14.5 21 1 9 20Z" fill="#D99A22" />
-        </g>
-      </svg>
+      <TileArt />
       <div className="relative flex flex-col gap-3">
         <h2 className="font-display text-[28px] font-extrabold leading-tight">
           {full ? 'Join the waitlist' : 'Want in?'}
