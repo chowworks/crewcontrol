@@ -45,6 +45,9 @@ import {
   type TripSummary,
   type AnnouncementInput,
   type GuestAnnouncements,
+  type MyQuestion,
+  type QuestionAnswerInput,
+  type TripQuestions,
   type TripAnnouncements,
 } from '@cc/types'
 
@@ -264,6 +267,21 @@ export const api = {
     request<GuestAnnouncements>(`/join/${slug}/announcements/${aid}/replies/${rid}`, {
       method: 'DELETE',
     }),
+  // Questions, the trip page's FAQ (issue #13): Trip Control's, and the signed-in asker's own.
+  getQuestions: (id: string) => request<TripQuestions>(`/trips/${id}/questions`),
+  addQuestion: (id: string, input: QuestionAnswerInput) =>
+    request<TripQuestions>(`/trips/${id}/questions`, json('POST', input)),
+  answerQuestion: (id: string, qid: string, input: QuestionAnswerInput) =>
+    request<TripQuestions>(`/trips/${id}/questions/${qid}/answer`, json('POST', input)),
+  editQuestion: (id: string, qid: string, input: QuestionAnswerInput) =>
+    request<TripQuestions>(`/trips/${id}/questions/${qid}`, json('PATCH', input)),
+  reorderQuestions: (id: string, ids: string[]) =>
+    request<TripQuestions>(`/trips/${id}/questions/order`, json('PUT', { ids })),
+  removeQuestion: (id: string, qid: string) =>
+    request<TripQuestions>(`/trips/${id}/questions/${qid}`, { method: 'DELETE' }),
+  getMyQuestions: (slug: string) => request<MyQuestion[]>(`/join/${slug}/questions`),
+  askQuestion: (slug: string, question: string) =>
+    request<MyQuestion[]>(`/join/${slug}/questions`, json('POST', { question })),
   getStopUpdates: (token: string) => request<StopUpdatesView>(`/public/stop-updates/${token}`),
   setStopUpdates: (token: string, stopped: boolean) =>
     request<StopUpdatesView>(`/public/stop-updates/${token}`, json('POST', { stopped })),

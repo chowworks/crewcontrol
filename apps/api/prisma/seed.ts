@@ -25,11 +25,27 @@ type Seed = Omit<
   keyDates: TripKeyDate[]
   approved: [string, string][]
   interested: [string, string][]
+  /** The trip page's Questions (issue #13): question and answer, answered for everyone. */
+  faq: [string, string][]
 }
 
 const trips: Seed[] = [
   {
     slug: 'mv-beach-house-2027',
+    faq: [
+      [
+        'Is there parking at the house?',
+        'The driveway fits three cars. Everyone else leaves their car at the Woods Hole lot and walks onto the ferry.',
+      ],
+      [
+        'Can I bring my partner?',
+        'Yes, while rooms last. They sign up with their own link so they get their own payment plan.',
+      ],
+      [
+        'What should I pack?',
+        'Beach towels are at the house. Bring a light jacket for the ferry and something nice for the chef dinner Saturday.',
+      ],
+    ],
     name: 'MV Beach House 2027',
     destination: "Martha's Vineyard, MA",
     startDate: '2027-06-18',
@@ -95,6 +111,16 @@ const trips: Seed[] = [
   },
   {
     slug: 'aruba-2028',
+    faq: [
+      [
+        'Is the airport shuttle included?',
+        'Yes. The resort shuttle meets every flight on the first day. Look for the sign with our group name.',
+      ],
+      [
+        'Do I need a passport?',
+        'Yes, a passport valid for the whole trip. Check yours now: renewals can take months.',
+      ],
+    ],
     name: 'Aruba Crew Getaway 2028',
     destination: 'Palm Beach, Aruba',
     startDate: '2028-04-13',
@@ -168,6 +194,16 @@ const trips: Seed[] = [
   {
     // Real photos (free Unsplash images, hotlinked) so the page can be seen with an organizer's own pictures.
     slug: 'tulum-40th-2027',
+    faq: [
+      [
+        'Is the villa on the beach?',
+        "It's a five minute walk to the beach, with a pool at the villa.",
+      ],
+      [
+        "What's the dress code for the birthday dinner?",
+        'All white. Comfortable shoes: the restaurant is on the sand.',
+      ],
+    ],
     name: "Simone's 40th in Tulum",
     destination: 'Tulum, Mexico',
     startDate: '2027-02-11',
@@ -282,6 +318,7 @@ async function main() {
   for (const {
     approved,
     interested,
+    faq,
     photos,
     highlights,
     keyDates,
@@ -427,6 +464,17 @@ async function main() {
           data: { at: new Date(g.confirmedAt.getTime() + 60_000) },
         })
     }
+    await prisma.tripQuestion.createMany({
+      data: faq.map(([question, answer], position) => ({
+        tripId: created.id,
+        question,
+        answer,
+        status: 'public',
+        position,
+        answeredByName: trip.organizerName,
+        answeredAt: paid,
+      })),
+    })
     if (trip.slug === 'tulum-40th-2027') await seedReceipts(created, first, paid)
     console.log(`Seeded ${trip.name} → /t/${trip.slug}`)
   }

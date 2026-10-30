@@ -47,6 +47,8 @@ type TripWithGuests = TripRow & {
   /** The forwarded receipts waiting for an organizer (status 'unmatched'), when the query asked for them. */
   forwardedReceipts?: ForwardedReceiptRow[]
   payerAddresses?: PayerAddressRow[]
+  /** The questions nobody answered yet, when the query asked for them. */
+  questions?: { id: string }[]
 }
 
 /** A trip's receipts address and the forwarded receipts waiting for an organizer. */
@@ -112,6 +114,8 @@ export function toPublicTrip(
     spotsTaken?: number
     /** Whether joining now goes on the waitlist (public_trip_waitlisting). */
     waitlisting?: boolean
+    /** The trip's questions answered for everyone, in order. */
+    faq?: { id: string; question: string; answer: string | null }[]
   }
 ): PublicTrip {
   const approved = row.guests.filter((g) => g.status === 'approved')
@@ -166,6 +170,8 @@ export function toPublicTrip(
       priceCents: roomPrice(r, row.costPerPersonCents),
       paymentPlan: planOf({ ...row, costPerPersonCents: roomPrice(r, row.costPerPersonCents) }),
     })),
+    // The question and its answer only: never who asked (issue #13).
+    faq: (row.faq ?? []).map((f) => ({ id: f.id, question: f.question, answer: f.answer ?? '' })),
   }
 }
 
@@ -329,6 +335,7 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,
+    questionsWaiting: row.questions?.length ?? 0,
   }
 }
 

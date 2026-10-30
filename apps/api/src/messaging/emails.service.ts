@@ -28,6 +28,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   invite: 'Invite',
   reminder: 'Reminder',
   announcement: 'Announcement',
+  question: 'Question',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -163,6 +164,26 @@ export class EmailsService {
     } catch (err) {
       this.logger.error(
         `The "invite" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+    }
+  }
+
+  /**
+   * A question about a trip: to its owner when asked (Reply-To the asker, so replying answers them), or to the asker
+   * when answered. Logged, never thrown: the question or answer is saved, and Trip Control or the trip page shows it.
+   */
+  async sendQuestion(
+    kind: 'question_asked' | 'question_answered',
+    question: NonNullable<EmailContext['question']>,
+    to: string,
+    replyTo?: string
+  ): Promise<void> {
+    try {
+      const email = render(await this.template(this.kindOf(kind)), { question })
+      await sendEmail({ to, replyTo, ...email })
+    } catch (err) {
+      this.logger.error(
+        `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
       )
     }
   }

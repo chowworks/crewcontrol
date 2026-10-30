@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { TripView } from '@/components/TripView'
 import { ApiError, api } from '@/lib/api'
 import { AnnouncementsSection } from './GuestAnnouncements'
+import { QuestionsSection } from './GuestQuestions'
 import { hasJoined, MyTripPanel } from './JoinPage'
 import { NotFoundPage } from './NotFoundPage'
 
@@ -62,6 +63,7 @@ export function GuestTripPage() {
             }
           : undefined
       }
+      questions={<QuestionsSection trip={trip} />}
     />
   )
 }

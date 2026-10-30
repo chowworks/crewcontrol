@@ -74,6 +74,7 @@ model Trip {
   forwardedReceipts   ForwardedReceipt[]
   payerAddresses      PayerAddress[]
   announcements       Announcement[]
+  questions           TripQuestion[]
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.
@@ -550,4 +551,25 @@ model ForwardedReceipt {
   @@index([tripId, status])
   @@index([status, nextAttemptAt])
   @@index([receivedAt])
+}
+
+// A question about a trip and its answer, the trip page's FAQ (issue #13, migration 20261030010000_trip_questions).
+// A guest asks; an organizer answers for everyone or for the asker only, or adds an entry themselves (no asker).
+model TripQuestion {
+  id             String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId         String
+  askerUserId    String?
+  askerName      String?
+  askerEmail     String?
+  question       String
+  answer         String?
+  status         String    @default("waiting") // QuestionStatus
+  position       Int       @default(0)
+  answeredByName String?
+  createdAt      DateTime  @default(now())
+  answeredAt     DateTime?
+  trip           Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([askerUserId])
 }

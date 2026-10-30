@@ -86,6 +86,20 @@ export interface EmailContext {
     from: string
     body: string
   }
+  /**
+   * About a question on a trip (issue #13): to each of the trip's organizers when someone asks, and to the asker when it's answered
+   * (`answer` is "" until then).
+   */
+  question?: {
+    tripName: string
+    askerName: string
+    question: string
+    answer: string
+    /** Answered for the asker only, not on the trip page. */
+    private: boolean
+    /** Trip Control for the owner; the trip page for the asker. */
+    link: string
+  }
   /** In the contact form's email to Travel HQ support: who wrote, about what, and their message. */
   contact?: {
     name: string
@@ -118,7 +132,14 @@ export type GuestEmailContext = EmailContext & {
 }
 
 export type VariableGroup =
-  'trip' | 'guest' | 'paymentDetails' | 'contact' | 'invite' | 'reminder' | 'announcement'
+  | 'trip'
+  | 'guest'
+  | 'paymentDetails'
+  | 'contact'
+  | 'invite'
+  | 'reminder'
+  | 'announcement'
+  | 'question'
 
 export interface Variable {
   path: string
@@ -180,6 +201,17 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
   announcement: [
     { path: 'announcement.from', label: 'Who posted it' },
     { path: 'announcement.body', label: 'What they wrote' },
+  ],
+  question: [
+    { path: 'question.tripName', label: 'Trip name' },
+    { path: 'question.askerName', label: 'Who asked' },
+    { path: 'question.question', label: 'The question' },
+    { path: 'question.answer', label: 'The answer (empty until answered)' },
+    { path: 'question.private', label: 'Answered for them only (yes or no)' },
+    {
+      path: 'question.link',
+      label: 'Link: Trip Control for the owner, the trip page for the asker',
+    },
   ],
   contact: [
     { path: 'contact.name', label: 'Their name' },
@@ -400,6 +432,10 @@ export function render(
     trip: Handlebars.escapeExpression(context.invite.tripName),
     by: Handlebars.escapeExpression(context.invite.inviterName),
   }
+  const question = context.question && {
+    trip: Handlebars.escapeExpression(context.question.tripName),
+    answered: context.question.answer !== '',
+  }
   const footer = context.stopLink
     ? `You’re getting this ${context.announcement ? 'update' : 'reminder'} because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
       `Don’t want ${context.announcement ? 'updates' : 'reminders'} like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
@@ -411,7 +447,12 @@ export function render(
       : invite
         ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
           `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-        : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+        : question
+          ? question.answered
+            ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+            : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+              'Reply to this email to answer them directly.'
+          : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

@@ -36,6 +36,16 @@ function peopleText(e: PeopleEntry): string {
   return e.self ? `${actor(e)} stepped down` : `${actor(e)} removed ${e.subjectName}`
 }
 
+type QuestionEntry = Extract<TripLogEntry, { kind: 'question' }>
+/** A question asked, answered or added, in plain words (issue #13). */
+function questionText(e: QuestionEntry): string {
+  if (e.action === 'asked') return `${e.name} asked: “${e.question}”`
+  if (e.action === 'added') return `${e.name} added a question to the trip page: “${e.question}”`
+  return e.status === 'private'
+    ? `${e.name} answered ${e.askerName}’s question just for them: “${e.question}”`
+    : `${e.name} answered ${e.askerName}’s question for everyone: “${e.question}”`
+}
+
 function Line({ e }: { e: TripLogEntry }) {
   if (e.kind === 'email_refused')
     return (
@@ -56,6 +66,13 @@ function Line({ e }: { e: TripLogEntry }) {
     return (
       <>
         <div className="font-semibold">{peopleText(e)}</div>
+        <div className="text-sm text-muted">{at(e.at)}</div>
+      </>
+    )
+  if (e.kind === 'question')
+    return (
+      <>
+        <div className="font-semibold [overflow-wrap:anywhere]">{questionText(e)}</div>
         <div className="text-sm text-muted">{at(e.at)}</div>
       </>
     )
@@ -90,6 +107,7 @@ function row(e: TripLogEntry): (string | null)[] {
       e.userAgent || null,
     ]
   if (e.kind === 'people') return [stamp(e.at), peopleText(e), null, actor(e), null, null, null]
+  if (e.kind === 'question') return [stamp(e.at), questionText(e), null, e.name, null, null, null]
   const who =
     e.event.actor === 'guest'
       ? e.guestName
@@ -107,10 +125,15 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const [all, setAll] = useState(false)
   const admin = useAdminView()
   useEffect(() => {
-    api
-      .getTripLog(trip.id, admin)
-      .then(setEntries)
-      .catch(() => setError('The trip log could not be loaded.'))
+    const load = () =>
+      api
+        .getTripLog(trip.id, admin)
+        .then(setEntries)
+        .catch(() => setError('The trip log could not be loaded.'))
+    load()
+    // A question answered or added doesn't change the trip, but Trip Control says so (cc:actions-changed).
+    window.addEventListener('cc:actions-changed', load)
+    return () => window.removeEventListener('cc:actions-changed', load)
   }, [trip, admin])
   const shown = (entries ?? []).filter((e) => guests || e.kind !== 'guest')
   return (

@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { AnnouncementsModule } from './announcements/announcements.module'
+import { QuestionsModule } from './questions/questions.module'
 import { AuthModule } from './auth/auth.module'
 import { ContactModule } from './contact/contact.module'
 import { TenantMiddleware } from './core/tenant.middleware'
@@ -27,6 +28,7 @@ import { TripsModule } from './trips/trips.module'
     RemindersModule,
     ReceiptsModule,
     AnnouncementsModule,
+    QuestionsModule,
   ],
 })
 export class AppModule implements NestModule {

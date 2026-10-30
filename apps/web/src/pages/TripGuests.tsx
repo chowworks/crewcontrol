@@ -29,7 +29,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { useAdminView } from '@/components/AdminView'
@@ -94,6 +94,8 @@ interface Props {
   onForgetSender?: (guest: Guest, senderId: string) => Promise<boolean>
   /** Why the last change didn't save, shown in an open Details dialog (the page's own line is behind it). */
   error?: string | null
+  /** Actions rows for guests' questions waiting for an answer (issue #13, TripQuestions.tsx). */
+  questionRows?: ReactNode[]
 }
 
 /** The line in order, and whether every spot is taken. */
@@ -1505,7 +1507,8 @@ export function ActionsCard(props: Props) {
   const spotOpen = waitlistSpotOpen(trip)
   const waiting = waitlist(trip.guests).length
   const receipts = props.onMatchReceipt && props.onDismissReceipt ? trip.receipts.unmatched : []
-  const count = rows.length + (spotOpen ? 1 : 0) + receipts.length
+  const questionRows = props.questionRows ?? []
+  const count = rows.length + (spotOpen ? 1 : 0) + receipts.length + questionRows.length
   return (
     <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
@@ -1548,6 +1551,7 @@ export function ActionsCard(props: Props) {
               error={props.error}
             />
           ))}
+          {questionRows}
           {rows.map(({ key, items }) =>
             items.length > 1 ? (
               <TransferRow

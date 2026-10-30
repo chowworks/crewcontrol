@@ -45,6 +45,7 @@ import type {
   TripInput,
   TripLogEntry,
   TripPhoto,
+  QuestionStatus,
   TripRole,
   TripRoom,
   TripSummary,
@@ -77,6 +78,8 @@ const withGuests = {
   rooms: { orderBy: { position: 'asc' } },
   forwardedReceipts: { where: { status: 'unmatched' }, orderBy: { receivedAt: 'asc' } },
   payerAddresses: { orderBy: { createdAt: 'asc' } },
+  // Each question nobody answered is one of Trip Control's Actions (issue #13).
+  questions: { where: { status: 'waiting' }, select: { id: true } },
 } satisfies Prisma.TripInclude
 
 function data(input: TripInput) {
@@ -301,10 +304,17 @@ export class TripsService {
     >(
       Prisma.sql`SELECT "public_spots_taken"(${row.id}) AS spots, "public_trip_waitlisting"(${row.id}) AS waitlisting`
     )
+    // The answers for everyone, never who asked (issue #13).
+    const faq = await this.prisma.tripQuestion.findMany({
+      where: { tripId: row.id, status: 'public' },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, question: true, answer: true },
+    })
     return withPhotoLinks(
       toPublicTrip({
         ...row,
         guests,
+        faq,
         roomTaken: new Map(taken.map((t) => [t.roomId, t.taken])),
         spotsTaken: spots,
         waitlisting,
@@ -388,6 +398,22 @@ export class TripsService {
     return owner ? this.clerk.contact(owner.userId) : null
   }
 
+  /**
+   * Everyone who runs the trip, owners and organizers, by the name and email they signed in with: who a guest's
+   * question goes to (issue #13). Trusted work, because the asker may not read the trip's members.
+   */
+  async organizerContacts(tripId: string): Promise<{ name: string; email: string }[]> {
+    const members = await runAsSystem(() =>
+      this.prisma.tripMember.findMany({
+        where: { tripId },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true },
+      })
+    )
+    const people = await this.clerk.people(members.map((m) => m.userId))
+    return members.flatMap((m) => people.get(m.userId) ?? []).filter((p) => p.email)
+  }
+
   /** The agreement one guest signed, exactly as they saw it, with when and from where. */
   async guestAgreement(
     id: string,
@@ -458,10 +484,11 @@ export class TripsService {
    */
   async log(id: string, caller: Caller, admin = false): Promise<TripLogEntry[]> {
     const trip = await this.get(id, caller, admin)
-    const [refused, access, events] = await Promise.all([
+    const [refused, access, events, questions] = await Promise.all([
       this.prisma.tripLog.findMany({ where: { tripId: id } }),
       this.prisma.accessLog.findMany({ where: { tripId: id } }),
       this.events(id),
+      this.prisma.tripQuestion.findMany({ where: { tripId: id } }),
     ])
     // Who changed the trip's people, and whom, by name from sign-in.
     const people = await this.clerk.names([
@@ -501,6 +528,29 @@ export class TripsService {
         guestName: name(e.guestId),
         event: e.event,
       })),
+      // Questions (issue #13): when each was asked and answered, or added by an organizer.
+      ...questions.flatMap((q) => {
+        const base = {
+          kind: 'question' as const,
+          askerName: q.askerUserId ? q.askerName || 'Someone' : null,
+          question: q.question,
+          status: q.status as QuestionStatus,
+        }
+        const answered = q.answeredAt && {
+          ...base,
+          at: q.answeredAt.toISOString(),
+          action: q.askerUserId ? ('answered' as const) : ('added' as const),
+          name: q.answeredByName || 'An organizer',
+        }
+        if (!q.askerUserId) return answered ? [answered] : []
+        const asked = {
+          ...base,
+          at: q.createdAt.toISOString(),
+          action: 'asked' as const,
+          name: q.askerName || 'Someone',
+        }
+        return answered ? [asked, answered] : [asked]
+      }),
     ]
     // Newest first; within one moment, the order things happened in reverse.
     return entries
