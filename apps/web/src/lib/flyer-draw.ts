@@ -29,8 +29,10 @@ export function drawFlyer(
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')!
-  // Everything is measured in hundredths of the width, so the story and the page share one layout.
-  const u = width / 100
+  // Everything is measured in hundredths of the width, so the story and the page share one layout. Type is set a
+  // little smaller than that on both, to leave room for the highlights (the page is short for its width, and the
+  // story keeps clear of Instagram's bars).
+  const u = (width / 100) * (format === 'letter' ? 0.7 : 0.85)
   drawFullPhoto(ctx, facts, cover, width, height, u, format)
   return canvas
 }
@@ -45,6 +47,11 @@ function drawFullPhoto(
   format: FlyerFormat
 ) {
   const pad = 7 * u
+  // A story keeps what matters clear of the bars Instagram lays over it: the poster's name across the top 260 px and
+  // the reply bar along the bottom 170 px. "Hosted by" can sit under the top bar; it's the one thing that may be covered.
+  const story = format === 'story'
+  const pillH = 8 * u
+  const contentTop = story ? 260 : pad + pillH + 6 * u
   photo(ctx, cover, 0, 0, width, height)
   const shade = ctx.createLinearGradient(0, 0, 0, height)
   shade.addColorStop(0, 'rgba(15,28,46,0.2)')
@@ -57,15 +64,15 @@ function drawFullPhoto(
   // "Hosted by" at the top, on a royal pill.
   ctx.font = `600 ${3.6 * u}px ${TEXT}`
   const host = ellipsize(ctx, `Hosted by ${facts.host}`, width - 2 * pad - 6 * u)
-  pill(ctx, pad, pad, ctx.measureText(host).width + 6 * u, 8 * u, ROYAL)
+  pill(ctx, pad, pad, ctx.measureText(host).width + 6 * u, pillH, ROYAL)
   ctx.fillStyle = '#FFFFFF'
   ctx.textBaseline = 'middle'
-  ctx.fillText(host, pad + 3 * u, pad + 4 * u)
+  ctx.fillText(host, pad + 3 * u, pad + pillH / 2)
   ctx.textBaseline = 'alphabetic'
 
   // Built from the bottom up: the code and link, the highlights, then the name above them.
-  const code = (format === 'story' ? 24 : 20) * u
-  const codeTop = height - pad - code
+  const code = (story ? 30 : 20) * u
+  const codeTop = height - (story ? 170 : pad) - code
   ctx.fillStyle = '#FFFFFF'
   roundRect(ctx, pad, codeTop, code, code, 2.5 * u)
   ctx.fill()
@@ -83,20 +90,34 @@ function drawFullPhoto(
   ctx.font = `800 ${10 * u}px ${HEADING}`
   const name = wrap(ctx, facts.name, width - 2 * pad, format === 'story' ? 3 : 2)
   const nameBlock = name.length * 11 * u + 8 * u + 9 * u + 10 * u + 6 * u
-  const room = codeTop - 6 * u - (pad + 14 * u) - nameBlock
-  const item = 11.5 * u
-  const shown = facts.highlights.slice(0, Math.max(0, Math.floor(room / item)))
+  const room = codeTop - 6 * u - contentTop - nameBlock
+  // A highlight's line under its title wraps to up to three lines rather than being cut short.
+  const textWidth2 = width - 2 * pad - 5 * u
+  const detailLine = 4.8 * u
+  ctx.font = `400 ${3.8 * u}px ${TEXT}`
+  const shown: { title: string; detail: string[]; height: number }[] = []
+  let used = 0
+  for (const h of facts.highlights) {
+    const detail = h.detail ? wrap(ctx, h.detail, textWidth2, 3) : []
+    const height = 11.5 * u + Math.max(0, detail.length - 1) * detailLine
+    if (used + height > room) break
+    shown.push({ title: h.title, detail, height })
+    used += height
+  }
 
   // Text over a photo keeps a soft shadow, so a bright photo can't wash it out.
   ctx.shadowColor = 'rgba(15,28,46,0.6)'
   ctx.shadowBlur = 1.5 * u
   let bottom = codeTop - 6 * u
-  const textWidth2 = width - 2 * pad - 5 * u
   for (const h of [...shown].reverse()) {
     ctx.fillStyle = 'rgba(255,255,255,0.8)'
     ctx.font = `400 ${3.8 * u}px ${TEXT}`
-    if (h.detail) ctx.fillText(ellipsize(ctx, h.detail, textWidth2), pad + 5 * u, bottom)
-    const titleLine = h.detail ? bottom - 5.2 * u : bottom
+    h.detail.forEach((line, i) =>
+      ctx.fillText(line, pad + 5 * u, bottom - (h.detail.length - 1 - i) * detailLine)
+    )
+    const titleLine = h.detail.length
+      ? bottom - (h.detail.length - 1) * detailLine - 5.2 * u
+      : bottom
     ctx.fillStyle = MARIGOLD
     ctx.beginPath()
     ctx.arc(pad + 1.2 * u, titleLine - 1.5 * u, 1.2 * u, 0, Math.PI * 2)
@@ -104,7 +125,7 @@ function drawFullPhoto(
     ctx.fillStyle = '#FFFFFF'
     ctx.font = `600 ${4.4 * u}px ${TEXT}`
     ctx.fillText(ellipsize(ctx, h.title, textWidth2), pad + 5 * u, titleLine)
-    bottom -= item
+    bottom -= h.height
   }
 
   bottom -= 4 * u
@@ -134,7 +155,7 @@ function drawFullPhoto(
   ctx.shadowColor = 'transparent'
 }
 
-/** The photo cropped to fill the box, or a royal wash when there is none. */
+/** The photo cropped to fill the box (or, when wider than it, whole across the top), or a royal wash when there is none. */
 function photo(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement | null,
@@ -149,6 +170,19 @@ function photo(
     wash.addColorStop(1, '#3F1E66')
     ctx.fillStyle = wash
     ctx.fillRect(x, y, w, h)
+    return
+  }
+  // A photo wider than the flyer sits whole across the top and fades into ink, rather than losing its sides.
+  if (img.naturalWidth / img.naturalHeight > w / h) {
+    const ph = (w * img.naturalHeight) / img.naturalWidth
+    ctx.fillStyle = INK
+    ctx.fillRect(x, y, w, h)
+    ctx.drawImage(img, x, y, w, ph)
+    const fade = ctx.createLinearGradient(0, y + ph * 0.55, 0, y + ph)
+    fade.addColorStop(0, 'rgba(15,28,46,0)')
+    fade.addColorStop(1, INK)
+    ctx.fillStyle = fade
+    ctx.fillRect(x, y + ph * 0.55, w, ph * 0.45 + 1)
     return
   }
   const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)

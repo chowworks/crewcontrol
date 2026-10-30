@@ -40,7 +40,6 @@ export function flyerFacts(trip: PublicTrip, origin: string): FlyerFacts {
     price: `${apart ? 'From ' : ''}${money(cents)} per person`,
     highlights: trip.highlights
       .filter((h) => h.title.trim())
-      .slice(0, 3)
       .map((h) => ({ title: h.title, detail: h.detail })),
     host: trip.organizerName,
     url,

@@ -1,5 +1,5 @@
 import type { OrganizerTrip } from '@cc/types'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { fileSlug } from '@/lib/csv'
 import {
@@ -13,9 +13,14 @@ import { drawFlyer, loadFlyerFonts } from '@/lib/flyer-draw'
 import { Dialog } from './Dialog'
 import { useToast } from './Toast'
 
-const FORMATS: { value: FlyerFormat; label: string; file: string }[] = [
-  { value: 'story', label: 'Story image', file: 'Story image' },
-  { value: 'letter', label: 'Printable page', file: 'Printable flyer' },
+const FORMATS: { value: FlyerFormat; label: string; size: string; file: string }[] = [
+  { value: 'story', label: 'Story image', size: '1080 × 1920 pixels', file: 'Story image' },
+  {
+    value: 'letter',
+    label: 'Printable page',
+    size: 'Letter, 8.5 × 11 in',
+    file: 'Printable flyer',
+  },
 ]
 
 /** The trip flyer (issue #15): a preview of the story image or the letter page, and a button to download it. */
@@ -26,7 +31,7 @@ export function FlyerDialog({ trip, onClose }: { trip: OrganizerTrip; onClose: (
   )
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const canvas = useRef<HTMLCanvasElement | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const toast = useToast()
 
   // Only the public trip goes on a flyer, so nothing the trip page hides can get on it.
@@ -48,43 +53,53 @@ export function FlyerDialog({ trip, onClose }: { trip: OrganizerTrip; onClose: (
     }
   }, [trip.id, trip.slug, trip.published])
 
+  // The file is made with the preview, so pressing the button can hand it straight to the phone's share sheet
+  // (which only opens from a tap, not after waiting on a canvas).
   useEffect(() => {
     if (!made) return
     const drawn = drawFlyer(made.facts, made.cover, format)
-    canvas.current = drawn
+    const name = fileSlug(trip.name)
+    let live = true
     let url: string | null = null
-    drawn.toBlob((blob) => {
-      if (!blob) return
-      url = URL.createObjectURL(blob)
+    const blob = (type: string, quality?: number) =>
+      new Promise<Blob | null>((done) => drawn.toBlob(done, type, quality))
+    ;(async () => {
+      const png = await blob('image/png')
+      if (!png || !live) return
+      url = URL.createObjectURL(png)
       setPreview(url)
-    }, 'image/png')
+      if (format === 'story')
+        setFile(new File([png], `${name}-flyer-story.png`, { type: png.type }))
+      else {
+        const jpeg = await blob('image/jpeg', 0.9)
+        if (!jpeg || !live) return
+        const pdf = pdfFromJpeg(new Uint8Array(await jpeg.arrayBuffer()), drawn)
+        if (live) setFile(new File([pdf], `${name}-flyer.pdf`, { type: 'application/pdf' }))
+      }
+    })()
     return () => {
+      live = false
+      setFile(null)
       if (url) URL.revokeObjectURL(url)
     }
-  }, [made, format])
+  }, [made, format, trip.name])
 
-  function download() {
-    const drawn = canvas.current
-    if (!drawn) return
-    const name = fileSlug(trip.name)
-    const done = FORMATS.find((f) => f.value === format)!.file
-    if (format === 'story')
-      drawn.toBlob((png) => {
-        if (!png) return
-        downloadBlob(png, `${name}-flyer-story.png`)
-        toast({ text: `Downloaded ${done}.` })
-      }, 'image/png')
-    else
-      drawn.toBlob(
-        async (jpeg) => {
-          if (!jpeg) return
-          const bytes = new Uint8Array(await jpeg.arrayBuffer())
-          downloadBlob(pdfFromJpeg(bytes, drawn), `${name}-flyer.pdf`)
-          toast({ text: `Downloaded ${done}.` })
-        },
-        'image/jpeg',
-        0.9
-      )
+  // On a phone the share sheet opens, where "Save Image" puts a story in Photos for Instagram; elsewhere it downloads.
+  async function download() {
+    if (!file) return
+    const done = FORMATS.find((f) => f.value === format)!.file.toLowerCase()
+    const phone = window.matchMedia('(pointer: coarse)').matches
+    if (phone && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] })
+        toast({ text: `Shared ${done}.` })
+      } catch {
+        // Closing the share sheet is not a failure.
+      }
+      return
+    }
+    downloadBlob(file, file.name)
+    toast({ text: `Downloaded ${done}.` })
   }
 
   return (
@@ -112,13 +127,14 @@ export function FlyerDialog({ trip, onClose }: { trip: OrganizerTrip; onClose: (
                 role="radio"
                 aria-checked={format === f.value}
                 onClick={() => setFormat(f.value)}
-                className={`min-h-[44px] flex-1 rounded-xl border px-3 font-semibold ${
+                className={`min-h-[44px] flex-1 rounded-xl border px-3 py-2 font-semibold ${
                   format === f.value
                     ? 'border-royal bg-royal-pale text-royal'
                     : 'border-rule text-body hover:border-royal'
                 }`}
               >
                 {f.label}
+                <span className="block text-sm font-normal text-muted">{f.size}</span>
               </button>
             ))}
           </div>
@@ -133,18 +149,24 @@ export function FlyerDialog({ trip, onClose }: { trip: OrganizerTrip; onClose: (
               !error && (
                 <div
                   aria-busy="true"
-                  className="aspect-[9/16] h-[52vh] max-h-[420px] animate-pulse rounded-lg bg-rule"
-                />
+                  className="flex aspect-[9/16] h-[52vh] max-h-[420px] animate-pulse items-center justify-center rounded-lg bg-rule px-4 text-center font-semibold text-muted"
+                >
+                  Making your flyer…
+                </div>
               )
             )}
           </div>
           <button
             type="button"
             onClick={download}
-            disabled={!preview}
+            disabled={!file}
             className="min-h-[44px] rounded-xl bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-50"
           >
-            {format === 'story' ? 'Download image' : 'Download PDF'}
+            {!preview
+              ? 'Making your flyer…'
+              : format === 'story'
+                ? 'Download image'
+                : 'Download PDF'}
           </button>
         </div>
       )}

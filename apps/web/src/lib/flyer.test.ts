@@ -37,9 +37,9 @@ describe('flyerFacts', () => {
     })
   })
 
-  it('keeps the first three highlights that have a title', () => {
+  it('keeps every highlight that has a title', () => {
     const titles = flyerFacts(trip(), 'https://x').highlights.map((h) => h.title)
-    expect(titles).toEqual(['Pool', 'Beach', 'Dinner'])
+    expect(titles).toEqual(['Pool', 'Beach', 'Dinner', 'Boat'])
   })
 
   it('quotes the cheapest room, "From", when rooms are priced apart', () => {
