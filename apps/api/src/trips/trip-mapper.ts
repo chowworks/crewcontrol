@@ -352,3 +352,11 @@ export function toTripSummary(row: TripRow): TripSummary {
     isSample: row.isSample,
   }
 }
+
+/** How long a deleted trip is kept, hidden, before it is erased for good (owner's decision, 2026-10-30). */
+export const DELETED_KEPT_DAYS = 30
+
+/** When a trip deleted at `deletedAt` is erased: an ISO time. */
+export function eraseOn(deletedAt: Date): string {
+  return new Date(deletedAt.getTime() + DELETED_KEPT_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}

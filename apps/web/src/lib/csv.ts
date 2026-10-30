@@ -3,7 +3,7 @@
  * in the browser from what the screen already shows, so an export never holds more than the organizer can see.
  */
 
-type Cell = string | number | null
+export type Cell = string | number | null
 
 /**
  * One cell. A value a spreadsheet would read as a formula (guests type notes and names) is kept as text with a
@@ -31,13 +31,20 @@ export function stamp(iso: string | null): string | null {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** Saves the rows as `name`.csv. The byte-order mark makes Excel read accents and curly quotes right. */
+/** The rows as a file's text. The byte-order mark makes Excel read accents and curly quotes right. */
+export const csvText = (rows: Cell[][]) => '\ufeff' + toCsv(rows)
+
+/** Saves the rows as `name`.csv. */
 export function downloadCsv(name: string, rows: Cell[][]): void {
-  const blob = new Blob(['﻿' + toCsv(rows)], { type: 'text/csv;charset=utf-8' })
+  saveFile(`${name}.csv`, new Blob([csvText(rows)], { type: 'text/csv;charset=utf-8' }))
+}
+
+/** Hands the browser a file to save. */
+export function saveFile(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${name}.csv`
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   a.remove()

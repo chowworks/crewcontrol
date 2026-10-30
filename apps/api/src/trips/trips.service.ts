@@ -21,6 +21,7 @@ import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
 import { EmailsService } from '../messaging/emails.service'
 import {
+  eraseOn,
   toOrganizerTrip,
   toPublicTrip,
   toSignedAgreement,
@@ -124,7 +125,11 @@ export class TripsService {
   async addRequest(input: OrganizerRequestInput, caller: Caller): Promise<void> {
     const trip = input.tripId
       ? await this.prisma.trip.findFirst({
-          where: { id: input.tripId, members: { some: { userId: caller.userId } } },
+          where: {
+            id: input.tripId,
+            deletedAt: null,
+            members: { some: { userId: caller.userId } },
+          },
           select: { id: true, name: true },
         })
       : null
@@ -153,10 +158,13 @@ export class TripsService {
    * The trips the caller works on (their TripMember rows). Row-level security draws the same line in the database;
    * the filter here keeps it while the API still connects as the owner. Admins see every trip in the Admin toolbox.
    */
-  /** The caller's trips, listed the way the Admin toolbox lists every trip: owners and sign-up counts. */
+  /**
+   * The caller's trips, listed the way the Admin toolbox lists every trip: owners and sign-up counts. Trips they own and
+   * deleted are listed too, until they're erased, so an owner can restore one.
+   */
   async list(caller: Caller) {
     const rows = await this.prisma.trip.findMany({
-      where: { members: { some: { userId: caller.userId } } },
+      where: { deletedAt: null, members: { some: { userId: caller.userId } } },
       orderBy: { startDate: 'asc' },
       include: ownerIds,
     })
@@ -170,7 +178,34 @@ export class TripsService {
       )
     )
     // What needs the caller on each, as Trip Control's Actions counts it (the red count on Your trips).
-    return listed.map((t) => ({ ...t, actionCount: actions.get(t.id)?.count ?? 0 }))
+    return [
+      ...listed.map((t) => ({ ...t, actionCount: actions.get(t.id)?.count ?? 0 })),
+      ...(await this.deletedOf(caller)),
+    ]
+  }
+
+  /**
+   * The trips the caller owns that are deleted and not yet erased. A deleted trip is nobody's to read (trips_of_user),
+   * so this is trusted work, limited to the caller's own ownerships.
+   */
+  private deletedOf(caller: Caller) {
+    return runAsSystem(async () => {
+      const rows = await this.prisma.trip.findMany({
+        where: {
+          deletedAt: { not: null },
+          members: { some: { userId: caller.userId, role: 'owner' } },
+        },
+        orderBy: { deletedAt: 'desc' },
+        include: ownerIds,
+      })
+      return withCounts(
+        rows,
+        await countGuests(
+          this.prisma,
+          rows.map((r) => r.id)
+        )
+      )
+    })
   }
 
   /**
@@ -179,7 +214,7 @@ export class TripsService {
    */
   async actionCounts(caller: Caller): Promise<Map<string, { name: string; count: number }>> {
     const rows = await this.prisma.trip.findMany({
-      where: { members: { some: { userId: caller.userId } } },
+      where: { deletedAt: null, members: { some: { userId: caller.userId } } },
       include: withGuests,
     })
     const buffer = await this.waitlistBufferPercent()
@@ -189,12 +224,13 @@ export class TripsService {
   }
 
   /**
-   * A trip the caller works on; anyone else's reads as not found. `admin` is true only on the Admin toolbox's routes,
-   * where the admin mark reads any trip, read-only and without a seat (owner's decision, 2026-10-28).
+   * A trip the caller works on; anyone else's, or a deleted one, reads as not found. `admin` is true only on the Admin
+   * toolbox's routes, where the admin mark reads any trip, deleted ones too, read-only and without a seat (owner's
+   * decisions, 2026-10-28 and 2026-10-30).
    */
   async get(id: string, caller: Caller, admin = false): Promise<OrganizerTrip> {
     const row = await this.prisma.trip.findFirst({
-      where: admin ? { id } : { id, members: { some: { userId: caller.userId } } },
+      where: admin ? { id } : { id, deletedAt: null, members: { some: { userId: caller.userId } } },
       include: withGuests,
     })
     if (!row) throw new NotFoundException('Trip not found')
@@ -207,7 +243,7 @@ export class TripsService {
    */
   async coverPhoto(id: string, caller: Caller): Promise<{ bytes: Buffer; type: string } | null> {
     const row = await this.prisma.trip.findFirst({
-      where: { id, members: { some: { userId: caller.userId } } },
+      where: { id, deletedAt: null, members: { some: { userId: caller.userId } } },
       select: { photos: true },
     })
     if (!row) throw new NotFoundException('Trip not found')
@@ -1057,6 +1093,7 @@ export class TripsService {
       include: { members: { select: { userId: true, role: true } } },
     })
     if (!trip) throw new NotFoundException('Trip not found')
+    if (trip.deletedAt) throw new BadRequestException('This trip is deleted')
     const mine = trip.members.find((m) => m.userId === caller.userId)
     const hasOwner = trip.members.some((m) => m.role === 'owner')
     if (asOwner && hasOwner && mine?.role !== 'owner')
@@ -1147,6 +1184,7 @@ function withCounts(
   rows: (Parameters<typeof toTripSummary>[0] & {
     maxGuests: number | null
     joinMode: string
+    deletedAt: Date | null
     members: { userId: string }[]
   })[],
   counts: GuestCounts[]
@@ -1162,6 +1200,8 @@ function withCounts(
         interestedCount: c.interested,
         maxGuests: row.maxGuests,
         joinMode: row.joinMode,
+        // Deleted: when it's erased (Your trips offers Restore until then; the Admin toolbox shows it).
+        eraseOn: row.deletedAt ? eraseOn(row.deletedAt) : null,
       })
     })
   )

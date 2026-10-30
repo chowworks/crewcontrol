@@ -59,6 +59,10 @@ model Trip {
   // RECEIPTS_DOMAIN). Changed, never cleared; every address used is kept in ReceiptsAddress (migration
   // 20261029080000_receipt_forwarding).
   receiptsAddress     String?              @unique
+  // Deleted by an owner: hidden from everyone but the admin, then erased for good 30 days later (TripDeletionService,
+  // migration 20261030020000_trip_deletion). A deleted trip is never published.
+  deletedAt           DateTime?
+  deletedByUserId     String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   guests              Guest[]
@@ -75,6 +79,8 @@ model Trip {
   payerAddresses      PayerAddress[]
   announcements       Announcement[]
   questions           TripQuestion[]
+
+  @@index([deletedAt])
 }
 
 // Who works on a trip: an owner runs it and decides who else organizes it, an organizer works on it beside them.

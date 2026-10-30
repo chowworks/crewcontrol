@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { TripPhoto } from '../trips/trip-types'
 
@@ -15,6 +20,8 @@ export interface PhotoBucket {
   sign(ref: string): Promise<string>
   /** The reference a signed link from this bucket stands for, or null if it is some other address. */
   refFrom(url: string): string | null
+  /** Erases a referenced photo, when its trip is erased. */
+  remove(ref: string): Promise<void>
 }
 
 const REF = /^r2:(trip-photos\/[\w-]+\.(?:jpg|png|webp))$/
@@ -67,6 +74,11 @@ export function photoBucketFromEnv(env: NodeJS.ProcessEnv = process.env): PhotoB
         expiresIn: (2 * HOUR) / 1000,
         signingDate: new Date(Math.floor(Date.now() / HOUR) * HOUR),
       })
+    },
+    async remove(ref) {
+      const key = ref.match(REF)?.[1]
+      if (!key) throw new Error(`Not a photo reference: ${ref}`)
+      await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
     },
     refFrom(url) {
       try {

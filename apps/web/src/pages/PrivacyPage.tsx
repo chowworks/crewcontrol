@@ -121,10 +121,11 @@ export function PrivacyPage() {
 
         <Section title="Keeping and deleting data">
           <p>
-            Organizers can delete a trip, and with it the trip&apos;s guest list and payment
-            records, once the trip is over or whenever they choose. Organizers are responsible for
-            keeping their own copies of anything they need, and Travel HQ will let them export a
-            trip&apos;s guest list and payment log first. Deleted data is gone for good.
+            A trip&apos;s owner can delete it, and with it the trip&apos;s guest list and payment
+            records, whenever they choose. Travel HQ has them download everything on the trip first,
+            and emails each guest who signed their own signed agreement and payments. A deleted trip
+            is hidden at once and erased for good 30 days later; until then its owner can restore
+            it. Organizers are responsible for keeping their own copies of anything they need.
           </p>
         </Section>
 

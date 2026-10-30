@@ -1,3 +1,4 @@
+import { emailKind } from './email-defaults'
 import { checkTemplate, htmlToText, render, type GuestEmailContext } from './email-template'
 
 const context: GuestEmailContext = {
@@ -133,6 +134,25 @@ describe('render', () => {
     expect(out.text).toMatch(
       /^Final payment for Dana on Aruba Crew Getaway 2028\. Book flights for Dana/
     )
+  })
+
+  it('gives a guest of a deleted trip their record, and never the ways to pay', () => {
+    const k = emailKind('trip_deleted')!
+    expect(checkTemplate(k.body, k.groups)).toEqual([])
+    const out = render(k, {
+      ...context,
+      deletion: {
+        eraseDate: 'Nov 29, 2026',
+        agreement: 'Trip agreement: Aruba Crew Getaway 2028',
+        signedName: 'Dana Reyes',
+        signedOn: 'Oct 21, 2026',
+        payments: [{ date: 'Oct 22, 2026', amount: '$400', how: 'Zelle', status: 'confirmed' }],
+      },
+    })
+    expect(out.text).toContain('Oct 22, 2026: $400 by Zelle (confirmed)')
+    expect(out.text).toContain('Your copy is attached')
+    expect(out.text).toContain('which Nia deleted from Travel HQ')
+    expect(out.html).not.toContain('(555) 010-0199')
   })
 })
 

@@ -57,7 +57,7 @@ export function AdminTripsPage() {
                   Guest page
                 </Link>
               )}
-              {!t.isSample && !t.ownerName && (
+              {!t.isSample && !t.ownerName && !t.eraseOn && (
                 <button type="button" onClick={() => takeOwnership(t)} className={rowButton()}>
                   Make me the owner
                 </button>

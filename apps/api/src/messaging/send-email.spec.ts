@@ -49,6 +49,15 @@ describe('sendEmail', () => {
     ])
   })
 
+  it('sends files with it, such as a signed agreement', async () => {
+    process.env.RESEND_API_KEY = 're_test'
+    send.mockResolvedValue({ data: { id: 'em_3' }, error: null })
+    await sendEmail({ ...email, attachments: [{ filename: 'a.txt', content: 'Signed.' }] })
+    expect(send.mock.calls[0][0].attachments).toEqual([
+      { filename: 'a.txt', content: Buffer.from('Signed.', 'utf8') },
+    ])
+  })
+
   it('throws when Resend refuses, without the full address', async () => {
     process.env.RESEND_API_KEY = 're_test'
     send.mockResolvedValue({ data: null, error: { message: 'Domain not verified' } })

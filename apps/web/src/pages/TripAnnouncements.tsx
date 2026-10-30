@@ -23,7 +23,7 @@ const filled =
 const outlined =
   'inline-flex min-h-[44px] items-center justify-center rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale'
 
-const AUDIENCE_NAMES: Record<AnnouncementAudience, string> = {
+export const AUDIENCE_NAMES: Record<AnnouncementAudience, string> = {
   accepted: 'Everyone on the trip',
   owing: 'Guests who still owe',
 }

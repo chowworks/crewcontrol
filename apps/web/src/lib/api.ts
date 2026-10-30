@@ -63,6 +63,8 @@ export interface ListedTrip extends TripSummary {
   joinMode: JoinMode
   /** What needs you on the trip, as Trip Control's Actions counts it (Your trips only). */
   actionCount?: number
+  /** Deleted: when it's erased for good (ISO). Your trips lists an owner's deleted trips until then. */
+  eraseOn: string | null
 }
 
 export class ApiError extends Error {
@@ -132,6 +134,8 @@ const peopleBase = (id: string, admin: boolean) => `${tripBase(id, admin)}/peopl
 
 export const api = {
   listTrips: () => request<ListedTrip[]>('/trips'),
+  deleteTrip: (id: string) => request<{ eraseOn: string }>(`/trips/${id}`, { method: 'DELETE' }),
+  restoreTrip: (id: string) => request<void>(`/trips/${id}/restore`, { method: 'POST' }),
   myActions: () => request<MyActions>('/me/actions'),
   // `admin`: the Admin toolbox's read-only look at a trip it doesn't sit on (components/AdminView.tsx).
   getTrip: (id: string, admin = false) => request<OrganizerTrip>(tripBase(id, admin)),
@@ -144,6 +148,9 @@ export const api = {
     const res = await send(`/trips/${id}/flyer-cover`)
     return res.status === 204 ? null : res.blob()
   },
+  /** Download everything's signed agreements (PDF) and photos, as a zip. */
+  getExportFiles: async (id: string) =>
+    new Uint8Array(await (await send(`/trips/${id}/export-files`)).arrayBuffer()),
   listSampleTrips: () => request<TripSummary[]>('/public/sample-trips'),
   getRooms: (id: string, admin = false) => request<TripRoom[]>(`${tripBase(id, admin)}/rooms`),
   setRooms: (id: string, rooms: TripRoom[]) =>
