@@ -1,0 +1,131 @@
+<!doctype html>
+<!--
+  The source of public/share-image.png, the picture a link to travel-hq.app shows when it is shared (Open Graph and
+  Twitter card tags in index.html). To change it, edit this file and regenerate the PNG from apps/web:
+
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars \
+    --window-size=1200,630 --screenshot=public/share-image.png "file://$PWD/scripts/share-image.html"
+
+  Then bump the ?v= on the image links in index.html, because apps that already fetched a preview keep it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Instrument+Sans:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: #f3f6f5;
+        color: #0f1c2e;
+        font-family: 'Instrument Sans', sans-serif;
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 56px;
+        padding: 64px 72px;
+      }
+      .left {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-weight: 800;
+        font-size: 40px;
+        letter-spacing: -0.02em;
+      }
+      .brand svg {
+        width: 64px;
+        height: 64px;
+      }
+      .royal {
+        color: #5a2d91;
+      }
+      h1 {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-weight: 800;
+        font-size: 84px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+      .site {
+        font-size: 28px;
+        font-weight: 600;
+        color: #5a2d91;
+      }
+      .chat {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 14px;
+      }
+      .bubble {
+        max-width: 88%;
+        padding: 14px 20px;
+        border-radius: 22px;
+        font-size: 24px;
+        font-weight: 500;
+        background: #fff;
+        border-bottom-left-radius: 6px;
+      }
+      .bubble.mine {
+        align-self: flex-end;
+        background: #5a2d91;
+        color: #fff;
+        border-radius: 22px;
+        border-bottom-right-radius: 6px;
+      }
+      .chip {
+        align-self: flex-end;
+        margin-top: 8px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        background: #f2b33d;
+        font-size: 22px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="left">
+      <div class="brand">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <rect width="64" height="64" rx="16" fill="#5A2D91" />
+          <path
+            d="M33 16H21a8 8 0 0 0-8 8v11a8 8 0 0 0 8 8h3v7.5l9.5-7.5H43a8 8 0 0 0 8-8v-3"
+            fill="none"
+            stroke="#fff"
+            stroke-width="5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <g transform="translate(33 7) scale(1.15)">
+            <path d="M0 11 21 1 15 22 9.5 14.5Z" fill="#F2B33D" />
+            <path d="M9.5 14.5 21 1 9 20Z" fill="#D99A22" />
+          </g>
+        </svg>
+        <span>Travel <span class="royal">HQ</span></span>
+      </div>
+      <h1>Get your trip out the group chat.</h1>
+      <div class="site">travel-hq.app</div>
+    </div>
+    <div class="chat">
+      <div class="bubble">wait how much is the house again?</div>
+      <div class="bubble">who's actually coming??</div>
+      <div class="bubble mine">It's all on the trip page 👇</div>
+      <div class="chip">One link for the whole trip</div>
+    </div>
+  </body>
+</html>
