@@ -5,8 +5,11 @@ import { SiteFooter } from '@/components/SiteFooter'
 
 /*
  * The privacy page, adapted from Audit Differently's. Taken out of draft on 2026-10-31 (owner's decision), once every
- * promise on it was built. Keep it true to what the product does: a new promise here needs its feature built first.
+ * promise on it was built. Keep it true to what the product does: a new promise here needs its feature built first,
+ * and any change to what it says moves LAST_UPDATED.
  */
+const LAST_UPDATED = 'October 31, 2026'
+
 export function PrivacyPage() {
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -16,6 +19,11 @@ export function PrivacyPage() {
 
       <main className="mx-auto flex max-w-[760px] flex-col gap-4 px-5 pb-12">
         <h1 className="mt-4 text-4xl font-extrabold">Privacy and Data Protection</h1>
+        <p className="text-sm text-muted">Last updated {LAST_UPDATED}</p>
+        <p className="rounded-xl bg-royal-pale px-4 py-3 text-body">
+          Travel HQ is in a limited preview, so what it does, and this page, may change. When it
+          does, we&apos;ll update this page and the date above.
+        </p>
 
         <Section title="Our approach">
           <p>
@@ -29,13 +37,16 @@ export function PrivacyPage() {
           <ul className="list-disc pl-5">
             <li>
               <strong>Organizers:</strong> your name, email and sign-in details, and the trips you
-              create: dates, cost, highlights, key dates, photos, payment instructions and your trip
-              settings.
+              run: dates, cost, highlights, key dates, photos, rooms, payment instructions, vendor
+              costs, announcements, answers to guests&apos; questions and your trip settings, plus
+              the emails of anyone you add to help run a trip.
             </li>
             <li>
               <strong>Guests:</strong> your sign-in details, the name, phone number and email you
-              give when you join a trip, whether the organizer has accepted you, and the messages
-              and reminders the trip sends you.
+              give when you join a trip (or give for someone you sign up), the room you pick and who
+              you&apos;d like to share with, whether the organizer has accepted you, the questions
+              and replies you post, the emails and reminders the trip sends you, and whether an
+              email to you bounced.
             </li>
             <li>
               <strong>Trip agreements:</strong> the agreement you signed, exactly as you saw it,
@@ -55,7 +66,22 @@ export function PrivacyPage() {
             <li>
               <strong>Payment records:</strong> what the organizer logs about who paid, how much,
               when and how (for example &ldquo;Zelle, $300, March 1&rdquo;), and each guest&apos;s
-              plan and balance.
+              plan and balance, with any credits or charges and their reasons.
+            </li>
+            <li>
+              <strong>Forwarded receipts:</strong> if an organizer forwards a payment email to their
+              trip&apos;s receipts address, who sent it, its subject, the amount, the payer&apos;s
+              name and a short excerpt, so the payment can be matched to a guest.
+            </li>
+            <li>
+              <strong>Early access and contact:</strong> the name, email and note you leave when you
+              ask for early access, and what you write in our contact form, which comes to us by
+              email.
+            </li>
+            <li>
+              <strong>Visits:</strong> anonymous page-view counts (which pages, roughly where from,
+              what kind of device), without advertising cookies. Sign-in uses cookies to keep you
+              signed in.
             </li>
           </ul>
           <p>
@@ -67,23 +93,31 @@ export function PrivacyPage() {
         <Section title="Who sees it">
           <ul className="list-disc pl-5">
             <li>
-              <strong>The organizer</strong> sees their trip&apos;s guest list, contact details,
-              signed agreements and payment records, and no other organizer&apos;s.
+              <strong>A trip&apos;s owners and organizers</strong> see its guest list, contact
+              details, signed agreements and payment records, and no other trip&apos;s.
             </li>
             <li>
               <strong>Each guest</strong> sees the trip page and, once they join, their own signed
-              agreement, plan, payments and balance. Guests never see each other&apos;s phone
-              numbers, emails or balances.
+              agreement, plan, payments and balance, and the organizer&apos;s name and email. Guests
+              never see each other&apos;s phone numbers, emails or balances. A reply you post under
+              an announcement shows as your first name and last initial to the guests it went to.
             </li>
             <li>
-              <strong>The public trip page</strong> never shows phone numbers, emails or money owed.
-              If the organizer turns on &ldquo;who&apos;s going&rdquo;, it shows accepted guests by
-              first name and last initial.
+              <strong>The public trip page</strong> shows the organizer&apos;s name, and never shows
+              guests&apos; phone numbers, emails or money owed, or who asked a question. If the
+              organizer turns on &ldquo;who&apos;s going&rdquo;, or lets guests pick rooms (so they
+              can choose who to share with), it shows accepted guests by first name and last
+              initial.
             </li>
             <li>
-              <strong>Our service providers</strong> for hosting, sign-in, email and text messages
-              handle data only to run Travel HQ for us, under agreements that require them to
-              protect it.
+              <strong>Travel HQ&apos;s admins</strong> can open any trip to support it and keep the
+              service running, and read early access requests.
+            </li>
+            <li>
+              <strong>Our service providers</strong> handle data only to run Travel HQ for us:
+              Railway (servers and database), Vercel (the website and visit counts), Cloudflare
+              (photos), Clerk (sign-in, including with Google or Microsoft if you choose) and Resend
+              (email). Fonts load from Google Fonts, and the status notice from Better Stack.
             </li>
           </ul>
         </Section>
@@ -92,19 +126,27 @@ export function PrivacyPage() {
           <p>
             Reminders and announcements go to guests only because their organizer set them up for
             that trip. We don&apos;t send marketing to guests, and we don&apos;t share their contact
-            details with anyone for marketing. Guests can stop reminders for a trip at any time.
+            details with anyone for marketing. Guests can stop reminders and announcement emails for
+            a trip at any time from the link in those emails; emails about their own place on the
+            trip, such as being accepted, still come.
           </p>
         </Section>
 
         <Section title="How it's protected">
           <ul className="list-disc pl-5">
-            <li>Data is encrypted in transit (HTTPS) and at rest.</li>
             <li>
-              Organizers sign in to reach their trips, and each trip is visible only to its
-              organizer.
+              Data is encrypted in transit (HTTPS), and photos and database backups are encrypted at
+              rest.
+            </li>
+            <li>
+              Organizers and guests sign in. The database itself keeps each trip to its owners and
+              organizers, and each guest to their own records.
             </li>
             <li>Only people who need access to run the service have it.</li>
-            <li>We keep only what a trip needs, and you can delete it when you&apos;re done.</li>
+            <li>
+              We keep only what a trip needs, and a trip&apos;s owner can delete it when
+              they&apos;re done.
+            </li>
           </ul>
           <p>
             No method of storing or sending data over the internet is 100% secure. If something goes
@@ -119,6 +161,10 @@ export function PrivacyPage() {
             and emails each guest who signed their own signed agreement and payments. A deleted trip
             is hidden at once and erased for good 30 days later; until then its owner can restore
             it. Organizers are responsible for keeping their own copies of anything they need.
+          </p>
+          <p>
+            A forwarded receipt that reaches no trip, or that the organizer dismisses, is erased
+            after 30 days. To have your account and what it holds deleted, use our contact form.
           </p>
         </Section>
 
