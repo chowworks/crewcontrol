@@ -25,6 +25,9 @@ export function SiteFooter() {
         <Link to="/contact" className="py-2 hover:text-royal">
           Contact us
         </Link>
+        <Link to="/contact?topic=feature" className="py-2 hover:text-royal">
+          Request a feature
+        </Link>
         {/* A plain link: the release notes are a static page outside the app (apps/web/vite.config.ts). */}
         <a href="/release-notes/" className="py-2 hover:text-royal">
           Release notes

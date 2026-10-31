@@ -11,7 +11,7 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft, FileImage, Users } from 'lucide-react'
+import { ArrowLeft, FileImage, Lightbulb, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -328,6 +328,22 @@ export function ControlPanelPage() {
           />
         )}
         {!admin && <AnnouncementsCard trip={trip} />}
+        {/* Under Announcements, one thin row (owner's decision, 2026-10-31). Opens the contact form. */}
+        {!admin && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-royal-pale px-4 py-2">
+            <p className="flex items-center gap-2 text-sm text-ink">
+              <Lightbulb className="h-4 w-4 shrink-0 text-royal" aria-hidden="true" />
+              Missing something you need to run your trip? Tell us.
+            </p>
+            {/* Drawn 36px tall; the ::after keeps the tap area at 44px. */}
+            <Link
+              to="/contact?topic=feature"
+              className="relative inline-flex min-h-[36px] shrink-0 items-center rounded-lg border border-royal bg-white px-3 text-sm font-semibold text-royal after:absolute after:-inset-1 hover:bg-royal-pale"
+            >
+              Request a feature
+            </Link>
+          </div>
+        )}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
         {!admin && <RemindersCard trip={trip} />}

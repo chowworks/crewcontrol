@@ -570,6 +570,7 @@ export const CONTACT_TOPICS = [
   'trip-help',
   'app-problem',
   'privacy',
+  'feature',
   'feedback',
 ] as const
 export type ContactTopic = (typeof CONTACT_TOPICS)[number]
@@ -578,7 +579,8 @@ export const CONTACT_TOPIC_LABELS: Record<ContactTopic, string> = {
   'trip-help': 'Help with a trip',
   'app-problem': 'App Problem / Navigation Issue',
   privacy: 'Privacy or my data',
-  feedback: 'Feedback or an idea',
+  feature: 'Request a feature',
+  feedback: 'Other feedback',
 }
 
 /** The public early access form on the limited preview page. `website` is the honeypot, as on the contact form. */
