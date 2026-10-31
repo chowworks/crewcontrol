@@ -203,7 +203,7 @@ export function HomePage() {
 
       {/* Real trip pages */}
       {trips.length > 0 && (
-        <section className="mx-auto max-w-[1120px] px-5 py-16">
+        <section className="mx-auto max-w-[1120px] px-5 pt-16">
           <h2 className="text-4xl font-extrabold">One page, any kind of trip</h2>
           <p className="mt-2 text-lg text-body">
             A beach house, a resort or a birthday villa. Tap one to see what your crew sees.
@@ -239,7 +239,7 @@ export function HomePage() {
       )}
 
       {/* Questions */}
-      <section className="mx-auto max-w-[1120px] px-5 pb-16">
+      <section className="mx-auto max-w-[1120px] px-5 py-16">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-4xl font-extrabold">Questions organizers ask</h2>
           <Link
