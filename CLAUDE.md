@@ -242,10 +242,10 @@ between them:
   `migrate reset` or anything that needs a shadow database against a shared database. Never pass the dev
   database as `--shadow-database-url` (Prisma wipes the shadow database; this emptied dev once, 2026-10-19).
   `prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel ...` only reads, so use that.
-- **The dev API runs the seed on every start** (`prisma migrate deploy && npm run db:seed && node dist/main.js`);
-  production does not seed. The seed replaces only trips marked `isSample` (the three demo trips), so a failing seed takes `api-dev`
-  down: run `npm run typecheck` and the seed locally before pushing a change it uses. It refuses any Railway
-  environment but `dev`, and a non-local database without `--confirm-host`.
+- **The API runs the seed on every start, in dev and production** (`npm run deploy:start -w @cc/api`; owner's
+  decision 2026-10-31, so the homepage's demo trips exist in production). The seed replaces only trips marked
+  `isSample` (the three demo trips), so a failing seed takes the API down, production's too: run `npm run typecheck` and the seed locally before pushing a change it uses. It refuses any Railway
+  environment but `dev` and `production`, and a non-local database without `--confirm-host`.
 - No ad-hoc write to a shared database (scripts, Prisma calls, `db execute`, seed re-runs) without saying
   exactly what will change and getting a yes. Reads are fine.
 

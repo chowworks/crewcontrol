@@ -42,7 +42,7 @@ export default defineRailway((ctx) => {
       build,
       // Migrations as the owner, then the restricted role kept in step with this deploy (scripts/ensure-app-role.ts),
       // then the seed puts the three demo trips back in their starting shape (prisma/seed.ts).
-      start: 'npm run deploy:start:dev -w @cc/api',
+      start: 'npm run deploy:start -w @cc/api',
       deploy: { restartPolicyMaxRetries: 3 },
       replicas: { [REGION]: 1 },
       env: {
@@ -80,7 +80,8 @@ export default defineRailway((ctx) => {
     return project('crewcontrol', { resources: [Postgres, apiDev] })
   }
 
-  // Production: private network only, and no seed on start, so a trip an organizer made is never touched by it.
+  // Production: private network only. The seed runs on start as in dev, so the homepage's demo trips are there; it
+  // replaces only trips marked isSample, so a trip an organizer made is never touched by it.
   // A push to main deploys here; try a change on dev first with apps/api/scripts/deploy-dev.sh.
   Postgres.networking = { privateNetworkEndpoint: 'postgres' }
   // Railway's point-in-time recovery for Postgres keeps its log in this bucket (switched on in the dashboard).
@@ -88,7 +89,7 @@ export default defineRailway((ctx) => {
   const api = service('crewcontrol-api', {
     source: github('chowworks/crewcontrol', { checkSuites: true }),
     build: { ...build, watchPatterns: ['apps/api/**', 'packages/types/**', 'package*.json'] },
-    // As in dev: migrations as the owner, then the restricted role kept in step (scripts/ensure-app-role.ts). No seed.
+    // As in dev: migrations as the owner, the restricted role kept in step (scripts/ensure-app-role.ts), then the seed.
     start: 'npm run deploy:start -w @cc/api',
     deploy: { restartPolicyMaxRetries: 3 },
     replicas: { [REGION]: 1 },

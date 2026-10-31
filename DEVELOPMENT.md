@@ -67,8 +67,7 @@ database. Read the SQL, then apply it with `npm run db:migrate:deploy -w @cc/api
 `prisma migrate dev` or `migrate reset`: they need a database of their own and would wipe the shared one.
 Production applies migrations with `prisma migrate deploy` on start.
 
-The dev API (`api-dev`) runs the seed on every start, so check the seed still runs after a schema change.
-Production does not seed.
+The API runs the seed on every start, in dev and production, so check the seed still runs after a schema change.
 
 ## Photos
 
@@ -148,8 +147,9 @@ The database is shared, so:
 
 ### Production
 
-Declared in the same file: `NODE_ENV=production`, no TCP proxy on Postgres, and no seed in the start command, so a
-trip an organizer made is never replaced by it. The seed refuses to run in any Railway environment but `dev`.
+Declared in the same file: `NODE_ENV=production` and no TCP proxy on Postgres. The seed runs on start, as in dev, so
+the homepage's demo trips are there; it replaces only trips marked `isSample`, so a trip an organizer made is never
+touched. It refuses any Railway environment but `dev` and `production`.
 
 A push to `main` deploys production: CI holds production's `RAILWAY_TOKEN`, applies `.railway/railway.ts` there and
 deploys `crewcontrol-api` (`RAILWAY_API_SERVICE`). Dev is deployed by hand: try a branch on `api-dev` with

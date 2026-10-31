@@ -275,13 +275,15 @@ const contact = (first: string, last: string, i: number) => ({
 })
 
 // The seed deletes and recreates the demo trips, so it says where it is writing before it does. On Railway it runs
-// only in the `dev` environment. From a laptop, a database that is not on this machine (the shared dev one) needs
+// in `dev` and `production`, where the homepage shows the demo trips too (owner's decision, 2026-10-31). From a laptop, a database that is not on this machine (the shared dev one) needs
 // `-- --confirm-host <host:port>`, so it is never run against a shared database by accident.
 function checkTarget() {
   const railwayEnv = process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.RAILWAY_ENVIRONMENT
   if (railwayEnv !== undefined) {
-    if (railwayEnv !== 'dev')
-      throw new Error(`The seed runs only in Railway's dev environment, not ${railwayEnv}.`)
+    if (railwayEnv !== 'dev' && railwayEnv !== 'production')
+      throw new Error(
+        `The seed runs only in Railway's dev and production environments, not ${railwayEnv}.`
+      )
     return
   }
   const { hostname, port } = new URL(process.env.DATABASE_URL ?? '')
