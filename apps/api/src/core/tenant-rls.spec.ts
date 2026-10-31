@@ -1221,8 +1221,14 @@ suite('trip isolation', () => {
       await db.query(
         `INSERT INTO "EarlyAccessRequest" (id, name, email) VALUES ('E1', 'Dana Reyes', 'dana@example.com')`
       )
+      const approve = `UPDATE "EarlyAccessRequest" SET "approvedAt" = now()`
+      // Only the admin approves one (issue #39).
+      await as(await person('u1'), async () => {
+        expect(await attempt(approve)).toEqual({ rows: 0 })
+      })
       await as(await person('a1', { admin: true }), async () => {
         expect(await ids('EarlyAccessRequest')).toEqual(['E1'])
+        expect(await attempt(approve)).toEqual({ rows: 1 })
         expect(await attempt(`DELETE FROM "EarlyAccessRequest"`)).toEqual({ rows: 0 })
       })
     } finally {

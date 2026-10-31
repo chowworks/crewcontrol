@@ -69,11 +69,11 @@ export function LimitedPreviewPage() {
               Limited preview
             </span>
             <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl">
-              Travel HQ is in a limited preview
+              Travel HQ is invite-only (for now)
             </h1>
             <p className="text-lg text-body">
-              For now, only preview and invited users can start new trips. Get on the early access
-              list and we’ll let you know when you can run yours.
+              We’re letting group trip planners in a few at a time. Grab your spot on the early
+              access list.
             </p>
           </div>
 
@@ -160,7 +160,7 @@ export function LimitedPreviewPage() {
           </div>
 
           <p className="rounded-xl bg-royal-pale px-4 py-3 text-body">
-            Know someone who already runs a trip on Travel HQ? Ask them to refer you.
+            Know someone already on Travel HQ? Ask them for an invite and skip the line.
           </p>
         </div>
       </main>

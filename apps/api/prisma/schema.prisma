@@ -452,6 +452,8 @@ model SystemSettings {
   id                    Int      @id @default(1)
   // On the pay-first trips, joining goes to the waitlist once those who can pay fill the spots left plus this percent.
   waitlistBufferPercent Int      @default(10)
+  // The limited preview (issue #39): on, only admins and approved early access start trips; off, anyone signed in.
+  limitedPreview        Boolean  @default(true)
   updatedAt             DateTime @default(now())
   updatedByUserId       String?
 }
@@ -472,12 +474,16 @@ model OrganizerRequest {
 
 // Someone asking to start trips while Travel HQ is a limited preview, from the public page: name, email (lowercased,
 // one request each) and an optional note. Anyone adds one; only the admin reads them (migration 20261031010000).
+// Someone who runs a trip can refer a person, which tags the request with them; the admin approves a request, and
+// whoever signs in with that email may then start trips (migration 20261031050000, issue #39).
 model EarlyAccessRequest {
-  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  name      String
-  email     String   @unique
-  note      String   @default("")
-  createdAt DateTime @default(now())
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name             String
+  email            String    @unique
+  note             String    @default("")
+  createdAt        DateTime  @default(now())
+  referredByUserId String?
+  approvedAt       DateTime?
 
   @@index([createdAt])
 }

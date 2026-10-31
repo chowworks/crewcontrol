@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import {
   AdminController,
+  PublicSettingsController,
   PublicTripsController,
   RequestsController,
   SampleTripsController,
@@ -19,6 +20,7 @@ import { TripsService } from './trips.service'
   controllers: [
     TripsController,
     PublicTripsController,
+    PublicSettingsController,
     SampleTripsController,
     AdminController,
     RequestsController,

@@ -504,7 +504,12 @@ export function parseExpense(raw: unknown): ExpenseInput {
 
 export function parseSystemSettings(raw: unknown): SystemSettings {
   if (!raw || typeof raw !== 'object') fail('Expected settings')
-  return { waitlistBufferPercent: int(raw as Body, 'waitlistBufferPercent', 0, 100) }
+  const limitedPreview = (raw as Body).limitedPreview
+  if (typeof limitedPreview !== 'boolean') fail('limitedPreview must be true or false')
+  return {
+    waitlistBufferPercent: int(raw as Body, 'waitlistBufferPercent', 0, 100),
+    limitedPreview,
+  }
 }
 
 export function parseOrganizerRequest(raw: unknown): OrganizerRequestInput {

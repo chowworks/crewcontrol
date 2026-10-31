@@ -199,6 +199,39 @@ export class EmailsService {
     await sendEmail({ to, replyTo: contact.email, ...email })
   }
 
+  /**
+   * Tells the Travel HQ team at once about a new early access request or referral (issue #39, kept cheap: sent as a
+   * contact form email to SUPPORT_EMAIL). Replying goes to whoever asked, or to the referrer. Never rejects: a failed
+   * alert is logged, and the request is still on the Requests page.
+   */
+  alertEarlyAccess(ask: {
+    name: string
+    email: string
+    note: string
+    referredBy?: { name: string; email: string }
+  }): void {
+    const web = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
+    const who = ask.referredBy ?? { name: ask.name, email: ask.email }
+    const lines = [
+      ask.referredBy
+        ? `${ask.referredBy.name} referred ${ask.name} (${ask.email}) to start trips.`
+        : `${ask.name} (${ask.email}) asked for early access to start trips.`,
+      ask.note && `Their note: ${ask.note}`,
+      `Approve it in the Admin toolbox: ${web}/admin/requests`,
+    ]
+    this.sendContact(
+      {
+        name: who.name,
+        email: who.email,
+        topic: ask.referredBy ? 'Referral' : 'Early access request',
+        message: lines.filter(Boolean).join('\n\n'),
+      },
+      process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app'
+    ).catch((err) =>
+      console.error(`Early access alert failed: ${err instanceof Error ? err.message : err}`)
+    )
+  }
+
   /** The Admin toolbox's Email problems, newest first; the database lets only the admin read them. */
   async listProblems(): Promise<EmailProblemNotice[]> {
     const rows = await this.prisma.$queryRaw<(Omit<EmailProblemNotice, 'at'> & { at: Date })[]>`

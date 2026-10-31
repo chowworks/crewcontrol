@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { IconCircle } from './TripGuests'
 import { Logo } from '@/components/Logo'
 
 /**
@@ -39,7 +40,7 @@ const TOOLS: {
     title: 'Review Customer Requests',
     text: 'What people asked for that Travel HQ doesn’t do yet: other refund terms, and early access to start trips.',
     sub: 'What people asked for, newest first.',
-    how: 'Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can change or delete one.',
+    how: 'Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like, and anyone who runs a trip can invite a friend from Your trips (shown under “Invited by”). Search, filter by type, sort by any column, or export what’s shown. Approve an early access request and whoever signs in with that email can start trips; Undo approval takes that back. Each new early access request or referral is emailed to support at once. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can delete one.',
   },
   {
     to: '/admin/emails',
@@ -69,7 +70,7 @@ const TOOLS: {
     to: '/admin/settings',
     icon: SlidersHorizontal,
     title: 'Manage System Settings',
-    text: 'Values that apply to every trip on Travel HQ, like the waitlist buffer.',
+    text: 'Values that apply to every trip on Travel HQ, like the waitlist buffer and the limited preview.',
     sub: 'Values that apply to every trip.',
     how: 'These apply to every trip at once, from the moment you save. They change how trips behave from then on; nothing already decided (a guest on the waitlist, a payment confirmed) changes.',
   },
@@ -164,5 +165,33 @@ export function AdminHow({ to }: { to: string }) {
       <summary className="cursor-pointer font-semibold">How this works</summary>
       <p className="mt-1">{tool(to).how}</p>
     </details>
+  )
+}
+
+/** A section of an Admin toolbox page: an icon and title, a few lines on how it works, then its content. */
+export function AdminSection({
+  icon,
+  title,
+  steps,
+  children,
+}: {
+  icon: LucideIcon
+  title: string
+  steps: string[]
+  children: ReactNode
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-card sm:p-6">
+      <h2 className="flex items-center gap-3 text-xl font-extrabold">
+        <IconCircle icon={icon} />
+        {title}
+      </h2>
+      <ul className="flex list-disc flex-col gap-1 pl-5 text-body">
+        {steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ul>
+      {children}
+    </section>
   )
 }

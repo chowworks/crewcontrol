@@ -1,9 +1,12 @@
 import { useUser } from '@clerk/clerk-react'
+import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { AdminTripView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
 import { SiteFooter } from './components/SiteFooter'
+import { api } from './lib/api'
 import { RequireSignIn, useIsAdmin } from './lib/auth'
+import { useLimitedPreview } from './lib/preview'
 import { AdminPage } from './pages/AdminPage'
 import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
 import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
@@ -192,14 +195,26 @@ export default function App() {
 }
 
 /**
- * A limited preview: only admins start trips. Everyone else, signed in or not, gets the early access page, which needs
- * no sign-in and no Organizer Terms.
+ * A limited preview (a switch in System Settings): only admins, and people the admin approved for early access
+ * (issue #39), start trips. Everyone else, signed in or not, gets the early access page, which needs no sign-in and no
+ * Organizer Terms. With the preview off, anyone signs in and starts one.
  */
 function NewTrip() {
-  const { isLoaded } = useUser()
-  const isAdmin = useIsAdmin()
-  if (!isLoaded) return null
-  if (!isAdmin) return <LimitedPreviewPage />
+  const { isLoaded, isSignedIn } = useUser()
+  const preview = useLimitedPreview()
+  // An admin, or anyone once the preview is off, needs no early access.
+  const anyone = useIsAdmin() || preview === false
+  const [approved, setApproved] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!isSignedIn || anyone) return
+    api
+      .canStartTrips()
+      .then((r) => setApproved(r.allowed))
+      .catch(() => setApproved(false))
+  }, [isSignedIn, anyone])
+  if (!isLoaded || preview === null) return null
+  if (!anyone && isSignedIn && approved === null) return null
+  if (!anyone && !approved) return <LimitedPreviewPage />
   return (
     <RequireSignIn>
       <OrganizerTerms>

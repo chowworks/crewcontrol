@@ -33,6 +33,7 @@ import {
   parseTripPerson,
   parseTripRole,
 } from './trip-input'
+import { parseEarlyAccess } from '../contact/early-access-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
 import { ExpensesService } from './expenses.service'
@@ -306,6 +307,18 @@ export class PublicTripsController {
   }
 }
 
+// Whether Travel HQ is in its limited preview (System Settings), which the web app needs before anyone signs in.
+@Controller('public/settings')
+export class PublicSettingsController {
+  constructor(private readonly trips: TripsService) {}
+
+  @Get()
+  async get() {
+    const { limitedPreview } = await runAsPublic(() => this.trips.settings())
+    return { limitedPreview }
+  }
+}
+
 @Controller('public/sample-trips')
 export class SampleTripsController {
   constructor(private readonly trips: TripsService) {}
@@ -443,7 +456,12 @@ export class AdminController {
       this.trips.listRequests(),
       this.trips.listEarlyAccess(),
     ])
-    const people = await this.clerk.people([...new Set(rows.map((r) => r.userId))])
+    const people = await this.clerk.people([
+      ...new Set([
+        ...rows.map((r) => r.userId),
+        ...early.flatMap((r) => (r.referredByUserId ? [r.referredByUserId] : [])),
+      ]),
+    ])
     const requests = rows.map((r): OrganizerRequest => ({
       id: r.id,
       kind: r.kind as OrganizerRequest['kind'],
@@ -452,6 +470,8 @@ export class AdminController {
       tripName: r.tripName,
       text: r.text,
       createdAt: r.createdAt.toISOString(),
+      referredBy: '',
+      approved: false,
     }))
     // Early access comes from a public form, so the name and email are as typed.
     const asks = early.map((r): OrganizerRequest => ({
@@ -462,8 +482,20 @@ export class AdminController {
       tripName: '',
       text: r.note,
       createdAt: r.createdAt.toISOString(),
+      referredBy: r.referredByUserId ? (people.get(r.referredByUserId)?.name ?? 'Unknown') : '',
+      approved: Boolean(r.approvedAt),
     }))
     return [...requests, ...asks].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
+  // Approve an early access request, or undo it: whoever signs in with its email may then start trips (issue #39).
+  @Put('requests/:id/approved')
+  @HttpCode(204)
+  async approveEarlyAccess(@Param('id') id: string, @Body() body: unknown) {
+    const approved = (body as { approved?: unknown } | null)?.approved
+    if (typeof approved !== 'boolean')
+      throw new BadRequestException('approved must be true or false')
+    await this.trips.setEarlyAccessApproved(id, approved)
   }
 
   // System Settings: app-wide values (for now, the waitlist buffer).
@@ -487,7 +519,7 @@ async function withOwnerNames<T extends { ownerIds: string[] }>(trips: T[], cler
   }))
 }
 
-// Organizers asking for what Travel HQ doesn't do yet (other refund terms): kept for the Travel HQ team.
+// Organizers asking for what Travel HQ doesn't do yet (other refund terms) or referring someone: kept for the team.
 @Controller('requests')
 @UseGuards(SignedInGuard)
 export class RequestsController {
@@ -506,5 +538,20 @@ export class RequestsController {
     const input = parseOrganizerRequest(body)
     this.limit.hit(caller.userId)
     await this.trips.addRequest(input, caller)
+  }
+
+  // Someone who runs a trip refers a person to start their own (issue #39); the admin approves it.
+  @Post('referrals')
+  @HttpCode(204)
+  async refer(@Body() body: unknown, @CurrentCaller() caller: Caller) {
+    const { name, email, note } = parseEarlyAccess(body)
+    this.limit.hit(caller.userId)
+    await this.trips.refer({ name, email, note }, caller)
+  }
+
+  // Whether New trip opens the editor or the limited preview page for the caller.
+  @Get('can-start-trips')
+  async canStartTrips(@CurrentCaller() caller: Caller) {
+    return { allowed: await this.trips.canStartTrips(caller) }
   }
 }

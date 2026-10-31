@@ -855,6 +855,11 @@ export interface SystemSettings {
    * how to pay fill the spots left plus this percent of them, rounded up. 0 to 100.
    */
   waitlistBufferPercent: number
+  /**
+   * The limited preview (issue #39): on, only admins and people approved for early access start trips, and people
+   * who run a trip can refer others. Off, anyone signed in starts trips and referrals are hidden.
+   */
+  limitedPreview: boolean
 }
 
 // ── What needs the organizer ─────────────────────────────────────────────────
@@ -1033,6 +1038,9 @@ export interface OrganizerRequest {
   tripName: string
   text: string
   createdAt: string
+  /** Early access only: who referred them (by name, '' when they asked themselves), and whether the admin approved. */
+  referredBy: string
+  approved: boolean
 }
 
 /** A variable an email template can use, as the Emails page lists it; a list has fields for inside {{#each}}. */

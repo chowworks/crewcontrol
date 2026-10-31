@@ -3,15 +3,18 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
+import { ReferCard } from '@/components/ReferDialog'
 import { useToast } from '@/components/Toast'
 import { rowButton, TripList } from '@/components/TripList'
 import { api, type ListedTrip } from '@/lib/api'
+import { useLimitedPreview } from '@/lib/preview'
 
 export function TripsPage() {
   const [trips, setTrips] = useState<ListedTrip[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const toast = useToast()
+  const preview = useLimitedPreview()
 
   useEffect(() => {
     const load = () =>
@@ -102,6 +105,8 @@ export function TripsPage() {
             }
           />
         )}
+        {/* Referrals are for people who run a trip here, while Travel HQ is a limited preview (issue #39). */}
+        {preview && trips?.some((t) => !t.eraseOn) && <ReferCard />}
       </main>
     </div>
   )

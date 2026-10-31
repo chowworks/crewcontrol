@@ -41,6 +41,7 @@ import type {
   PaymentDecision,
   PaymentLog,
   PublicTrip,
+  EarlyAccessInput,
   OrganizerRequestInput,
   SignedAgreement,
   SystemSettings,
@@ -107,7 +108,10 @@ export class TripsService {
   /** The system settings (one row), as the Admin toolbox's System Settings shows them. */
   async settings(): Promise<SystemSettings> {
     const row = await this.prisma.systemSettings.findUnique({ where: { id: 1 } })
-    return { waitlistBufferPercent: row?.waitlistBufferPercent ?? 10 }
+    return {
+      waitlistBufferPercent: row?.waitlistBufferPercent ?? 10,
+      limitedPreview: row?.limitedPreview ?? true,
+    }
   }
 
   /** The admin changes the system settings; the database refuses anyone else (SystemSettings policies). */
@@ -154,6 +158,63 @@ export class TripsService {
   /** Every early access request from the limited preview page, newest first, for the Admin toolbox. */
   async listEarlyAccess() {
     return this.prisma.earlyAccessRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })
+  }
+
+  /**
+   * Someone who runs a trip refers a person (issue #39): an early access request tagged with who referred them, for
+   * the admin to approve. Referring someone already on the list tags their request, unless someone referred them first.
+   * Trusted work, because only the admin reads the list.
+   */
+  async refer(input: EarlyAccessInput, caller: Caller): Promise<void> {
+    const runs = await this.prisma.tripMember.count({
+      where: { userId: caller.userId, trip: { deletedAt: null } },
+    })
+    if (!(await this.settings()).limitedPreview)
+      throw new ForbiddenException(
+        'Travel HQ is open to everyone now, so there is nobody to refer.'
+      )
+    if (!runs && !caller.isAdmin)
+      throw new ForbiddenException('Only people who run a trip on Travel HQ can refer someone.')
+    const { name, email, note } = input
+    const referrer = (await this.clerk.people([caller.userId])).get(caller.userId)
+    await runAsSystem(async () => {
+      await this.prisma.earlyAccessRequest.createMany({
+        data: { name, email, note, referredByUserId: caller.userId },
+        skipDuplicates: true,
+      })
+      await this.prisma.earlyAccessRequest.updateMany({
+        where: { email, referredByUserId: null },
+        data: { referredByUserId: caller.userId },
+      })
+    })
+    this.emails.alertEarlyAccess({
+      name,
+      email,
+      note,
+      referredBy: { name: referrer?.name ?? 'Someone', email: referrer?.email ?? '' },
+    })
+  }
+
+  /** The admin approves an early access request, or undoes it. */
+  async setEarlyAccessApproved(id: string, approved: boolean): Promise<void> {
+    const { count } = await this.prisma.earlyAccessRequest.updateMany({
+      where: { id },
+      data: { approvedAt: approved ? new Date() : null },
+    })
+    if (!count) throw new NotFoundException('Request not found')
+  }
+
+  /** Whether the caller may start trips: an admin, or someone whose verified email the admin approved for early access. */
+  async canStartTrips(caller: Caller): Promise<boolean> {
+    if (caller.isAdmin || !(await this.settings()).limitedPreview) return true
+    const emails = await this.clerk.verifiedEmails(caller.userId)
+    if (!emails.length) return false
+    const approved = await runAsSystem(() =>
+      this.prisma.earlyAccessRequest.count({
+        where: { email: { in: emails }, approvedAt: { not: null } },
+      })
+    )
+    return approved > 0
   }
 
   private async waitlistBufferPercent(): Promise<number> {
@@ -268,9 +329,10 @@ export class TripsService {
    * a trip on their own, because its creator cannot see it until their owner row exists (docs/tenant-isolation.md).
    */
   async create(input: TripInput, caller: Caller, slug?: string): Promise<OrganizerTrip> {
-    // A limited preview (owner's decision, 2026-10-30): only admins start trips. Everyone keeps running the trips
-    // they're already on; the web app shows everyone else the early access page.
-    if (!caller.isAdmin)
+    // A limited preview (owner's decision, 2026-10-30): only admins, and people the admin approved for early access,
+    // start trips. Everyone keeps running the trips they're already on; the web app shows everyone else the early
+    // access page.
+    if (!(await this.canStartTrips(caller)))
       throw new ForbiddenException(
         'Travel HQ is in a limited preview: only our team starts trips for now.'
       )

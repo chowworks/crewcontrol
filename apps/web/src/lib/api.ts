@@ -233,6 +233,12 @@ export const api = {
   getSettings: () => request<SystemSettings>('/admin/settings'),
   adminRequests: () => request<OrganizerRequest[]>('/admin/requests'),
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
+  approveEarlyAccess: (id: string, approved: boolean) =>
+    request<void>(`/admin/requests/${id}/approved`, json('PUT', { approved })),
+  // Referrals (issue #39): someone who runs a trip refers a person; the admin approves them to start trips.
+  refer: (input: EarlyAccessInput) => request<void>('/requests/referrals', json('POST', input)),
+  canStartTrips: () => request<{ allowed: boolean }>('/requests/can-start-trips'),
+  publicSettings: () => request<{ limitedPreview: boolean }>('/public/settings'),
   // The Admin toolbox's Emails page.
   adminEmails: () => request<EmailTemplateView[]>('/admin/emails'),
   adminEmailProblems: () => request<EmailProblemNotice[]>('/admin/emails/problems'),
