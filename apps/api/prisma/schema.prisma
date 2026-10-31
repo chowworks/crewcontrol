@@ -470,6 +470,18 @@ model OrganizerRequest {
   @@index([createdAt])
 }
 
+// Someone asking to start trips while Travel HQ is a limited preview, from the public page: name, email (lowercased,
+// one request each) and an optional note. Anyone adds one; only the admin reads them (migration 20261031010000).
+model EarlyAccessRequest {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name      String
+  email     String   @unique
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 /// The admin's version of one email Travel HQ sends (src/messaging/email-defaults.ts has each one's default).
 model EmailTemplate {
   kind            String   @id

@@ -6,7 +6,12 @@ import { AdminHow, AdminShell, AdminToolHead } from './AdminPage'
 const when = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-/** Organizer requests: what organizers asked for that Travel HQ doesn't do yet (for now, other refund terms). */
+const KINDS: Record<OrganizerRequest['kind'], string> = {
+  refund_terms: 'Refund terms',
+  early_access: 'Early access',
+}
+
+/** Requests: what people asked for that Travel HQ doesn't do yet (other refund terms, early access to start trips). */
 export function AdminRequestsPage() {
   const [requests, setRequests] = useState<OrganizerRequest[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -34,10 +39,11 @@ export function AdminRequestsPage() {
           {requests.map((r) => (
             <li key={r.id} className="rounded-2xl bg-white p-5 shadow-card">
               <div className="text-sm text-muted">
-                {when(r.createdAt)} · Refund terms · {r.userName}
+                {when(r.createdAt)} · {KINDS[r.kind]} · {r.userName}
+                {r.userEmail ? ` · ${r.userEmail}` : ''}
                 {r.tripName ? ` · ${r.tripName}` : ''}
               </div>
-              <p className="mt-1.5 whitespace-pre-line text-ink">{r.text}</p>
+              {r.text && <p className="mt-1.5 whitespace-pre-line text-ink">{r.text}</p>}
             </li>
           ))}
         </ul>

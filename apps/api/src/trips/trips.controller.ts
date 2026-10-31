@@ -436,19 +436,34 @@ export class AdminController {
     return this.people.remove(id, userId, caller, true)
   }
 
-  // What organizers asked for (other refund terms), newest first, with who asked.
+  // What people asked for (other refund terms, early access), newest first, with who asked.
   @Get('requests')
   async requests() {
-    const rows = await this.trips.listRequests()
-    const names = await this.clerk.names([...new Set(rows.map((r) => r.userId))])
-    return rows.map((r): OrganizerRequest => ({
+    const [rows, early] = await Promise.all([
+      this.trips.listRequests(),
+      this.trips.listEarlyAccess(),
+    ])
+    const people = await this.clerk.people([...new Set(rows.map((r) => r.userId))])
+    const requests = rows.map((r): OrganizerRequest => ({
       id: r.id,
       kind: r.kind as OrganizerRequest['kind'],
-      userName: names.get(r.userId) ?? 'Unknown',
+      userName: people.get(r.userId)?.name ?? 'Unknown',
+      userEmail: people.get(r.userId)?.email ?? '',
       tripName: r.tripName,
       text: r.text,
       createdAt: r.createdAt.toISOString(),
     }))
+    // Early access comes from a public form, so the name and email are as typed.
+    const asks = early.map((r): OrganizerRequest => ({
+      id: r.id,
+      kind: 'early_access',
+      userName: r.name,
+      userEmail: r.email,
+      tripName: '',
+      text: r.note,
+      createdAt: r.createdAt.toISOString(),
+    }))
+    return [...requests, ...asks].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
 
   // System Settings: app-wide values (for now, the waitlist buffer).

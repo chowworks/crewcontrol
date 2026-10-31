@@ -583,6 +583,14 @@ export const CONTACT_TOPIC_LABELS: Record<ContactTopic, string> = {
   feedback: 'Feedback or an idea',
 }
 
+/** The public early access form on the limited preview page. `website` is the honeypot, as on the contact form. */
+export interface EarlyAccessInput {
+  name: string
+  email: string
+  note: string
+  website?: string
+}
+
 export interface ContactInput {
   name: string
   email: string
@@ -1012,12 +1020,16 @@ export interface OrganizerRequestInput {
   text: string
 }
 
-/** A request as the Admin toolbox lists it. */
+/**
+ * A request as the Admin toolbox lists it: an organizer's other refund terms, or someone asking for early access to
+ * start trips while Travel HQ is a limited preview (from the public early access form, so name and email as typed).
+ */
 export interface OrganizerRequest {
   id: string
-  kind: 'refund_terms'
-  /** Who asked, by name (from sign-in), and the trip they were setting up. */
+  kind: 'refund_terms' | 'early_access'
+  /** Who asked, by name and email, and the trip they were setting up. */
   userName: string
+  userEmail: string
   tripName: string
   text: string
   createdAt: string

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -150,6 +151,11 @@ export class TripsService {
     return this.prisma.organizerRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })
   }
 
+  /** Every early access request from the limited preview page, newest first, for the Admin toolbox. */
+  async listEarlyAccess() {
+    return this.prisma.earlyAccessRequest.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })
+  }
+
   private async waitlistBufferPercent(): Promise<number> {
     return (await this.settings()).waitlistBufferPercent
   }
@@ -262,6 +268,12 @@ export class TripsService {
    * a trip on their own, because its creator cannot see it until their owner row exists (docs/tenant-isolation.md).
    */
   async create(input: TripInput, caller: Caller, slug?: string): Promise<OrganizerTrip> {
+    // A limited preview (owner's decision, 2026-10-30): only admins start trips. Everyone keeps running the trips
+    // they're already on; the web app shows everyone else the early access page.
+    if (!caller.isAdmin)
+      throw new ForbiddenException(
+        'Travel HQ is in a limited preview: only our team starts trips for now.'
+      )
     const row = await uniqueSlug(() =>
       runAsSystem(() =>
         this.prisma.$transaction(async (tx) => {

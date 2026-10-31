@@ -18,6 +18,7 @@ const TRUSTED_CALL_SITES = [
 const PUBLIC_CALL_SITES = [
   'announcements/announcements.service.ts', // the join page's Announcements find the published trip by its link
   'questions/questions.service.ts', // asking a question finds the published trip by its link
+  'contact/early-access.controller.ts', // the limited preview page's early access form, which needs no sign-in
   'join/join.service.ts', // the join page reads the published trip it shows a signed-in guest
   'trips/trips.controller.ts', // the guest trip page and the homepage's sample trips
 ]

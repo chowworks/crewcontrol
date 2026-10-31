@@ -36,10 +36,10 @@ const TOOLS: {
   {
     to: '/admin/requests',
     icon: MessageSquareText,
-    title: 'Organizer requests',
-    text: 'What organizers asked for that Travel HQ doesn’t do yet, like other refund terms.',
-    sub: 'What organizers asked for, newest first.',
-    how: 'Organizers send these from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. Each shows who asked, the trip they were setting up, and their words. Nobody can change or delete one.',
+    title: 'Requests',
+    text: 'What people asked for that Travel HQ doesn’t do yet: other refund terms, and early access to start trips.',
+    sub: 'What people asked for, newest first.',
+    how: 'Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can change or delete one.',
   },
   {
     to: '/admin/emails',
