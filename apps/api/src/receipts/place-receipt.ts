@@ -138,7 +138,8 @@ export function placeReceipt(
 
   let guest: PlaceGuest
   if (sender.organizer) {
-    if (!read.payerName) return waiting('It doesn’t say who sent the money.', null)
+    if (!read.payerName)
+      return waiting('You forwarded this, and it doesn’t name the guest who paid.', null)
     if (named.length === 0)
       return waiting(`No guest on this trip is named ${read.payerName}.`, null)
     if (named.length > 1) return waiting(`More than one guest could be ${read.payerName}.`, null)

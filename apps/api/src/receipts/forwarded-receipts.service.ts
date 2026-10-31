@@ -298,7 +298,7 @@ export class ForwardedReceiptsService implements OnApplicationBootstrap, OnModul
       subject: (email.subject ?? row.subject)?.slice(0, 300) ?? null,
       senderVerified: verified,
       amountCents: read.amountCents,
-      payerName: (read.payerName || read.payeeName).slice(0, 100),
+      payerName: read.payerName.slice(0, 100),
       methodKind: read.methodKind,
       sentOn: read.sentOn ? plausibleDay(read.sentOn, row.receivedAt) : null,
       error: null,

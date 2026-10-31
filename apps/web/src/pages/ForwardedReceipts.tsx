@@ -120,12 +120,16 @@ export function ReceiptActionRow({
 }) {
   const [matching, setMatching] = useState(false)
   const [dismissing, setDismissing] = useState(false)
+  // Who paid: the receipt's payer, else the likeliest guest. An organizer's own address never stands in for a guest.
+  const likely = trip.guests.find((g) => g.id === r.suggestedGuestId)
+  const title =
+    r.payerName ||
+    (likely ? `${likely.firstName} ${likely.lastName}` : r.fromStranger && r.fromAddress) ||
+    'Unknown payer'
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule py-3 first:border-t-0">
       <div className="min-w-0 flex-[1_1_200px]">
-        <div className="break-words font-semibold">
-          {r.payerName || r.fromAddress || 'Forwarded receipt'}
-        </div>
+        <div className="break-words font-semibold">{title}</div>
         <div className="text-sm text-body">
           {receiptWords(r)} was forwarded. {r.reason}
         </div>

@@ -1,6 +1,6 @@
 import { useUser } from '@clerk/clerk-react'
 import { Route, Routes } from 'react-router-dom'
-import { AdminView } from './components/AdminView'
+import { AdminTripView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
 import { RequireSignIn, useIsAdmin } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
@@ -105,9 +105,9 @@ export default function App() {
         path="/admin/trips/:id/control"
         element={
           <RequireSignIn>
-            <AdminView.Provider value>
+            <AdminTripView page="control">
               <ControlPanelPage />
-            </AdminView.Provider>
+            </AdminTripView>
           </RequireSignIn>
         }
       />
@@ -115,9 +115,9 @@ export default function App() {
         path="/admin/trips/:id/edit"
         element={
           <RequireSignIn>
-            <AdminView.Provider value>
+            <AdminTripView page="edit">
               <EditTripPage />
-            </AdminView.Provider>
+            </AdminTripView>
           </RequireSignIn>
         }
       />

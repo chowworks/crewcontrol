@@ -15,7 +15,7 @@ import { ArrowLeft, FileImage, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
-import { AdminViewNote, useAdminView } from '@/components/AdminView'
+import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { FlyerDialog } from '@/components/FlyerDialog'
@@ -43,6 +43,7 @@ export function ControlPanelPage() {
   const toast = useToast()
   const admin = useAdminView()
   const [flyer, setFlyer] = useState(false)
+  const toAdminView = useAdminFallback(id, 'control')
 
   useEffect(() => {
     Promise.all([api.getTrip(id, admin), api.getRooms(id, admin)])
@@ -50,7 +51,8 @@ export function ControlPanelPage() {
         setTrip(t)
         setRooms(r)
       })
-      .catch(() => setError('This trip could not be loaded.'))
+      .catch((err) => toAdminView(err) || setError('This trip could not be loaded.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, admin])
 
   /** True when the change saved; otherwise the reason shows on the page and in any open dialog. */

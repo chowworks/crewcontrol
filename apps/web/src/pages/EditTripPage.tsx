@@ -34,7 +34,7 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
-import { AdminViewNote, useAdminView } from '@/components/AdminView'
+import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
@@ -188,6 +188,7 @@ export function EditTripPage() {
   // The trip's forwarded-receipts address (issue #12), saved on its own, not with the trip.
   const [receipts, setReceipts] = useState<TripReceipts | null>(null)
   const admin = useAdminView()
+  const toAdminView = useAdminFallback(id ?? '', 'edit')
   // What was last loaded or saved, to tell whether anything on screen is unsaved.
   const [savedTrip, setSavedTrip] = useState(JSON.stringify(EMPTY))
   const [savedRooms, setSavedRooms] = useState('[]')
@@ -262,7 +263,10 @@ export function EditTripPage() {
         setBuffer(loaded.waitlistBufferPercent)
         setReceipts(loaded.receipts)
       })
-      .catch(() => setMessage({ kind: 'error', text: 'This trip could not be loaded.' }))
+      .catch(
+        (err) =>
+          toAdminView(err) || setMessage({ kind: 'error', text: 'This trip could not be loaded.' })
+      )
       .finally(() => setLoading(false))
     api
       .getRooms(id, admin)
@@ -271,6 +275,7 @@ export function EditTripPage() {
         setSavedRooms(JSON.stringify(r))
       })
       .catch(() => setMessage({ kind: 'error', text: 'The rooms could not be loaded.' }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, admin])
 
   const set = <K extends keyof TripInput>(key: K, value: TripInput[K]) =>
