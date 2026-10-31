@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 
 /*
  * The privacy page, adapted from Audit Differently's. Taken out of draft on 2026-10-31 (owner's decision), once every
@@ -148,8 +147,6 @@ export function PrivacyPage() {
           </p>
         </Section>
       </main>
-
-      <SiteFooter />
     </div>
   )
 }

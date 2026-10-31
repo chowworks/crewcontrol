@@ -260,6 +260,36 @@ runs the checks only.
 There are two Railway environments in that one file: `dev` (`api-dev`, the shared dev database, the seed; CI
 deploys `main` there for now) and production. `DEVELOPMENT.md` ("The shared dev environment") says how to set up and use dev.
 
+## Health checks and monitoring
+
+The API answers two public health routes (`apps/api/src/health/health.controller.ts`): `GET /api/health` (the API is
+up) and `GET /api/health/server-errors` (requests answered 5xx in the last 15 minutes, counted in the
+`ServiceFailure` table by `ServerErrorFilter`, `apps/api/src/core/service-failure-log.ts`). Better Stack Uptime watches
+the second and shows it on Travel HQ's own status page (`travel-hq`, not the shared `chow-works` one); `ops/monitoring.ts` lists it and CI
+applies it after the API deploy (`docs/monitoring.md`). Copied from Audit Differently.
+
+- A new check is for a kind of failure that stops people from joining, signing or paying and that a 5xx does not
+  already count. Prefer counting it under the existing kind; a new kind needs its name in the
+  `ServiceFailure_kind_check` constraint (a migration) and in `FailureKind`. Keep the list short.
+- Record a failure where it happens with `ServiceFailureLog.record(kind, route)`, unawaited (it never rejects). A row
+  is when, the kind and the route pattern: never a trip, person, email or error message, which go to the API's log.
+- Each check is a public `@Get` on `HealthController` answering `{ status, failures, windowMinutes }` only, 503 when
+  failing or when the count could not be read, through `answer()` (5-second timeout, result reused for a minute).
+  `ServiceFailure` holds no trip data, so it is not in `TENANT_TABLES` and has no policies.
+- Better Stack: add the check to `ops/monitoring.ts`; the next push to `main` creates its monitor and its row. The
+  sync never deletes: a removed check is reported in the CI log and removed in Better Stack by hand.
+
+## Release notes
+
+`docs/release-notes/index.html` is the checked-in, plain-words changelog, in Audit Differently's format. The web build
+copies it (and only the screenshots it links) to `/release-notes/`, linked from the footer under every page; the dev server serves
+the same file (`apps/web/vite.config.ts`). The first entry is the baseline of what the app did at launch; later
+entries are one feature each. **Any user-visible change needs an entry before it is committed, or a stated reason it
+does not** (an internal change nobody using Travel HQ can see). Mark the entry `review` and flip it to `shipped` once
+it is live. Add it at the top: copy an `<article class="entry">` block, keeping its `data-short` and `data-summary`;
+the how-to is in the comment at the top of the file. Screenshots go in `docs/screenshots/<feature>/`. Fictional data
+only.
+
 ## Reviewing larger PRs
 
 For a PR over about 500 changed lines (`git diff --stat origin/main...HEAD`), review it with parallel

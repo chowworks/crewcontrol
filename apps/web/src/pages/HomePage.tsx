@@ -12,7 +12,6 @@ import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
 import { SampleTripBadge } from '@/components/SampleTripBadge'
 import { SampleTripCards } from '@/components/SampleTripCards'
-import { SiteFooter } from '@/components/SiteFooter'
 import { useSignedIn } from '@/lib/auth'
 import { FAQ } from '@/lib/faq'
 
@@ -234,8 +233,6 @@ export function HomePage() {
           </Link>
         </div>
       </section>
-
-      <SiteFooter />
     </div>
   )
 }

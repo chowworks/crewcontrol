@@ -2,6 +2,7 @@ import { useUser } from '@clerk/clerk-react'
 import { Route, Routes } from 'react-router-dom'
 import { AdminTripView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
+import { SiteFooter } from './components/SiteFooter'
 import { RequireSignIn, useIsAdmin } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
 import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
@@ -28,159 +29,165 @@ import { TripsPage } from './pages/TripsPage'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route
-        path="/organize"
-        element={
-          <RequireSignIn>
-            <OrganizerTerms>
-              <TripsPage />
-            </OrganizerTerms>
-          </RequireSignIn>
-        }
-      />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/faq" element={<FaqPage />} />
-      <Route path="/contact" element={<ContactPage />} />
-      <Route path="/stop/:token" element={<StopUpdatesPage />} />
-      <Route path="/t/:slug" element={<GuestTripPage />} />
-      <Route
-        path="/t/:slug/join"
-        element={
-          <RequireSignIn>
-            <JoinPage />
-          </RequireSignIn>
-        }
-      />
-      <Route path="/organize/new" element={<NewTrip />} />
-      <Route
-        path="/organize/:id"
-        element={
-          <RequireSignIn>
-            <OrganizerTerms>
-              <EditTripPage />
-            </OrganizerTerms>
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/organize/:id/control"
-        element={
-          <RequireSignIn>
-            <OrganizerTerms>
-              <ControlPanelPage />
-            </OrganizerTerms>
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/organize/:id/people"
-        element={
-          <RequireSignIn>
-            <OrganizerTerms>
-              <PeoplePage />
-            </OrganizerTerms>
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <RequireSignIn>
-            <AdminPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/trips"
-        element={
-          <RequireSignIn>
-            <AdminTripsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/trips/:id/control"
-        element={
-          <RequireSignIn>
-            <AdminTripView page="control">
-              <ControlPanelPage />
-            </AdminTripView>
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/trips/:id/edit"
-        element={
-          <RequireSignIn>
-            <AdminTripView page="edit">
-              <EditTripPage />
-            </AdminTripView>
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/trips/:id/people"
-        element={
-          <RequireSignIn>
-            <PeoplePage admin />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/requests"
-        element={
-          <RequireSignIn>
-            <AdminRequestsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/emails"
-        element={
-          <RequireSignIn>
-            <AdminEmailsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/emails/:kind"
-        element={
-          <RequireSignIn>
-            <AdminEmailPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/email-problems"
-        element={
-          <RequireSignIn>
-            <AdminEmailProblemsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/forwarded-receipts"
-        element={
-          <RequireSignIn>
-            <AdminForwardedReceiptsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <RequireSignIn>
-            <AdminSettingsPage />
-          </RequireSignIn>
-        }
-      />
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignInPage mode="sign-up" />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route
+          path="/organize"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <TripsPage />
+              </OrganizerTerms>
+            </RequireSignIn>
+          }
+        />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/stop/:token" element={<StopUpdatesPage />} />
+        <Route path="/t/:slug" element={<GuestTripPage />} />
+        <Route
+          path="/t/:slug/join"
+          element={
+            <RequireSignIn>
+              <JoinPage />
+            </RequireSignIn>
+          }
+        />
+        <Route path="/organize/new" element={<NewTrip />} />
+        <Route
+          path="/organize/:id"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <EditTripPage />
+              </OrganizerTerms>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/organize/:id/control"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <ControlPanelPage />
+              </OrganizerTerms>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/organize/:id/people"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <PeoplePage />
+              </OrganizerTerms>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireSignIn>
+              <AdminPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/trips"
+          element={
+            <RequireSignIn>
+              <AdminTripsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/trips/:id/control"
+          element={
+            <RequireSignIn>
+              <AdminTripView page="control">
+                <ControlPanelPage />
+              </AdminTripView>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/trips/:id/edit"
+          element={
+            <RequireSignIn>
+              <AdminTripView page="edit">
+                <EditTripPage />
+              </AdminTripView>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/trips/:id/people"
+          element={
+            <RequireSignIn>
+              <PeoplePage admin />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/requests"
+          element={
+            <RequireSignIn>
+              <AdminRequestsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/emails"
+          element={
+            <RequireSignIn>
+              <AdminEmailsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/emails/:kind"
+          element={
+            <RequireSignIn>
+              <AdminEmailPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/email-problems"
+          element={
+            <RequireSignIn>
+              <AdminEmailProblemsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/forwarded-receipts"
+          element={
+            <RequireSignIn>
+              <AdminForwardedReceiptsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <RequireSignIn>
+              <AdminSettingsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignInPage mode="sign-up" />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+      {/* One footer under every page, signed in or not (privacy, terms, release notes, contact). */}
+      <div className="pt-12">
+        <SiteFooter />
+      </div>
+    </>
   )
 }
 

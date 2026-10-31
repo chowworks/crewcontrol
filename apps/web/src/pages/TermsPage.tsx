@@ -2,7 +2,6 @@ import type { PublicTerms } from '@cc/types'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 import { TermsText } from '@/components/TermsText'
 import { api } from '@/lib/api'
 
@@ -55,8 +54,6 @@ export function TermsPage() {
           </>
         )}
       </main>
-
-      <SiteFooter />
     </div>
   )
 }

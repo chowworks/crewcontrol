@@ -3,7 +3,6 @@ import { BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 import { api } from '@/lib/api'
 
 /**
@@ -84,7 +83,6 @@ export function StopUpdatesPage() {
           )}
         </section>
       </main>
-      <SiteFooter />
     </div>
   )
 }
