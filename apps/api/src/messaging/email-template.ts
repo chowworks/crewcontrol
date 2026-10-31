@@ -23,6 +23,8 @@ export interface EmailContext {
     description: string
     pricePerPerson: string
     installmentCount: number
+    /** Guests pay before they're accepted (pay first, or first come, first served). */
+    paysFirst: boolean
     /** The public trip page, and the guest's join page. */
     pageLink: string
     joinLink: string
@@ -43,6 +45,9 @@ export interface EmailContext {
     waitlisted: boolean
     /** The room they picked, or "". */
     room: string
+    /** Who signed them up, when it was someone else (a parent, a friend); "" when they signed themselves. */
+    signedBy: string
+    signedByFirstName: string
   }
   /** Always there for a guest who signed; an email shows them only when it means to (guest.canPay). */
   paymentDetails?: {
@@ -193,6 +198,7 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'trip.installmentCount', label: 'Number of payments' },
     { path: 'trip.pageLink', label: 'Trip page link' },
     { path: 'trip.joinLink', label: 'Guest’s join page link' },
+    { path: 'trip.paysFirst', label: 'Guests pay before they’re accepted (yes or no)' },
     {
       path: 'trip.highlights',
       label: 'Highlights',
@@ -221,6 +227,8 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'guest.canPay', label: 'Can pay now (yes or no)' },
     { path: 'guest.waitlisted', label: 'On the waitlist (yes or no)' },
     { path: 'guest.room', label: 'Room' },
+    { path: 'guest.signedBy', label: 'Who signed them up (empty when they did)' },
+    { path: 'guest.signedByFirstName', label: 'First name of who signed them up' },
   ],
   reminder: [
     { path: 'reminder.label', label: 'What happens' },
@@ -506,23 +514,28 @@ export function render(
     : context.deletion
       ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} deleted from Travel HQ. ` +
         `Travel HQ never handles money: payments go to ${organizer} directly.`
-      : context.trip
-        ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
-          `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
-          `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
-        : invite
-          ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
-            `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-          : context.alert
-            ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
-              `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
-              'everything waiting is in the Actions on each trip’s Trip Control.'
-            : question
-              ? question.answered
-                ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-                : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-                  'Reply to this email to answer them directly.'
-              : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+      : context.guest?.signedBy
+        ? // Someone signed a traveler up (issue #46): the same line fits the one who signed and the traveler.
+          `You’re getting this because ${Handlebars.escapeExpression(context.guest.signedBy)} signed the trip agreement for ` +
+          `${Handlebars.escapeExpression(context.guest.firstName)} on ${trip}, which ${organizer} runs on Travel HQ. ` +
+          `Travel HQ never handles money: you pay ${organizer} directly.`
+        : context.trip
+          ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
+            `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
+            `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
+          : invite
+            ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
+              `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
+            : context.alert
+              ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
+                `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
+                'everything waiting is in the Actions on each trip’s Trip Control.'
+              : question
+                ? question.answered
+                  ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+                  : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                    'Reply to this email to answer them directly.'
+                : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

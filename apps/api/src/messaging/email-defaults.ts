@@ -41,21 +41,92 @@ export const EMAIL_KINDS: EmailKind[] = [
   {
     kind: 'accepted',
     name: 'Accepted onto the trip',
-    when: 'To a guest when the organizer accepts them on a trip where the organizer accepts each guest first, with how to pay.',
+    when: 'To a guest when they’re accepted: on a trip where the organizer accepts each guest first, with how to pay; on a trip where guests pay first, once their payment is in.',
     groups: ['trip', 'guest', 'paymentDetails'],
     subject: 'You’re in: {{trip.name}}',
     body: `<p>Hi {{guest.firstName}},</p>
 <p>{{trip.organizerName}} accepted you for <strong>{{trip.name}}</strong>, {{trip.dates}}. You’re going!</p>
-{{#if guest.canPay}}
+{{#if trip.paysFirst}}
+<p>Your payment arrived, so the spot is yours. So far you’ve paid {{paymentDetails.paid}} of {{paymentDetails.total}}.</p>
+{{else}}{{#if guest.canPay}}
 <p>{{#if paymentDetails.deposit}}Your deposit{{else}}Your first payment{{/if}}, <strong>{{paymentDetails.firstPayment}}</strong>, saves your spot{{#if paymentDetails.depositKept}} and isn't refundable if you drop out later{{/if}}. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 <ul>
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
 <p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
-{{/if}}
+{{/if}}{{/if}}
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
 <p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
+  },
+  {
+    kind: 'spot_offered',
+    name: 'A spot opened',
+    when: 'To a guest on the waitlist when the organizer offers them a spot that opened, with how to pay for it.',
+    groups: ['trip', 'guest', 'paymentDetails'],
+    subject: 'A spot opened on {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>Good news: a spot opened on <strong>{{trip.name}}</strong>, {{trip.dates}}, and {{trip.organizerName}} offered it to you.</p>
+<p>Spots go first come, first served: the first payment {{trip.organizerName}} confirms takes it. If you want it, pay soon.</p>
+{{#if guest.canPay}}
+<p>Send {{trip.organizerName}} <strong>{{paymentDetails.dueNow}}</strong> {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+{{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if you drop out later.</p>{{/if}}
+<ul>
+{{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
+{{/each}}</ul>
+{{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
+<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>
+{{/if}}
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
+    kind: 'offer_withdrawn',
+    name: 'Offered spot no longer available',
+    when: 'To a guest on the waitlist when a spot the organizer offered them is no longer available.',
+    groups: ['trip', 'guest'],
+    subject: 'Sorry, the spot on {{trip.name}} is no longer available',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>We’re really sorry. The spot {{trip.organizerName}} offered you on <strong>{{trip.name}}</strong> is no longer available.</p>
+<p>Spots go first come, first served, and this one was filled before your payment came in. We know that’s disappointing.</p>
+<p>You’re still on the waitlist, so if another spot opens, {{trip.organizerName}} can offer it to you and we’ll email you right away. If you already sent money, reply to this email to sort it out with {{trip.organizerName}}.</p>
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
+    kind: 'signed_up_for',
+    name: 'Signed someone else up',
+    when: 'To someone who signs up a traveler they look after (a child, a friend), with their copy and, when they can pay now, how to pay.',
+    groups: ['trip', 'guest', 'paymentDetails'],
+    subject: 'You signed {{guest.firstName}} up for {{trip.name}}',
+    body: `<p>Hi {{guest.signedByFirstName}},</p>
+<p>You signed <strong>{{guest.fullName}}</strong> up for <strong>{{trip.name}}</strong>, {{trip.dates}}, and signed the trip agreement for them.</p>
+{{#if guest.waitlisted}}
+<p>The trip is full right now, so {{guest.firstName}} is on the waitlist. {{trip.organizerName}} will let you know if a spot opens.</p>
+{{else}}{{#if guest.canPay}}
+<p>If you haven't paid yet, send {{trip.organizerName}} <strong>{{paymentDetails.dueNow}}</strong> to save {{guest.firstName}}’s spot, {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+{{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if {{guest.firstName}} drops out later.</p>{{/if}}
+<ul>
+{{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
+{{/each}}</ul>
+{{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
+<p>Then press "I've paid" on the trip page so {{trip.organizerName}} knows to look for it.</p>
+{{else}}
+<p>{{trip.organizerName}} will look at {{guest.firstName}}’s spot next. Once they’re accepted, the trip page shows how to pay.</p>
+{{/if}}{{/if}}
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>
+<p>Your copy of the agreement is there too.</p>`,
+  },
+  {
+    kind: 'signed_up_by',
+    name: 'Signed up by someone else',
+    when: 'To a traveler someone else signed up, when the traveler’s email isn’t that person’s own.',
+    groups: ['trip', 'guest'],
+    subject: '{{guest.signedByFirstName}} signed you up for {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{guest.signedBy}} signed you up for <strong>{{trip.name}}</strong>, {{trip.dates}}, and signed the trip agreement for you. {{guest.signedByFirstName}} looks after your payments.</p>
+{{#if guest.waitlisted}}<p>The trip is full right now, so you’re on the waitlist.</p>{{/if}}
+<p>To see the trip and your place on it, sign in to Travel HQ with this email address, <strong>{{guest.email}}</strong>, and press "That’s me" on the join page.</p>
+<p><a href="{{trip.joinLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the join page</a></p>
+<p>Questions? Reply to this email to reach {{trip.organizerName}}.</p>`,
   },
   {
     kind: 'invite',
@@ -214,6 +285,9 @@ export function sampleFor(k: EmailKind, guest: PreviewGuest): EmailContext {
       answer: '',
       link: 'https://travel-hq.app/organize/sample/control',
     }
+  // Only the emails about someone signing a traveler up name who signed.
+  if (groups.guest && k.kind.startsWith('signed_up_'))
+    groups.guest = { ...groups.guest, signedBy: 'Marcus Reyes', signedByFirstName: 'Marcus' }
   return k.stopLink ? { ...groups, stopLink: all.stopLink } : groups
 }
 
@@ -229,6 +303,7 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       description: 'Five days at an all-inclusive resort on Eagle Beach.',
       pricePerPerson: '$1,200',
       installmentCount: 3,
+      paysFirst: false,
       pageLink: 'https://travel-hq.app/t/aruba-2028',
       joinLink: 'https://travel-hq.app/t/aruba-2028/join',
       highlights: [
@@ -251,6 +326,8 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       canPay: guest === 'can_pay',
       waitlisted: guest === 'waitlisted',
       room: '',
+      signedBy: '',
+      signedByFirstName: '',
     },
     reminder: {
       label: 'Book your flight',

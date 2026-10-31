@@ -319,6 +319,33 @@ export class JoinService {
             : '') +
           `Details: ${webUrl()}/t/${slug}/join`
       )
+      // Their copy to whoever signed, and word to the traveler when the traveler's email is their own (issue #46).
+      const traveler = joined.managed.at(-1)
+      const signer = await this.clerk.contact(caller.userId)
+      if (traveler) {
+        const facts = {
+          phone: input.phone,
+          paymentMethods: traveler.paymentMethods,
+          paymentInstructions: traveler.paymentInstructions,
+          replyTo: (await this.trips.organizerContact(tripId))?.email || undefined,
+          signedBy: input.typedName,
+        }
+        const view = { trip: joined.trip, me: traveler }
+        if (signer.email)
+          await this.emails.sendToGuest(
+            'signed_up_for',
+            view,
+            { ...facts, email: signer.email },
+            webUrl()
+          )
+        if (input.email.toLowerCase() !== signer.email.toLowerCase())
+          await this.emails.sendToGuest(
+            'signed_up_by',
+            view,
+            { ...facts, email: input.email },
+            webUrl()
+          )
+      }
       return joined
     }
     await sendText(
