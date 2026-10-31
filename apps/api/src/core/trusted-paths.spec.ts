@@ -7,6 +7,8 @@ import { join, relative } from 'node:path'
  * site is a review item: add it here on purpose.
  */
 const TRUSTED_CALL_SITES = [
+  'alerts/alerts.service.ts', // the organizer alerts run reads every trip's Actions and who works on each
+  'messaging/emails.service.ts', // each email sent is written in the admin's sent-email log, whoever sent it
   'messaging/resend-webhook.controller.ts', // Resend's signed notice that a guest's email bounced or was marked spam
   'receipts/forwarded-queue.ts', // an email Resend received for a receipts address, queued before anyone is known
   'receipts/forwarded-receipts.service.ts', // the worker that reads each queued email, finds its trip and guest

@@ -73,7 +73,7 @@ async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
-const withGuests = {
+export const withGuests = {
   guests: {
     orderBy: { createdAt: 'asc' },
     include: { agreement: true, payments: true, adjustments: true },
@@ -111,6 +111,7 @@ export class TripsService {
     return {
       waitlistBufferPercent: row?.waitlistBufferPercent ?? 10,
       limitedPreview: row?.limitedPreview ?? true,
+      alertWindowHours: row?.alertWindowHours ?? 4,
     }
   }
 

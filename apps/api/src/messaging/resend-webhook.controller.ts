@@ -23,9 +23,19 @@ const PROBLEMS: Record<string, 'bounced' | 'blocked' | 'complained'> = {
   'email.complained': 'complained',
 }
 
+/** What each Resend event says became of an email, for the sent-email log (EmailSend). */
+const STATUS: Record<string, 'delivered' | 'delayed' | 'bounced' | 'blocked' | 'complained'> = {
+  'email.delivered': 'delivered',
+  'email.delivery_delayed': 'delayed',
+  ...PROBLEMS,
+}
+/** A later event never turns a bounce, block or complaint back into delivered or delayed. */
+const FINAL = ['bounced', 'blocked', 'complained']
+
 type Notice = {
   type: string
   data?: {
+    email_id?: string
     to?: string[]
     subject?: string
     bounce?: { message?: string }
@@ -34,7 +44,7 @@ type Notice = {
 }
 
 /**
- * Resend tells us when an email bounced, was blocked because the address bounced before, or was marked as spam.
+ * Resend tells us when an email was delivered or delayed, which the sent-email log shows (EmailSend), and when it bounced, was blocked because the address bounced before, or was marked as spam.
  * Every guest row with that address gets the problem, so Trip Control's Actions asks the organizer to fix it. It also
  * tells us when an email arrived at a trip's receipts address (`email.received`), which is queued for the forwarded
  * receipts worker (receipts/forwarded-queue.ts). Signed by Resend (Svix) with RESEND_WEBHOOK_SECRET; anything unsigned
@@ -70,6 +80,31 @@ export class ResendWebhookController {
     if (event.type === 'email.received') {
       await enqueueReceived(this.prisma, event)
       return
+    }
+    const status = STATUS[event.type]
+    if (status && event.data?.email_id) {
+      const emailId = event.data.email_id
+      await runAsSystem(() =>
+        this.prisma.emailSend.updateMany({
+          where: {
+            resendId: emailId,
+            ...(FINAL.includes(status) ? {} : { status: { notIn: FINAL } }),
+          },
+          data: {
+            status,
+            statusAt: new Date(),
+            ...(FINAL.includes(status)
+              ? {
+                  detail: (
+                    event.data?.bounce?.message ??
+                    event.data?.suppressed?.message ??
+                    ''
+                  ).slice(0, 500),
+                }
+              : {}),
+          },
+        })
+      )
     }
     const problem = PROBLEMS[event.type]
     if (!problem) return

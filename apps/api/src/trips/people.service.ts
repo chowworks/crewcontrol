@@ -98,7 +98,8 @@ export class PeopleService {
         signedUp,
         link: signedUp ? `${web}/organize/${tripId}/control` : `${web}/sign-up`,
       },
-      by.email || undefined
+      by.email || undefined,
+      tripId
     )
   }
 

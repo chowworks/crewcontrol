@@ -53,7 +53,8 @@ it('emails someone with an account a link to the Control panel, replying to whoe
       signedUp: true,
       link: 'https://travel-hq.app/organize/t1/control',
     }),
-    'nia@example.com'
+    'nia@example.com',
+    't1'
   )
 })
 
@@ -66,7 +67,8 @@ it('emails someone without an account a link to sign up', async () => {
       signedUp: false,
       link: 'https://travel-hq.app/sign-up',
     }),
-    'nia@example.com'
+    'nia@example.com',
+    't1'
   )
 })
 

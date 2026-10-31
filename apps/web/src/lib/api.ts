@@ -9,6 +9,7 @@ import {
   type EmailPreview,
   type EmailPreviewGuest,
   type EmailProblemNotice,
+  type AdminSentEmails,
   type EmailTemplateInput,
   type EmailTemplateView,
   type Expense,
@@ -242,6 +243,7 @@ export const api = {
   // The Admin toolbox's Emails page.
   adminEmails: () => request<EmailTemplateView[]>('/admin/emails'),
   adminEmailProblems: () => request<EmailProblemNotice[]>('/admin/emails/problems'),
+  adminSentEmails: () => request<AdminSentEmails>('/admin/emails/sent'),
   adminEmail: (kind: string) => request<EmailTemplateView>(`/admin/emails/${kind}`),
   previewEmail: (kind: string, draft: EmailTemplateInput, guest: EmailPreviewGuest) =>
     request<EmailPreview>(`/admin/emails/${kind}/preview?guest=${guest}`, json('POST', draft)),

@@ -21,6 +21,12 @@ export class EmailsController {
     return this.emails.listProblems()
   }
 
+  // Every email sent in the last 30 days, envelope only. Before ':kind' too.
+  @Get('sent')
+  sent() {
+    return this.emails.listSent()
+  }
+
   @Get(':kind')
   get(@Param('kind') kind: string) {
     return this.emails.get(kind)

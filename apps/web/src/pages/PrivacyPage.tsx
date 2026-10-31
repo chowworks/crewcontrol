@@ -78,6 +78,11 @@ export function PrivacyPage() {
               email.
             </li>
             <li>
+              <strong>Emails we send:</strong> for every email Travel HQ sends, who it went to,
+              which email it was, its subject, its trip, when, and whether it arrived, bounced or
+              was marked as spam. Not what it said.
+            </li>
+            <li>
               <strong>Visits:</strong> anonymous page-view counts (which pages, roughly where from,
               what kind of device), without advertising cookies. Sign-in uses cookies to keep you
               signed in.
@@ -163,7 +168,8 @@ export function PrivacyPage() {
           </p>
           <p>
             A forwarded receipt that reaches no trip, or that the organizer dismisses, is erased
-            after 30 days. To have your account and what it holds deleted, use our contact form.
+            after 30 days, and so is the record of an email we sent. To have your account and what
+            it holds deleted, use our contact form.
           </p>
         </Section>
 

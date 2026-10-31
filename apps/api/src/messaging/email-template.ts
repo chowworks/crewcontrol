@@ -100,6 +100,21 @@ export interface EmailContext {
     /** Trip Control for the owner; the trip page for the asker. */
     link: string
   }
+  /**
+   * In the email to an organizer about what needs them (organizer alerts): only what's new since the last one, by
+   * trip, with a sentence each ("2 payments to confirm, 1 guest to accept").
+   */
+  alert?: {
+    firstName: string
+    /** How many new things, on every trip, and whether that's one (for "thing needs" or "things need"). */
+    count: number
+    single: boolean
+    trips: { name: string; summary: string; link: string }[]
+    /** Your trips. */
+    link: string
+    /** The hours between alerts (System Settings), for the footer. */
+    windowHours: number
+  }
   /** In the contact form's email to Travel HQ support: who wrote, about what, and their message. */
   contact?: {
     name: string
@@ -155,6 +170,7 @@ export type VariableGroup =
   | 'announcement'
   | 'question'
   | 'deletion'
+  | 'alert'
 
 export interface Variable {
   path: string
@@ -227,6 +243,22 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
       path: 'question.link',
       label: 'Link: Trip Control for the owner, the trip page for the asker',
     },
+  ],
+  alert: [
+    { path: 'alert.firstName', label: 'Organizer’s first name' },
+    { path: 'alert.count', label: 'How many new things' },
+    { path: 'alert.single', label: 'Just one new thing (yes or no)' },
+    {
+      path: 'alert.trips',
+      label: 'Trips with something new',
+      fields: [
+        { name: 'name', label: 'Trip name' },
+        { name: 'summary', label: 'What’s new, in a sentence' },
+        { name: 'link', label: 'Its Trip Control link' },
+      ],
+    },
+    { path: 'alert.link', label: 'Your trips link' },
+    { path: 'alert.windowHours', label: 'Hours between these emails' },
   ],
   contact: [
     { path: 'contact.name', label: 'Their name' },
@@ -481,12 +513,16 @@ export function render(
         : invite
           ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
             `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-          : question
-            ? question.answered
-              ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-              : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-                'Reply to this email to answer them directly.'
-            : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+          : context.alert
+            ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
+              `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
+              'everything waiting is in the Actions on each trip’s Trip Control.'
+            : question
+              ? question.answered
+                ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+                : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                  'Reply to this email to answer them directly.'
+              : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

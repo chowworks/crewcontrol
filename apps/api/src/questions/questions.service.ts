@@ -125,7 +125,8 @@ export class QuestionsService {
           link: `${webUrl()}/t/${trip.slug}`,
         },
         row.askerEmail,
-        me.email || undefined
+        me.email || undefined,
+        id
       )
     return this.forTrip(id, caller)
   }
@@ -239,7 +240,8 @@ export class QuestionsService {
           link: `${webUrl()}/organize/${trip.id}/control`,
         },
         o.email,
-        asker.email || undefined
+        asker.email || undefined,
+        trip.id
       )
   }
 
