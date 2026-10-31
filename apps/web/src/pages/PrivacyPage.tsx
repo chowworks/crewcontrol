@@ -4,10 +4,8 @@ import { Logo } from '@/components/Logo'
 import { SiteFooter } from '@/components/SiteFooter'
 
 /*
- * DRAFT privacy page, adapted from Audit Differently's. It describes how Travel HQ handles data as the product is
- * built out (organizer sign-in, payment tracking, reminders, the guest portal), as the owner asked, and the banner
- * says some of that is still being built. Keep it in step with the build order in CLAUDE.md, and have it reviewed
- * before launch.
+ * The privacy page, adapted from Audit Differently's. Taken out of draft on 2026-10-31 (owner's decision), once every
+ * promise on it was built. Keep it true to what the product does: a new promise here needs its feature built first.
  */
 export function PrivacyPage() {
   return (
@@ -18,11 +16,6 @@ export function PrivacyPage() {
 
       <main className="mx-auto flex max-w-[760px] flex-col gap-4 px-5 pb-12">
         <h1 className="mt-4 text-4xl font-extrabold">Privacy and Data Protection</h1>
-        <p className="rounded-xl bg-royal-pale px-4 py-3 text-[15px] text-body">
-          Travel HQ is in early access, and this page is a draft. It describes how we handle data as
-          the product comes together. Some of what it covers, like organizer sign-in, payment
-          tracking and reminders, is still being built.
-        </p>
 
         <Section title="Our approach">
           <p>
