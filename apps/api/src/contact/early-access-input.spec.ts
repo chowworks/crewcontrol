@@ -18,6 +18,14 @@ describe('parseEarlyAccess', () => {
     expect(() => parseEarlyAccess({ name: ' ', email: 'dana@example.com' })).toThrow(
       BadRequestException
     )
-    expect(() => parseEarlyAccess({ name: 'Dana', email: 'dana' })).toThrow(BadRequestException)
+    for (const email of [
+      'dana',
+      '@example.com',
+      'dana@example',
+      'dana@example.',
+      'da na@example.com',
+      'a@b@c.com',
+    ])
+      expect(() => parseEarlyAccess({ name: 'Dana', email })).toThrow(BadRequestException)
   })
 })

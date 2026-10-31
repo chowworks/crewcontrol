@@ -1,7 +1,12 @@
 import { BadRequestException } from '@nestjs/common'
 import type { EarlyAccessInput } from '../trips/trip-types'
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** Something@something.something, without spaces; checked without a regular expression, so no input can make it slow. */
+function looksLikeEmail(email: string): boolean {
+  const at = email.indexOf('@')
+  const domain = email.slice(at + 1)
+  return at > 0 && !domain.includes('@') && !/\s/.test(email) && domain.slice(1, -1).includes('.')
+}
 
 function fail(message: string): never {
   throw new BadRequestException(message)
@@ -22,7 +27,7 @@ export function parseEarlyAccess(raw: unknown): EarlyAccessInput {
   const name = text(body, 'name', 'Name', 120)
   if (!name) fail('Name is required')
   const email = text(body, 'email', 'Email', 254).toLowerCase()
-  if (!EMAIL.test(email)) fail('Email must be an email address')
+  if (!looksLikeEmail(email)) fail('Email must be an email address')
   return {
     name,
     email,
