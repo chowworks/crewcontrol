@@ -1203,6 +1203,33 @@ suite('trip isolation', () => {
     }
   })
 
+  it('lets anyone ask for early access, once per email, and only the admin read the asks', async () => {
+    const ask = (email: string) =>
+      attempt(
+        `INSERT INTO "EarlyAccessRequest" (name, email) VALUES ('Dana Reyes', '${email}') ON CONFLICT DO NOTHING`
+      )
+    try {
+      await as(await person('u1'), async () => {
+        expect(await ask('dana@example.com')).toEqual({ rows: 1 })
+        // Asking again keeps the first request.
+        expect(await ask('dana@example.com')).toEqual({ rows: 0 })
+        expect(await ask('Dana@Example.com')).toEqual({
+          error: expect.stringMatching(/EarlyAccessRequest_email_check/),
+        })
+        expect(await ids('EarlyAccessRequest')).toEqual([])
+      })
+      await db.query(
+        `INSERT INTO "EarlyAccessRequest" (id, name, email) VALUES ('E1', 'Dana Reyes', 'dana@example.com')`
+      )
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('EarlyAccessRequest')).toEqual(['E1'])
+        expect(await attempt(`DELETE FROM "EarlyAccessRequest"`)).toEqual({ rows: 0 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "EarlyAccessRequest"`)
+    }
+  })
+
   it('lets everyone read the system settings and only the admin change them', async () => {
     const set = (pct: number) =>
       attempt(`UPDATE "SystemSettings" SET "waitlistBufferPercent" = ${pct}`)

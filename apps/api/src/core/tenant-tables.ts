@@ -30,6 +30,8 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'SystemSettings',
   // Not trip data: organizers' requests, read by the admin only.
   'OrganizerRequest',
+  // Not trip data: early access asks from the public limited preview page, read by the admin only.
+  'EarlyAccessRequest',
   // Not trip data: the admin's versions of the emails, read by all and written by the admin.
   'EmailTemplate',
   // Not trip data: bounce and spam-complaint notices from Resend, read by the admin only.

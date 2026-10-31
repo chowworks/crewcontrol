@@ -1,7 +1,8 @@
+import { useUser } from '@clerk/clerk-react'
 import { Route, Routes } from 'react-router-dom'
 import { AdminView } from './components/AdminView'
 import { OrganizerTerms } from './components/OrganizerTerms'
-import { RequireSignIn } from './lib/auth'
+import { RequireSignIn, useIsAdmin } from './lib/auth'
 import { AdminPage } from './pages/AdminPage'
 import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
 import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
@@ -16,6 +17,7 @@ import { FaqPage } from './pages/FaqPage'
 import { GuestTripPage } from './pages/GuestTripPage'
 import { HomePage } from './pages/HomePage'
 import { JoinPage } from './pages/JoinPage'
+import { LimitedPreviewPage } from './pages/LimitedPreviewPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PrivacyPage } from './pages/PrivacyPage'
@@ -52,16 +54,7 @@ export default function App() {
           </RequireSignIn>
         }
       />
-      <Route
-        path="/organize/new"
-        element={
-          <RequireSignIn>
-            <OrganizerTerms>
-              <EditTripPage />
-            </OrganizerTerms>
-          </RequireSignIn>
-        }
-      />
+      <Route path="/organize/new" element={<NewTrip />} />
       <Route
         path="/organize/:id"
         element={
@@ -188,5 +181,23 @@ export default function App() {
       <Route path="/sign-up/*" element={<SignInPage mode="sign-up" />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  )
+}
+
+/**
+ * A limited preview: only admins start trips. Everyone else, signed in or not, gets the early access page, which needs
+ * no sign-in and no Organizer Terms.
+ */
+function NewTrip() {
+  const { isLoaded } = useUser()
+  const isAdmin = useIsAdmin()
+  if (!isLoaded) return null
+  if (!isAdmin) return <LimitedPreviewPage />
+  return (
+    <RequireSignIn>
+      <OrganizerTerms>
+        <EditTripPage />
+      </OrganizerTerms>
+    </RequireSignIn>
   )
 }

@@ -1,4 +1,3 @@
-import type { TripSummary } from '@cc/types'
 import {
   ArrowRight,
   BadgeCheck,
@@ -8,16 +7,14 @@ import {
   Plus,
   Users,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
 import { SampleTripBadge } from '@/components/SampleTripBadge'
+import { SampleTripCards } from '@/components/SampleTripCards'
 import { SiteFooter } from '@/components/SiteFooter'
-import { api } from '@/lib/api'
 import { useSignedIn } from '@/lib/auth'
 import { FAQ } from '@/lib/faq'
-import { dateRange } from '@/lib/format'
 
 // The marketing page at /. The organizer's trip list lives at /organize.
 const DEMO_SLUG = 'tulum-40th-2027'
@@ -49,15 +46,7 @@ const CHAT = [
 ]
 
 export function HomePage() {
-  const [trips, setTrips] = useState<TripSummary[]>([])
   const signedIn = useSignedIn()
-
-  useEffect(() => {
-    api
-      .listSampleTrips()
-      .then(setTrips)
-      .catch(() => setTrips([]))
-  }, [])
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -202,41 +191,12 @@ export function HomePage() {
       </section>
 
       {/* Real trip pages */}
-      {trips.length > 0 && (
-        <section className="mx-auto max-w-[1120px] px-5 pt-16">
-          <h2 className="text-4xl font-extrabold">One page, any kind of trip</h2>
-          <p className="mt-2 text-lg text-body">
-            A beach house, a resort or a birthday villa. Tap one to see what your crew sees.
-          </p>
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.map((t) => (
-              <li key={t.id}>
-                <Link
-                  to={`/t/${t.slug}`}
-                  className="group block overflow-hidden rounded-2xl bg-white shadow-card focus:outline-none focus-visible:ring-4 focus-visible:ring-royal"
-                >
-                  <div className="relative h-44 overflow-hidden bg-placeholder">
-                    <SampleTripBadge className="absolute left-3 top-3 z-10" />
-                    {t.coverUrl && (
-                      <img
-                        src={t.coverUrl}
-                        alt=""
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 p-4">
-                    <h3 className="text-lg font-extrabold leading-tight">{t.name}</h3>
-                    <p className="text-sm text-muted">
-                      {t.destination} · {dateRange(t.startDate, t.endDate)}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <SampleTripCards>
+        <h2 className="text-4xl font-extrabold">One page, any kind of trip</h2>
+        <p className="mt-2 text-lg text-body">
+          A beach house, a resort or a birthday villa. Tap one to see what your crew sees.
+        </p>
+      </SampleTripCards>
 
       {/* Questions */}
       <section className="mx-auto max-w-[1120px] px-5 py-16">

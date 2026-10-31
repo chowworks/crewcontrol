@@ -5,6 +5,7 @@ import {
   type AgreementPreview,
   type BalanceAdjustmentInput,
   type ContactInput,
+  type EarlyAccessInput,
   type EmailPreview,
   type EmailPreviewGuest,
   type EmailProblemNotice,
@@ -293,6 +294,8 @@ export const api = {
   setStopUpdates: (token: string, stopped: boolean) =>
     request<StopUpdatesView>(`/public/stop-updates/${token}`, json('POST', { stopped })),
   sendContact: (input: ContactInput) => request<void>('/contact', json('POST', input)),
+  // The limited preview page's early access form (no sign-in).
+  askEarlyAccess: (input: EarlyAccessInput) => request<void>('/early-access', json('POST', input)),
   // Travel HQ's own Terms: the documents (public), and the signed-in person's acceptances.
   getTerms: () => request<PublicTerms>('/public/terms'),
   getMyTerms: () => request<MyTerms>('/me/terms'),
