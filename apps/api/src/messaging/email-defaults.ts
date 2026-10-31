@@ -131,6 +131,20 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Answer in Trip Control</a></p>`,
   },
   {
+    kind: 'organizer_actions',
+    name: 'Something needs you',
+    when: 'To each owner and organizer when something new needs them in a trip’s Actions (a payment to confirm, a guest to accept). One email for all their trips, then none for the hours set in System Settings; what comes up meanwhile goes in the next one. Questions have their own email.',
+    groups: ['alert'],
+    subject:
+      '{{alert.count}} new {{#if alert.single}}thing needs{{else}}things need{{/if}} you on your trips',
+    body: `<p>Hi {{alert.firstName}},</p>
+<p>Here’s what’s new on your trips since we last wrote:</p>
+{{#each alert.trips}}<p style="margin:0 0 12px;"><strong>{{name}}</strong><br>{{summary}}<br><a href="{{link}}" style="color:#5A2D91;font-weight:600;">Open Trip Control</a></p>
+{{/each}}
+<p>Guests are waiting on these, so the sooner the better.</p>
+<p><a href="{{alert.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">See your trips</a></p>`,
+  },
+  {
     kind: 'question_answered',
     name: 'Question answered',
     when: 'To the person who asked a question on a trip page, when an organizer answers it.',
@@ -258,6 +272,20 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
         'The resort shuttle meets every flight on Mar 3. Look for the sign with our group name.',
       private: false,
       link: 'https://travel-hq.app/t/aruba-2028',
+    },
+    alert: {
+      firstName: 'Nia',
+      count: 3,
+      single: false,
+      trips: [
+        {
+          name: 'Aruba Crew Getaway 2028',
+          summary: '2 payments to confirm, 1 guest to accept.',
+          link: 'https://travel-hq.app/organize/sample/control',
+        },
+      ],
+      link: 'https://travel-hq.app/organize',
+      windowHours: 4,
     },
     contact: {
       name: 'Dana Reyes',

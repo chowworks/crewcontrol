@@ -12,6 +12,7 @@ import { AdminEmailProblemsPage } from './pages/AdminEmailProblemsPage'
 import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
 import { AdminEmailPage, AdminEmailsPage } from './pages/AdminEmailsPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
+import { AdminSentEmailsPage } from './pages/AdminSentEmailsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
 import { ContactPage } from './pages/ContactPage'
@@ -163,6 +164,14 @@ export default function App() {
           element={
             <RequireSignIn>
               <AdminEmailProblemsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/sent-emails"
+          element={
+            <RequireSignIn>
+              <AdminSentEmailsPage />
             </RequireSignIn>
           }
         />

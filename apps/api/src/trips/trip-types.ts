@@ -862,6 +862,11 @@ export interface SystemSettings {
    * who run a trip can refer others. Off, anyone signed in starts trips and referrals are hidden.
    */
   limitedPreview: boolean
+  /**
+   * After an email telling an organizer what needs them, the hours before the next one to the same person: what comes
+   * up meanwhile waits and goes in that one email. 1 to 24.
+   */
+  alertWindowHours: number
 }
 
 // ── What needs the organizer ─────────────────────────────────────────────────
@@ -1096,6 +1101,43 @@ export interface EmailProblemNotice {
   at: string
   /** The guests on that address now, and whether each one's problem is still waiting for their organizer. */
   guests: { tripId: string; tripName: string; name: string; open: boolean }[]
+}
+
+/** What became of an email: what sending said, then what Resend reported. */
+export type EmailSendStatus =
+  | 'sent'
+  | 'mocked'
+  | 'not_deliverable'
+  | 'failed'
+  | 'delivered'
+  | 'delayed'
+  | 'bounced'
+  | 'blocked'
+  | 'complained'
+
+/** One email Travel HQ sent, for the Admin toolbox's Sent Emails: the envelope, never what it said. */
+export interface AdminSentEmail {
+  id: string
+  /** Which email (EmailTemplate kind), and its name on the Emails page. */
+  kind: string
+  kindName: string
+  to: string
+  subject: string
+  tripId: string | null
+  tripName: string | null
+  status: EmailSendStatus
+  /** Resend's reason, for a bounce or a failure. */
+  detail: string
+  sentAt: string
+  statusAt: string
+  /** Resend's id for it, to look it up in Resend; null when it never reached Resend (not sent, or failed). */
+  resendId: string | null
+}
+
+/** The last 30 days of sent emails, newest first, and every kind of email (for the filter). */
+export interface AdminSentEmails {
+  emails: AdminSentEmail[]
+  kinds: { kind: string; name: string }[]
 }
 
 /** A reminder still to go out, for Trip Control's Reminders section. */

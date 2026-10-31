@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import type { Caller } from '../auth/caller'
+import { runAsSystem } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
 import type {
+  AdminSentEmails,
+  EmailSendStatus,
   EmailPreview,
   EmailPreviewGuest,
   EmailProblemNotice,
@@ -18,7 +21,7 @@ import {
   type EmailContext,
   type VariableGroup,
 } from './email-template'
-import { sendEmail, type Email } from './send-email'
+import { sendEmail, type Email, type EmailResult } from './send-email'
 
 const GROUP_NAMES: Record<VariableGroup, string> = {
   trip: 'Trip',
@@ -30,6 +33,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   announcement: 'Announcement',
   question: 'Question',
   deletion: 'Trip deleted',
+  alert: 'What needs them',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -147,7 +151,11 @@ export class EmailsService {
         ...guestEmailContext(view, facts, webUrl),
         ...extra,
       })
-      await sendEmail({ to: facts.email, replyTo: facts.replyTo, ...email, attachments })
+      await this.deliver(
+        k.kind,
+        { to: facts.email, replyTo: facts.replyTo, ...email, attachments },
+        { slug: view.trip.slug }
+      )
     } catch (err) {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
@@ -159,10 +167,14 @@ export class EmailsService {
    * The email to someone added to help run a trip, with Reply-To set to whoever added them. Logged, never thrown, as
    * for a guest: they're already on the trip (or invited), and the People screen shows it.
    */
-  async sendInvite(invite: NonNullable<EmailContext['invite']>, replyTo?: string): Promise<void> {
+  async sendInvite(
+    invite: NonNullable<EmailContext['invite']>,
+    replyTo?: string,
+    tripId?: string
+  ): Promise<void> {
     try {
       const email = render(await this.template(this.kindOf('invite')), { invite })
-      await sendEmail({ to: invite.email, replyTo, ...email })
+      await this.deliver('invite', { to: invite.email, replyTo, ...email }, { id: tripId })
     } catch (err) {
       this.logger.error(
         `The "invite" email failed: ${err instanceof Error ? err.message : 'unknown'}`
@@ -178,11 +190,12 @@ export class EmailsService {
     kind: 'question_asked' | 'question_answered',
     question: NonNullable<EmailContext['question']>,
     to: string,
-    replyTo?: string
+    replyTo?: string,
+    tripId?: string
   ): Promise<void> {
     try {
       const email = render(await this.template(this.kindOf(kind)), { question })
-      await sendEmail({ to, replyTo, ...email })
+      await this.deliver(kind, { to, replyTo, ...email }, { id: tripId })
     } catch (err) {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
@@ -196,7 +209,112 @@ export class EmailsService {
    */
   async sendContact(contact: NonNullable<EmailContext['contact']>, to: string): Promise<void> {
     const email = render(await this.template(this.kindOf('contact')), { contact })
-    await sendEmail({ to, replyTo: contact.email, ...email })
+    await this.deliver('contact', { to, replyTo: contact.email, ...email })
+  }
+
+  /**
+   * An organizer's email about what needs them on their trips (organizer alerts). Logged, never thrown: the Actions
+   * are on their Trip Control either way. True when it went (or, with no Resend key, was logged instead).
+   */
+  async sendAlert(alert: NonNullable<EmailContext['alert']>, to: string): Promise<boolean> {
+    try {
+      const email = render(await this.template(this.kindOf('organizer_actions')), { alert })
+      const result = await this.deliver('organizer_actions', { to, ...email })
+      return result.sent || result.reason === 'mocked'
+    } catch (err) {
+      this.logger.error(
+        `The "organizer_actions" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+      return false
+    }
+  }
+
+  /**
+   * Sends one email and writes it in the sent-email log (EmailSend): the envelope, never the body. A failure to send
+   * is logged as failed and thrown on, as sendEmail throws it; a failure to write the log is only logged.
+   */
+  private async deliver(
+    kind: string,
+    email: Email,
+    trip: { id?: string; slug?: string } = {}
+  ): Promise<EmailResult> {
+    let result: EmailResult | null = null
+    let error: unknown = null
+    try {
+      result = await sendEmail(email)
+    } catch (err) {
+      error = err
+    }
+    await this.logSend(kind, email, trip, result, error)
+    if (error) throw error
+    return result!
+  }
+
+  private async logSend(
+    kind: string,
+    email: Email,
+    trip: { id?: string; slug?: string },
+    result: EmailResult | null,
+    error: unknown
+  ): Promise<void> {
+    try {
+      // Trusted work: the log is the admin's, and a guest's joining or a webhook is what sends most emails.
+      await runAsSystem(async () => {
+        const tripId =
+          trip.id ??
+          (trip.slug
+            ? (
+                await this.prisma.trip.findUnique({
+                  where: { slug: trip.slug },
+                  select: { id: true },
+                })
+              )?.id
+            : undefined)
+        await this.prisma.emailSend.create({
+          data: {
+            kind,
+            toAddress: email.to.trim().toLowerCase().slice(0, 254),
+            subject: email.subject.slice(0, 300),
+            tripId: tripId ?? null,
+            resendId: result?.sent ? result.id : null,
+            status: error ? 'failed' : result?.sent ? 'sent' : (result?.reason ?? 'failed'),
+            detail: error instanceof Error ? error.message.slice(0, 500) : '',
+          },
+          select: { id: true },
+        })
+      })
+    } catch (err) {
+      this.logger.error(
+        `Could not log the "${kind}" email: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+    }
+  }
+
+  /** The Admin toolbox's Sent Emails: the last 30 days, newest first, with each one's trip. */
+  async listSent(): Promise<AdminSentEmails> {
+    const rows = await this.prisma.emailSend.findMany({
+      orderBy: { sentAt: 'desc' },
+      take: 2000,
+      include: { trip: { select: { name: true } } },
+    })
+    const names = new Map(EMAIL_KINDS.map((k) => [k.kind, k.name]))
+    return {
+      emails: rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        kindName: names.get(r.kind) ?? r.kind,
+        to: r.toAddress,
+        subject: r.subject,
+        tripId: r.tripId,
+        tripName: r.trip?.name ?? null,
+        status: r.status as EmailSendStatus,
+        detail: r.detail,
+        sentAt: r.sentAt.toISOString(),
+        statusAt: r.statusAt.toISOString(),
+        resendId: r.resendId,
+      })),
+      kinds: EMAIL_KINDS.map((k) => ({ kind: k.kind, name: k.name })),
+    }
   }
 
   /**

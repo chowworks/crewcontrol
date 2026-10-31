@@ -79,6 +79,8 @@ model Trip {
   payerAddresses      PayerAddress[]
   announcements       Announcement[]
   questions           TripQuestion[]
+  emailSends          EmailSend[]
+  actionAlerts        ActionAlert[]
 
   @@index([deletedAt])
 }
@@ -454,6 +456,8 @@ model SystemSettings {
   waitlistBufferPercent Int      @default(10)
   // The limited preview (issue #39): on, only admins and approved early access start trips; off, anyone signed in.
   limitedPreview        Boolean  @default(true)
+  // After an organizer alert, how long before the next one to the same person (migration 20261031070000).
+  alertWindowHours      Int      @default(4)
   updatedAt             DateTime @default(now())
   updatedByUserId       String?
 }
@@ -509,6 +513,42 @@ model EmailProblem {
   guestIds String[] @default([])
 
   @@index([at])
+}
+
+/// Every email Travel HQ sends, envelope only, kept 30 days (migration 20261031070000_organizer_alerts): the Admin
+/// toolbox's Sent Emails, and when an organizer was last alerted. Status starts as what sending said and follows
+/// Resend's webhook (delivered, delayed, bounced, blocked, complained).
+model EmailSend {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  kind      String
+  toAddress String
+  subject   String   @default("")
+  tripId    String?
+  resendId  String?
+  status    String
+  detail    String   @default("")
+  sentAt    DateTime @default(now())
+  statusAt  DateTime @default(now())
+  trip      Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([sentAt])
+  @@index([tripId])
+  @@index([resendId])
+  @@index([toAddress, kind])
+}
+
+/// One of Trip Control's Actions an organizer was already emailed about (migration 20261031070000_organizer_alerts),
+/// so the next alert names only what's new. Removed once the action is done.
+model ActionAlert {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId    String
+  tripId    String
+  key       String
+  alertedAt DateTime @default(now())
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId, key])
+  @@index([tripId])
 }
 
 /// A sender an organizer vouched for when matching a forwarded receipt (migration 20261029080000_receipt_forwarding):

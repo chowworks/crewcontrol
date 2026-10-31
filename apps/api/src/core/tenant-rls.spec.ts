@@ -1252,6 +1252,83 @@ suite('trip isolation', () => {
     })
   })
 
+  it('keeps the alert window between 1 and 24 hours', async () => {
+    await as(await person('a1', { admin: true }), async () => {
+      expect(await attempt(`UPDATE "SystemSettings" SET "alertWindowHours" = 6`)).toEqual({
+        rows: 1,
+      })
+      expect(await attempt(`UPDATE "SystemSettings" SET "alertWindowHours" = 0`)).toEqual({
+        error: expect.stringMatching(/alertWindowHours_check/),
+      })
+    })
+  })
+
+  it('lets trusted work write the sent-email log, the admin read it, and nobody else see it', async () => {
+    const log = (id: string) =>
+      attempt(
+        `INSERT INTO "EmailSend" (id, kind, "toAddress", subject, "tripId", status) VALUES ('${id}', 'joined', 'g-t1-a@example.com', 'Hi', 'T1', 'sent')`
+      )
+    try {
+      // The trip's own owner neither writes nor reads it.
+      await as(await person('u1'), async () => {
+        expect(await log('ES1')).toEqual({ error: refused })
+      })
+      await as({ system: true, trips: ['T1', 'T2', 'S'] }, async () => {
+        expect(await log('ES1')).toEqual({ rows: 1 })
+        expect(
+          await attempt(`UPDATE "EmailSend" SET status = 'delivered' WHERE id = 'ES1'`)
+        ).toEqual({ rows: 1 })
+      })
+      await db.query(
+        `INSERT INTO "EmailSend" (id, kind, "toAddress", "tripId", status) VALUES ('ES2', 'joined', 'g-t1-a@example.com', 'T1', 'sent')`
+      )
+      await as(await person('u1'), async () => {
+        expect(await ids('EmailSend')).toEqual([])
+        expect(await attempt(`DELETE FROM "EmailSend"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('EmailSend')).toEqual(['ES2'])
+        expect(await attempt(`UPDATE "EmailSend" SET status = 'delivered'`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "EmailSend"`)).toEqual({ rows: 0 })
+      })
+      await as({ system: true, trips: ['T1', 'T2', 'S'] }, async () => {
+        expect(
+          await attempt(
+            `INSERT INTO "EmailSend" (kind, "toAddress", status) VALUES ('contact', 'A@b.co', 'sent')`
+          )
+        ).toEqual({ error: expect.stringMatching(/EmailSend_toAddress_check/) })
+      })
+    } finally {
+      await db.query(`DELETE FROM "EmailSend"`)
+    }
+  })
+
+  it('keeps which actions an organizer was emailed about to trusted work alone', async () => {
+    const note = () =>
+      attempt(
+        `INSERT INTO "ActionAlert" (id, "userId", "tripId", key) VALUES ('AA1', 'u1', 'T1', 'k1')`
+      )
+    try {
+      await as(await person('u1'), async () => expect(await note()).toEqual({ error: refused }))
+      await as(await person('a1', { admin: true }), async () =>
+        expect(await note()).toEqual({ error: refused })
+      )
+      await as({ system: true, trips: ['T1', 'T2', 'S'] }, async () => {
+        expect(await note()).toEqual({ rows: 1 })
+        expect(await ids('ActionAlert')).toEqual(['AA1'])
+      })
+      await db.query(
+        `INSERT INTO "ActionAlert" (id, "userId", "tripId", key) VALUES ('AA2', 'u1', 'T1', 'k2')`
+      )
+      await as(await person('u1'), async () => expect(await ids('ActionAlert')).toEqual([]))
+      await as(await person('a1', { admin: true }), async () =>
+        expect(await ids('ActionAlert')).toEqual([])
+      )
+    } finally {
+      await db.query(`DELETE FROM "ActionAlert"`)
+    }
+  })
+
   it('lets only trusted work mark a guest whose email bounced', async () => {
     const mark = () =>
       attempt(

@@ -18,8 +18,10 @@ describe('ResendWebhookController', () => {
   const queryRaw = jest.fn(async () => [{ n: 1 }])
   const createMany = jest.fn(async () => ({ count: 1 }))
   const retired = jest.fn(async (): Promise<{ id: string } | null> => null)
+  const logged = jest.fn(async () => ({ count: 1 }))
   const controller = new ResendWebhookController({
     $queryRaw: queryRaw,
+    emailSend: { updateMany: logged },
     forwardedReceipt: { createMany },
     receiptsAddress: { findFirst: retired },
   } as unknown as PrismaService)
@@ -29,6 +31,7 @@ describe('ResendWebhookController', () => {
   beforeEach(() => {
     queryRaw.mockClear()
     createMany.mockClear()
+    logged.mockClear()
     process.env.RESEND_WEBHOOK_SECRET = secret
   })
 
@@ -109,9 +112,36 @@ describe('ResendWebhookController', () => {
     ])
   })
 
-  it('ignores other events', async () => {
-    await receive(signed({ type: 'email.delivered', data: { to: ['dana@travel-hq.app'] } }))
+  it('marks no guest for a delivered email, but notes it in the sent-email log', async () => {
+    await receive(
+      signed({ type: 'email.delivered', data: { email_id: 'em_9', to: ['dana@travel-hq.app'] } })
+    )
     expect(queryRaw).not.toHaveBeenCalled()
+    expect(logged).toHaveBeenCalledWith({
+      where: { resendId: 'em_9', status: { notIn: ['bounced', 'blocked', 'complained'] } },
+      data: { status: 'delivered', statusAt: expect.any(Date) },
+    })
+  })
+
+  it('notes a bounce in the sent-email log with its reason, over any earlier status', async () => {
+    await receive(
+      signed({
+        type: 'email.bounced',
+        data: { email_id: 'em_9', to: ['dana@travel-hq.app'], bounce: { message: 'No mailbox' } },
+      })
+    )
+    expect(logged).toHaveBeenCalledWith({
+      where: { resendId: 'em_9' },
+      data: { status: 'bounced', statusAt: expect.any(Date), detail: 'No mailbox' },
+    })
+  })
+
+  it('ignores other events', async () => {
+    await receive(
+      signed({ type: 'email.opened', data: { email_id: 'em_9', to: ['dana@travel-hq.app'] } })
+    )
+    expect(queryRaw).not.toHaveBeenCalled()
+    expect(logged).not.toHaveBeenCalled()
   })
 
   it('refuses a request Resend did not sign', async () => {

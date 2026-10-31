@@ -509,6 +509,7 @@ export function parseSystemSettings(raw: unknown): SystemSettings {
   return {
     waitlistBufferPercent: int(raw as Body, 'waitlistBufferPercent', 0, 100),
     limitedPreview,
+    alertWindowHours: int(raw as Body, 'alertWindowHours', 1, 24),
   }
 }
 

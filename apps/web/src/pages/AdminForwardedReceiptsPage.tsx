@@ -43,10 +43,10 @@ const day = (iso: string) =>
 
 const filled =
   'inline-flex min-h-[44px] items-center justify-center whitespace-nowrap rounded-lg bg-royal px-3 text-sm font-semibold text-white hover:bg-royal-dark disabled:opacity-60'
-const outlined =
+export const outlined =
   'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale disabled:opacity-60'
 
-type Tone = 'muted' | 'ok' | 'warn' | 'danger'
+export type Tone = 'muted' | 'ok' | 'warn' | 'danger'
 const TONES: Record<Tone, string> = {
   muted: 'bg-[#E4E8EC] text-ink',
   ok: 'bg-royal text-white',
@@ -66,7 +66,7 @@ const STATUS: Record<ForwardedReceiptStatus, { label: string; tone: Tone; icon: 
   failed: { label: 'Failed', tone: 'warn', icon: AlertTriangle },
 }
 
-function Chip({
+export function Chip({
   tone,
   icon: Icon,
   children,
@@ -136,7 +136,7 @@ function Card({
 }
 
 /** An email address that wraps at the @ on a narrow screen, not mid-word. */
-const Addr = ({ value }: { value: string | null }) => {
+export const Addr = ({ value }: { value: string | null }) => {
   if (!value) return <>—</>
   const at = value.indexOf('@')
   return at < 0 ? (
@@ -172,7 +172,7 @@ const PAGE_SIZE = 10
  * A list searched and shown ten rows at a time, as every table on this page is: each word typed must appear in one of
  * the row's fields.
  */
-function useSearchPages<T>(rows: T[] | undefined, fields: (row: T) => (string | null)[]) {
+export function useSearchPages<T>(rows: T[] | undefined, fields: (row: T) => (string | null)[]) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const all = useMemo(() => rows ?? [], [rows])
@@ -207,7 +207,7 @@ type SearchPages = Pick<
 > & { shown: unknown[] }
 
 /** The search box over a list, the count under it, and a line when nothing matches. */
-function SearchBox({
+export function SearchBox({
   list,
   label,
   placeholder,
@@ -247,7 +247,7 @@ function SearchBox({
 }
 
 /** Previous and Next under a list longer than one page. */
-function Pager({ list }: { list: SearchPages }) {
+export function Pager({ list }: { list: SearchPages }) {
   if (list.pages < 2) return null
   const first = list.at * PAGE_SIZE + 1
   return (
