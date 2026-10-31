@@ -28,7 +28,7 @@ const TOOLS: {
   {
     to: '/admin/trips',
     icon: Luggage,
-    title: 'Trip admin',
+    title: 'Manage Trips',
     text: 'Every trip on Travel HQ: who runs it and who has signed up, to look at read-only or hand to an owner.',
     sub: 'Every trip, to look at read-only or hand to an owner.',
     how: 'Control panel and Edit open a trip read-only: you see its guests and money but change nothing, and a look is not logged. To change a trip, add yourself on its People screen; every change you make to a trip’s people is written to its access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears people added to them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
@@ -36,7 +36,7 @@ const TOOLS: {
   {
     to: '/admin/requests',
     icon: MessageSquareText,
-    title: 'Requests',
+    title: 'Review Customer Requests',
     text: 'What people asked for that Travel HQ doesn’t do yet: other refund terms, and early access to start trips.',
     sub: 'What people asked for, newest first.',
     how: 'Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can change or delete one.',
@@ -44,7 +44,7 @@ const TOOLS: {
   {
     to: '/admin/emails',
     icon: Mail,
-    title: 'Emails',
+    title: 'Manage Email Templates',
     text: 'The emails Travel HQ sends: their wording and design, with variables for each trip and guest.',
     sub: 'What each email says, with a preview for a sample guest.',
     how: 'Each email is HTML inside Travel HQ’s frame (the purple band and the footer), with variables like {{trip.name}} that are filled in for each guest. A variable that doesn’t exist, or isn’t allowed in that email, stops the save. Payment details are filled in for every guest who signed; show them inside {{#if guest.canPay}}, which is true only for a guest whose trip page shows how to pay. Every subject starts with “[Travel HQ] ”, added for you. Every email also goes out as plain text, made from the HTML. A save applies to every email sent from then on; “Use Travel HQ’s wording” goes back to the default.',
@@ -52,7 +52,7 @@ const TOOLS: {
   {
     to: '/admin/email-problems',
     icon: MailWarning,
-    title: 'Email problems',
+    title: 'Troubleshoot Email Problems',
     text: 'Emails that bounced, were blocked or were marked as spam, on every trip, and who they were for.',
     sub: 'Bounces, blocked sends and spam complaints, newest first.',
     how: 'Resend, which sends Travel HQ’s email, tells us each time an email bounces, is blocked because that address bounced before, or is marked as spam. Each one is listed here with the guests on that address. Their organizer sees the same problem in Trip Control’s Actions and fixes the address there; then it shows as fixed. Resend stops sending to a bad address on its own, so nothing here needs you unless a guest asks why they get no email.',
@@ -60,7 +60,7 @@ const TOOLS: {
   {
     to: '/admin/forwarded-receipts',
     icon: Inbox,
-    title: 'Forwarded receipts',
+    title: 'Manage Forwarded Receipts',
     text: 'Forwarded payment emails that reached no trip or failed, and every receipts address used.',
     sub: 'Emails that reached no trip or failed, and the addresses trips have used.',
     how: 'Each trip has its own receipts address, chosen by its organizers in the trip editor. A receipt that names a guest becomes their payment; anything else waits in that trip’s Actions. Mail from nobody on the trip that isn’t a payment is refused. Organizers can change an address but never clear it, and an address used once is held so no other trip gets mail meant for the old one. Release it here once nothing has arrived at it for a while; any trip can choose it after that. This page lists only what reached no trip or went wrong: a recorded or matched email is its trip’s. An email Resend couldn’t hand over after five tries shows as Failed; Run again tries once more. Emails are kept for 30 days.',
@@ -68,7 +68,7 @@ const TOOLS: {
   {
     to: '/admin/settings',
     icon: SlidersHorizontal,
-    title: 'System Settings',
+    title: 'Manage System Settings',
     text: 'Values that apply to every trip on Travel HQ, like the waitlist buffer.',
     sub: 'Values that apply to every trip.',
     how: 'These apply to every trip at once, from the moment you save. They change how trips behave from then on; nothing already decided (a guest on the waitlist, a payment confirmed) changes.',

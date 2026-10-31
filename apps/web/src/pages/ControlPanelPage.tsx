@@ -270,13 +270,13 @@ export function ControlPanelPage() {
         <div className="flex items-center gap-3">
           <Link
             to={admin ? '/admin/trips' : '/organize'}
-            aria-label={admin ? 'Trip admin' : 'Your trips'}
+            aria-label={admin ? 'Manage Trips' : 'Your trips'}
             className={`${admin ? 'inline-flex' : 'hidden sm:inline-flex'} min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4`}
           >
             {/* On a phone the buttons show their icons only, so the header stays on one line. An organizer's way
                 back is in the account menu there, which makes room for Flyer. */}
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">{admin ? 'Trip admin' : 'Your trips'}</span>
+            <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
           {!admin && (
             <button

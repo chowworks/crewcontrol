@@ -140,7 +140,7 @@ export function PeoplePage({ admin = false }: { admin?: boolean }) {
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            {admin ? 'Trip admin' : 'Control panel'}
+            {admin ? 'Manage Trips' : 'Control panel'}
           </Link>
           <AccountMenu />
         </div>
