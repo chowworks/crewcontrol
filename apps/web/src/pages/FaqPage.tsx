@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 import { FAQ } from '@/lib/faq'
 
 /** Stub FAQ page. Questions live in lib/faq.ts so the homepage can show the first few. */
@@ -31,7 +30,6 @@ export function FaqPage() {
           .
         </p>
       </main>
-      <SiteFooter />
     </div>
   )
 }

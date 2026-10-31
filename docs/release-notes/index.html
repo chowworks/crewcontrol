@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Release notes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+  HOW TO ADD AN ENTRY
+  1. Copy one <article class="entry"> block (keep id = a short slug, data-short = the short name and
+     data-summary = one sentence: the timeline reads them) and paste it at the TOP of <main id="entries">
+     (newest first).
+  2. Set data-status to "review" or "shipped", the date, title, the two or three plain sentences, the
+     "Good to know" points, links, and screenshots. Screenshots live in docs/screenshots/<feature>/
+     (reference them as ../screenshots/<feature>/NN-name.png). Fictional data only.
+  3. When an entry that was "In review" ships, change its status chip and data-status.
+  The page is published at /release-notes/ by the web build (apps/web/vite.config.ts copies it and the
+  screenshots it links) and linked from the site footer. The repository is public, so screenshots and
+  text use fictional people, trips and amounts only. Copied from Audit Differently's release notes.
+-->
+    <style>
+      /* The app's palette and faces (apps/web/tailwind.config.js): royal, ink, ground and marigold. */
+      :root {
+        --ink: #0f1c2e;
+        --navy: #0f1c2e;
+        --muted: #4a5568;
+        --paper: #f3f6f5;
+        --surface: #ffffff;
+        --surface-alt: #f1ecf8;
+        --line: #e2e8ea;
+        --accent: #5a2d91;
+        --brand: #f2b33d;
+        --on-dark: #ffffff;
+        --radius: 12px;
+        --header-bg: #ffffff;
+        --header-ink: #0f1c2e;
+        --ok: #5a2d91;
+        --warn: #8a5a00;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.5 'Instrument Sans',
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+      }
+      :focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 3px;
+      }
+      .wrap {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 32px;
+      }
+      .top {
+        background: var(--header-bg);
+        color: var(--header-ink);
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px 32px;
+        padding-top: 22px;
+        padding-bottom: 22px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--header-ink);
+        text-decoration: none;
+      }
+      .wordmark {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-weight: 800;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+      }
+      .wordmark span {
+        color: var(--accent);
+      }
+      .top {
+        border-bottom: 1px solid var(--line);
+      }
+      .bar nav a {
+        color: var(--header-ink);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .bar nav a:hover {
+        color: var(--accent);
+      }
+      header.page {
+        padding-top: 28px;
+      }
+      h1,
+      .entry h2 {
+        font-family: 'Bricolage Grotesque', sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-weight: 800;
+        font-size: 28px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        color: var(--navy);
+      }
+      .lede {
+        margin: 0;
+        color: var(--muted);
+      }
+      .find {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+        margin-top: 18px;
+      }
+      .find h2 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .tools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tools button {
+        padding: 6px 14px;
+        min-height: 44px;
+        border: 1px solid var(--accent);
+        border-radius: var(--radius);
+        background: transparent;
+        color: var(--accent);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .tools button[aria-pressed='true'] {
+        background: var(--accent);
+        color: var(--on-dark);
+      }
+      .search {
+        width: 280px;
+        max-width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--muted);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+        font-size: 14px;
+      }
+      .counts {
+        margin: 0;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      nav.timeline ol {
+        list-style: none;
+        margin: 26px 0 0;
+        padding: 0 0 0 24px;
+        border-left: 2px solid var(--line);
+      }
+      .tl-day {
+        position: relative;
+        margin: 22px 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .tl-day:first-child {
+        margin-top: 0;
+      }
+      .tl-day::before {
+        content: '';
+        position: absolute;
+        left: -33px;
+        top: 1px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 3px solid var(--paper);
+      }
+      .tl-item {
+        position: relative;
+        margin: 0 0 6px;
+        font-size: 15px;
+        line-height: 1.4;
+        display: grid;
+        grid-template-columns: 270px 92px minmax(0, 1fr);
+        align-items: baseline;
+        column-gap: 12px;
+      }
+      .tl-item::before {
+        content: '';
+        position: absolute;
+        left: -30px;
+        top: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .tl-item[data-status='review']::before {
+        background: var(--warn);
+      }
+      .tl-item a {
+        font-weight: 600;
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .tl-item a:hover {
+        text-decoration: underline;
+      }
+      .tl-item .chip {
+        justify-self: start;
+        margin: 0;
+        vertical-align: baseline;
+      }
+      .tl-item .tl-sum {
+        color: var(--muted);
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      @media (max-width: 860px) {
+        .tl-item {
+          grid-template-columns: minmax(0, 1fr) auto;
+          row-gap: 0;
+          margin-bottom: 10px;
+        }
+        .tl-item .tl-sum {
+          grid-column: 1 / -1;
+          white-space: normal;
+        }
+      }
+      .tl-month {
+        position: relative;
+        margin: 14px 0 8px;
+      }
+      .tl-month > details > summary {
+        cursor: pointer;
+        list-style: none;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .tl-month > details > summary::-webkit-details-marker {
+        display: none;
+      }
+      .tl-month > details > summary::before {
+        content: '\25b8';
+        display: inline-block;
+        margin-right: 8px;
+        color: var(--accent);
+        transition: transform 0.15s;
+      }
+      .tl-month > details[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .tl-month > details > summary small {
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: none;
+        margin-left: 6px;
+      }
+      .tl-month ol {
+        list-style: none;
+        margin: 10px 0 0;
+        padding: 0;
+      }
+      .tl-month .tl-day {
+        margin-top: 14px;
+      }
+      .tl-month .tl-day::before {
+        left: -33px;
+      }
+      main {
+        padding-top: 12px;
+        padding-bottom: 64px;
+      }
+      .empty-note {
+        margin: 24px 0;
+        color: var(--muted);
+      }
+      .entry {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 16px 24px 22px;
+        margin: 16px 0;
+      }
+      .entry[hidden] {
+        display: none;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 9px;
+        border: 1px solid var(--muted);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        background: var(--surface);
+      }
+      .chip.shipped {
+        color: var(--ok);
+        border-color: var(--ok);
+      }
+      .chip.review {
+        color: var(--warn);
+        border-color: var(--warn);
+      }
+      .entry h2 {
+        margin: 2px 0 8px;
+        color: var(--navy);
+        font-weight: 700;
+        font-size: 20px;
+        line-height: 1.25;
+      }
+      .entry p {
+        margin: 0 0 10px;
+      }
+      .know {
+        margin: 12px 0 0;
+        padding: 10px 14px;
+        border-left: 4px solid var(--accent);
+        background: var(--surface-alt);
+        border-radius: 0 8px 8px 0;
+        font-size: 14px;
+      }
+      .know strong {
+        display: block;
+        margin-bottom: 2px;
+      }
+      .know ul {
+        margin: 4px 0 0;
+        padding-left: 20px;
+      }
+      .links {
+        margin-top: 12px;
+        font-size: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+      }
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 12px;
+        margin: 14px 0 0;
+      }
+      .shots figure {
+        margin: 0;
+      }
+      .shots a {
+        cursor: zoom-in;
+      }
+      .shots img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .shots figcaption {
+        margin-top: 5px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      footer {
+        padding-bottom: 40px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .lb {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        grid-template-rows: 1fr auto;
+        background: rgba(15, 28, 46, 0.96);
+        padding: 16px;
+      }
+      .lb[hidden] {
+        display: none;
+      }
+      .lb-stage {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 0;
+      }
+      .lb-stage img {
+        justify-self: center;
+        max-width: 100%;
+        max-height: calc(100vh - 150px);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .lb button {
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        color: #fff;
+        width: 44px;
+        height: 44px;
+        font-size: 22px;
+        cursor: pointer;
+      }
+      .lb button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+      .lb button:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .lb-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+      .lb-cap {
+        text-align: center;
+        color: #f6f7f4;
+        font-size: 15px;
+        padding: 8px 56px 4px;
+      }
+      .lb-cap small {
+        display: block;
+        color: #b8c4cf;
+        margin-top: 2px;
+      }
+      @media (max-width: 640px) {
+        .wrap {
+          padding: 0 16px;
+        }
+        .bar {
+          padding-top: 14px;
+          padding-bottom: 14px;
+        }
+        h1 {
+          font-size: 24px;
+        }
+        .entry {
+          padding: 14px 16px 18px;
+        }
+        .lb-stage {
+          grid-template-columns: 1fr;
+        }
+        .lb-prev,
+        .lb-next {
+          position: absolute;
+          bottom: 64px;
+        }
+        .lb-prev {
+          left: 16px;
+        }
+        .lb-next {
+          right: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div class="wrap bar">
+        <a class="brand" href="/">
+          <svg width="34" height="34" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <rect width="64" height="64" rx="16" fill="#5A2D91" />
+            <path
+              d="M33 16H21a8 8 0 0 0-8 8v11a8 8 0 0 0 8 8h3v7.5l9.5-7.5H43a8 8 0 0 0 8-8v-3"
+              fill="none"
+              stroke="#fff"
+              stroke-width="5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <g transform="translate(33 7) scale(1.15)">
+              <path d="M0 11 21 1 15 22 9.5 14.5Z" fill="#F2B33D" />
+              <path d="M9.5 14.5 21 1 9 20Z" fill="#D99A22" />
+            </g>
+          </svg>
+          <span class="wordmark">Travel <span>HQ</span></span>
+        </a>
+        <nav aria-label="Main"><a href="/">Back to Travel HQ</a></nav>
+      </div>
+    </div>
+
+    <header class="wrap page">
+      <h1>Release notes</h1>
+      <p class="lede">
+        What changed in Travel HQ, newest first, in plain words. All trips and people shown are
+        fictional.
+      </p>
+      <aside class="find" aria-label="Find updates">
+        <h2>Find an update</h2>
+        <div class="tools" role="group" aria-label="Filter entries">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="review" aria-pressed="false">In review</button>
+          <button type="button" data-filter="shipped" aria-pressed="false">Shipped</button>
+        </div>
+        <input
+          class="search"
+          id="q"
+          type="search"
+          placeholder="Search, e.g. reminders"
+          aria-label="Search updates"
+        />
+        <p class="counts" id="counts"></p>
+      </aside>
+      <nav class="timeline" aria-label="Timeline"><ol id="toc"></ol></nav>
+    </header>
+
+    <main id="entries" class="wrap">
+      <p class="empty-note" id="none" hidden>No updates match. Clear the search or choose All.</p>
+
+      <article
+        class="entry"
+        id="status-and-release-notes"
+        data-status="shipped"
+        data-short="Status page and release notes"
+        data-summary="Travel HQ watches itself for server errors and shows it on a public status page, and this page lists what changed."
+      >
+        <div class="meta">
+          <span class="chip shipped">SHIPPED</span><time datetime="2026-10-31">Oct 31, 2026</time>
+        </div>
+        <h2>Status page and release notes</h2>
+        <p>
+          Travel HQ now checks itself every five minutes. If anyone hit a server error in the last
+          15 minutes, or Travel HQ doesn't answer, the team gets an email and the Travel HQ row on
+          the public status page turns red.
+        </p>
+        <p>
+          This page is new too: what changed, newest first, linked from the bottom of every page.
+        </p>
+        <div class="know">
+          <strong>Good to know</strong>
+          <ul>
+            <li>
+              The check counts that something failed and where, never whose trip or who it was.
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <article
+        class="entry"
+        id="launch"
+        data-status="shipped"
+        data-short="Initial release"
+        data-summary="Run a group trip from one place: a trip page, sign-ups with a signed agreement, payment plans, reminders and announcements."
+      >
+        <div class="meta">
+          <span class="chip shipped">SHIPPED</span><time datetime="2026-10-31">Oct 31, 2026</time>
+        </div>
+        <h2>Initial release: Travel HQ is live</h2>
+        <p>
+          Travel HQ v1 went live at travel-hq.app on October 31, 2026. An organizer builds one trip
+          page with photos, highlights, key dates and a FAQ, and shares its link (or a flyer made
+          from it) with the group. Guests tap "I want to join", sign the trip agreement and,
+          depending on how the trip runs, are accepted first or pay first.
+        </p>
+        <p>
+          Trip Control puts what needs the organizer at the top: guests to accept, payments to
+          confirm, questions to answer. Trip Financials shows who has paid and who owes what, with
+          exports for a spreadsheet. Guests pay the organizer directly, by Zelle, Cash App or cash,
+          and Travel HQ keeps the record. It never moves the money.
+        </p>
+        <div class="know">
+          <strong>Good to know</strong>
+          <ul>
+            <li>
+              Payment plans with installments, scheduled email reminders (guests can stop them), and
+              forwarded payment receipts matched to the guest who paid.
+            </li>
+            <li>
+              Rooms with a picture of each, an optional price per room, a waitlist for full trips,
+              and one person signing up and paying for travelers they look after.
+            </li>
+            <li>Announcements go to accepted guests on the trip page, and they can reply.</li>
+            <li>
+              An owner adds co-organizers on the People screen, and can delete a trip after
+              downloading everything on it.
+            </li>
+            <li>
+              During the early access preview, the Travel HQ team starts new trips; anyone else can
+              ask for early access. Text messages aren't sent yet; email is.
+            </li>
+          </ul>
+        </div>
+        <div class="shots">
+          <figure>
+            <a href="../screenshots/trip-faq/01-trip-page-questions-desktop.png"
+              ><img
+                src="../screenshots/trip-faq/01-trip-page-questions-desktop.png"
+                alt="A trip page: highlights, who's going, key dates, questions and the join button"
+            /></a>
+            <figcaption>The trip page guests open from the group chat</figcaption>
+          </figure>
+          <figure>
+            <a href="../screenshots/pay-for-travelers/05-organizer-actions-1280.png"
+              ><img
+                src="../screenshots/pay-for-travelers/05-organizer-actions-1280.png"
+                alt="Trip Control: the actions that need the organizer, one row each"
+            /></a>
+            <figcaption>Trip Control: what needs the organizer, at the top</figcaption>
+          </figure>
+          <figure>
+            <a href="../screenshots/balance-adjustments/06-trip-financials-1280.png"
+              ><img
+                src="../screenshots/balance-adjustments/06-trip-financials-1280.png"
+                alt="Trip Financials: collected, still owed and each guest's balance"
+            /></a>
+            <figcaption>Trip Financials: who has paid and who owes what</figcaption>
+          </figure>
+          <figure>
+            <a href="../screenshots/receipt-forwarding/02-match-receipt-dialog-1280.png"
+              ><img
+                src="../screenshots/receipt-forwarding/02-match-receipt-dialog-1280.png"
+                alt="Match this receipt: a forwarded Zelle receipt matched to the guest it paid for"
+            /></a>
+            <figcaption>A forwarded receipt, matched to the guest it paid for</figcaption>
+          </figure>
+        </div>
+      </article>
+    </main>
+
+    <footer class="wrap">
+      <p>
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
+        <a href="/">Back to Travel HQ</a>
+      </p>
+    </footer>
+
+    <script>
+      // Timeline: the last RECENT_DAYS days stay open day by day; older updates roll into
+      // collapsed month groups. Filter buttons and a search box narrow both the timeline and the entries.
+      ;(function () {
+        var RECENT_DAYS = 5
+        var entries = Array.prototype.slice.call(document.querySelectorAll('.entry'))
+        var toc = document.getElementById('toc')
+        var MONTHS = [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ]
+        var DAY = 86400000
+        function when(e) {
+          var t = e.querySelector('time')
+          var d = new Date((t && t.getAttribute('datetime')) + 'T00:00:00Z')
+          return {
+            d: d,
+            label: MONTHS[d.getUTCMonth()].slice(0, 3) + ' ' + d.getUTCDate(),
+            month: MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(),
+          }
+        }
+        var newest = Math.max.apply(
+          null,
+          entries.map(function (e) {
+            return when(e).d.getTime()
+          })
+        )
+        function item(e, day) {
+          var li = document.createElement('li')
+          li.className = 'tl-item'
+          li.dataset.status = e.dataset.status
+          li.dataset.day = day
+          li.dataset.id = e.id
+          var a = document.createElement('a')
+          a.href = '#' + e.id
+          a.textContent = e.dataset.short || e.querySelector('h2').textContent
+          var chip = document.createElement('span')
+          chip.className = 'chip ' + e.dataset.status
+          chip.textContent = e.dataset.status === 'review' ? 'IN REVIEW' : 'SHIPPED'
+          var sum = document.createElement('span')
+          sum.className = 'tl-sum'
+          sum.textContent = e.dataset.summary || ''
+          sum.title = e.dataset.summary || ''
+          li.appendChild(a)
+          li.appendChild(chip)
+          li.appendChild(sum)
+          return li
+        }
+        var recent = []
+        var older = {}
+        var order = []
+        entries.forEach(function (e) {
+          var w = when(e)
+          if ((newest - w.d.getTime()) / DAY < RECENT_DAYS) recent.push([e, w])
+          else {
+            if (!older[w.month]) {
+              older[w.month] = []
+              order.push(w.month)
+            }
+            older[w.month].push([e, w])
+          }
+        })
+        function days(list, into) {
+          var last = null
+          list.forEach(function (pair) {
+            if (pair[1].label !== last) {
+              var h = document.createElement('li')
+              h.className = 'tl-day'
+              h.dataset.day = pair[1].label
+              h.textContent = pair[1].label
+              into.appendChild(h)
+              last = pair[1].label
+            }
+            into.appendChild(item(pair[0], pair[1].label))
+          })
+        }
+        days(recent, toc)
+        order.forEach(function (m) {
+          var li = document.createElement('li')
+          li.className = 'tl-month'
+          var det = document.createElement('details')
+          var sm = document.createElement('summary')
+          sm.appendChild(document.createTextNode(m))
+          var small = document.createElement('small')
+          small.textContent = older[m].length + (older[m].length === 1 ? ' update' : ' updates')
+          sm.appendChild(small)
+          det.appendChild(sm)
+          var inner = document.createElement('ol')
+          days(older[m], inner)
+          det.appendChild(inner)
+          li.appendChild(det)
+          toc.appendChild(li)
+        })
+
+        var status = 'all'
+        var q = ''
+        var qbox = document.getElementById('q')
+        var none = document.getElementById('none')
+        var buttons = document.querySelectorAll('[data-filter]')
+        var text = {}
+        entries.forEach(function (e) {
+          text[e.id] = (e.textContent + ' ' + (e.dataset.short || '')).toLowerCase()
+        })
+        function matches(e) {
+          return (
+            (status === 'all' || e.dataset.status === status) &&
+            (!q || text[e.id].indexOf(q) !== -1)
+          )
+        }
+        var countsEl = document.getElementById('counts')
+        function counts() {
+          var r = entries.filter(function (e) {
+            return e.dataset.status === 'review'
+          }).length
+          countsEl.textContent =
+            r +
+            ' in review · ' +
+            (entries.length - r) +
+            ' shipped · ' +
+            entries.length +
+            (entries.length === 1 ? ' update' : ' updates')
+        }
+        counts()
+        function apply() {
+          var ok = {}
+          var count = 0
+          entries.forEach(function (e) {
+            e.hidden = !matches(e)
+            if (!e.hidden) {
+              ok[e.id] = true
+              count++
+            }
+          })
+          none.hidden = count > 0
+          Array.prototype.forEach.call(toc.querySelectorAll('.tl-item'), function (li) {
+            li.hidden = !ok[li.dataset.id]
+          })
+          Array.prototype.forEach.call(toc.querySelectorAll('.tl-day'), function (h) {
+            var sib = h.nextElementSibling
+            var any = false
+            while (
+              sib &&
+              !sib.classList.contains('tl-day') &&
+              !sib.classList.contains('tl-month')
+            ) {
+              if (sib.classList.contains('tl-item') && !sib.hidden) any = true
+              sib = sib.nextElementSibling
+            }
+            h.hidden = !any
+          })
+          Array.prototype.forEach.call(toc.querySelectorAll('.tl-month'), function (m) {
+            var vis = m.querySelectorAll('.tl-item:not([hidden])').length
+            m.hidden = vis === 0
+            var det = m.querySelector('details')
+            if (q || status !== 'all') det.open = vis > 0
+          })
+        }
+        buttons.forEach(function (b) {
+          b.addEventListener('click', function () {
+            status = b.dataset.filter
+            buttons.forEach(function (x) {
+              x.setAttribute('aria-pressed', x === b ? 'true' : 'false')
+            })
+            apply()
+          })
+        })
+        qbox.addEventListener('input', function () {
+          q = qbox.value.trim().toLowerCase()
+          apply()
+        })
+
+        // Screenshot viewer: stays on the page, steps through one entry's screenshots.
+        var lb = document.createElement('div')
+        lb.className = 'lb'
+        lb.hidden = true
+        lb.setAttribute('role', 'dialog')
+        lb.setAttribute('aria-modal', 'true')
+        lb.setAttribute('aria-label', 'Screenshot viewer')
+        lb.innerHTML =
+          '<button type="button" class="lb-close" aria-label="Close viewer">×</button>' +
+          '<div class="lb-stage">' +
+          '<button type="button" class="lb-prev" aria-label="Previous screenshot">‹</button>' +
+          '<img alt="" />' +
+          '<button type="button" class="lb-next" aria-label="Next screenshot">›</button>' +
+          '</div>' +
+          '<div class="lb-cap" aria-live="polite"></div>'
+        document.body.appendChild(lb)
+        var img = lb.querySelector('img')
+        var cap = lb.querySelector('.lb-cap')
+        var prev = lb.querySelector('.lb-prev')
+        var next = lb.querySelector('.lb-next')
+        var close = lb.querySelector('.lb-close')
+        var set = []
+        var at = 0
+        var opener = null
+
+        function show(i) {
+          at = i
+          var a = set[i]
+          var im = a.querySelector('img')
+          img.src = a.href
+          img.alt = im ? im.alt : ''
+          var fc = a.parentNode.querySelector('figcaption')
+          cap.textContent = ''
+          cap.appendChild(
+            document.createTextNode(fc ? fc.textContent.replace(/\s+/g, ' ').trim() : '')
+          )
+          var small = document.createElement('small')
+          small.textContent = i + 1 + ' of ' + set.length
+          cap.appendChild(small)
+          prev.disabled = i === 0
+          next.disabled = i === set.length - 1
+          // Warm the neighbours so stepping feels instant.
+          ;[i - 1, i + 1].forEach(function (j) {
+            if (set[j]) new Image().src = set[j].href
+          })
+        }
+        function open(list, i, from) {
+          set = list
+          opener = from
+          lb.hidden = false
+          document.body.style.overflow = 'hidden'
+          show(i)
+          close.focus()
+        }
+        function shut() {
+          lb.hidden = true
+          document.body.style.overflow = ''
+          if (opener) opener.focus()
+        }
+        document.querySelectorAll('.shots').forEach(function (g) {
+          var links = Array.prototype.slice.call(g.querySelectorAll('a'))
+          links.forEach(function (a, i) {
+            a.addEventListener('click', function (ev) {
+              ev.preventDefault()
+              open(links, i, a)
+            })
+          })
+        })
+        prev.addEventListener('click', function () {
+          if (at > 0) show(at - 1)
+        })
+        next.addEventListener('click', function () {
+          if (at < set.length - 1) show(at + 1)
+        })
+        close.addEventListener('click', shut)
+        lb.addEventListener('click', function (ev) {
+          if (ev.target === lb || ev.target.classList.contains('lb-stage')) shut()
+        })
+        document.addEventListener('keydown', function (ev) {
+          if (lb.hidden) return
+          if (ev.key === 'Escape') shut()
+          else if (ev.key === 'ArrowLeft' && at > 0) show(at - 1)
+          else if (ev.key === 'ArrowRight' && at < set.length - 1) show(at + 1)
+          else if (ev.key === 'Tab') {
+            var f = [close, prev, next].filter(function (b) {
+              return !b.disabled
+            })
+            var i = f.indexOf(document.activeElement)
+            ev.preventDefault()
+            f[(i + (ev.shiftKey ? f.length - 1 : 1)) % f.length].focus()
+          }
+        })
+      })()
+    </script>
+  </body>
+</html>

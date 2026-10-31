@@ -3,7 +3,6 @@ import { CircleCheck } from 'lucide-react'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 import { ApiError, api } from '@/lib/api'
 
 const EMPTY = { name: '', email: '', topic: 'question' as ContactTopic, message: '', website: '' }
@@ -183,8 +182,6 @@ export function ContactPage() {
           </form>
         )}
       </main>
-
-      <SiteFooter />
     </div>
   )
 }

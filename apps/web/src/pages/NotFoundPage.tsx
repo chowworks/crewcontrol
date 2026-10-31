@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { Logo } from '@/components/Logo'
-import { SiteFooter } from '@/components/SiteFooter'
 
 /**
  * The page for an address that leads nowhere, and for a trip that doesn't exist or isn't published. Like Audit
@@ -34,7 +33,6 @@ export function NotFoundPage({ message = "We couldn't find that page." }: { mess
           </Link>
         </div>
       </main>
-      <SiteFooter />
     </div>
   )
 }

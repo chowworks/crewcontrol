@@ -591,3 +591,15 @@ model TripQuestion {
   @@index([tripId])
   @@index([askerUserId])
 }
+
+// Failures people hit through no fault of their own, counted by /api/health/server-errors and watched by Better Stack
+// (ops/monitoring.ts). A row is when, which kind and the route pattern: never a trip, person, email or error message,
+// so not a tenant table. See migration 20261031020000.
+model ServiceFailure {
+  id    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  at    DateTime @default(now())
+  kind  String // 'server'
+  route String // method and route pattern, such as 'POST /api/join/:slug'
+
+  @@index([kind, at])
+}

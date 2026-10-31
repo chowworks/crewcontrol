@@ -26,6 +26,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test
+      - run: npm run test:scripts
 
   # Deploys switch on once the Railway project and Vercel project exist: set the repository variable
   # DEPLOY_ENABLED=true and the secrets RAILWAY_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
@@ -108,3 +109,27 @@ jobs:
         run: railway up --service "${{ vars.RAILWAY_API_SERVICE }}" --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # Applies ops/monitoring.ts to Better Stack: the monitors, the "Travel HQ" monitor group and this product's section
+  # of the shared status page (docs/monitoring.md). Runs after the API deploy, so the health route it watches is live
+  # before a monitor checks it. Never deletes anything. Without the BETTERSTACK_API_TOKEN secret the script prints that
+  # it skipped and exits 0; nothing depends on this job.
+  betterstack:
+    name: Sync Better Stack monitoring (ops/monitoring.ts)
+    needs: [deploy-api]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      # No npm install: the script uses only Node's own modules.
+      - run: npm run betterstack:sync
+        env:
+          BETTERSTACK_API_TOKEN: ${{ secrets.BETTERSTACK_API_TOKEN }}
+          # CI deploys production only (dev is deployed by hand), so the monitors watch production's API.
+          API_URL: https://api.travel-hq.app

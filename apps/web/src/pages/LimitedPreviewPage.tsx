@@ -5,7 +5,6 @@ import { AccountMenu } from '@/components/AccountMenu'
 import { field } from '@/components/EditorParts'
 import { Logo } from '@/components/Logo'
 import { SampleTripCards } from '@/components/SampleTripCards'
-import { SiteFooter } from '@/components/SiteFooter'
 import { api } from '@/lib/api'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -175,10 +174,6 @@ export function LimitedPreviewPage() {
           </Link>
         </p>
       </SampleTripCards>
-
-      <div className="pt-16">
-        <SiteFooter />
-      </div>
     </div>
   )
 }
