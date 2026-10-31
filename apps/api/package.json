@@ -17,6 +17,8 @@
     "sync:types": "node scripts/sync-types.mjs",
     "role:create": "ts-node scripts/create-app-role.ts",
     "role:ensure": "ts-node scripts/ensure-app-role.ts",
+    "deploy:start": "prisma migrate deploy && npm run role:ensure && node dist/main.js",
+    "deploy:start:dev": "prisma migrate deploy && npm run role:ensure && npm run db:seed && node dist/main.js",
     "photos:move-to-r2": "ts-node scripts/move-photos-to-r2.ts"
   },
   "prisma": {

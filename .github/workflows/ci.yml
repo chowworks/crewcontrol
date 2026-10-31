@@ -16,8 +16,8 @@ jobs:
     name: Lint, Typecheck, Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: npm install
@@ -39,8 +39,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: npm install
@@ -56,8 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       # The railway SDK (root devDependency) evaluates .railway/railway.ts.
@@ -78,9 +78,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @railway/cli@5.63.1
-      # The API builds from apps/api alone (.railway/railway.ts), so that folder is the upload.
-      - run: railway up apps/api --path-as-root --service "${{ vars.RAILWAY_API_SERVICE }}" --ci
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # Railway rebuilds the API only when a file in its watch paths changed (.railway/railway.ts: apps/api/**,
+      # packages/types/** and package*.json, gitignore-style, so the last matches at any depth). Keep this list in step
+      # with that one. A push that changed one of them uploads and waits for the build (--ci), so a failed build fails
+      # this job; any other push uploads nothing, since Railway would build nothing and --ci would wait for a build that
+      # never comes. A re-run, or a push whose previous commit is unknown, uploads without waiting.
+      - name: Did this push change the API?
+        id: api
+        run: |
+          before='${{ github.event.before }}'
+          if [ "${{ github.run_attempt }}" != "1" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            echo "deploy=detach" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$before" "${{ github.sha }}" | grep -qE '^(apps/api/|packages/types/)|(^|/)package[^/]*\.json$'; then
+            echo "deploy=wait" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=skip" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.api.outputs.deploy != 'skip'
+        run: npm install -g @railway/cli@5.63.1
+      # Uploads the checked-out tree; Railway builds and starts it (deploy:start runs the migrations and role:ensure).
+      - if: steps.api.outputs.deploy == 'wait'
+        run: railway up --service "${{ vars.RAILWAY_API_SERVICE }}" --ci
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - if: steps.api.outputs.deploy == 'detach'
+        run: railway up --service "${{ vars.RAILWAY_API_SERVICE }}" --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

@@ -40,15 +40,15 @@ use those, set `PORT` and `FRONTEND_URL` in `apps/api/.env` and `VITE_API_URL` i
 
 | Path             | What it is                                                             |
 | ---------------- | ---------------------------------------------------------------------- |
-| `apps/api`       | NestJS API, Prisma, Postgres. Deployed to Railway from this folder.    |
+| `apps/api`       | NestJS API, Prisma, Postgres. Railway builds it from the repo root.    |
 | `apps/web`       | Vite + React + Tailwind. Guest trip page and organizer editor. Vercel. |
 | `packages/types` | Shared types. The API keeps a generated copy (see below).              |
 | `.railway`       | Railway services and variables, declared in code.                      |
 
 ## Changing shared types
 
-Edit `packages/types/src/index.ts`, then `npm run sync:types -w @cc/api`. The API's Railway build only sees
-`apps/api`, so it carries a copy at `apps/api/src/trips/trip-types.ts`; a test fails if the two differ.
+Edit `packages/types/src/index.ts`, then `npm run sync:types -w @cc/api`. The API carries a copy, from when its
+Railway build saw only `apps/api`, at `apps/api/src/trips/trip-types.ts`; a test fails if the two differ.
 
 ## Changing the database
 

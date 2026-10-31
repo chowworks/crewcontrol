@@ -13,10 +13,9 @@ import { bucket, defineRailway, github, postgres, preserve, project, service } f
  */
 const REGION = 'us-east4-eqdc4a'
 
-// Nixpacks picks up apps/api/nixpacks.toml from the root directory. The API's build only has apps/api, which is
-// why it carries a copy of packages/types (DEVELOPMENT.md).
+// Built from the repository root as one npm workspace, as Audit Differently is; nixpacks.toml at the root installs it.
 const build = {
-  buildCommand: 'npx prisma generate && /app/node_modules/.bin/nest build',
+  buildCommand: 'npm run build -w @cc/api',
   buildEnvironment: 'V3',
   builder: 'NIXPACKS',
 } as const
@@ -34,8 +33,8 @@ export default defineRailway((ctx) => {
 
   // `dev`: the shared development environment. Its Postgres has a public TCP proxy so laptops can point
   // apps/api/.env at it (its DATABASE_PUBLIC_URL) and run the seed there; it holds the fictional seed trips and
-  // nothing real. `api-dev` runs beside it with no GitHub source: CI deploys main to it, and
-  // apps/api/scripts/deploy-dev.sh deploys any branch's working tree by hand. There are no secrets in dev, so
+  // nothing real. `api-dev` runs beside it with no GitHub source: apps/api/scripts/deploy-dev.sh deploys any
+  // branch's working tree to it by hand. There are no secrets in dev, so
   // every value but the web app's address is set here.
   if (ctx.isEnvironment('dev')) {
     Postgres.networking = { privateNetworkEndpoint: 'postgres', tcpProxies: { '5432': {} } }
@@ -43,8 +42,7 @@ export default defineRailway((ctx) => {
       build,
       // Migrations as the owner, then the restricted role kept in step with this deploy (scripts/ensure-app-role.ts),
       // then the seed puts the three demo trips back in their starting shape (prisma/seed.ts).
-      start:
-        'npx prisma migrate deploy && npm run role:ensure && npm run db:seed && node dist/main.js',
+      start: 'npm run deploy:start:dev -w @cc/api',
       deploy: { restartPolicyMaxRetries: 3 },
       replicas: { [REGION]: 1 },
       env: {
@@ -88,13 +86,10 @@ export default defineRailway((ctx) => {
   // Railway's point-in-time recovery for Postgres keeps its log in this bucket (switched on in the dashboard).
   const PostgresPITR = bucket('Postgres-PITR', { region: 'iad' })
   const api = service('crewcontrol-api', {
-    source: github('chowworks/crewcontrol', {
-      checkSuites: true,
-      rootDirectory: '/apps/api',
-    }),
-    build: { ...build, watchPatterns: ['apps/api/**', 'packages/types/**'] },
+    source: github('chowworks/crewcontrol', { checkSuites: true }),
+    build: { ...build, watchPatterns: ['apps/api/**', 'packages/types/**', 'package*.json'] },
     // As in dev: migrations as the owner, then the restricted role kept in step (scripts/ensure-app-role.ts). No seed.
-    start: 'npx prisma migrate deploy && npm run role:ensure && node dist/main.js',
+    start: 'npm run deploy:start -w @cc/api',
     deploy: { restartPolicyMaxRetries: 3 },
     replicas: { [REGION]: 1 },
     env: {

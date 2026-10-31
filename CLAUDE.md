@@ -231,8 +231,8 @@ between them:
   (the restricted role, row-level security on, as on Railway) and `SCHEMA_DATABASE_URL` from `dev-db-url.sh` (the owner).
   `.claude/launch.json` runs `web` on 5373 and `api` on 3200, beside the other Differently products. Details in
   `DEVELOPMENT.md`.
-- The API keeps a generated copy of `packages/types` (`apps/api/src/trips/trip-types.ts`) because its Railway
-  build only has `apps/api`. After changing `packages/types`, run `npm run sync:types -w @cc/api`; a test fails
+- The API keeps a generated copy of `packages/types` (`apps/api/src/trips/trip-types.ts`), from when its Railway
+  build had only `apps/api`. After changing `packages/types`, run `npm run sync:types -w @cc/api`; a test fails
   CI if they differ.
 
 ## Database
