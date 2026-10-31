@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider } from './lib/auth'
@@ -15,5 +16,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
+    <Analytics />
   </React.StrictMode>
 )
