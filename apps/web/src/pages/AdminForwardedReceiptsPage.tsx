@@ -10,13 +10,16 @@ import {
   CheckCircle2,
   Inbox,
   KeyRound,
+  ChevronLeft,
+  ChevronRight,
   Mail,
   RefreshCw,
+  Search,
   Trash2,
   Unlock,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dropdown } from '@/components/Dropdown'
@@ -163,6 +166,120 @@ const EVERY = [
   { value: 60, label: 'Refresh every minute' },
 ]
 
+const PAGE_SIZE = 10
+
+/**
+ * A list searched and shown ten rows at a time, as every table on this page is: each word typed must appear in one of
+ * the row's fields.
+ */
+function useSearchPages<T>(rows: T[] | undefined, fields: (row: T) => (string | null)[]) {
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
+  const all = useMemo(() => rows ?? [], [rows])
+  const matching = useMemo(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+    return all.filter((r) => {
+      const text = fields(r).join(' ').toLowerCase()
+      return words.every((w) => text.includes(w))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, query])
+  const pages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE))
+  // A refresh can shorten the list under the page being read: stay on the last page there is.
+  const at = Math.min(page, pages - 1)
+  return {
+    query,
+    search: (q: string) => {
+      setQuery(q)
+      setPage(0)
+    },
+    total: all.length,
+    matching: matching.length,
+    shown: matching.slice(at * PAGE_SIZE, (at + 1) * PAGE_SIZE),
+    at,
+    pages,
+    setPage,
+  }
+}
+type SearchPages = Pick<
+  ReturnType<typeof useSearchPages>,
+  'query' | 'search' | 'total' | 'matching' | 'at' | 'pages' | 'setPage'
+> & { shown: unknown[] }
+
+/** The search box over a list, the count under it, and a line when nothing matches. */
+function SearchBox({
+  list,
+  label,
+  placeholder,
+  noun,
+}: {
+  list: SearchPages
+  label: string
+  placeholder: string
+  noun: string
+}) {
+  const many = (n: number) =>
+    `${n} ${n === 1 ? noun : noun.endsWith('s') ? `${noun}es` : `${noun}s`}`
+  return (
+    <>
+      <label className="relative">
+        <span className="sr-only">{label}</span>
+        <Search
+          className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted"
+          aria-hidden="true"
+        />
+        <input
+          type="search"
+          value={list.query}
+          onChange={(e) => list.search(e.target.value)}
+          placeholder={placeholder}
+          className="min-h-[48px] w-full rounded-xl border border-rule bg-white px-4 pl-11 text-[16px] text-ink focus:border-royal focus:outline-none focus:ring-2 focus:ring-royal/30"
+        />
+      </label>
+      <p className="text-sm text-muted" aria-live="polite">
+        {list.matching === list.total
+          ? many(list.total)
+          : `${list.matching} of ${many(list.total)}`}
+      </p>
+      {list.matching === 0 && <p className="text-body">No {noun} matches that search.</p>}
+    </>
+  )
+}
+
+/** Previous and Next under a list longer than one page. */
+function Pager({ list }: { list: SearchPages }) {
+  if (list.pages < 2) return null
+  const first = list.at * PAGE_SIZE + 1
+  return (
+    <nav
+      aria-label="Pages"
+      className="flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-3 text-sm"
+    >
+      <button
+        type="button"
+        className={outlined}
+        disabled={list.at === 0}
+        onClick={() => list.setPage(list.at - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        Previous
+      </button>
+      <span className="text-muted">
+        {first}–{first + list.shown.length - 1} of {list.matching}
+      </span>
+      <button
+        type="button"
+        className={outlined}
+        disabled={list.at === list.pages - 1}
+        onClick={() => list.setPage(list.at + 1)}
+      >
+        Next
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </nav>
+  )
+}
+
 /** Admin toolbox → Forwarded receipts. Envelope only: an email's text is never shown here. */
 export function AdminForwardedReceiptsPage() {
   const [data, setData] = useState<AdminForwardedReceipts | null>(null)
@@ -256,7 +373,8 @@ export function AdminForwardedReceiptsPage() {
 
   // As Audit Differently's "Not filed", the API lists only what no trip has, or what went wrong: a recorded or matched
   // email is its trip's, and its organizers see it there.
-  const emails = data?.emails ?? []
+  const list = useSearchPages(data?.emails, (r) => [r.toAddress, r.fromAddress, r.subject])
+  const emails = list.shown
   return (
     <AdminShell>
       <AdminToolHead to="/admin/forwarded-receipts" />
@@ -278,8 +396,19 @@ export function AdminForwardedReceiptsPage() {
               <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">{outcome}</p>
             )}
             {!data && !error && <p className="text-body">Loading…</p>}
-            {data && emails.length === 0 && (
+            {data && (
+              <p className="text-sm text-muted">Emails are kept for 30 days, then deleted.</p>
+            )}
+            {data && data.emails.length === 0 && (
               <p className="text-body">Nothing to look at. Every email reached its trip.</p>
+            )}
+            {data && data.emails.length > 0 && (
+              <SearchBox
+                list={list}
+                label="Search emails"
+                placeholder="Search by to, from or subject"
+                noun="email"
+              />
             )}
             {emails.length > 0 && (
               <>
@@ -361,6 +490,7 @@ export function AdminForwardedReceiptsPage() {
                     </li>
                   ))}
                 </ul>
+                <Pager list={list} />
               </>
             )}
             <AdminHow to="/admin/forwarded-receipts" />
@@ -424,7 +554,16 @@ function ReceiptsAddresses({
     .sort((a, b) => (a.tripName ?? '').localeCompare(b.tripName ?? ''))
   // An address in use again (released, then chosen) shows only as current.
   const inUse = new Set(current.map((a) => a.address))
-  const previous = byTrip(data.addresses.filter((a) => a.removedAt && !inUse.has(a.address)))
+  const currentList = useSearchPages(current, (a) => [a.tripName, a.email ?? a.address])
+  const previousList = useSearchPages(
+    // In trip order before paging, so each trip's rows stay together.
+    byTrip(data.addresses.filter((a) => a.removedAt && !inUse.has(a.address))).flatMap(
+      (g) => g.rows
+    ),
+    (a) => [a.tripName ?? 'Deleted trip', a.email ?? a.address]
+  )
+  // A trip's rows can run onto the next page, under its heading again.
+  const previous = byTrip(previousList.shown)
 
   async function release(a: AdminReceiptsAddress) {
     setBusy(true)
@@ -468,8 +607,16 @@ function ReceiptsAddresses({
           {current.length === 0 ? (
             <p className="text-body">No trip has chosen an address yet.</p>
           ) : (
+            <SearchBox
+              list={currentList}
+              label="Search current addresses"
+              placeholder="Search by trip or address"
+              noun="address"
+            />
+          )}
+          {currentList.shown.length > 0 && (
             <ul>
-              {current.map((a) => (
+              {currentList.shown.map((a) => (
                 <li
                   key={a.id}
                   className="grid gap-x-4 gap-y-0.5 border-t border-rule py-3 text-sm first:border-t-0 md:grid-cols-[1fr_1.4fr_auto]"
@@ -485,6 +632,7 @@ function ReceiptsAddresses({
               ))}
             </ul>
           )}
+          <Pager list={currentList} />
         </Card>
         <Card title="Previously used addresses">
           {error && (
@@ -492,9 +640,17 @@ function ReceiptsAddresses({
               {error}
             </p>
           )}
-          {previous.length === 0 ? (
+          {previousList.total === 0 ? (
             <p className="text-body">No address has been changed yet.</p>
           ) : (
+            <SearchBox
+              list={previousList}
+              label="Search previously used addresses"
+              placeholder="Search by trip or address"
+              noun="address"
+            />
+          )}
+          {previous.length > 0 && (
             <>
               <div className="hidden md:block">
                 <table className="w-full text-left text-sm">
@@ -558,6 +714,7 @@ function ReceiptsAddresses({
                   </div>
                 ))}
               </div>
+              <Pager list={previousList} />
             </>
           )}
           <details className="text-[13px] text-muted">
