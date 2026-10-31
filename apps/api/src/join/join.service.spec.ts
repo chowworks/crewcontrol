@@ -219,3 +219,95 @@ describe('owed', () => {
     expect(owed({ ...terms, adjustmentCents: -100000 })).toEqual({ left: 20000, dueNow: 20000 })
   })
 })
+
+// Signing someone else up (issue #46): the signer gets their copy, and the traveler hears who signed them up, unless
+// the traveler's email is the signer's own (a parent signing up a child with their address).
+describe('emails when someone signs a traveler up', () => {
+  async function signUp(travelerEmail: string) {
+    const sendToGuest = jest.fn()
+    const traveler = {
+      id: 'kid',
+      status: 'interested',
+      firstName: 'Ava',
+      lastName: 'Reyes',
+      waitlistedAt: null,
+      offeredAt: null,
+      roomId: null,
+      terms: null,
+      paymentMethods: [{ kind: 'zelle', label: '', handle: '555' }],
+      paymentInstructions: '',
+    }
+    const view = {
+      trip: {
+        slug: 'trip',
+        name: 'Trip',
+        organizerName: 'Chris',
+        joinMode: 'pay_first',
+        refundPolicy: 'spot_filled',
+        installmentCount: 1,
+        startDate: 's',
+        endDate: 'e',
+        costPerPersonCents: 1000,
+        paymentPlan: [{ dueOn: null, amountCents: 1000 }],
+        rooms: [],
+        options: {},
+      },
+      roomAgreements: [],
+      agreement: { text: 't', textHash: 'h' },
+      agreementOnBehalf: { text: 't', textHash: 'h' },
+      me: null,
+      managed: [] as unknown[],
+      termsOfUse: { accepted: true, version: 'v' },
+    }
+    const tx = {
+      guest: { create: async () => ({ id: 'kid' }) },
+      agreementSignature: { create: async () => ({}) },
+    }
+    const s = new JoinService(
+      {
+        trip: { findUniqueOrThrow: async () => ({ id: 't1' }) },
+        $transaction: async (fn: (t: unknown) => Promise<void>) => fn(tx),
+      } as unknown as PrismaService,
+      {
+        organizerContact: async () => ({ name: 'Chris', email: 'chris@example.com' }),
+      } as unknown as TripsService,
+      {} as unknown as TermsService,
+      {
+        contact: async () => ({ name: 'Dana Reyes', email: 'dana@example.com' }),
+      } as unknown as ClerkService,
+      { sendToGuest } as unknown as EmailsService
+    )
+    jest
+      .spyOn(s, 'view')
+      .mockResolvedValueOnce(view as never)
+      .mockResolvedValueOnce({ ...view, managed: [traveler] } as never)
+    await s.join(
+      'trip',
+      {
+        name: 'Ava Reyes',
+        phone: '555 010 0100',
+        email: travelerEmail,
+        typedName: 'Dana Reyes',
+        agreed: true,
+        agreementHash: 'h',
+        onBehalf: true,
+      },
+      caller,
+      { ip: '', userAgent: '' }
+    )
+    return sendToGuest.mock.calls.map(([kind, , facts]) => [kind, facts.email, facts.signedBy])
+  }
+
+  it('sends the signer their copy and tells the traveler who signed them up', async () => {
+    expect(await signUp('ava@example.com')).toEqual([
+      ['signed_up_for', 'dana@example.com', 'Dana Reyes'],
+      ['signed_up_by', 'ava@example.com', 'Dana Reyes'],
+    ])
+  })
+
+  it('sends one email when the traveler uses the signer’s address', async () => {
+    expect(await signUp('Dana@example.com')).toEqual([
+      ['signed_up_for', 'dana@example.com', 'Dana Reyes'],
+    ])
+  })
+})

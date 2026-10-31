@@ -834,7 +834,7 @@ export class TripsService {
           })
       })
     )
-    // Email and texts are mocked until slice 4.
+    // Texts are mocked until SMS is built (issue #33); the emails below go.
     if (update.offerSpot)
       await sendText(
         guest.phone,
@@ -844,18 +844,21 @@ export class TripsService {
     if (update.withdrawOffer)
       await sendText(
         guest.phone,
-        `The spot ${trip.organizerName} offered you on ${trip.name} was taken back. You're still on the waitlist.`
+        `The spot ${trip.organizerName} offered you on ${trip.name} is no longer available. You're still on the waitlist.`
       )
     const after = await this.get(id, caller)
-    // On an accept-first trip, accepting is when the guest learns how to pay: the "accepted" email (issue #12), whose
-    // wording the admin edits on the Emails page. On the other two they already knew, having paid first.
-    if (trip.joinMode === 'accept_first' && status === 'approved' && guest.status !== 'approved')
-      await this.sendAccepted(after, guestId)
+    // The guest hears of each step by email (issues #12 and #46), worded by the admin on the Emails page: accepted (on an
+    // accept-first trip with how to pay, on the others to say their payment holds the spot), offered a spot that
+    // opened, or the offer taken back.
+    if (status === 'approved' && guest.status !== 'approved')
+      await this.sendGuestEmail('accepted', after, guestId)
+    if (update.offerSpot) await this.sendGuestEmail('spot_offered', after, guestId)
+    if (update.withdrawOffer) await this.sendGuestEmail('offer_withdrawn', after, guestId)
     return after
   }
 
-  /** The "accepted" email to a guest, built from Trip Control's data as their join page would show it. */
-  private async sendAccepted(trip: OrganizerTrip, guestId: string): Promise<void> {
+  /** An email to a guest about a step on their trip, built from Trip Control's data as their join page would show it. */
+  private async sendGuestEmail(kind: string, trip: OrganizerTrip, guestId: string): Promise<void> {
     const me = trip.guests.find((g) => g.id === guestId)
     if (!me) return
     const room = me.roomId
@@ -865,7 +868,7 @@ export class TripsService {
         })
       : null
     await this.emails.sendToGuest(
-      'accepted',
+      kind,
       { trip: { ...trip, rooms: room ? [room] : [] }, me },
       {
         email: me.email,
@@ -1137,7 +1140,9 @@ export class TripsService {
       )
     } catch (err) {
       if (!(err instanceof ConflictException && /Every spot/.test(err.message))) throw err
+      return
     }
+    await this.sendGuestEmail('accepted', await this.get(id, caller, anyTrip), guestId)
   }
 
   /**

@@ -45,6 +45,8 @@ export interface GuestFacts {
   paymentInstructions: string
   /** The organizer's email: a guest's reply goes to them, not to Travel HQ (owner's decision, 2026-10-28). */
   replyTo?: string
+  /** The name typed by whoever signed this traveler up, when it wasn't the traveler (issue #46). */
+  signedBy?: string
 }
 
 /**
@@ -96,6 +98,7 @@ export function guestEmailContext(
       description: trip.description,
       pricePerPerson: money(trip.costPerPersonCents),
       installmentCount: trip.installmentCount,
+      paysFirst: trip.joinMode !== 'accept_first',
       pageLink: `${webUrl}/t/${trip.slug}`,
       joinLink: `${webUrl}/t/${trip.slug}/join`,
       highlights: trip.highlights.map((h) => ({ title: h.title, detail: h.detail })),
@@ -112,6 +115,8 @@ export function guestEmailContext(
       canPay: canPay(trip.joinMode, me),
       waitlisted: Boolean(me.waitlistedAt) && !me.offeredAt && me.status !== 'approved',
       room: trip.rooms.find((r) => r.id === me.roomId)?.name ?? '',
+      signedBy: facts.signedBy?.trim() ?? '',
+      signedByFirstName: facts.signedBy?.trim().split(/\s+/)[0] ?? '',
     },
     paymentDetails:
       terms && left

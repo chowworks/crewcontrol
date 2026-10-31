@@ -12,6 +12,7 @@ const context: GuestEmailContext = {
     description: 'Five days at the resort.',
     pricePerPerson: '$1,200',
     installmentCount: 3,
+    paysFirst: false,
     pageLink: 'https://travel-hq.app/t/aruba-2028',
     joinLink: 'https://travel-hq.app/t/aruba-2028/join',
     highlights: [{ title: 'Beach', detail: 'Steps from the water' }],
@@ -31,6 +32,8 @@ const context: GuestEmailContext = {
     canPay: true,
     waitlisted: false,
     room: '',
+    signedBy: '',
+    signedByFirstName: '',
   },
   paymentDetails: {
     methods: [{ name: 'Zelle', handle: '(555) 010-0199' }],
@@ -153,6 +156,59 @@ describe('render', () => {
     expect(out.text).toContain('Your copy is attached')
     expect(out.text).toContain('which Nia deleted from Travel HQ')
     expect(out.html).not.toContain('(555) 010-0199')
+  })
+
+  // Issue #46: an email at each step of joining.
+  it('tells a guest who paid first that the spot is theirs, without asking them to pay', () => {
+    const k = emailKind('accepted')!
+    const paid = { ...context.paymentDetails!, paid: '$400', left: '$800' }
+    const out = render(k, {
+      ...context,
+      trip: { ...context.trip, paysFirst: true },
+      paymentDetails: paid,
+    })
+    expect(out.text).toContain('Your payment arrived, so the spot is yours.')
+    expect(out.text).toContain('paid $400 of $1,200')
+    expect(out.html).not.toContain('(555) 010-0199')
+    const first = render(k, context)
+    expect(first.text).toContain('saves your spot')
+    expect(first.html).toContain('(555) 010-0199')
+  })
+
+  it('offers a spot that opened with how to pay, first come, first served', () => {
+    const out = render(emailKind('spot_offered')!, context)
+    expect(out.subject).toBe('[Travel HQ] A spot opened on Aruba Crew Getaway 2028')
+    expect(out.text).toContain('first come, first served')
+    expect(out.html).toContain('(555) 010-0199')
+    const waiting = render(emailKind('spot_offered')!, {
+      ...context,
+      guest: { ...context.guest, canPay: false },
+    })
+    expect(waiting.html).not.toContain('(555) 010-0199')
+  })
+
+  it('says sorry when an offered spot is no longer available', () => {
+    const out = render(emailKind('offer_withdrawn')!, context)
+    expect(out.text).toContain('We’re really sorry.')
+    expect(out.text).toContain('first come, first served')
+    expect(out.text).toContain('still on the waitlist')
+  })
+
+  it('gives whoever signed a traveler up their copy, and tells the traveler who did', () => {
+    const signedFor = { ...context.guest, signedBy: 'Marcus Reyes', signedByFirstName: 'Marcus' }
+    const signer = render(emailKind('signed_up_for')!, { ...context, guest: signedFor })
+    expect(signer.subject).toBe('[Travel HQ] You signed Dana up for Aruba Crew Getaway 2028')
+    expect(signer.text).toMatch(/^Hi Marcus,/)
+    expect(signer.html).toContain('(555) 010-0199')
+    const k = emailKind('signed_up_by')!
+    expect(k.groups).not.toContain('paymentDetails')
+    const traveler = render(k, { ...context, guest: signedFor })
+    expect(traveler.subject).toBe('[Travel HQ] Marcus signed you up for Aruba Crew Getaway 2028')
+    expect(traveler.text).toContain('Marcus Reyes signed you up')
+    expect(traveler.html).not.toContain('(555) 010-0199')
+    expect(traveler.text).toContain(
+      'You’re getting this because Marcus Reyes signed the trip agreement for Dana on Aruba Crew Getaway 2028'
+    )
   })
 })
 

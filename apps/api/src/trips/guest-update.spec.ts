@@ -236,10 +236,15 @@ describe('a guest’s spot in Trip Control', () => {
     expect(emails.sendToGuest).toHaveBeenCalledTimes(1)
   })
 
-  it('sends no accepted email on a pay-first trip: the guest already knew how to pay', async () => {
+  it('on a pay-first trip, emails the guest once that they are accepted (issue #46)', async () => {
     const { service, emails } = setup({}, [paidGuest('ready')])
     await service.updateGuest('t1', 'ready', { status: 'approved' }, caller)
-    expect(emails.sendToGuest).not.toHaveBeenCalled()
+    expect(emails.sendToGuest).toHaveBeenCalledTimes(1)
+    const [kind, view] = emails.sendToGuest.mock.calls[0]
+    expect(kind).toBe('accepted')
+    expect(view.trip.joinMode).toBe('pay_first')
+    await service.updateGuest('t1', 'ready', { status: 'approved' }, caller)
+    expect(emails.sendToGuest).toHaveBeenCalledTimes(1)
   })
 
   it('on an accept-first trip, lets the organizer undo an accepted guest’s payment', async () => {
@@ -284,6 +289,18 @@ describe('a guest’s spot in Trip Control', () => {
     ])
     await service.decidePayment('t1', 'p1', { status: 'confirmed' }, caller)
     expect(writes).toEqual([{ status: 'approved' }])
+  })
+
+  it('emails a first come guest that they are accepted when their payment takes a spot, and not when none is left', async () => {
+    const { service, emails } = setup({ joinMode: 'first_come', maxGuests: 1 }, [
+      guest('first', { payments: [payment('p1', 'reported')] }),
+      guest('second', { payments: [payment('p2', 'reported')] }),
+    ])
+    await service.decidePayment('t1', 'p1', { status: 'confirmed' }, caller)
+    await service.decidePayment('t1', 'p2', { status: 'confirmed' }, caller)
+    expect(emails.sendToGuest.mock.calls.map(([kind, view]) => [kind, view.me.id])).toEqual([
+      ['accepted', 'first'],
+    ])
   })
 
   it('gives no first come spot for a payment short of the first one', async () => {
@@ -454,6 +471,16 @@ describe('a guest’s spot in Trip Control', () => {
     )
     await service.updateGuest('t1', 'wait', { offerSpot: true }, caller)
     expect(writes[0]).toMatchObject({ status: 'interested', offeredAt: expect.any(Date) })
+  })
+
+  it('emails a guest when they are offered a spot, and when the offer is taken back (issue #46)', async () => {
+    const { service, emails } = setup({ maxGuests: 2 }, [guest('wait', { waitlistedAt: at })])
+    await service.updateGuest('t1', 'wait', { offerSpot: true }, caller)
+    await service.updateGuest('t1', 'wait', { withdrawOffer: true }, caller)
+    expect(emails.sendToGuest.mock.calls.map(([kind, view]) => [kind, view.me.id])).toEqual([
+      ['spot_offered', 'wait'],
+      ['offer_withdrawn', 'wait'],
+    ])
   })
 
   it('withdraws an offer nobody paid toward, putting the guest back on the waitlist', async () => {
