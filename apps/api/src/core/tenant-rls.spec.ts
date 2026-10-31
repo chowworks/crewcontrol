@@ -1548,6 +1548,56 @@ suite('trip isolation', () => {
     }
   })
 
+  it('keeps the interest list to its trip and to each person their own entry', async () => {
+    // T1 is published, T2 a draft. v1 is on T1's list already.
+    await insert(db, 'TripInterest', {
+      id: 'I-v1',
+      tripId: 'T1',
+      userId: 'v1',
+      firstName: 'Ava',
+      email: 'ava@example.com',
+      phone: '555-0101',
+    })
+    const add = (id: string, trip: string, user: string, told = 'NULL') =>
+      attempt(
+        `INSERT INTO "TripInterest" (id, "tripId", "userId", "firstName", email, phone, "toldAt") VALUES ('${id}', '${trip}', '${user}', 'Bo', 'bo@example.com', '555-0102', ${told}) RETURNING id`
+      )
+    try {
+      // Never on the public page.
+      await as({ public: true }, async () => {
+        expect(await ids('TripInterest')).toEqual([])
+        expect(await add('I-x', 'T1', 'v3')).toEqual({ error: refused })
+      })
+      // A signed-in person adds themselves to a published trip only, as themselves, never told, and sees only theirs.
+      await as(await person('v2'), async () => {
+        expect(await ids('TripInterest')).toEqual([])
+        expect(await add('I-v2', 'T1', 'v2')).toEqual({ rows: 1 })
+        expect(await add('I-v2b', 'T1', 'v3')).toEqual({ error: refused })
+        expect(await add('I-v2c', 'T2', 'v2')).toEqual({ error: refused })
+        expect(await add('I-v2d', 'T1', 'v2', 'now()')).toEqual({ error: refused })
+        expect(await attempt(`UPDATE "TripInterest" SET "toldAt" = now()`)).toEqual({ rows: 0 })
+        expect(await attempt(`DELETE FROM "TripInterest" WHERE id = 'I-v1'`)).toEqual({ rows: 0 })
+      })
+      // And takes themselves off.
+      await as(await person('v1'), async () => {
+        expect(await ids('TripInterest')).toEqual(['I-v1'])
+        expect(await attempt(`DELETE FROM "TripInterest"`)).toEqual({ rows: 1 })
+      })
+      // The trip's organizers read, mark and remove; another trip's don't.
+      await as(await person('o1'), async () => {
+        expect(await ids('TripInterest')).toEqual(['I-v1'])
+        expect(await attempt(`UPDATE "TripInterest" SET "toldAt" = now()`)).toEqual({ rows: 1 })
+        expect(await attempt(`DELETE FROM "TripInterest" WHERE id = 'I-v1'`)).toEqual({ rows: 1 })
+      })
+      await as(await person('u2'), async () => {
+        expect(await ids('TripInterest')).toEqual([])
+        expect(await attempt(`DELETE FROM "TripInterest"`)).toEqual({ rows: 0 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "TripInterest"`)
+    }
+  })
+
   it('accepts only the two roles', async () => {
     await expect(
       db.query(

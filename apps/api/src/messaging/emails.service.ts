@@ -32,6 +32,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   reminder: 'Reminder',
   announcement: 'Announcement',
   question: 'Question',
+  interest: 'Interested person',
   deletion: 'Trip deleted',
   alert: 'What needs them',
 }
@@ -200,6 +201,29 @@ export class EmailsService {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
       )
+    }
+  }
+
+  /**
+   * "Sign-ups are open", to someone on a save the date's interest list (issue #47), with Reply-To an organizer. True
+   * when it went (or, with no Resend key, was logged instead); a failure is logged, never thrown, so one bad address
+   * doesn't stop the rest.
+   */
+  async sendSignupsOpen(
+    interest: NonNullable<EmailContext['interest']>,
+    to: string,
+    replyTo?: string,
+    tripId?: string
+  ): Promise<boolean> {
+    try {
+      const email = render(await this.template(this.kindOf('signups_open')), { interest })
+      const result = await this.deliver('signups_open', { to, replyTo, ...email }, { id: tripId })
+      return result.sent || result.reason === 'mocked'
+    } catch (err) {
+      this.logger.error(
+        `The "signups_open" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+      return false
     }
   }
 

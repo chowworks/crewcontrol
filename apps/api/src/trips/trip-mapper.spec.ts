@@ -31,6 +31,7 @@ const trip: Trip = {
   createdAt: new Date(),
   receiptsAddress: null,
   deletedAt: null,
+  saveTheDate: false,
   deletedByUserId: null,
   updatedAt: new Date(),
 }
@@ -82,6 +83,13 @@ describe('toPublicTrip', () => {
     expect(view.interestedCount).toBe(1)
     expect(JSON.stringify(view)).not.toContain('Morgan')
     expect(JSON.stringify(view)).not.toContain('Riley')
+  })
+
+  it('says whether the trip is a save the date, and never who is interested (issue #47)', () => {
+    expect(toPublicTrip({ ...trip, guests }).saveTheDate).toBe(false)
+    const view = toPublicTrip({ ...trip, saveTheDate: true, guests })
+    expect(view.saveTheDate).toBe(true)
+    expect(Object.keys(view).filter((k) => /interest/i.test(k))).toEqual(['interestedCount'])
   })
 
   it('never carries payment instructions, on any kind of trip', () => {

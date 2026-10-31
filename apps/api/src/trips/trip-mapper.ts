@@ -142,6 +142,7 @@ export function toPublicTrip(
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
     waitlisting: row.waitlisting ?? false,
+    saveTheDate: row.saveTheDate,
     interestedCount: row.guests.filter((g) => g.status === 'interested').length,
     // With room choice on, guests see who's going, so they can choose who to share with.
     guestNames:
@@ -326,6 +327,7 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
+    saveTheDate: row.saveTheDate,
     guests: row.guests.map((g) =>
       toGuest(g, row.guests, (roomId) => {
         const room = row.rooms?.find((r) => r.id === roomId)

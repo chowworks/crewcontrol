@@ -69,6 +69,7 @@ const EMPTY: TripInput = {
   paymentMethods: [],
   paymentInstructions: '',
   published: false,
+  saveTheDate: false,
   photos: [],
   highlights: [],
   keyDates: [],
@@ -560,6 +561,16 @@ export function EditTripPage() {
             {step === 2 && (
               <>
                 <Card title="Registration options">
+                  <Toggle
+                    checked={trip.saveTheDate}
+                    onChange={(v) => set('saveTheDate', v)}
+                    label="Save the date"
+                    hint={
+                      trip.saveTheDate
+                        ? 'The trip page shows “I’m interested” and nobody can sign up. Launch Trip Sign-Ups from Trip Control’s Actions, which can email everyone interested, or turn this off.'
+                        : 'Collect interest before sign-ups open: the trip page shows “I’m interested” instead of “I want to join”.'
+                    }
+                  />
                   <label className="flex flex-col gap-1.5 text-sm font-semibold">
                     What guests read by the sign-up button
                     <textarea
@@ -675,7 +686,7 @@ export function EditTripPage() {
                   />
                   <p className="text-sm text-muted">
                     {guests.filter((g) => g.status === 'approved').length} accepted ·{' '}
-                    {guests.filter((g) => g.status === 'interested').length} joining
+                    {guests.filter((g) => g.status === 'interested').length} pending
                   </p>
                 </Card>
                 <Card title="Photos">

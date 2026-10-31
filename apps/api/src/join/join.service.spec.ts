@@ -311,3 +311,39 @@ describe('emails when someone signs a traveler up', () => {
     ])
   })
 })
+
+describe('a save the date (issue #47)', () => {
+  it('takes no signature', async () => {
+    const s = new JoinService(
+      {} as unknown as PrismaService,
+      {} as unknown as TripsService,
+      {} as unknown as TermsService,
+      {} as unknown as ClerkService,
+      {} as unknown as EmailsService
+    )
+    jest.spyOn(s, 'view').mockResolvedValueOnce({
+      trip: { saveTheDate: true, rooms: [], costPerPersonCents: 1000, paymentPlan: [] },
+      roomAgreements: [],
+      agreement: { text: 't', textHash: 'h' },
+      agreementOnBehalf: { text: 't', textHash: 'h' },
+      me: null,
+      managed: [],
+      termsOfUse: { accepted: true, version: 'v' },
+    } as never)
+    await expect(
+      s.join(
+        'trip',
+        {
+          name: 'Ava Reyes',
+          phone: '555 010 0100',
+          email: 'ava@example.com',
+          typedName: 'Ava Reyes',
+          agreed: true,
+          agreementHash: 'h',
+        },
+        caller,
+        { ip: '', userAgent: '' }
+      )
+    ).rejects.toThrow(/aren’t open yet/)
+  })
+})

@@ -40,7 +40,7 @@ function SignupMeter({ t }: { t: ListedTrip }) {
     <div className="flex flex-col gap-1.5">
       <span className="text-sm text-body">
         <strong className="text-ink">{t.goingCount} going</strong>
-        {t.maxGuests ? ` of ${t.maxGuests}` : ''} · {t.interestedCount} interested
+        {t.maxGuests ? ` of ${t.maxGuests}` : ''} · {t.interestedCount} pending
       </span>
       {pct !== null && (
         <span className="h-2 overflow-hidden rounded-full bg-ground">
@@ -66,7 +66,7 @@ const SORTS = {
   },
   going: { label: 'Most going', by: (a: ListedTrip, b: ListedTrip) => b.goingCount - a.goingCount },
   interested: {
-    label: 'Most interested',
+    label: 'Most pending',
     by: (a: ListedTrip, b: ListedTrip) => b.interestedCount - a.interestedCount,
   },
 }

@@ -204,6 +204,7 @@ export function parseTripInput(raw: unknown): TripInput {
     joinMode: joinMode as JoinMode,
     refundPolicy,
     options: parseOptions(body.options),
+    saveTheDate: body.saveTheDate === undefined ? false : bool(body, 'saveTheDate'),
   }
 }
 

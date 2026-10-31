@@ -25,6 +25,7 @@ import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { DangerZone } from './DeleteTrip'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
+import { useTripInterest } from './TripInterest'
 import { TripLogCard } from './TripLog'
 import { AnnouncementsCard } from './TripAnnouncements'
 import { useTripQuestions } from './TripQuestions'
@@ -261,6 +262,8 @@ export function ControlPanelPage() {
   const receiptHandlers = { onMatchReceipt: matchReceipt, onDismissReceipt: dismissReceipt }
   // Guests' questions (issue #13): the organizer's to answer, so not on the admin's read-only view.
   const questions = useTripQuestions(admin ? null : trip)
+  // The save the date's Interested list (issue #47), the organizer's to work.
+  const interest = useTripInterest(admin ? null : trip, setTrip)
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
@@ -323,7 +326,7 @@ export function ControlPanelPage() {
             rooms={rooms}
             {...handlers}
             {...receiptHandlers}
-            questionRows={questions.actionRows}
+            questionRows={[...interest.actionRows, ...questions.actionRows]}
             error={guestError}
           />
         )}
@@ -346,6 +349,7 @@ export function ControlPanelPage() {
         )}
         <MoneyCard trip={trip} />
         <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        {interest.card}
         {!admin && <RemindersCard trip={trip} />}
         <TripLogCard trip={trip} />
         {/* Last on the page (owner's decision, 2026-10-30). */}

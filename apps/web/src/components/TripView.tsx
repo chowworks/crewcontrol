@@ -25,12 +25,15 @@ export function TripView({
   preview = false,
   mine,
   questions,
+  interest,
 }: {
   trip: PublicTrip
   preview?: boolean
   mine?: { place: ReactNode; announcements: ReactNode }
   /** The trip's Questions (issue #13), last on the page, after Key dates (owner's decision, 2026-10-30). */
   questions?: ReactNode
+  /** A save the date's "I'm interested" tile for the signed-in person (issue #47); the preview shows it inert. */
+  interest?: ReactNode
 }) {
   const cover = trip.photos[0]
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
@@ -124,7 +127,11 @@ export function TripView({
                       : `Sign the trip agreement, and ${trip.organizerName} accepts the crew. Once you’re accepted, you’ll see how to pay.`}
                 </p>
               </div>
-              <WantInTile trip={trip} preview={preview} full={full} />
+              {trip.saveTheDate ? (
+                (interest ?? <SaveTheDateTile trip={trip} onList={false} preview />)
+              ) : (
+                <WantInTile trip={trip} preview={preview} full={full} />
+              )}
             </>
           )}
         </aside>
@@ -321,6 +328,71 @@ function WantInTile({
         >
           I want to join
         </JoinLink>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A save the date's tile (issue #47; owner's decisions, 2026-10-31): "I'm interested" in place of "I want to join",
+ * and once they're on the list, "You're on the list" with a way off it. Inert in the organizer's preview.
+ */
+export function SaveTheDateTile({
+  trip,
+  onList,
+  preview = false,
+  busy = false,
+  error,
+  onInterested,
+  onLeave,
+}: {
+  trip: PublicTrip
+  onList: boolean
+  preview?: boolean
+  busy?: boolean
+  /** What went wrong taking them off the list. */
+  error?: string | null
+  onInterested?: () => void
+  onLeave?: () => void
+}) {
+  const main =
+    'mt-1 flex min-h-[50px] items-center justify-center rounded-xl bg-marigold px-5 text-[17px] font-semibold text-ink hover:brightness-95 disabled:opacity-60'
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-royal p-6 text-white shadow-card">
+      <TileArt />
+      <div className="relative flex flex-col gap-3">
+        {error && (
+          <p role="alert" className="font-semibold">
+            {error}
+          </p>
+        )}
+        {/* Clear of the art at the top right, which the longer heading would run into. */}
+        <h2 className="pr-16 font-display text-[28px] font-extrabold leading-tight">
+          {onList ? 'You’re on the list' : 'Save the date'}
+        </h2>
+        <p className="max-w-[22ch] text-[15px] text-white/85">
+          {onList
+            ? `${trip.organizerName} will let you know when sign-ups open.`
+            : `Sign-ups aren’t open yet. Say you’re interested and ${trip.organizerName} will let you know when they are.`}
+        </p>
+        {preview ? (
+          <span aria-disabled="true" title="Guests say they’re interested here" className={main}>
+            I’m interested
+          </span>
+        ) : onList ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onLeave}
+            className="mt-1 flex min-h-[44px] items-center justify-center rounded-xl border border-white px-5 text-[15px] font-semibold text-white hover:bg-white/10 disabled:opacity-60"
+          >
+            Take me off the list
+          </button>
+        ) : (
+          <button type="button" disabled={busy} onClick={onInterested} className={main}>
+            I’m interested
+          </button>
+        )}
       </div>
     </div>
   )

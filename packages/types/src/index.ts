@@ -86,6 +86,8 @@ export interface PublicTrip {
   faq: FaqEntry[]
   /** Spots taken against maxGuests: accepted guests. */
   spotsTaken: number
+  /** Save the date (issue #47): the page takes "I'm interested" instead of sign-ups, and nobody can sign yet. */
+  saveTheDate: boolean
   /** Someone joining now goes on the waitlist: the trip is full (or, where guests pay first, enough people can pay). */
   waitlisting: boolean
 }
@@ -535,6 +537,11 @@ export interface TripInput {
   joinMode: JoinMode
   refundPolicy: RefundPolicy
   options: TripOptions
+  /**
+   * Save the date (issue #47; owner's decisions, 2026-10-31): the trip page shows "I'm interested" instead of "I want to
+   * join", and nobody can sign. Turning it off opens sign-ups.
+   */
+  saveTheDate: boolean
 }
 
 export interface OrganizerTrip extends TripInput {
@@ -1410,4 +1417,48 @@ export interface AdminForwardedReceipts {
   domain: string | null
   emails: AdminForwardedReceipt[]
   addresses: AdminReceiptsAddress[]
+}
+
+/**
+ * Someone who said "I'm interested" on a trip's save the date (issue #47), as Trip Control lists them. Name, email
+ * and phone are the trip's organizers' only: never on the trip page.
+ */
+export interface InterestedPerson {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  /** ISO time they said they're interested. */
+  createdAt: string
+  /** They've since signed up for the trip themselves, with the same sign-in. */
+  signed: boolean
+  /** ISO time they were emailed that sign-ups are open, or null. */
+  toldAt: string | null
+}
+
+/** "I'm interested": the name and phone (the email is their sign-in's). */
+export interface InterestInput {
+  name: string
+  phone: string
+}
+
+/** Whether the signed-in person is on a trip's interest list, and since when (ISO time, null when not on it). */
+export interface MyInterest {
+  onList: boolean
+  createdAt: string | null
+  /** The name and phone they gave, so signing up later starts with them; empty when not on the list. */
+  name: string
+  phone: string
+}
+
+/** What Trip Control's "Email them" sent: how many people it emailed. */
+export interface InterestTold {
+  told: number
+}
+
+/** "Open sign-ups" on a save the date: the trip as it is now, and how many interested people were emailed. */
+export interface OpenSignupsResult {
+  trip: OrganizerTrip
+  told: number
 }

@@ -72,6 +72,8 @@ export function JoinPage() {
   const { trip, me, managed } = view
   // Someone on the trip has it all on the trip page (owner's decision, 2026-10-29); this page is for signing up.
   if (hasJoined(view) && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
+  // A save the date takes "I'm interested" on the trip page, never a signature (issue #47).
+  if (trip.saveTheDate && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -330,6 +332,21 @@ function JoinForm({
     agreed: false,
     termsAccepted: false,
   }))
+  // Someone who said "I'm interested" (issue #47) starts with the name and phone they gave then.
+  useEffect(() => {
+    if (behalf) return
+    let live = true
+    api
+      .getMyInterest(trip.slug)
+      .then((i) => {
+        if (!live || !i.onList) return
+        setDraft((d) => ({ ...d, name: d.name || i.name, phone: d.phone || i.phone }))
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [trip.slug, behalf])
   // The room they pick sets the price they sign, when it's priced apart from the trip (issue #30).
   const agreementFor = (v: JoinView, roomId: string) => {
     const priced = v.roomAgreements.find((r) => r.roomId === roomId) ?? v

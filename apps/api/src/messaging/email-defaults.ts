@@ -229,6 +229,18 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
   },
   {
+    kind: 'signups_open',
+    name: 'Sign-ups are open',
+    when: 'To each person who said they’re interested in a save the date, when an organizer opens sign-ups and presses “Email them”.',
+    groups: ['interest'],
+    subject: 'Sign-ups are open: {{interest.tripName}}',
+    body: `<p>Hi {{interest.firstName}},</p>
+<p>You said you were interested in <strong>{{interest.tripName}}</strong>, {{interest.dates}}. Sign-ups are open now.</p>
+<p>To save your spot, sign up on the trip page. It takes a minute: you're already signed in, so your details are filled in.</p>
+<p><a href="{{interest.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Sign up</a></p>
+<p>Questions? Reply to this email to ask {{interest.organizerName}}.</p>`,
+  },
+  {
     kind: 'trip_deleted',
     name: 'Trip deleted',
     when: 'To each guest who signed, when an owner deletes their trip: their signed agreement and payments, to keep.',
@@ -349,6 +361,13 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
         'The resort shuttle meets every flight on Mar 3. Look for the sign with our group name.',
       private: false,
       link: 'https://travel-hq.app/t/aruba-2028',
+    },
+    interest: {
+      firstName: 'Dana',
+      tripName: 'Aruba Crew Getaway 2028',
+      dates: 'Mar 3 – 8, 2028',
+      organizerName: 'Nia',
+      link: 'https://travel-hq.app/t/aruba-2028/join',
     },
     alert: {
       firstName: 'Nia',

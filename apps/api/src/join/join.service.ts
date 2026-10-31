@@ -203,6 +203,11 @@ export class JoinService {
     // Someone signing up a traveler they look after signs the agreement on that traveler's behalf.
     const agreement = onBehalf ? priced.agreementOnBehalf : priced.agreement
     if (me && !onBehalf) throw new ConflictException('You’ve already joined this trip')
+    // A save the date takes "I'm interested", never a signature (issue #47).
+    if (trip.saveTheDate)
+      throw new ConflictException(
+        'Sign-ups for this trip aren’t open yet. Say you’re interested instead.'
+      )
     // Three emails refused in ten minutes: no more joining this trip until the time is up.
     emailRefusals.check(`${caller.userId}:${slug}`)
     if (input.agreementHash !== agreement.textHash)

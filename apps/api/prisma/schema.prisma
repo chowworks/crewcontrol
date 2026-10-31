@@ -63,6 +63,9 @@ model Trip {
   // migration 20261030020000_trip_deletion). A deleted trip is never published.
   deletedAt           DateTime?
   deletedByUserId     String?
+  // Save the date (issue #47, migration 20261031080000_trip_interest): the page takes "I'm interested" instead of
+  // sign-ups, and nobody can sign. Turning it off opens sign-ups.
+  saveTheDate         Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   guests              Guest[]
@@ -81,6 +84,7 @@ model Trip {
   questions           TripQuestion[]
   emailSends          EmailSend[]
   actionAlerts        ActionAlert[]
+  interest            TripInterest[]
 
   @@index([deletedAt])
 }
@@ -648,4 +652,23 @@ model ServiceFailure {
   route String // method and route pattern, such as 'POST /api/join/:slug'
 
   @@index([kind, at])
+}
+
+// "I'm interested" on a save the date (issue #47, migration 20261031080000_trip_interest): a signed-in person, once a
+// trip. Apart from Guest on purpose, so interest is never a signature, a balance or a spot. Organizers only see it.
+model TripInterest {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId    String
+  userId    String
+  firstName String
+  lastName  String    @default("")
+  email     String
+  phone     String
+  createdAt DateTime  @default(now())
+  // When an organizer emailed them that sign-ups are open.
+  toldAt    DateTime?
+  trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+  @@index([userId])
 }

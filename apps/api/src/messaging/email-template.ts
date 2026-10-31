@@ -95,6 +95,16 @@ export interface EmailContext {
    * About a question on a trip (issue #13): to each of the trip's organizers when someone asks, and to the asker when it's answered
    * (`answer` is "" until then).
    */
+  /** In the email to someone on a save the date's interest list that sign-ups are open (issue #47). */
+  interest?: {
+    firstName: string
+    tripName: string
+    /** "Jun 12 – 19, 2027" */
+    dates: string
+    organizerName: string
+    /** The trip's join page. */
+    link: string
+  }
   question?: {
     tripName: string
     askerName: string
@@ -174,6 +184,7 @@ export type VariableGroup =
   | 'reminder'
   | 'announcement'
   | 'question'
+  | 'interest'
   | 'deletion'
   | 'alert'
 
@@ -251,6 +262,13 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
       path: 'question.link',
       label: 'Link: Trip Control for the owner, the trip page for the asker',
     },
+  ],
+  interest: [
+    { path: 'interest.firstName', label: 'Their first name' },
+    { path: 'interest.tripName', label: 'Trip name' },
+    { path: 'interest.dates', label: 'Dates, written out' },
+    { path: 'interest.organizerName', label: 'Organizer’s name' },
+    { path: 'interest.link', label: 'Link to sign up (the join page)' },
   ],
   alert: [
     { path: 'alert.firstName', label: 'Organizer’s first name' },

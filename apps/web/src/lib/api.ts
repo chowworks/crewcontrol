@@ -50,6 +50,11 @@ import {
   type MyQuestion,
   type QuestionAnswerInput,
   type TripQuestions,
+  type InterestInput,
+  type InterestTold,
+  type InterestedPerson,
+  type MyInterest,
+  type OpenSignupsResult,
   type TripAnnouncements,
 } from '@cc/types'
 
@@ -298,6 +303,19 @@ export const api = {
   getMyQuestions: (slug: string) => request<MyQuestion[]>(`/join/${slug}/questions`),
   askQuestion: (slug: string, question: string) =>
     request<MyQuestion[]>(`/join/${slug}/questions`, json('POST', { question })),
+  // Save the date's interest list (issue #47): Trip Control's, and the signed-in person's own entry.
+  getInterest: (id: string) => request<InterestedPerson[]>(`/trips/${id}/interest`),
+  removeInterest: (id: string, iid: string) =>
+    request<InterestedPerson[]>(`/trips/${id}/interest/${iid}`, { method: 'DELETE' }),
+  openSignups: (id: string, email: boolean) =>
+    request<OpenSignupsResult>(`/trips/${id}/interest/open`, json('POST', { email })),
+  tellInterested: (id: string) =>
+    request<InterestTold>(`/trips/${id}/interest/tell`, { method: 'POST' }),
+  getMyInterest: (slug: string) => request<MyInterest>(`/join/${slug}/interest`),
+  addInterest: (slug: string, input: InterestInput) =>
+    request<MyInterest>(`/join/${slug}/interest`, json('POST', input)),
+  leaveInterest: (slug: string) =>
+    request<MyInterest>(`/join/${slug}/interest`, { method: 'DELETE' }),
   getStopUpdates: (token: string) => request<StopUpdatesView>(`/public/stop-updates/${token}`),
   setStopUpdates: (token: string, stopped: boolean) =>
     request<StopUpdatesView>(`/public/stop-updates/${token}`, json('POST', { stopped })),
