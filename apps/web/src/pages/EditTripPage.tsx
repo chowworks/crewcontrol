@@ -359,11 +359,7 @@ export function EditTripPage() {
           setGoingWant(null)
         }
         toast({
-          text: goingPending
-            ? 'Saved. You took a spot on the trip.'
-            : trip.published
-              ? 'Saved. Guests see the changes now.'
-              : 'Saved as a draft.',
+          text: trip.published ? 'Saved. Guests see the changes now.' : 'Saved as a draft.',
         })
       } else {
         const created = await api.createTrip(trip, chosen)

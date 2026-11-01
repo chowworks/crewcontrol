@@ -189,8 +189,8 @@ export function GoingQuestion({
       </p>
       <div className="flex flex-wrap gap-3">
         {[
-          { value: true, label: 'Yes, I’m going' },
-          { value: false, label: 'No' },
+          { value: true, label: 'Yes, I’m in' },
+          { value: false, label: 'No, just organizing' },
         ].map((o) => (
           <label
             key={o.label}
@@ -211,7 +211,7 @@ export function GoingQuestion({
       </div>
       {want && (
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
-          Your phone
+          Since you’re coming along, we need your number too
           <input
             type="tel"
             value={phone}
@@ -223,7 +223,7 @@ export function GoingQuestion({
             <span className="font-semibold text-[#B42318]">{phoneProblem}</span>
           ) : (
             <span className="font-normal text-muted">
-              So guests and other organizers can reach you, as with every guest.
+              Same deal as every guest, so the crew can reach you.
             </span>
           )}
         </label>
