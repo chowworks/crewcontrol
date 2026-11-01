@@ -479,7 +479,7 @@ export function EditTripPage() {
                     onChange={(v) => set('destination', v)}
                     placeholder="Martha's Vineyard, MA"
                   />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                     <Text
                       label="Starts"
                       type="date"
