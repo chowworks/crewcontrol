@@ -3,6 +3,7 @@ import {
   agreementText,
   firstInstallmentCents,
   hashOf,
+  organizerTerms,
   termsOf,
 } from './agreement'
 import { fillAgreementNames, paymentPlan } from '../trips/trip-types'
@@ -200,6 +201,22 @@ describe('a guest’s terms', () => {
     endDate: '2027-06-21',
     refundTerms: 'r',
   }
+
+  it('gives an organizer going on their own trip a $0 price: they owe the charges added, less what they paid (issue #53)', () => {
+    const dates = { startDate: '2027-06-18', endDate: '2027-06-21' }
+    expect(organizerTerms(dates, [])).toMatchObject({ priceCents: 0, balanceCents: 0 })
+    const charge = { kind: 'charge' as const, amountCents: 23500, removedAt: null }
+    const paid = {
+      status: 'confirmed' as const,
+      guestPaymentAmount: 10000,
+      receivedPaymentAmount: 10000,
+    }
+    expect(organizerTerms(dates, [paid], [charge])).toMatchObject({
+      adjustmentCents: 23500,
+      paidCents: 10000,
+      balanceCents: 13500,
+    })
+  })
 
   it('takes the balance from what they signed, less the payments the organizer confirmed', () => {
     const pay = (

@@ -58,6 +58,7 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   updatesStoppedAt: null,
   updatesToken: `token-${id}`,
   roomPriceSettledCents: null,
+  organizerGoingAt: null,
 })
 
 const guests = [
@@ -124,6 +125,14 @@ describe('toPublicTrip', () => {
     const view = toPublicTrip({ ...trip, guests, faq: [row] })
     expect(view.faq).toEqual([{ id: 'q1', question: 'Parking?', answer: 'Three cars.' }])
     expect(JSON.stringify(view)).not.toMatch(/Morgan|morgan@|user_9/)
+  })
+
+  it('counts an organizer going on their own trip as one of the crew, and says nothing more (issue #53)', () => {
+    const org = { ...guest('g5', 'approved', 'Casey', 'Moss'), organizerGoingAt: new Date() }
+    const view = toPublicTrip({ ...trip, guests: [...guests, org] })
+    expect(view.goingCount).toBe(3)
+    expect(view.guestNames).toContain('Casey M.')
+    expect(JSON.stringify(view)).not.toContain('organizerGoingAt')
   })
 
   it('carries no agreement or signature', () => {

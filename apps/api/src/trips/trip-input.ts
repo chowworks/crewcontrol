@@ -296,6 +296,18 @@ const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/
 export const sameName = (a: string, b: string): boolean =>
   a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
+/** An organizer saying "I'm going too" on Trip Control (issue #53): their name, phone and email as a guest's. */
+export function parseOrganizerGoing(raw: unknown): { name: string; phone: string; email: string } {
+  if (!raw || typeof raw !== 'object') fail('Send the form as JSON')
+  const body = raw as Body
+  const name = text(body, 'name', 120)
+  const phone = text(body, 'phone', 40)
+  if (phone.replace(/\D/g, '').length < 7) fail('Phone must be a phone number')
+  const email = text(body, 'email', 254)
+  if (!EMAIL.test(email)) fail('Email must be an email address')
+  return { name, phone, email: email.toLowerCase() }
+}
+
 /**
  * Checks a join from the join page: the guest's details and their signature. Messages say what to fix, because the
  * page shows them as they are.

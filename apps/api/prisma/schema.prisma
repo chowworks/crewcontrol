@@ -146,6 +146,9 @@ model Guest {
   // The room price the difference from the signed price was last settled at, as a credit or charge or left alone
   // (migration 20261029070000_room_prices); null: never.
   roomPriceSettledCents Int?
+  // An organizer of the trip who said "I'm going too" (issue #53, migration 20261101030000_organizer_going): accepted
+  // at once and takes a spot, with no trip agreement. They owe nothing until an organizer adds a charge for their share.
+  organizerGoingAt      DateTime?
   room                  Room?                   @relation(fields: [roomId], references: [id], onDelete: SetNull)
   trip                  Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   agreement             AgreementSignature?

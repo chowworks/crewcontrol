@@ -25,6 +25,7 @@ import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { DangerZone } from './DeleteTrip'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
+import type { OrganizerGoingInput } from './OrganizerGoing'
 import { useTripInterest } from './TripInterest'
 import { TripLinkCard } from './TripLink'
 import { TripLogCard } from './TripLog'
@@ -251,6 +252,21 @@ export function ControlPanelPage() {
       toast({ text: `Receipts from ${s.address} won’t be filed on ${guest.firstName} now.` })
     return saved
   }
+  // An organizer taking a spot on their own trip, and giving it back (issue #53).
+  async function goingToo(input: OrganizerGoingInput) {
+    const saved = await save(() => api.goingToo(id, input))
+    if (saved)
+      toast({
+        text: 'You’re on the trip. You took a spot.',
+        action: { label: 'Undo', onClick: () => void notGoing() },
+      })
+    return saved
+  }
+  async function notGoing() {
+    const saved = await save(() => api.notGoing(id))
+    if (saved) toast({ text: 'You gave up your spot.' })
+    return saved
+  }
   const handlers = {
     onRoomPrice: settleRoomPrice,
     onUpdate: updateGuest,
@@ -342,7 +358,13 @@ export function ControlPanelPage() {
           </div>
         )}
         <MoneyCard trip={trip} />
-        <GuestsCard trip={trip} rooms={rooms} {...handlers} error={guestError} />
+        <GuestsCard
+          trip={trip}
+          rooms={rooms}
+          {...handlers}
+          error={guestError}
+          {...(admin ? {} : { onGoing: goingToo, onNotGoing: notGoing })}
+        />
         {interest.card}
         {!admin && <RemindersCard trip={trip} />}
         <TripLogCard trip={trip} />

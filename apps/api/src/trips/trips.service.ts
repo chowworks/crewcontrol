@@ -55,6 +55,7 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
+import { splitName } from './trip-input'
 import { recordChange, roomChanges, tripChanges, type RoomState } from './trip-changes'
 import {
   paymentPlan,
@@ -304,7 +305,7 @@ export class TripsService {
       include: withGuests,
     })
     if (!row) throw new NotFoundException('Trip not found')
-    return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
+    return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent(), caller.userId))
   }
 
   /**
@@ -805,7 +806,8 @@ export class TripsService {
         throw new BadRequestException(
           `${guest.firstName}’s payment was refunded. Put them back to waiting so they can pay again.`
         )
-      if (!guest.signedAt)
+      // An organizer going on their own trip signs no agreement (issue #53).
+      if (!guest.signedAt && !guest.organizer)
         throw new BadRequestException(`${guest.firstName} hasn’t signed the trip agreement yet`)
       // Accepting a guest holds their spot even when their payments don't cover the first one yet (owner's decision,
       // 2026-10-24); on the pay-first trips some payment must have arrived.
@@ -885,6 +887,57 @@ export class TripsService {
     if (update.offerSpot) await this.sendGuestEmail('spot_offered', after, guestId)
     if (update.withdrawOffer) await this.sendGuestEmail('offer_withdrawn', after, guestId)
     return after
+  }
+
+  /**
+   * An organizer of the trip going on it too (issue #53): accepted at once, taking a spot (the database refuses when
+   * every spot is taken), with no trip agreement, since they accepted the Organizer Terms. Their place on the trip as
+   * a guest, if they had one, becomes this one. No email: they did it themselves.
+   */
+  async goingToo(
+    id: string,
+    input: { name: string; phone: string; email: string },
+    caller: Caller
+  ): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const mine = trip.guests.find((g) => g.id === trip.myGuestId)
+    if (mine?.status === 'approved') throw new ConflictException('You’re already on this trip')
+    const [firstName, lastName] = splitName(input.name)
+    const data = {
+      firstName,
+      lastName,
+      email: input.email,
+      phone: input.phone,
+      status: 'approved',
+      organizerGoingAt: new Date(),
+      waitlistedAt: null,
+      offeredAt: null,
+    }
+    await roomFull(() =>
+      mine
+        ? this.prisma.guest.update({ where: { id: mine.id }, data })
+        : this.prisma.guest.create({ data: { ...data, tripId: id, userId: caller.userId } })
+    )
+    return this.get(id, caller)
+  }
+
+  /**
+   * An organizer who said "I'm going too" not going after all: their spot opens. With nothing logged on it the place
+   * goes; with payments or charges it stays, turned down, so the history keeps them.
+   */
+  async notGoing(id: string, caller: Caller): Promise<OrganizerTrip> {
+    const trip = await this.get(id, caller)
+    const mine = trip.guests.find((g) => g.id === trip.myGuestId)
+    if (!mine?.organizer || mine.status !== 'approved')
+      throw new BadRequestException('You’re not going on this trip as an organizer')
+    if (mine.payments.length === 0 && mine.adjustments.length === 0)
+      await this.prisma.guest.delete({ where: { id: mine.id } })
+    else
+      await this.prisma.guest.update({
+        where: { id: mine.id },
+        data: { status: 'declined', roomId: null },
+      })
+    return this.get(id, caller)
   }
 
   /** An email to a guest about a step on their trip, built from Trip Control's data as their join page would show it. */

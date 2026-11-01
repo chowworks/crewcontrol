@@ -36,6 +36,7 @@ import {
 import { roomFull, TripsService } from '../trips/trips.service'
 import {
   agreementPreview,
+  organizerTerms,
   hashOf,
   organizerWords,
   refundTerms,
@@ -115,7 +116,12 @@ export class JoinService {
         waitlistedAt: row.waitlistedAt?.toISOString() ?? null,
         offeredAt: row.offeredAt?.toISOString() ?? null,
         roomId: row.roomId,
-        terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
+        // An organizer going on their own trip signed nothing (issue #53): theirs are a $0 price plus charges.
+        terms: row.agreement
+          ? termsOf(row.agreement, payments, adjustments)
+          : row.organizerGoingAt
+            ? organizerTerms(trip, payments, adjustments)
+            : null,
         agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
         payments,
         adjustments,

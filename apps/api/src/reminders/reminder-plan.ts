@@ -84,7 +84,13 @@ export function remindersFor(
   const out: ReminderFor[] = []
   for (const guest of guests) {
     if (stopped(guest) || guest.status === 'declined') continue
-    if (trip.paymentReminderDays !== null && guest.terms && canPay(trip.joinMode, guest)) {
+    // An organizer going on their own trip gets no payment reminders: the money is theirs to track (issue #53).
+    if (
+      trip.paymentReminderDays !== null &&
+      guest.terms &&
+      !guest.organizer &&
+      canPay(trip.joinMode, guest)
+    ) {
       const dates = dueDatesOf(guest, trip)
       dates.forEach((date, i) => {
         const owedCents = owedBy(guest.terms!, i + 1)

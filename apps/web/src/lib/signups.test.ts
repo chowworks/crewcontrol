@@ -20,6 +20,7 @@ const g = (
   waitlistedAt: null,
   offeredAt: null,
   refundSentAt: null,
+  organizer: false,
   adjustments: [],
   payments: sent
     ? [

@@ -41,6 +41,7 @@ import { AdjustBalance } from './AdjustBalance'
 import { SignedCopy, UndoConfirm } from './ControlPanelPage'
 import { ReceiptActionRow, ReceiptProofButton } from './ForwardedReceipts'
 import { GuestDetails } from './GuestDetails'
+import { GoingButton, NotGoingButton, type OrganizerGoingInput } from './OrganizerGoing'
 
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -96,6 +97,9 @@ interface Props {
   error?: string | null
   /** Actions rows for guests' questions waiting for an answer (issue #13, TripQuestions.tsx). */
   questionRows?: ReactNode[]
+  /** The organizer looking taking a spot on their own trip, and giving it back (issue #53); not for admins. */
+  onGoing?: (input: OrganizerGoingInput) => Promise<boolean>
+  onNotGoing?: () => Promise<boolean>
 }
 
 /** The line in order, and whether every spot is taken. */
@@ -116,6 +120,7 @@ function standing(g: Guest, trip: OrganizerTrip, full: boolean): string {
   if (g.status === 'declined')
     return g.refundSentAt ? `Turned down · refunded ${day(g.refundSentAt)}` : 'Turned down'
   if (g.status === 'approved') {
+    if (g.organizer) return 'Going'
     if (g.spotPaidAt) return `Accepted · paid ${day(g.spotPaidAt)}`
     if (reported) return `Accepted · says they paid ${shortDate(reported.sentOn)}`
     if (paid) return `Accepted · ${money(paid)} paid so far`
@@ -212,27 +217,39 @@ function GuestRow({
   trip,
   full,
   onDetails,
+  onNotGoing,
 }: {
   g: Guest
   n: number
   trip: OrganizerTrip
   full: boolean
   onDetails: () => void
+  /** On the organizer's own row, when they took a spot themselves. */
+  onNotGoing?: () => Promise<boolean>
 }) {
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule py-3 first:border-t-0">
       <span className="w-5 font-semibold text-muted">{n}</span>
       <div className="min-w-0 flex-[1_1_140px]">
-        <div className="font-semibold">
+        <div className="flex flex-wrap items-center gap-2 font-semibold">
           {g.firstName} {g.lastName}
+          {g.organizer && (
+            <span className="rounded-full bg-royal-pale px-2.5 py-0.5 text-xs font-semibold text-royal">
+              Organizer
+            </span>
+          )}
         </div>
         <div className="text-sm text-muted">
           {standing(g, trip, full)} · joined {day(g.createdAt)}
           {g.managedBy && ` · handled by ${g.managedBy.name}`}
         </div>
-        {g.terms && g.status !== 'declined' && <Paid terms={g.terms} />}
+        {/* An organizer going owes nothing until a charge for their share is added. */}
+        {g.terms && g.status !== 'declined' && (!g.organizer || totalDueCents(g.terms) > 0) && (
+          <Paid terms={g.terms} />
+        )}
       </div>
       <div className="ml-auto flex gap-2">
+        {onNotGoing && <NotGoingButton onNotGoing={onNotGoing} />}
         <button type="button" onClick={onDetails} className={outlined}>
           Details
         </button>
@@ -1440,6 +1457,9 @@ export function GuestsCard(props: Props) {
   const waiting = waitlist(trip.guests).length
   const line = all.filter((x) => !(x.status === 'interested' && x.waitlistedAt && !x.offeredAt))
   const max = trip.maxGuests
+  // The organizer looking is going already (issue #53): as an organizer, or accepted as a guest.
+  const mine = trip.guests.find((g) => g.id === trip.myGuestId)
+  const going = mine?.status === 'approved'
   return (
     <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
@@ -1454,6 +1474,9 @@ export function GuestsCard(props: Props) {
             : 'Accept each guest once they’ve signed. Then they see how to pay you.'}{' '}
         {max ? `${accepted} of ${max} spots taken.` : `${accepted} accepted. No limit set.`}
       </p>
+      {props.onGoing && !going && (
+        <GoingButton spotsLeft={max ? max - accepted : null} onGoing={props.onGoing} />
+      )}
       {waiting > 0 && (
         <button
           type="button"
@@ -1479,6 +1502,11 @@ export function GuestsCard(props: Props) {
               trip={trip}
               full={full}
               onDetails={() => openDetails(x.id)}
+              onNotGoing={
+                x.id === trip.myGuestId && x.organizer && x.status === 'approved'
+                  ? props.onNotGoing
+                  : undefined
+              }
             />
           ))}
         </ul>

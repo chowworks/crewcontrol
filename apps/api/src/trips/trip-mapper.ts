@@ -8,7 +8,7 @@ import type {
   Room as RoomRow,
   Trip as TripRow,
 } from '@prisma/client'
-import { termsOf } from '../join/agreement'
+import { organizerTerms, termsOf } from '../join/agreement'
 import { FROM_STRANGER } from '../receipts/place-receipt'
 import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/receipts-config'
 import {
@@ -247,7 +247,8 @@ export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentM
 function toGuest(
   row: GuestWithAgreement,
   all: GuestWithAgreement[],
-  priceOfRoom: (roomId: string) => number | null
+  priceOfRoom: (roomId: string) => number | null,
+  trip: { startDate: string; endDate: string }
 ): Guest {
   const payments = paymentsOf(row.payments)
   const adjustments = adjustmentsOf(row.adjustments)
@@ -271,7 +272,12 @@ function toGuest(
     roomId: row.roomId,
     roomNote: row.roomNote,
     signedAt: row.agreement?.signedAt.toISOString() ?? null,
-    terms: row.agreement ? termsOf(row.agreement, payments, adjustments) : null,
+    terms: row.agreement
+      ? termsOf(row.agreement, payments, adjustments)
+      : row.organizerGoingAt
+        ? organizerTerms(trip, payments, adjustments)
+        : null,
+    organizer: Boolean(row.organizerGoingAt),
     hasAccount: row.userId !== null,
     emailProblem: (row.emailProblem as Guest['emailProblem']) ?? null,
     roomPriceDiffCents: roomPriceDiff(row, priceOfRoom),
@@ -300,7 +306,11 @@ function roomPriceDiff(
 }
 
 /** `waitlistBufferPercent` is the system setting (SystemSettings), handed along for Trip Control's waitlist. */
-export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: number): OrganizerTrip {
+export function toOrganizerTrip(
+  row: TripWithGuests,
+  waitlistBufferPercent: number,
+  callerUserId?: string
+): OrganizerTrip {
   return {
     id: row.id,
     slug: row.slug,
@@ -329,15 +339,21 @@ export function toOrganizerTrip(row: TripWithGuests, waitlistBufferPercent: numb
     options: optionsOf(row),
     saveTheDate: row.saveTheDate,
     guests: row.guests.map((g) =>
-      toGuest(g, row.guests, (roomId) => {
-        const room = row.rooms?.find((r) => r.id === roomId)
-        return room ? roomPrice(room, row.costPerPersonCents) : null
-      })
+      toGuest(
+        g,
+        row.guests,
+        (roomId) => {
+          const room = row.rooms?.find((r) => r.id === roomId)
+          return room ? roomPrice(room, row.costPerPersonCents) : null
+        },
+        row
+      )
     ),
     receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,
     questionsWaiting: row.questions?.length ?? 0,
+    myGuestId: (callerUserId && row.guests.find((g) => g.userId === callerUserId)?.id) || null,
   }
 }
 
