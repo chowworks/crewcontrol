@@ -14,7 +14,7 @@ const trip = {
   startDate: '2027-06-18',
   endDate: '2027-06-21',
   organizerName: 'Chris',
-  organizer: { name: 'Chris Avery', email: 'chris@example.com' },
+  organizers: [{ name: 'Chris Avery', email: 'chris@example.com' }],
   costPerPersonCents: 120000,
   installmentCount: 4,
   paymentPlan: paymentPlan(120000, 4, null, []),
@@ -62,7 +62,7 @@ describe('the trip agreement', () => {
   it('makes every promise the organizer’s, and Travel HQ no party to it', () => {
     const text = agreementText(trip)
     expect(text).toContain(
-      'This agreement is between you, the guest, and Chris Avery ("Chris", chris@example.com), who organizes MV Beach House 2027.'
+      'This agreement is between you, the guest, and Chris Avery (chris@example.com), who organizes MV Beach House 2027.'
     )
     expect(text).toContain("Every promise in it is Chris's.")
     expect(text).toContain('it is not a party to this agreement')
@@ -80,16 +80,71 @@ describe('the trip agreement', () => {
     expect(text).not.toContain('not a travel company')
   })
 
-  it('gives the email beside the display name when sign-in has no name', () => {
-    expect(
-      agreementText({ ...trip, organizer: { name: '', email: 'chris@example.com' } })
-    ).toContain('between you, the guest, and Chris (chris@example.com), who organizes')
+  it('calls one organizer by their own first name, never the trip page’s host name', () => {
+    // A trip run from Chris's account for Derrell once read "Chris Howard ("Derrell", …)".
+    const text = agreementText({ ...trip, organizerName: 'Derrell' })
+    expect(text).toContain(
+      'between you, the guest, and Chris Avery (chris@example.com), who organizes'
+    )
+    expect(text).toContain('Trip agreement between you and Chris\n')
+    expect(text).not.toContain('Derrell')
   })
 
-  it('names the organizer by their display name alone on a trip with no owner', () => {
-    const text = agreementText({ ...trip, organizer: null })
+  it('names everyone who runs the trip, and words every promise as theirs together', () => {
+    const text = agreementText({
+      ...trip,
+      organizerName: 'Derrell',
+      organizers: [
+        { name: 'Derrell Jones', email: 'derrell@example.com' },
+        { name: 'Chris Avery', email: 'chris@example.com' },
+      ],
+    })
+    expect(text).toContain('Trip agreement between you and Derrell and Chris\n')
+    expect(text).toContain(
+      'between you, the guest, and Derrell Jones (derrell@example.com) and Chris Avery (chris@example.com), who ' +
+        'organize MV Beach House 2027 ("the organizers"). Every promise in it is the organizers\'.'
+    )
+    expect(text).toContain("what the organizers promise here or do or don't deliver")
+    expect(text).toContain("The organizers can change the trip's details")
+    expect(text).toContain('You pay the organizers directly')
+    expect(text).toContain("4. The organizers' refund terms")
+    expect(text).toContain('The organizers chose this for the trip')
+    expect(text).toContain('the organizers refund everything you paid, in full')
+    expect(text).toContain(
+      'If the organizers remove you from the trip, the organizers refund everything'
+    )
+    expect(text).toContain('the organizers accept who comes')
+    // No singular verb left behind after "the organizers".
+    expect(
+      text.match(/the organizers (\w+)/gi)?.filter((m) => /s$/.test(m) && !/'s$/.test(m))
+    ).toEqual([])
+  })
+
+  it('names three organizers as a list', () => {
+    const text = agreementText({
+      ...trip,
+      organizers: [
+        { name: 'Ana Ruiz', email: 'ana@example.com' },
+        { name: 'Ben Ode', email: 'ben@example.com' },
+        { name: 'Cy Park', email: 'cy@example.com' },
+      ],
+    })
+    expect(text).toContain(
+      'Ana Ruiz (ana@example.com), Ben Ode (ben@example.com) and Cy Park (cy@example.com), who organize'
+    )
+    expect(text).toContain('Trip agreement between you and Ana, Ben and Cy\n')
+  })
+
+  it('says "the organizer" when sign-in has no name, beside their email', () => {
+    const text = agreementText({ ...trip, organizers: [{ name: '', email: 'chris@example.com' }] })
+    expect(text).toContain('between you, the guest, and chris@example.com, who organizes')
+    expect(text).toContain('The organizer can change')
+  })
+
+  it('names the organizer by the trip page’s name alone on a trip with no one on it', () => {
+    const text = agreementText({ ...trip, organizers: [] })
     expect(text).toContain('between you, the guest, and Chris, who organizes')
-    expect(agreementPreview({ ...trip, organizer: null }).textHash).not.toBe(
+    expect(agreementPreview({ ...trip, organizers: [] }).textHash).not.toBe(
       agreementPreview(trip).textHash
     )
   })

@@ -120,9 +120,11 @@ const ORGANIZER_TERMS: { title: string; sections: TermsSection[] } = {
       heading: 'Addendum: the trip agreement your guests sign',
       body:
         'Every guest who joins your trip signs this agreement with you, filled in from your trip. [organizer] is ' +
-        'the name your trip page shows for you; your full name and email come from your sign-in, and every guest ' +
-        'who opens the agreement sees them. The other words in [brackets] come from your trip. Where your trip’s ' +
-        'settings choose between versions, each one is shown.',
+        'your first name; it, your full name and your email come from your sign-in, and every guest who opens the ' +
+        'agreement sees them. When more than one person runs the trip, it names each of you, with your emails, ' +
+        'says "the organizers" where this says [organizer], and every promise in it is yours together. The other ' +
+        'words in [brackets] come from your trip. Where your trip’s settings choose between versions, each one is ' +
+        'shown.',
     },
     // Built from the agreement itself, so changing its wording changes these Terms' version and asks organizers again.
     ...agreementTemplate().map((s) => ({

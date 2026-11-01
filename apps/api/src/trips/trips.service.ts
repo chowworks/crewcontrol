@@ -506,7 +506,7 @@ export class TripsService {
         trip.firstPaymentCents,
         trip.paymentDueDates
       ),
-      organizer: await this.organizerContact(id),
+      organizers: await this.organizerContacts(id),
     })
   }
 

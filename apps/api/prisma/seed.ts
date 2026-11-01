@@ -3,7 +3,12 @@
 // The seed writes as the database owner (SCHEMA_DATABASE_URL), which row-level security does not bind.
 import '../scripts/lib/owner-env'
 import { PrismaClient, type Guest, type Prisma } from '@prisma/client'
-import { agreementPreview, refundTerms, TEMPLATE_VERSION } from '../src/join/agreement'
+import {
+  agreementPreview,
+  organizerWords,
+  refundTerms,
+  TEMPLATE_VERSION,
+} from '../src/join/agreement'
 import { planOf } from '../src/trips/trip-mapper'
 import {
   paymentMethodLabel,
@@ -425,7 +430,7 @@ async function main() {
         startDate: created.startDate,
         endDate: created.endDate,
         refundTerms: refundTerms(
-          created.organizerName,
+          organizerWords(created),
           created.joinMode,
           created.refundPolicy,
           plan[0].amountCents
