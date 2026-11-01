@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Copy, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -40,6 +40,16 @@ export function TripsPage() {
       toast({ text: `Restored ${t.name}. Publish it again when you’re ready.` })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The trip was not restored.')
+    }
+  }
+
+  // Copies the trip page's link, to paste into the crew's text thread.
+  async function share(t: ListedTrip) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/t/${t.slug}`)
+      toast({ text: `Link to ${t.name} copied.` })
+    } catch {
+      // Some browsers refuse the clipboard; the Guest page button opens the link to copy by hand.
     }
   }
 
@@ -92,13 +102,21 @@ export function TripsPage() {
                   <Link to={`/organize/${t.id}`} className={rowButton()}>
                     Edit
                   </Link>
-                  <Link to={`/organize/${t.id}/people`} className={rowButton()}>
-                    People
-                  </Link>
                   {t.published && (
                     <Link to={`/t/${t.slug}`} className={rowButton()}>
                       Guest page
                     </Link>
+                  )}
+                  {t.published && (
+                    <button
+                      type="button"
+                      onClick={() => share(t)}
+                      aria-label={`Copy link to ${t.name}`}
+                      title="Copy link"
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-royal text-royal hover:bg-royal-pale"
+                    >
+                      <Copy className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   )}
                 </>
               )

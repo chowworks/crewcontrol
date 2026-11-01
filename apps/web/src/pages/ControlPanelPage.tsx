@@ -284,14 +284,17 @@ export function ControlPanelPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
-          <Link
-            to={admin ? `/admin/trips/${id}/people` : `/organize/${id}/people`}
-            aria-label="People"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal bg-royal px-2.5 font-semibold text-white hover:bg-royal-dark sm:px-4"
-          >
-            <Users className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">People</span>
-          </Link>
+          {/* An organizer's owners and organizers are in the Danger zone; an admin seats itself here. */}
+          {admin && (
+            <Link
+              to={`/admin/trips/${id}/people`}
+              aria-label="People"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal bg-royal px-2.5 font-semibold text-white hover:bg-royal-dark sm:px-4"
+            >
+              <Users className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">People</span>
+            </Link>
+          )}
           <AccountMenu />
         </div>
       </header>

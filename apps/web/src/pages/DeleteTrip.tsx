@@ -1,7 +1,7 @@
 import type { OrganizerTrip } from '@cc/types'
-import { Check, Download, Trash2, TriangleAlert } from 'lucide-react'
+import { Check, Download, Trash2, TriangleAlert, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Dialog } from '@/components/Dialog'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
@@ -74,6 +74,17 @@ export function DangerZone({ tripId, tripName }: { tripId: string; tripName: str
           {error}
         </p>
       )}
+      {/* Moved here from Trip Control's header (owner's decision, 2026-11-01). */}
+      <div className="flex flex-col gap-3 border-t border-rule pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold">Manage owners and organizers</p>
+          <p className="text-body">Who can run this trip with you, and who can change who.</p>
+        </div>
+        <Link to={`/organize/${tripId}/people`} className={`${outlined} shrink-0`}>
+          <Users className="h-4 w-4" aria-hidden="true" />
+          Manage
+        </Link>
+      </div>
       <div className="flex flex-col gap-3 border-t border-rule pt-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold">Download everything</p>
