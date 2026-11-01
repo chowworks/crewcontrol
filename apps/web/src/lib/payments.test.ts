@@ -32,12 +32,25 @@ describe('confirmedLookalike', () => {
 })
 
 describe('shown', () => {
+  const show = (p: Payment, all: Payment[] = [p]) => shown.payment(p, 0, all)
   it('leaves out a payment an organizer logged and removed, and a removed credit or charge', () => {
-    expect(shown.payment({ loggedBy: 'organizer', status: 'not_received' })).toBe(false)
-    expect(shown.payment({ loggedBy: 'organizer', status: 'confirmed' })).toBe(true)
-    // A guest's payment that never arrived stays: it says something to them and the organizer.
-    expect(shown.payment({ loggedBy: 'guest', status: 'not_received' })).toBe(true)
+    expect(show(pay({ loggedBy: 'organizer', status: 'not_received' }))).toBe(false)
+    expect(show(pay({ loggedBy: 'organizer', status: 'confirmed' }))).toBe(true)
     expect(shown.adjustment({ removedAt: '2026-11-01T20:00:00Z' })).toBe(false)
     expect(shown.adjustment({ removedAt: null })).toBe(true)
+  })
+
+  it('leaves out a duplicate marked not received, but shows one that really didn’t arrive', () => {
+    const missing = pay({
+      id: 'p0',
+      loggedBy: 'guest',
+      status: 'not_received',
+      receivedPaymentAmount: null,
+    })
+    // Nothing else confirmed: their money didn't arrive, and they need to see that.
+    expect(show(missing)).toBe(true)
+    // The same $200 confirmed from a forwarded receipt: it was the same money reported twice.
+    const receipt = pay({ id: 'p1', loggedBy: 'email' })
+    expect(show(missing, [missing, receipt])).toBe(false)
   })
 })

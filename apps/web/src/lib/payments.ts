@@ -49,12 +49,15 @@ export function confirmedLookalike(
 }
 
 /**
- * What an organizer took back stays out of the transaction lists (owner's decision, 2026-11-01): a payment they
- * logged and then removed, and a credit or charge they removed. The guest's history still records both.
+ * What was taken back stays out of the transaction lists (owner's decisions, 2026-11-01): a payment an organizer
+ * logged and then removed, a credit or charge they removed, and a payment marked not received that was a duplicate (a
+ * confirmed one for the same amount within three days). Used as a filter callback, so it sees the guest's other
+ * payments. A payment that really didn't arrive still shows. The guest's history still records them all.
  */
 export const shown = {
-  payment: (p: Pick<Payment, 'loggedBy' | 'status'>) =>
-    !(p.loggedBy === 'organizer' && p.status === 'not_received'),
+  payment: (p: Payment, _i?: number, all: Payment[] = []) =>
+    p.status !== 'not_received' ||
+    (p.loggedBy !== 'organizer' && !confirmedLookalike(all, p.guestPaymentAmount, p.sentOn, p.id)),
   adjustment: (a: { removedAt: string | null }) => !a.removedAt,
 }
 
