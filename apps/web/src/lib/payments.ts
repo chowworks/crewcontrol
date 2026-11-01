@@ -26,6 +26,28 @@ export { totalDueCents } from '@cc/types'
 // What was due when a payment was reported: shared with the API (packages/types).
 export { dueWhenSent } from '@cc/types'
 
+/**
+ * A confirmed payment of the same amount sent within three days: most likely the same money, so counting another asks
+ * first (owner's decision, 2026-11-01, after a logged payment and the guest's own report were both confirmed).
+ */
+export function confirmedLookalike(
+  payments: Payment[],
+  amountCents: number,
+  sentOn: string,
+  exceptId?: string
+): Payment | null {
+  const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 86_400_000
+  return (
+    payments.find(
+      (p) =>
+        p.id !== exceptId &&
+        p.status === 'confirmed' &&
+        (p.receivedPaymentAmount ?? p.guestPaymentAmount) === amountCents &&
+        Math.abs(day(p.sentOn) - day(sentOn)) <= 3
+    ) ?? null
+  )
+}
+
 /** Today as 'YYYY-MM-DD' in the viewer's own time zone. */
 export function today(): string {
   const d = new Date()
