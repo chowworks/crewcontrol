@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import type { Expense as ExpenseRow } from '@prisma/client'
 import type { Caller } from '../auth/caller'
+import { money } from '../join/agreement'
 import { PrismaService } from '../prisma/prisma.service'
+import { recordChange } from './trip-changes'
 import type { Expense, ExpenseInput } from './trip-types'
 
 const toExpense = (row: ExpenseRow): Expense => ({
@@ -38,6 +40,12 @@ export class ExpensesService {
     await this.prisma.expense.create({
       data: { ...input, tripId, createdByUserId: caller.userId },
     })
+    await recordChange(this.prisma, tripId, caller, {
+      what: 'expense',
+      action: 'added',
+      payee: input.payee,
+      amount: money(input.amountCents),
+    })
     return this.list(tripId, caller)
   }
 
@@ -48,18 +56,41 @@ export class ExpensesService {
     caller: Caller
   ): Promise<Expense[]> {
     await this.trip(tripId, caller)
+    const before = await this.prisma.expense.findFirst({ where: { id: expenseId, tripId } })
     const { count } = await this.prisma.expense.updateMany({
       where: { id: expenseId, tripId },
       data: input,
     })
     if (!count) throw new NotFoundException('Expense not found')
+    // Saved unchanged: nothing for the log.
+    const unchanged =
+      before &&
+      before.payee === input.payee &&
+      before.description === input.description &&
+      before.amountCents === input.amountCents &&
+      before.paidOn === input.paidOn &&
+      before.dueOn === input.dueOn
+    if (!unchanged)
+      await recordChange(this.prisma, tripId, caller, {
+        what: 'expense',
+        action: 'changed',
+        payee: input.payee,
+        amount: money(input.amountCents),
+      })
     return this.list(tripId, caller)
   }
 
   async remove(tripId: string, expenseId: string, caller: Caller): Promise<Expense[]> {
     await this.trip(tripId, caller)
+    const row = await this.prisma.expense.findFirst({ where: { id: expenseId, tripId } })
     const { count } = await this.prisma.expense.deleteMany({ where: { id: expenseId, tripId } })
-    if (!count) throw new NotFoundException('Expense not found')
+    if (!count || !row) throw new NotFoundException('Expense not found')
+    await recordChange(this.prisma, tripId, caller, {
+      what: 'expense',
+      action: 'removed',
+      payee: row.payee,
+      amount: money(row.amountCents),
+    })
     return this.list(tripId, caller)
   }
 

@@ -45,6 +45,7 @@ import type {
   OrganizerRequestInput,
   SignedAgreement,
   SystemSettings,
+  TripChange,
   TripInput,
   TripLogEntry,
   TripPhoto,
@@ -54,6 +55,7 @@ import type {
   TripSummary,
 } from './trip-types'
 import { makeSlug } from './slug'
+import { recordChange, roomChanges, tripChanges, type RoomState } from './trip-changes'
 import {
   paymentPlan,
   ROOMS_PRICED_APART,
@@ -377,6 +379,8 @@ export class TripsService {
       !(input.options.roomChoice && input.options.roomRequired)
     )
       throw new BadRequestException(ROOMS_PRICED_APART)
+    // As stored, photos as references: what the trip log compares (owner's decision, 2026-11-01).
+    const before = await this.prisma.trip.findUnique({ where: { id } })
     const row = await uniqueSlug(() =>
       this.prisma.trip.update({
         where: { id },
@@ -384,6 +388,10 @@ export class TripsService {
         include: withGuests,
       })
     )
+    await recordChange(this.prisma, id, caller, () => {
+      const fields = before ? tripChanges(before, row) : []
+      return fields.length ? { what: 'trip', fields } : null
+    })
     return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
   }
 
@@ -468,6 +476,10 @@ export class TripsService {
       )
     )
     const kept = rooms.filter((r) => r.id && existing.has(r.id)).map((r) => r.id as string)
+    const before = await this.prisma.room.findMany({
+      where: { tripId: id },
+      orderBy: { position: 'asc' },
+    })
     await this.prisma.$transaction([
       this.prisma.room.deleteMany({ where: { tripId: id, id: { notIn: kept } } }),
       ...rooms.map(({ id: roomId, ...room }, position) =>
@@ -476,7 +488,11 @@ export class TripsService {
           : this.prisma.room.create({ data: { ...room, position, tripId: id } })
       ),
     ])
-    return this.getRooms(id, caller)
+    const after = await this.getRooms(id, caller)
+    await recordChange(this.prisma, id, caller, () =>
+      roomChanges(before, after as RoomState[], trip.costPerPersonCents)
+    )
+    return after
   }
 
   /** The agreement as guests of this trip would sign it today, for the organizer's preview. */
@@ -590,8 +606,8 @@ export class TripsService {
   }
 
   /**
-   * The trip log, newest first: joins refused because the email is already on the trip (who tried, from where), the
-   * admin's seats and opens, and, if asked, every guest's history.
+   * The trip log, newest first: joins refused because the email is already on the trip (who tried, from where), what
+   * organizers changed, changes to the trip's people, and every guest's history.
    */
   async log(id: string, caller: Caller, admin = false): Promise<TripLogEntry[]> {
     const trip = await this.get(id, caller, admin)
@@ -601,9 +617,13 @@ export class TripsService {
       this.events(id),
       this.prisma.tripQuestion.findMany({ where: { tripId: id } }),
     ])
-    // Who changed the trip's people, and whom, by name from sign-in.
+    const changes = refused.filter((r) => r.kind === 'change')
+    // Who changed the trip's people, and whom, and who changed the trip, by name from sign-in.
     const people = await this.clerk.names([
-      ...new Set(access.flatMap((a) => [a.actorUserId, a.subjectUserId])),
+      ...new Set([
+        ...access.flatMap((a) => [a.actorUserId, a.subjectUserId]),
+        ...changes.flatMap((c) => (c.actorUserId ? [c.actorUserId] : [])),
+      ]),
     ])
     const person = (userId: string) => people.get(userId) ?? 'Someone'
     const name = (guestId: string) => {
@@ -611,15 +631,25 @@ export class TripsService {
       return g ? `${g.firstName} ${g.lastName}` : 'A guest'
     }
     const entries: TripLogEntry[] = [
-      ...refused.map((r) => ({
-        kind: 'email_refused' as const,
-        at: r.at.toISOString(),
-        name: r.name,
-        email: r.email,
-        phone: r.phone,
-        ipAddress: r.ipAddress,
-        userAgent: r.userAgent,
-        blocked: r.blocked,
+      ...refused
+        .filter((r) => r.kind === 'email_refused')
+        .map((r) => ({
+          kind: 'email_refused' as const,
+          at: r.at.toISOString(),
+          name: r.name,
+          email: r.email,
+          phone: r.phone,
+          ipAddress: r.ipAddress,
+          userAgent: r.userAgent,
+          blocked: r.blocked,
+        })),
+      ...changes.map((c) => ({
+        kind: 'change' as const,
+        at: c.at.toISOString(),
+        byAdmin: c.byAdmin,
+        // The admin's name stays off organizers' screens (and out of what the browser gets).
+        actorName: c.byAdmin ? 'An admin' : c.actorUserId ? person(c.actorUserId) : 'Someone',
+        change: c.details as unknown as TripChange,
       })),
       ...access.map((a) => ({
         kind: 'people' as const,

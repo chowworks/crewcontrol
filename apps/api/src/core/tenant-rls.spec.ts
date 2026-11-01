@@ -1141,6 +1141,44 @@ suite('trip isolation', () => {
     })
   })
 
+  it("logs a change as the trip's member or the admin who made it, and nobody else", async () => {
+    const change = `'{"what":"trip_deleted"}'::jsonb`
+    await as(await person('u1'), async () => {
+      expect(await attempt(`SELECT "log_trip_change"('T1', ${change})`)).not.toHaveProperty('error')
+      // Someone else's trip, and writing the table directly, are refused.
+      expect(await attempt(`SELECT "log_trip_change"('T2', ${change})`)).toEqual({
+        error: expect.stringMatching(/Not on this trip/),
+      })
+      expect(
+        await attempt(`INSERT INTO "TripLog" ("tripId", kind) VALUES ('T1', 'change')`)
+      ).toEqual({ error: refused })
+      const rows = await db.query(
+        `SELECT kind, "actorUserId", "byAdmin", details FROM "TripLog" WHERE kind = 'change'`
+      )
+      expect(rows.rows).toEqual([
+        { kind: 'change', actorUserId: 'u1', byAdmin: false, details: { what: 'trip_deleted' } },
+      ])
+      expect(await attempt(`UPDATE "TripLog" SET "byAdmin" = true`)).toEqual({ rows: 0 })
+    })
+    await as(await person('a1', { admin: true }), async () => {
+      expect(await attempt(`SELECT "log_trip_change"('T2', ${change})`)).not.toHaveProperty('error')
+      const rows = await db.query(
+        `SELECT "tripId", "byAdmin" FROM "TripLog" WHERE kind = 'change' AND "actorUserId" = 'a1'`
+      )
+      expect(rows.rows).toEqual([{ tripId: 'T2', byAdmin: true }])
+    })
+    await as(await person('g3'), async () => {
+      expect(await attempt(`SELECT "log_trip_change"('T1', ${change})`)).toEqual({
+        error: expect.stringMatching(/Not on this trip/),
+      })
+    })
+    await as({}, async () => {
+      expect(await attempt(`SELECT "log_trip_change"('T1', ${change})`)).toEqual({
+        error: expect.stringMatching(/Sign in first/),
+      })
+    })
+  })
+
   it("keeps each person's Terms acceptances to themselves, stamped now, and lets nobody change or remove one", async () => {
     const accept = (id: string, user: string, kind = 'use') =>
       attempt(

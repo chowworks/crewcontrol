@@ -15,6 +15,7 @@ import { EmailsService } from '../messaging/emails.service'
 import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import { PrismaService } from '../prisma/prisma.service'
 import { agreementPdf } from './agreement-pdf'
+import { recordChange } from './trip-changes'
 import { DELETED_KEPT_DAYS, eraseOn } from './trip-mapper'
 import type { Guest, OrganizerTrip, Payment, TripPhoto } from './trip-types'
 import { TripsService } from './trips.service'
@@ -96,6 +97,7 @@ export class TripDeletionService implements OnApplicationBootstrap, OnModuleDest
       where: { id },
       data: { deletedAt, deletedByUserId: caller.userId, published: false },
     })
+    await recordChange(this.prisma, id, caller, { what: 'trip_deleted' })
     const erase = eraseOn(deletedAt)
     for (const sig of signatures) {
       const guest = trip.guests.find((g) => g.id === sig.guestId)
@@ -122,6 +124,7 @@ export class TripDeletionService implements OnApplicationBootstrap, OnModuleDest
         data: { deletedAt: null, deletedByUserId: null },
       })
     })
+    await recordChange(this.prisma, id, caller, { what: 'trip_restored' })
   }
 
   /** Erases every trip deleted more than 30 days before `now`, and its photos. Returns how many. */

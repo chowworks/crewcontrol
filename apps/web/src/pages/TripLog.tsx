@@ -5,9 +5,11 @@ import { useAdminView } from '@/components/AdminView'
 import { api } from '@/lib/api'
 import { type Cell, downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { eventText, IconCircle } from './TripGuests'
+import { type ChangeGroup, changeSentence, groupText, mergeEdits } from './tripChanges'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
-// already on the trip, changes to who runs it (and the admin's visits), and, with the box ticked, every guest's history, newest first.
+// already on the trip, what organizers changed (2026-11-01), changes to who runs it (and the admin's visits), and, with
+// the box ticked, every guest's history, newest first.
 
 const at = (iso: string) =>
   new Date(iso).toLocaleString('en-US', {
@@ -46,7 +48,31 @@ function questionText(e: QuestionEntry): string {
     : `${e.name} answered ${e.askerName}’s question for everyone: “${e.question}”`
 }
 
-function Line({ e }: { e: TripLogEntry }) {
+/** "Nov 1, 9:02 AM – 9:14 AM" for saves on one day, both in full otherwise. */
+function span(first: string, last: string): string {
+  if (at(first) === at(last)) return at(last)
+  const sameDay = new Date(first).toDateString() === new Date(last).toDateString()
+  const end = sameDay
+    ? new Date(last).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : at(last)
+  return `${at(first)} – ${end}`
+}
+
+function Line({ e }: { e: TripLogEntry | ChangeGroup }) {
+  if (e.kind === 'changes')
+    return (
+      <>
+        <div className="font-semibold [overflow-wrap:anywhere]">{groupText(e)}</div>
+        <div className="text-sm text-muted">{span(e.first, e.at)}</div>
+      </>
+    )
+  if (e.kind === 'change')
+    return (
+      <>
+        <div className="font-semibold [overflow-wrap:anywhere]">{changeSentence(e)}</div>
+        <div className="text-sm text-muted">{at(e.at)}</div>
+      </>
+    )
   if (e.kind === 'email_refused')
     return (
       <>
@@ -108,6 +134,16 @@ function row(e: TripLogEntry): (string | null)[] {
     ]
   if (e.kind === 'people') return [stamp(e.at), peopleText(e), null, actor(e), null, null, null]
   if (e.kind === 'question') return [stamp(e.at), questionText(e), null, e.name, null, null, null]
+  if (e.kind === 'change')
+    return [
+      stamp(e.at),
+      changeSentence(e),
+      null,
+      e.byAdmin ? 'An admin' : e.actorName,
+      null,
+      null,
+      null,
+    ]
   const who =
     e.event.actor === 'guest'
       ? e.guestName
@@ -143,7 +179,8 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
     window.addEventListener('cc:actions-changed', load)
     return () => window.removeEventListener('cc:actions-changed', load)
   }, [trip, admin])
-  const shown = (entries ?? []).filter((e) => guests || e.kind !== 'guest')
+  // One person's editor saves close together read as one line; the Export keeps each save.
+  const shown = mergeEdits((entries ?? []).filter((e) => guests || e.kind !== 'guest'))
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">

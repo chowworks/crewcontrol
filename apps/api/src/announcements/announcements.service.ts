@@ -15,6 +15,7 @@ import type {
   OrganizerTrip,
   TripAnnouncements,
 } from '../trips/trip-types'
+import { recordChange, snippet } from '../trips/trip-changes'
 import { TripsService } from '../trips/trips.service'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
@@ -123,6 +124,11 @@ export class AnnouncementsService {
         recipients: { create: to.map((g) => ({ guestId: g.id })) },
       },
     })
+    await recordChange(this.prisma, id, caller, {
+      what: 'announcement',
+      action: 'posted',
+      text: snippet(input.body),
+    })
     if (input.email) {
       const tokens = new Map(
         (
@@ -170,7 +176,19 @@ export class AnnouncementsService {
   /** Removes the post and its replies. Its emails have gone; this only takes it off the trip. */
   async remove(id: string, announcementId: string, caller: Caller) {
     await this.trips.get(id, caller)
-    await this.prisma.announcement.deleteMany({ where: { id: announcementId, tripId: id } })
+    const row = await this.prisma.announcement.findFirst({
+      where: { id: announcementId, tripId: id },
+      select: { body: true },
+    })
+    const { count } = await this.prisma.announcement.deleteMany({
+      where: { id: announcementId, tripId: id },
+    })
+    if (count && row)
+      await recordChange(this.prisma, id, caller, {
+        what: 'announcement',
+        action: 'deleted',
+        text: snippet(row.body),
+      })
     return this.forTrip(id, caller)
   }
 

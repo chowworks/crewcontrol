@@ -12,6 +12,7 @@ import type {
   TripQuestion,
   TripQuestions,
 } from '../trips/trip-types'
+import { recordChange, snippet } from '../trips/trip-changes'
 import { TripsService } from '../trips/trips.service'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
@@ -155,6 +156,16 @@ export class QuestionsService {
           : {}),
       },
     })
+    if (
+      row.question !== input.question ||
+      row.answer !== input.answer ||
+      row.status !== input.status
+    )
+      await recordChange(this.prisma, id, caller, {
+        what: 'question',
+        action: 'edited',
+        question: snippet(input.question),
+      })
     return this.forTrip(id, caller)
   }
 
@@ -183,7 +194,19 @@ export class QuestionsService {
   /** Deletes an entry, or a question nobody answered. Nobody is emailed. */
   async remove(id: string, questionId: string, caller: Caller): Promise<TripQuestions> {
     await this.trips.get(id, caller)
-    await this.prisma.tripQuestion.deleteMany({ where: { id: questionId, tripId: id } })
+    const row = await this.prisma.tripQuestion.findFirst({
+      where: { id: questionId, tripId: id },
+      select: { question: true },
+    })
+    const { count } = await this.prisma.tripQuestion.deleteMany({
+      where: { id: questionId, tripId: id },
+    })
+    if (count && row)
+      await recordChange(this.prisma, id, caller, {
+        what: 'question',
+        action: 'deleted',
+        question: snippet(row.question),
+      })
     return this.forTrip(id, caller)
   }
 

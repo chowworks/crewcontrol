@@ -6,6 +6,7 @@ import { runAsPublic } from '../core/tenant-context'
 import { dateRange } from '../messaging/email-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { recordChange } from '../trips/trip-changes'
 import { splitName } from '../trips/trip-input'
 import type {
   InterestInput,
@@ -57,7 +58,15 @@ export class InterestService {
   /** Takes someone off the list. They aren't told. */
   async remove(id: string, interestId: string, caller: Caller): Promise<InterestedPerson[]> {
     await this.trips.get(id, caller)
-    await this.prisma.tripInterest.deleteMany({ where: { id: interestId, tripId: id } })
+    const row = await this.prisma.tripInterest.findFirst({ where: { id: interestId, tripId: id } })
+    const { count } = await this.prisma.tripInterest.deleteMany({
+      where: { id: interestId, tripId: id },
+    })
+    if (count && row)
+      await recordChange(this.prisma, id, caller, {
+        what: 'interest_removed',
+        name: `${row.firstName} ${row.lastName}`.trim(),
+      })
     return this.forTrip(id, caller)
   }
 
@@ -71,7 +80,13 @@ export class InterestService {
     if (!trip.published)
       throw new ConflictException('Publish the trip first, then launch sign-ups.')
     await this.prisma.trip.update({ where: { id }, data: { saveTheDate: false } })
-    const { told } = email ? await this.tell(id, caller) : { told: 0 }
+    let told = 0
+    try {
+      if (email) told = (await this.tell(id, caller)).told
+    } finally {
+      // Sign-ups are open even when an email failed partway: the line says so, with how many went out.
+      await recordChange(this.prisma, id, caller, { what: 'signups_opened', emailed: told })
+    }
     return { trip: await this.trips.get(id, caller), told }
   }
 
