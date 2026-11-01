@@ -48,6 +48,16 @@ export function confirmedLookalike(
   )
 }
 
+/**
+ * What an organizer took back stays out of the transaction lists (owner's decision, 2026-11-01): a payment they
+ * logged and then removed, and a credit or charge they removed. The guest's history still records both.
+ */
+export const shown = {
+  payment: (p: Pick<Payment, 'loggedBy' | 'status'>) =>
+    !(p.loggedBy === 'organizer' && p.status === 'not_received'),
+  adjustment: (a: { removedAt: string | null }) => !a.removedAt,
+}
+
 /** Today as 'YYYY-MM-DD' in the viewer's own time zone. */
 export function today(): string {
   const d = new Date()
