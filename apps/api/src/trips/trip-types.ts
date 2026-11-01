@@ -464,6 +464,78 @@ export type TripLogEntry =
       question: string
       status: QuestionStatus
     }
+  | {
+      /**
+       * Something an organizer changed (owner's decision, 2026-11-01): so each owner sees what the others did. Each
+       * save is one line; the trip log shows one person's editor saves close together as one.
+       */
+      kind: 'change'
+      at: string
+      /** The admin did it: the log says "An admin", not their name. */
+      byAdmin: boolean
+      actorName: string
+      change: TripChange
+    }
+
+/** The parts of a trip the editor saves, as the trip log names them. */
+export type TripChangeField =
+  | 'name'
+  | 'dates'
+  | 'price'
+  | 'spots'
+  | 'joinMode'
+  | 'refundPolicy'
+  | 'paymentPlan'
+  | 'published'
+  | 'link'
+  | 'destination'
+  | 'host'
+  | 'description'
+  | 'photos'
+  | 'photoTitle'
+  | 'highlights'
+  | 'keyDates'
+  | 'guestNames'
+  | 'paymentMethods'
+  | 'paymentInstructions'
+  | 'reminders'
+  | 'saveTheDate'
+  | 'roomChoice'
+  | 'signupNote'
+  | 'vendorCosts'
+  | 'roomPricing'
+  | 'confirmReceipts'
+
+/** One part of the trip that changed, with what it said before and after in plain words when that is short. */
+export interface TripFieldChange {
+  field: TripChangeField
+  from?: string
+  to?: string
+}
+
+/**
+ * What one organizer action changed, written in plain words when it happened, so a line reads the same after later
+ * edits. Never shown to guests.
+ */
+export type TripChange =
+  | { what: 'trip'; fields: TripFieldChange[] }
+  | {
+      what: 'rooms'
+      added: string[]
+      removed: string[]
+      renamed: { from: string; to: string }[]
+      prices: { room: string; from: string; to: string }[]
+      /** Beds, sizes or the order changed too. */
+      other: boolean
+    }
+  | { what: 'announcement'; action: 'posted' | 'deleted'; text: string }
+  | { what: 'invite'; action: 'sent' | 'role' | 'cancelled'; email: string; role: TripRole }
+  | { what: 'expense'; action: 'added' | 'changed' | 'removed'; payee: string; amount: string }
+  | { what: 'interest_removed'; name: string }
+  | { what: 'signups_opened'; emailed: number }
+  | { what: 'question'; action: 'edited' | 'deleted'; question: string }
+  | { what: 'trip_deleted' }
+  | { what: 'trip_restored' }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**

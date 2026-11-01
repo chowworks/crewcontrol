@@ -12,6 +12,7 @@ import { runAsSystem } from '../core/tenant-context'
 import { dateRange } from '../messaging/email-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { recordChange } from './trip-changes'
 import type { TripPeople, TripPersonInput, TripRole } from './trip-types'
 
 /**
@@ -57,14 +58,17 @@ export class PeopleService {
     if (userId && trip.members.some((m) => m.userId === userId))
       throw new ConflictException('They already help run this trip.')
     let added = true
+    let invited = false
     try {
       // Someone who hasn't signed in yet is invited, and joins when they first sign in with this email.
       if (userId)
         await this.prisma.tripMember.create({ data: { tripId, userId, role: input.role } })
-      else
+      else {
         await this.prisma.tripInvite.create({
           data: { tripId, email: input.email, role: input.role, invitedBy: caller.userId },
         })
+        invited = true
+      }
     } catch (err) {
       // A double click: the other request added them first.
       if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err
@@ -73,6 +77,14 @@ export class PeopleService {
     // Not when an admin seats themselves, nor on Undo, which puts back someone who was already told.
     if (added && input.notify !== false && userId !== caller.userId)
       await this.sendInvite(trip, input, Boolean(userId), tripId, caller)
+    // Someone with an account is logged by the database as they join; an invite waits, so it is logged here.
+    if (invited)
+      await recordChange(this.prisma, tripId, caller, {
+        what: 'invite',
+        action: 'sent',
+        email: input.email,
+        role: input.role,
+      })
     return this.list(tripId, caller, admin)
   }
 
@@ -136,18 +148,33 @@ export class PeopleService {
     admin: boolean
   ) {
     const trip = await this.managed(tripId, caller, admin, role)
-    if (!trip.invites.some((i) => i.email === email)) throw new NotFoundException('Not invited')
+    const invite = trip.invites.find((i) => i.email === email)
+    if (!invite) throw new NotFoundException('Not invited')
     await this.prisma.tripInvite.update({
       where: { tripId_email: { tripId, email } },
       data: { role },
     })
+    if (invite.role !== role)
+      await recordChange(this.prisma, tripId, caller, {
+        what: 'invite',
+        action: 'role',
+        email,
+        role,
+      })
     return this.list(tripId, caller, admin)
   }
 
   async cancelInvite(tripId: string, email: string, caller: Caller, admin: boolean) {
     const trip = await this.managed(tripId, caller, admin)
-    if (!trip.invites.some((i) => i.email === email)) throw new NotFoundException('Not invited')
+    const invite = trip.invites.find((i) => i.email === email)
+    if (!invite) throw new NotFoundException('Not invited')
     await this.prisma.tripInvite.delete({ where: { tripId_email: { tripId, email } } })
+    await recordChange(this.prisma, tripId, caller, {
+      what: 'invite',
+      action: 'cancelled',
+      email,
+      role: invite.role as TripRole,
+    })
     return this.list(tripId, caller, admin)
   }
 

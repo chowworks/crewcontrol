@@ -391,13 +391,14 @@ model Room {
 // Every change the platform admin makes to a trip's people (seating itself, handing a trip to an owner), written by
 // the TripMember_9_admin_logged trigger, never by the API (migration 20261021070000_rooms_owners_access_log).
 // What the trip's organizers should know beyond a guest's own history (migration 20261024020000_trip_log): for now,
-// joins refused because the email is already on the trip, with what was typed and from where. Written only by
-// log_refused_email; members read it.
+// joins refused because the email is already on the trip, with what was typed and from where (log_refused_email), and
+// what organizers changed ('change', details a TripChange; log_trip_change, migration 20261101010000_trip_change_log).
+// Written only by those functions; members read it.
 model TripLog {
   id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   tripId      String
   at          DateTime @default(now())
-  kind        String // 'email_refused'
+  kind        String // 'email_refused' | 'change'
   actorUserId String?
   name        String   @default("")
   email       String   @default("")
@@ -405,6 +406,8 @@ model TripLog {
   ipAddress   String   @default("")
   userAgent   String   @default("")
   blocked     Boolean  @default(false)
+  details     Json?
+  byAdmin     Boolean  @default(false)
   trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([tripId, at])
