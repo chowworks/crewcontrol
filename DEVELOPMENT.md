@@ -145,6 +145,24 @@ The database is shared, so:
 - Reseeding replaces the demo trips for everyone, so say so first. The seed refuses a database that is not on
   your machine until you name it: `npm run db:seed -w @cc/api -- --confirm-host <host:port>`.
 
+### Deploying dev from a cloud thread
+
+Cloud sessions carry a Railway project token scoped to `dev`, as `RAILWAY_TOKEN` in the cloud environment. Production
+isn't visible to it. With the token set, `railway status` names Travel HQ's project and `dev` without a linked
+folder, so `deploy-dev.sh`'s guard passes as it does on a linked laptop.
+
+```sh
+npm i -g @railway/cli
+command -v rsync || apt-get install -y rsync    # deploy-dev.sh copies the tree with rsync; cloud images lack it
+apps/api/scripts/deploy-dev.sh
+curl -sS https://api-dev-dev-aac8.up.railway.app/api/health
+railway logs -e dev -s api-dev                  # "No pending migrations" or the ones applied, then the seed
+```
+
+The cloud can't reach the dev Postgres directly (its proxy carries no database traffic), so no `psql`, `prisma
+migrate status` or reseed from the cloud. Migrations and the seed reach dev through `api-dev`'s start command. A full
+reset of dev still runs on a laptop.
+
 ### Production
 
 Declared in the same file: `NODE_ENV=production` and no TCP proxy on Postgres. The seed runs on start, as in dev, so
