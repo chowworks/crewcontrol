@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Monitoring } from '../ops/monitoring.ts'
 import {
+  desiredMonitors,
   planMonitorGroup,
   planMonitors,
   planResources,
@@ -319,4 +320,15 @@ test('an API error stops the sync with its status', async () => {
     sync({ token: 'fake-token', dryRun: true, config, fetchImpl, log: () => {} }),
     /Better Stack GET \/monitor-groups\?per_page=250: 401/
   )
+})
+
+test('a check with its own url watches that address, not the API', () => {
+  const urls = desiredMonitors({
+    ...config,
+    checks: [
+      ...config.checks,
+      { name: 'Page', url: 'https://web.example.test/t/sample', explanation: 'The page opens.' },
+    ],
+  }).map((d) => d.url)
+  assert.deepEqual(urls, [DB, STORAGE, 'https://web.example.test/t/sample'])
 })

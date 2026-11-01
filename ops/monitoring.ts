@@ -12,14 +12,17 @@
  * titled `platform`, with a row per check of the same name. Every check is a "status code 2xx" check (the health
  * routes answer 503 when failing), every `checkFrequency` seconds, alerting the team by email.
  *
- * The address checked is the API that CI deploys, production (API_URL in .github/workflows/ci.yml).
+ * The address checked is the API that CI deploys, production (API_URL in .github/workflows/ci.yml), unless a check
+ * gives its own `url`.
  */
 
 export interface Check {
   /** The monitor's and the status page row's name. */
   name: string
-  /** Path on the API. */
-  path: string
+  /** Path on the API, or `url` instead for a check on another address (the web app's pages). */
+  path?: string
+  /** The full address checked, when it is not on the API. */
+  url?: string
   /** What it checks, in plain words: shown in the help icon on its status page row. */
   explanation: string
 }
@@ -59,6 +62,13 @@ export const monitoring: Omit<Monitoring, 'apiBase'> = {
       path: '/api/health/server-errors',
       explanation:
         'Down if any request to Travel HQ failed with a server error in the last 15 minutes.',
+    },
+    {
+      // The web app on Vercel, which the API's checks never load: its routing middleware once failed on every trip
+      // page (2026-11-01) while the API stayed healthy. A sample trip, so the seed keeps it in production.
+      name: 'Trip pages',
+      url: 'https://travel-hq.app/t/tulum-40th-2027',
+      explanation: 'Down if a trip page does not open.',
     },
   ],
 }

@@ -7,11 +7,12 @@ and CI applies it with `scripts/betterstack-sync.ts`. Copied from Audit Differen
 
 ## What is checked
 
-| Monitor                                 | Route                           | Down when                                                  |
-| --------------------------------------- | ------------------------------- | ---------------------------------------------------------- |
-| Travel HQ · Server errors (last 15 min) | `GET /api/health/server-errors` | any request was answered with a 5xx in the last 15 minutes |
+| Monitor                                 | Route                                         | Down when                                                  |
+| --------------------------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| Travel HQ · Server errors (last 15 min) | `GET /api/health/server-errors`               | any request was answered with a 5xx in the last 15 minutes |
+| Travel HQ · Trip pages                  | `GET https://travel-hq.app/t/tulum-40th-2027` | the sample trip's page does not answer 2xx                 |
 
-It counts rows in the `ServiceFailure` table (`apps/api/src/core/service-failure-log.ts`, migration
+Server errors counts rows in the `ServiceFailure` table (`apps/api/src/core/service-failure-log.ts`, migration
 `20261031020000`), written by the global `ServerErrorFilter` for every 5xx the API answers. A row is when, which kind
 and the route pattern (`POST /api/join/:slug`), never a trip, a person, an email or an error message; the reason is in
 the API's log. Rows older than 30 days are deleted.
@@ -23,7 +24,10 @@ is reused for a minute. `GET /api/health` (the API is up) is not monitored: the 
 database does not answer.
 
 The address checked is production's API, `https://api.travel-hq.app` (`API_URL` in the `betterstack` job of
-`.github/workflows/ci.yml`), since CI deploys only production.
+`.github/workflows/ci.yml`), since CI deploys only production. Trip pages is the exception: it loads a sample trip's
+page on the web app (Vercel), which no API check touches, since its routing middleware once failed on every trip page
+while the API was healthy (2026-11-01). The `deploy-web` job in CI loads the same page after each web deploy, as a
+person and as a link-preview app, and fails the run if either is not 200.
 
 To add a check, see "Health checks and monitoring" in `CLAUDE.md`.
 

@@ -89,7 +89,7 @@ export interface DesiredMonitor {
 
 export function desiredMonitors(config: Monitoring): DesiredMonitor[] {
   return config.checks.map((c) => ({
-    url: config.apiBase + c.path,
+    url: c.url ?? config.apiBase + c.path,
     name: `${config.platform} · ${c.name}`,
     explanation: c.explanation,
   }))

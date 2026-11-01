@@ -49,6 +49,16 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # The API's health checks never load a web page, so check a trip page opens, for a person and for an app drawing
+      # a link preview (the routing middleware answers those): on 2026-11-01 the middleware failed on every trip page.
+      # A sample trip, so the seed keeps it in production. It fails the run; it does not roll the deploy back.
+      - name: Trip pages open
+        run: |
+          for ua in "Mozilla/5.0" "facebookexternalhit/1.1"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 -A "$ua" https://travel-hq.app/t/tulum-40th-2027)
+            echo "$ua: $code"
+            [ "$code" = 200 ] || exit 1
+          done
 
   railway-config:
     name: Apply Railway config (.railway/railway.ts)
