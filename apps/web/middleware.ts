@@ -1,6 +1,6 @@
 import { next } from '@vercel/functions'
 import type { PublicTrip } from '@cc/types'
-import { isPreviewBot, tripSharePage } from './src/lib/share-preview'
+import { isPreviewBot, tripSharePage } from './src/lib/share-preview.js'
 
 /**
  * Vercel Routing Middleware: when an app fetches a trip page to draw its link preview, answer with the trip's own

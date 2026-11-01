@@ -1,5 +1,5 @@
 import type { PublicTrip } from '@cc/types'
-import { dateRange } from './format'
+import { dateRange } from './format.js'
 
 /**
  * A trip page's own link preview: its name, dates and cover photo in place of Travel HQ's (index.html). The Vercel
