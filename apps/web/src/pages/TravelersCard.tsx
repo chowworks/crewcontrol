@@ -5,7 +5,7 @@ import { Users } from 'lucide-react'
 import { useState } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
-import { owed, totalDueCents } from '@/lib/payments'
+import { owed, shown, totalDueCents } from '@/lib/payments'
 import { MyPayments, payees, travelerStatus } from './JoinPage'
 
 const primary =
@@ -80,7 +80,7 @@ function TravelerDialog({ g, view, onClose }: { g: MyGuest; view: JoinView; onCl
             </div>
           </dl>
         )}
-        {g.payments.length > 0 || g.adjustments.length > 0 ? (
+        {g.payments.some(shown.payment) || g.adjustments.some(shown.adjustment) ? (
           <MyPayments
             payments={g.payments}
             adjustments={g.adjustments}

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
-import { totalDueCents } from '@/lib/payments'
+import { shown, totalDueCents } from '@/lib/payments'
 import { AdjustmentLine } from './AdjustBalance'
 import { Spot } from './ControlPanelPage'
 import { Contact, PaymentLine, type DetailsProps } from './TripGuests'
@@ -66,8 +66,8 @@ function useParts(props: DetailsProps) {
     ) : null
   // One transaction history (owner's call, 2026-10-29): payments, credits and charges together, oldest first.
   const lines = [
-    ...g.payments.map((p) => ({ at: p.reportedAt, p, a: null })),
-    ...g.adjustments.map((a) => ({ at: a.createdAt, p: null, a })),
+    ...g.payments.filter(shown.payment).map((p) => ({ at: p.reportedAt, p, a: null })),
+    ...g.adjustments.filter(shown.adjustment).map((a) => ({ at: a.createdAt, p: null, a })),
   ].sort((x, y) => x.at.localeCompare(y.at))
   const list = (
     <>
@@ -225,7 +225,8 @@ export function GuestDetails(props: DetailsProps) {
   const [tab, setTab] = useState<'payments' | 'spot'>('payments')
   // Addresses an organizer said are this guest's when matching a receipt from them (issue #12).
   const senders = trip.receipts.senders.filter((s) => s.guestId === g.id)
-  const transactions = g.payments.length + g.adjustments.length
+  const transactions =
+    g.payments.filter(shown.payment).length + g.adjustments.filter(shown.adjustment).length
   const tabs = [
     {
       key: 'payments',

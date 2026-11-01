@@ -20,7 +20,7 @@ import { RoomCard } from '@/components/RoomCard'
 import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
-import { owed, paymentStatus, totalDueCents } from '@/lib/payments'
+import { owed, paymentStatus, shown, totalDueCents } from '@/lib/payments'
 import { ReportPayment } from './ReportPayment'
 import { adjustmentAmount } from './AdjustBalance'
 import { PaidBar, TravelersCard } from './TravelersCard'
@@ -1161,9 +1161,10 @@ export function MyPayments({
   title?: string
 }) {
   const lines = [
-    ...payments.map((p) => ({ at: p.reportedAt, p, a: null })),
-    ...adjustments.map((a) => ({ at: a.createdAt, p: null, a })),
+    ...payments.filter(shown.payment).map((p) => ({ at: p.reportedAt, p, a: null })),
+    ...adjustments.filter(shown.adjustment).map((a) => ({ at: a.createdAt, p: null, a })),
   ].sort((x, y) => y.at.localeCompare(x.at))
+  if (lines.length === 0) return null
   return (
     <div className="border-t border-rule pt-4">
       <h3 className="text-sm font-semibold text-muted">{title}</h3>
