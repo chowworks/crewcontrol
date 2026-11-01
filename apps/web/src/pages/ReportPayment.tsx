@@ -3,6 +3,7 @@
 import { paymentMethodLabel, type JoinView, type MyGuest } from '@cc/types'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Dialog } from '@/components/Dialog'
+import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
 import { ApiError, api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { centsFrom, dollarsFor, owed, today } from '@/lib/payments'
@@ -248,7 +249,10 @@ export function ReportPayment({ view, people, onDone, onClose }: PayProps) {
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 font-semibold">How you paid</legend>
           {methods.length === 1 ? (
-            <p className="text-body">{paymentMethodLabel(methods[0])}</p>
+            <p className="flex items-center gap-2.5 text-body">
+              <PaymentMethodIcon kind={methods[0].kind} className="h-6 w-6 rounded-md" />
+              {paymentMethodLabel(methods[0])}
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {methods.map((m, i) => (
@@ -257,10 +261,11 @@ export function ReportPayment({ view, people, onDone, onClose }: PayProps) {
                   type="button"
                   aria-pressed={method === i}
                   onClick={() => setMethod(i)}
-                  className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold ${
+                  className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border pl-2 pr-4 text-sm font-semibold ${
                     method === i ? 'border-royal bg-royal-pale text-royal' : 'border-rule text-body'
                   }`}
                 >
+                  <PaymentMethodIcon kind={m.kind} className="h-7 w-7 rounded-full" />
                   {paymentMethodLabel(m)}
                 </button>
               ))}

@@ -1,10 +1,11 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 /**
  * A custom dropdown (never the browser's own list, owner's decision 2026-10-28), styled as the People screen's role
  * picker: a button with the choice and a caret, opening a list with a check by the current one. Arrow keys, Enter and
- * Escape work; a click outside closes it.
+ * Escape work; a click outside closes it. An option may carry an icon, shown before its name in the list and on the
+ * button.
  */
 export function Dropdown<T extends string | number | null>({
   label,
@@ -16,7 +17,7 @@ export function Dropdown<T extends string | number | null>({
   /** Read by screen readers, beside the choice. */
   label: string
   value: T
-  options: { value: T; label: string }[]
+  options: { value: T; label: string; icon?: ReactNode }[]
   onChange: (value: T) => void
   className?: string
 }) {
@@ -67,7 +68,10 @@ export function Dropdown<T extends string | number | null>({
         onClick={() => setOpen(!open)}
         className="inline-flex min-h-[48px] w-full items-center justify-between gap-2 rounded-xl border border-rule bg-white px-3 text-left text-[16px] text-ink hover:border-royal focus:outline-none focus-visible:ring-2 focus-visible:ring-royal/30"
       >
-        <span className="truncate">{current?.label}</span>
+        <span className="flex min-w-0 items-center gap-2.5">
+          {current?.icon}
+          <span className="truncate">{current?.label}</span>
+        </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden="true"
@@ -99,6 +103,7 @@ export function Dropdown<T extends string | number | null>({
                 className={`h-4 w-4 shrink-0 text-royal ${o.value === value ? '' : 'invisible'}`}
                 aria-hidden="true"
               />
+              {o.icon}
               <span className="text-ink">{o.label}</span>
             </li>
           ))}
