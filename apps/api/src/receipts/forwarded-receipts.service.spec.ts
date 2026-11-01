@@ -32,6 +32,7 @@ function setup(email: Record<string, unknown>, foundTrip: unknown = trip) {
   const payment = jest.fn(async () => ({ id: 'P1' }))
   const recorded = jest.fn(async () => ({}))
   const settle = jest.fn(async () => ({}))
+  const backed = jest.fn(async () => ({ count: 1 }))
   const prisma = {
     trip: { findFirst: jest.fn(async () => foundTrip) },
     receiptsAddress: {
@@ -39,7 +40,10 @@ function setup(email: Record<string, unknown>, foundTrip: unknown = trip) {
     },
     forwardedReceipt: { updateMany: settle },
     $transaction: async (fn: (tx: unknown) => Promise<void>) =>
-      fn({ payment: { create: payment }, forwardedReceipt: { update: recorded } }),
+      fn({
+        payment: { create: payment, updateMany: backed },
+        forwardedReceipt: { update: recorded },
+      }),
   } as unknown as PrismaService
   const clerk = {
     verifiedEmails: jest.fn(async (id: string) =>
@@ -54,7 +58,7 @@ function setup(email: Record<string, unknown>, foundTrip: unknown = trip) {
     clerk
   )
   global.fetch = jest.fn(async () => ({ ok: true, json: async () => email })) as never
-  return { service, payment, recorded, settle, accept }
+  return { service, payment, backed, recorded, settle, accept }
 }
 
 const row = (more: Partial<ForwardedReceipt> = {}) =>
@@ -143,6 +147,43 @@ describe('ForwardedReceiptsService.process', () => {
     expect(on.accept).toHaveBeenCalledWith('T', 'G')
   })
 
+  it('backs up the payment the guest already reported instead of recording a second one', async () => {
+    const { service, payment, backed, recorded } = setup(
+      {
+        ...zelle('Kendra <kendra@example.com>'),
+        text: 'Date: Oct 21, 2026\nYou sent $300.00 to Chris Howard',
+      },
+      {
+        ...trip,
+        guests: [
+          {
+            ...trip.guests[0],
+            payments: [
+              {
+                id: 'P0',
+                guestPaymentAmount: 30000,
+                sentOn: '2026-10-21',
+                status: 'reported',
+                transferId: null,
+              },
+            ],
+          },
+        ],
+      }
+    )
+    await service.process(row({ fromAddress: 'kendra@example.com' }), DOMAIN)
+    expect(payment).not.toHaveBeenCalled()
+    expect(backed).toHaveBeenCalledWith({
+      where: { id: 'P0', guestId: 'G', status: 'reported' },
+      data: { loggedBy: 'email' },
+    })
+    expect(recorded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'recorded', guestId: 'G', paymentId: 'P0' }),
+      })
+    )
+  })
+
   it('files a forward from an address the organizer tied to a guest on that guest', async () => {
     const { service, payment } = setup(
       {
@@ -208,8 +249,11 @@ describe('ForwardedReceiptsService.process', () => {
 
 describe('ForwardedReceiptsService.match', () => {
   const caller = { userId: 'u-org' } as never
-  function matching(fromAddress: string | null) {
+  function matching(fromAddress: string | null, existing: unknown[] = []) {
     const upsert = jest.fn(async () => ({}))
+    const create = jest.fn(async () => ({ id: 'P1' }))
+    const update = jest.fn(async () => ({}))
+    const updateMany = jest.fn(async () => ({ count: 1 }))
     const prisma = {
       forwardedReceipt: {
         findFirst: jest.fn(async () => ({
@@ -221,8 +265,8 @@ describe('ForwardedReceiptsService.match', () => {
       },
       $transaction: async (fn: (tx: unknown) => Promise<string>) =>
         fn({
-          payment: { create: jest.fn(async () => ({ id: 'P1' })) },
-          forwardedReceipt: { updateMany: jest.fn(async () => ({ count: 1 })) },
+          payment: { create, update, findMany: jest.fn(async () => existing) },
+          forwardedReceipt: { updateMany },
           payerAddress: { upsert },
         }),
     } as unknown as PrismaService
@@ -233,7 +277,7 @@ describe('ForwardedReceiptsService.match', () => {
       })),
     } as unknown as TripsService
     const service = new ForwardedReceiptsService(prisma, trips, {} as ClerkService)
-    return { service, upsert }
+    return { service, upsert, create, update, updateMany }
   }
   const input = { guestId: 'G', amountCents: 30000, sentOn: '2026-10-21', confirm: false }
 
@@ -259,5 +303,25 @@ describe('ForwardedReceiptsService.match', () => {
     const none = matching(null)
     await none.service.match('T', 'R1', { ...input, remember: true }, caller)
     expect(none.upsert).not.toHaveBeenCalled()
+  })
+  it('matches a receipt to the payment the guest already reported, never a second one', async () => {
+    const reported = {
+      id: 'P0',
+      guestPaymentAmount: 30000,
+      sentOn: '2026-10-20',
+      status: 'reported',
+      transferId: null,
+    }
+    const { service, create, update, updateMany } = matching('kendra@example.com', [reported])
+    await service.match('T', 'R1', { ...input, remember: false }, caller)
+    expect(create).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith({ where: { id: 'P0' }, data: { loggedBy: 'email' } })
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentId: 'P0' }) })
+    )
+    // A different amount is a different payment.
+    const other = matching('kendra@example.com', [{ ...reported, guestPaymentAmount: 20000 }])
+    await other.service.match('T', 'R1', { ...input, remember: false }, caller)
+    expect(other.create).toHaveBeenCalled()
   })
 })

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { CopyText } from '@/components/CopyText'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { RoomCard } from '@/components/RoomCard'
@@ -823,6 +824,8 @@ function MyPlace({
   const [reporting, setReporting] = useState(false)
   const [adding, setAdding] = useState(false)
   const toast = useToast()
+  // A forward is matched by the email they sign in with, so they're told which one to send it from.
+  const signInEmail = useUser().user?.primaryEmailAddress?.emailAddress
   const o = trip.organizerName
   const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   // On the waitlist with no spot offered yet: nothing to pay.
@@ -917,9 +920,21 @@ function MyPlace({
         <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
           <p className="text-sm font-semibold">How to pay {o}</p>
           {me.paymentMethods.length > 0 && (
-            <ul className="mt-1 flex flex-col gap-0.5">
+            <ul className="mt-1 flex flex-col">
               {me.paymentMethods.map((m, i) => (
-                <li key={i}>{paymentMethodLabel(m)}</li>
+                <li key={i}>
+                  {/* The handle is what they paste into Cash App or their bank, so it copies on its own. */}
+                  {m.handle.trim() ? (
+                    <CopyText
+                      value={m.handle.trim()}
+                      label={`${paymentMethodLabel(m).split(' · ')[0]} handle`}
+                    >
+                      {paymentMethodLabel(m)}
+                    </CopyText>
+                  ) : (
+                    paymentMethodLabel(m)
+                  )}
+                </li>
               ))}
             </ul>
           )}
@@ -928,11 +943,22 @@ function MyPlace({
           )}
           {/* Forwarding the payment email records it for them (issue #12). */}
           {me.receiptsEmail && (
-            <p className="mt-2 text-sm">
-              Paid? Forward the Zelle, Cash App or bank email to{' '}
-              <span className="break-all font-semibold">{me.receiptsEmail}</span> and it’s recorded
-              for you.
-            </p>
+            <div className="mt-3 text-sm">
+              <p>Paid? Forward the Zelle, Cash App or bank email to</p>
+              <CopyText value={me.receiptsEmail} label="Receipts address">
+                <span className="font-semibold">{me.receiptsEmail}</span>
+              </CopyText>
+              <p className="text-body">
+                {signInEmail ? (
+                  <>
+                    Send it from <span className="break-all">{signInEmail}</span> and it’s recorded
+                    for you.
+                  </>
+                ) : (
+                  'Send it from the email you sign in with and it’s recorded for you.'
+                )}
+              </p>
+            </div>
           )}
         </div>
       )}

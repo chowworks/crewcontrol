@@ -349,6 +349,24 @@ describe('a guest’s spot in Trip Control', () => {
     })
   })
 
+  it('confirms the payment the guest already reported instead of logging a second one', async () => {
+    const { service, guests } = setup({}, [
+      guest('twice', { payments: [payment('p1', 'reported', 500)] }),
+    ])
+    await service.logPayment(
+      't1',
+      'twice',
+      { receivedPaymentAmount: 500, method: 'Cash App', sentOn: '2026-10-21', note: '' },
+      caller
+    )
+    expect(guests[0].payments).toHaveLength(1)
+    expect(guests[0].payments[0]).toMatchObject({
+      id: 'p1',
+      status: 'confirmed',
+      receivedPaymentAmount: 500,
+    })
+  })
+
   it('turns down a paid guest only with the refund ticked, frees their room and stops counting the payment', async () => {
     const { service, writes, guests } = setup({}, [paidGuest('paid', { roomId: 'r1' })])
     await expect(service.updateGuest('t1', 'paid', { status: 'declined' }, caller)).rejects.toThrow(

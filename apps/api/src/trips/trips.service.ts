@@ -18,6 +18,7 @@ import {
   withPhotoLinks,
 } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
+import { reportedTwin } from '../receipts/place-receipt'
 import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
 import { EmailsService } from '../messaging/emails.service'
@@ -1044,7 +1045,11 @@ export class TripsService {
     return this.get(id, caller)
   }
 
-  /** The organizer logs a payment handed over in person (or any they saw arrive): confirmed as it is logged. */
+  /**
+   * The organizer logs a payment handed over in person (or any they saw arrive): confirmed as it is logged. When the
+   * guest already reported that amount within three days ("I've paid"), that payment is the one confirmed, never a
+   * second one (owner's decision, 2026-11-01).
+   */
   async logPayment(
     id: string,
     guestId: string,
@@ -1057,6 +1062,16 @@ export class TripsService {
     if (guest.status === 'declined')
       throw new BadRequestException(`${guest.firstName} was turned down`)
     const now = new Date()
+    const twin = reportedTwin(guest.payments, input.receivedPaymentAmount, input.sentOn)
+    if (twin) {
+      await this.decidePayment(
+        id,
+        twin,
+        { status: 'confirmed', receivedPaymentAmount: input.receivedPaymentAmount },
+        caller
+      )
+      return this.get(id, caller)
+    }
     await this.prisma.payment.create({
       data: {
         tripId: id,

@@ -60,7 +60,12 @@ const kendra = from('kendra@example.com', { userId: 'u-kendra' })
 
 describe('placeReceipt', () => {
   it('files a guest’s own verified forward of money they sent on them', () => {
-    expect(placeReceipt(sent(), marcus, guests)).toEqual({ kind: 'guest', guestId: 'm' })
+    expect(placeReceipt(sent(), marcus, guests)).toEqual({
+      kind: 'guest',
+      guestId: 'm',
+      paymentId: null,
+      byOrganizer: false,
+    })
   })
 
   it('never files money a guest received, or an amount with no direction, as their payment', () => {
@@ -84,7 +89,12 @@ describe('placeReceipt', () => {
 
   it('files a verified forward from an address the organizer tied to a guest on that guest', () => {
     const work = from('kendra.work@example.net', { rememberedGuestId: 'k' })
-    expect(placeReceipt(sent(), work, guests)).toEqual({ kind: 'guest', guestId: 'k' })
+    expect(placeReceipt(sent(), work, guests)).toEqual({
+      kind: 'guest',
+      guestId: 'k',
+      paymentId: null,
+      byOrganizer: false,
+    })
     expect(placeReceipt(sent(), { ...work, verified: false }, guests)).toMatchObject({
       kind: 'unmatched',
       reason: 'We couldn’t check that it really came from that address.',
@@ -96,6 +106,8 @@ describe('placeReceipt', () => {
     expect(placeReceipt(read({ payerName: 'KENDRA SMITH' }), organizer, guests)).toEqual({
       kind: 'guest',
       guestId: 'k',
+      paymentId: null,
+      byOrganizer: true,
     })
   })
 
@@ -108,6 +120,24 @@ describe('placeReceipt', () => {
     expect(placeReceipt(read({ payerName: 'Kendra Smith' }), organizer, withOrganizer)).toEqual({
       kind: 'guest',
       guestId: 'k',
+      paymentId: null,
+      byOrganizer: true,
+    })
+  })
+
+  it('reads an organizer’s forward of money they sent as paying their own way, when they’re a guest too', () => {
+    const withOrganizer = [...guests, guest('c', 'Chris', 'Howard', { userId: 'u-chris' })]
+    // "You paid Dana Park $200", forwarded by an owner who is also on the trip as a guest.
+    expect(placeReceipt(sent({ payeeName: 'Dana Park' }), organizer, withOrganizer)).toEqual({
+      kind: 'guest',
+      guestId: 'c',
+      paymentId: null,
+      byOrganizer: false,
+    })
+    // With no guest row of their own, it still waits for a name.
+    expect(placeReceipt(sent({ payeeName: 'Dana Park' }), organizer, guests)).toMatchObject({
+      kind: 'unmatched',
+      reason: 'You forwarded this, and it doesn’t name the guest who paid.',
     })
   })
 
@@ -158,6 +188,8 @@ describe('placeReceipt', () => {
     expect(placeReceipt(sent(), mom, family.slice(0, 1))).toEqual({
       kind: 'guest',
       guestId: 'kid1',
+      paymentId: null,
+      byOrganizer: false,
     })
   })
 
@@ -179,6 +211,8 @@ describe('placeReceipt', () => {
     expect(placeReceipt(sent(), kendra, waiting, 'pay_first')).toEqual({
       kind: 'guest',
       guestId: 'k',
+      paymentId: null,
+      byOrganizer: false,
     })
     const listed = [guest('k', 'Kendra', 'Smith', { status: 'interested', waitlistedAt: 'x' })]
     expect(placeReceipt(sent(), kendra, listed, 'first_come')).toMatchObject({
@@ -192,12 +226,32 @@ describe('placeReceipt', () => {
     })
   })
 
-  it('asks before recording what looks like a payment already there', () => {
-    const paid = [
-      guest('k', 'Kendra', 'Smith', {
-        payments: [{ guestPaymentAmount: 30000, sentOn: '2026-10-21', status: 'reported' }],
-      }),
+  const pay = (status: string, more: Partial<PlaceGuest['payments'][number]> = {}) => ({
+    id: 'p1',
+    guestPaymentAmount: 30000,
+    sentOn: '2026-10-21',
+    status,
+    transferId: null,
+    ...more,
+  })
+
+  it('backs up the payment the guest already reported instead of counting it twice', () => {
+    const reported = [guest('k', 'Kendra', 'Smith', { payments: [pay('reported')] })]
+    expect(placeReceipt(sent(), kendra, reported)).toEqual({
+      kind: 'guest',
+      guestId: 'k',
+      paymentId: 'p1',
+      byOrganizer: false,
+    })
+    // Not part of one transfer for several travelers: that one is confirmed as a whole.
+    const transfer = [
+      guest('k', 'Kendra', 'Smith', { payments: [pay('reported', { transferId: 't' })] }),
     ]
+    expect(placeReceipt(sent(), kendra, transfer)).toMatchObject({ kind: 'unmatched' })
+  })
+
+  it('asks before recording what looks like a confirmed payment already there', () => {
+    const paid = [guest('k', 'Kendra', 'Smith', { payments: [pay('confirmed')] })]
     expect(placeReceipt(sent(), kendra, paid)).toEqual({
       kind: 'unmatched',
       reason: 'Kendra already has a $300 payment from Oct 21. It may be the same one.',
@@ -206,6 +260,8 @@ describe('placeReceipt', () => {
     expect(placeReceipt(sent({ sentOn: '2026-11-22' }), kendra, paid)).toEqual({
       kind: 'guest',
       guestId: 'k',
+      paymentId: null,
+      byOrganizer: false,
     })
   })
 

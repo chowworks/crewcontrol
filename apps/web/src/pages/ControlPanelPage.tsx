@@ -6,6 +6,7 @@ import type {
   GuestUpdate,
   MatchReceiptInput,
   OrganizerTrip,
+  Payment,
   PaymentDecision,
   PaymentLog,
   SignedAgreement,
@@ -22,7 +23,8 @@ import { FlyerDialog } from '@/components/FlyerDialog'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
-import { money } from '@/lib/format'
+import { money, shortDate } from '@/lib/format'
+import { confirmedLookalike } from '@/lib/payments'
 import { DangerZone } from './DeleteTrip'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import type { OrganizerGoingInput } from './OrganizerGoing'
@@ -47,6 +49,18 @@ export function ControlPanelPage() {
   const admin = useAdminView()
   const [flyer, setFlyer] = useState(false)
   const toAdminView = useAdminFallback(id, 'control')
+  // A payment that looks like one already confirmed waits for the organizer's answer here.
+  const [same, setSame] = useState<{
+    name: string
+    p: Payment
+    resolve: (second: boolean) => void
+  } | null>(null)
+  /** Whether to count it: yes at once unless it looks like a confirmed payment already there, then the organizer says. */
+  function countAnother(guest: Guest, amountCents: number, sentOn: string, exceptId?: string) {
+    const p = confirmedLookalike(guest.payments, amountCents, sentOn, exceptId)
+    if (!p) return Promise.resolve(true)
+    return new Promise<boolean>((resolve) => setSame({ name: guest.firstName, p, resolve }))
+  }
 
   useEffect(() => {
     Promise.all([api.getTrip(id, admin), api.getRooms(id, admin)])
@@ -125,6 +139,20 @@ export function ControlPanelPage() {
     const payment = guest?.payments.find((p) => p.id === paymentId)
     // One transfer for several travelers is decided as one (issue #11).
     const members = trip && payment ? transferOf(trip, payment) : []
+    if (
+      guest &&
+      payment &&
+      members.length <= 1 &&
+      decision.status === 'confirmed' &&
+      payment.status !== 'confirmed' &&
+      !(await countAnother(
+        guest,
+        decision.receivedPaymentAmount ?? payment.guestPaymentAmount,
+        payment.sentOn,
+        payment.id
+      ))
+    )
+      return false
     const saved = await saveTrip(() => api.decidePayment(id, paymentId, decision))
     if (!saved || !guest || !payment) return Boolean(saved)
     // On a first come trip confirming may have given them the spot too: Undo gives it back first.
@@ -177,10 +205,18 @@ export function ControlPanelPage() {
     return true
   }
   async function logPayment(guest: Guest, log: PaymentLog) {
-    const saved = await save(() => api.logPayment(id, guest.id, log))
-    if (saved)
-      toast({ text: `${money(log.receivedPaymentAmount)} from ${guest.firstName} logged.` })
-    return saved
+    if (!(await countAnother(guest, log.receivedPaymentAmount, log.sentOn))) return false
+    const saved = await saveTrip(() => api.logPayment(id, guest.id, log))
+    if (!saved) return false
+    // The API confirms the payment the guest already reported for that amount instead of adding one.
+    const theirs =
+      saved.guests.find((g) => g.id === guest.id)?.payments.length === guest.payments.length
+    toast({
+      text: theirs
+        ? `${money(log.receivedPaymentAmount)} from ${guest.firstName} confirmed. It was the payment they reported.`
+        : `${money(log.receivedPaymentAmount)} from ${guest.firstName} logged.`,
+    })
+    return true
   }
   async function addAdjustment(guest: Guest, input: BalanceAdjustmentInput) {
     const saved = await saveTrip(() => api.addAdjustment(id, guest.id, input))
@@ -224,8 +260,9 @@ export function ControlPanelPage() {
     return true
   }
   async function matchReceipt(r: ForwardedReceiptItem, input: MatchReceiptInput) {
-    const saved = await saveTrip(() => api.matchReceipt(id, r.id, input))
     const guest = trip?.guests.find((g) => g.id === input.guestId)
+    if (guest && !(await countAnother(guest, input.amountCents, input.sentOn))) return false
+    const saved = await saveTrip(() => api.matchReceipt(id, r.id, input))
     if (!saved || !guest) return Boolean(saved)
     // On a first come trip, confirming may have given them a spot too.
     const spot =
@@ -373,6 +410,26 @@ export function ControlPanelPage() {
         {/* Below everything, owners only (owner's decision, 2026-10-30); the admin never deletes a trip. */}
         {!admin && <DangerZone tripId={trip.id} tripName={trip.name} />}
       </main>
+      {same && (
+        <ConfirmDialog
+          title="Count it as a second payment?"
+          confirmLabel="Yes, a second payment"
+          onConfirm={() => {
+            same.resolve(true)
+            setSame(null)
+          }}
+          onCancel={() => {
+            same.resolve(false)
+            setSame(null)
+          }}
+        >
+          <p>
+            {same.name} already has{' '}
+            {money(same.p.receivedPaymentAmount ?? same.p.guestPaymentAmount)} confirmed, sent{' '}
+            {shortDate(same.p.sentOn)}. If it’s the same money, cancel so it isn’t counted twice.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }
