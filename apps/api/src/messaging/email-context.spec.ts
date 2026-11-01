@@ -17,6 +17,7 @@ const trip = {
   keyDates: [{ date: '2028-01-05', label: 'Final payment' }],
   rooms: [{ id: 'R1', name: 'Ocean view' }],
   joinMode: 'accept_first',
+  paymentPlan: [],
 } as unknown as PublicTrip
 
 const me = (over: Partial<MyGuest>): MyGuest =>
@@ -114,6 +115,52 @@ describe('guestEmailContext', () => {
       ).paymentDetails
     ).toMatchObject({ deposit: true, depositKept: true })
     expect(guestEmailContext(view(me({})), contact, '').paymentDetails?.deposit).toBe(false)
+  })
+
+  it('lists the plan with its due dates, from the trip when the guest signed before it had any', () => {
+    const undated = [
+      { dueOn: null, amountCents: 40000 },
+      { dueOn: null, amountCents: 40000 },
+      { dueOn: null, amountCents: 40000 },
+    ]
+    const guest = me({ terms: { ...me({}).terms!, schedule: undated } })
+    const dates = ['2027-11-15', '2027-12-15', '2028-01-15']
+    const tripPlan = dates.map((dueOn) => ({ dueOn, amountCents: 40000 }))
+    const dated = guestEmailContext(
+      { trip: { ...trip, paymentPlan: tripPlan }, me: guest } as unknown as JoinView,
+      contact,
+      ''
+    ).paymentDetails
+    expect(dated).toMatchObject({
+      firstDue: 'Nov 15, 2027',
+      onePayment: false,
+      datesSet: true,
+      plan: [
+        { date: 'Nov 15, 2027', amount: '$400' },
+        { date: 'Dec 15, 2027', amount: '$400' },
+        { date: 'Jan 15, 2028', amount: '$400' },
+      ],
+    })
+    // Trip Control's data has the dates as a list.
+    const organizerTrip = { ...trip } as Partial<PublicTrip>
+    delete organizerTrip.paymentPlan
+    expect(
+      guestEmailContext(
+        { trip: { ...organizerTrip, paymentDueDates: dates }, me: guest } as never,
+        contact,
+        ''
+      ).paymentDetails?.firstDue
+    ).toBe('Nov 15, 2027')
+    // No dates anywhere: said plainly, never made up.
+    expect(guestEmailContext(view(guest), contact, '').paymentDetails).toMatchObject({
+      firstDue: '',
+      datesSet: false,
+      plan: [
+        { date: '', amount: '$400' },
+        { date: '', amount: '$400' },
+        { date: '', amount: '$400' },
+      ],
+    })
   })
 
   it("counts the organizer's credits and charges in the total", () => {

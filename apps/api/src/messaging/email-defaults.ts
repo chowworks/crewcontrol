@@ -13,6 +13,19 @@ export interface EmailKind {
   stopLink?: true
 }
 
+/**
+ * The guest's payment plan: the price, each payment with its due date, and a plain line when no date is set, so a
+ * guest always knows what's due when (owner's ask, 2026-11-01). `whose` is "Your" or the traveler's name.
+ */
+const plan = (
+  whose: string
+) => `<p>${whose} price is <strong>{{paymentDetails.price}}</strong>{{#if paymentDetails.onePayment}}, paid in one payment{{#if paymentDetails.firstDue}}, due by <strong>{{paymentDetails.firstDue}}</strong>{{/if}}.{{else}}, paid in {{paymentDetails.installmentCount}} payments:{{/if}}</p>
+{{#unless paymentDetails.onePayment}}<ul>
+{{#each paymentDetails.plan}}<li><strong>{{amount}}</strong>{{#if date}}, due by {{date}}{{/if}}</li>
+{{/each}}</ul>{{/unless}}
+{{#if paymentDetails.adjustments}}<p>With credits and charges ({{paymentDetails.adjustments}}), the total is {{paymentDetails.total}}.</p>{{/if}}
+{{#unless paymentDetails.datesSet}}<p>{{trip.organizerName}} hasn’t set {{#if paymentDetails.onePayment}}a due date{{else}}due dates{{/if}} yet.</p>{{/unless}}`
+
 export const EMAIL_KINDS: EmailKind[] = [
   {
     kind: 'joined',
@@ -25,6 +38,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 {{#if guest.waitlisted}}
 <p>The trip is full right now, so you're on the waitlist. {{trip.organizerName}} will let you know if a spot opens.</p>
 {{else}}{{#if guest.canPay}}
+${plan('Your')}
 <p>If you haven't paid yet, send {{trip.organizerName}} {{#if paymentDetails.deposit}}your deposit, <strong>{{paymentDetails.dueNow}}</strong>,{{else}}<strong>{{paymentDetails.dueNow}}</strong>{{/if}} to save your spot, {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 {{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if you drop out later.</p>{{/if}}
 <ul>
@@ -48,8 +62,10 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>{{trip.organizerName}} accepted you for <strong>{{trip.name}}</strong>, {{trip.dates}}. You’re going!</p>
 {{#if trip.paysFirst}}
 <p>Your payment arrived, so the spot is yours. So far you’ve paid {{paymentDetails.paid}} of {{paymentDetails.total}}.</p>
+${plan('Your')}
 {{else}}{{#if guest.canPay}}
-<p>{{#if paymentDetails.deposit}}Your deposit{{else}}Your first payment{{/if}}, <strong>{{paymentDetails.firstPayment}}</strong>, saves your spot{{#if paymentDetails.depositKept}} and isn't refundable if you drop out later{{/if}}. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+${plan('Your')}
+<p>{{#if paymentDetails.onePayment}}Your payment{{else}}{{#if paymentDetails.deposit}}Your deposit{{else}}Your first payment{{/if}}{{/if}}, <strong>{{paymentDetails.firstPayment}}</strong>, saves your spot{{#if paymentDetails.depositKept}} and isn't refundable if you drop out later{{/if}}. Send it to {{trip.organizerName}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 <ul>
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
@@ -69,6 +85,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 <p>Good news: a spot opened on <strong>{{trip.name}}</strong>, {{trip.dates}}, and {{trip.organizerName}} offered it to you.</p>
 <p>Spots go first come, first served: the first payment {{trip.organizerName}} confirms takes it. If you want it, pay soon.</p>
 {{#if guest.canPay}}
+${plan('Your')}
 <p>Send {{trip.organizerName}} <strong>{{paymentDetails.dueNow}}</strong> {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 {{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if you drop out later.</p>{{/if}}
 <ul>
@@ -102,6 +119,7 @@ export const EMAIL_KINDS: EmailKind[] = [
 {{#if guest.waitlisted}}
 <p>The trip is full right now, so {{guest.firstName}} is on the waitlist. {{trip.organizerName}} will let you know if a spot opens.</p>
 {{else}}{{#if guest.canPay}}
+${plan('{{guest.firstName}}’s')}
 <p>If you haven't paid yet, send {{trip.organizerName}} <strong>{{paymentDetails.dueNow}}</strong> to save {{guest.firstName}}’s spot, {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
 {{#if paymentDetails.depositKept}}<p>The deposit isn't refundable if {{guest.firstName}} drops out later.</p>{{/if}}
 <ul>
@@ -423,6 +441,14 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       adjustments: '',
       total: '$1,200',
       firstPayment: '$400',
+      firstDue: 'Nov 15, 2027',
+      plan: [
+        { date: 'Nov 15, 2027', amount: '$400' },
+        { date: 'Dec 15, 2027', amount: '$400' },
+        { date: 'Jan 15, 2028', amount: '$400' },
+      ],
+      onePayment: false,
+      datesSet: true,
       deposit: true,
       depositKept: false,
       paid: '$0',

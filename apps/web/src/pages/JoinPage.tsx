@@ -1,5 +1,6 @@
 import { useUser } from '@clerk/clerk-react'
 import {
+  datedSchedule,
   fillAgreementNames,
   paymentMethodLabel,
   roomsPricedApart,
@@ -832,9 +833,15 @@ function MyPlace({
   const waiting = me.status === 'interested' && Boolean(me.waitlistedAt) && !me.offeredAt
   const canPay = payable(trip, me)
   const { left, dueNow } = me.terms ? owed(me.terms) : { left: 0, dueNow: 0 }
-  const datedPlan = Boolean(
-    me.terms && me.terms.schedule.length > 1 && me.terms.schedule.every((p) => p.dueOn)
-  )
+  // Their signed plan, with the trip's due dates when they signed before it had any (as reminders do).
+  const plan = me.terms
+    ? datedSchedule(
+        me.terms,
+        trip.paymentPlan.map((p) => p.dueOn)
+      )
+    : []
+  const dated = plan.length > 0 && plan.every((p) => p.dueOn)
+  const firstDue = plan[0]?.dueOn ? ` by ${dateRange(plan[0].dueOn, plan[0].dueOn)}` : ''
   const first = me.terms ? money(me.terms.firstInstallmentCents) : 'your first installment'
   const paidCents = me.terms?.paidCents ?? 0
   const reported = me.payments.some((p) => p.status === 'reported')
@@ -858,7 +865,7 @@ function MyPlace({
               ? ''
               : reported
                 ? `Payment sent: ${o} will confirm it arrived.`
-                : `Now pay ${o} ${dueNow ? money(dueNow) : first} to hold your spot.`,
+                : `Now pay ${o} ${dueNow ? money(dueNow) : first}${firstDue} to hold your spot.`,
           ]
         : waiting
           ? [
@@ -893,7 +900,10 @@ function MyPlace({
                             'The trip filled up',
                             `Every spot is taken. ${o} will text you if one opens. Don’t send money until then.`,
                           ]
-                        : ['Signed. Your copy is below', `Now pay ${o} ${first} to save your spot.`]
+                        : [
+                            'Signed. Your copy is below',
+                            `Now pay ${o} ${first}${firstDue} to save your spot.`,
+                          ]
 
   return (
     <div className="flex flex-col gap-4">
@@ -909,9 +919,6 @@ function MyPlace({
           <span className="text-sm text-body">
             {money(me.terms.paidCents)} of {money(totalDueCents(me.terms))} paid
             {me.terms.balanceCents > 0 && ` · ${money(me.terms.balanceCents)} left`}
-            {!datedPlan &&
-              me.terms.installmentCount > 1 &&
-              ` · ${me.terms.installmentCount} installments`}
           </span>
         </div>
       )}
@@ -973,14 +980,18 @@ function MyPlace({
         </button>
       )}
       {/* The plan right after "I've paid", then what was paid (owner's decision, 2026-10-29). */}
-      {me.terms && datedPlan && (
+      {/* Always shown, so a guest knows when each payment is due, or that no date is set (owner's ask, 2026-11-01). */}
+      {me.terms && me.status !== 'declined' && (
         <div className="flex flex-col gap-1 text-sm">
           <p className="flex justify-between text-muted">
-            <span>Your payment plan, due by</span>
+            <span>
+              {plan.length > 1 ? 'Your payment plan' : 'Your payment'}
+              {dated && ', due by'}
+            </span>
             <span>Amount</span>
           </p>
           <ol className="flex flex-col">
-            {me.terms.schedule.map((p, i) => {
+            {plan.map((p, i) => {
               // Struck through once what they paid covers it and every payment before it.
               const covered =
                 me.terms!.paidCents >=
@@ -991,7 +1002,11 @@ function MyPlace({
                   className={`flex justify-between border-t border-rule py-1.5 ${covered ? 'text-muted line-through' : ''}`}
                 >
                   <span>
-                    {dateRange(p.dueOn!, p.dueOn!)}
+                    {p.dueOn
+                      ? dateRange(p.dueOn, p.dueOn)
+                      : plan.length > 1
+                        ? `Payment ${i + 1} of ${plan.length}`
+                        : 'One payment'}
                     {covered && <span className="sr-only"> (paid)</span>}
                   </span>
                   <span className={covered ? '' : 'font-semibold text-ink'}>
@@ -1001,6 +1016,13 @@ function MyPlace({
               )
             })}
           </ol>
+          {!dated && (
+            <p className="text-muted">
+              {o} hasn’t set {plan.length > 1 ? 'due dates' : 'a due date'}.
+              {dueNow > 0 &&
+                ` Your spot isn’t saved until your ${plan.length > 1 ? 'first ' : ''}payment arrives.`}
+            </p>
+          )}
         </div>
       )}
       {(me.payments.length > 0 || me.adjustments.length > 0) && (
