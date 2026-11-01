@@ -33,7 +33,7 @@ import {
 } from '../trips/trip-types'
 import { TripsService } from '../trips/trips.service'
 import { RETIRED, addressOf, localPart } from './forwarded-queue'
-import { guestsNamed, placeReceipt, type PlaceGuest } from './place-receipt'
+import { guestsNamed, placeReceipt, reportedTwin, type PlaceGuest } from './place-receipt'
 import { plainText, readReceipt } from './read-receipt'
 import { receiptsConfig, receiptsDomain, receiptsEmail } from './receipts-config'
 import { ProviderError, fetchReceivedEmail } from './resend-inbound'
@@ -250,7 +250,15 @@ export class ForwardedReceiptsService implements OnApplicationBootstrap, OnModul
               payerAddresses: { select: { address: true, guestId: true } },
               guests: {
                 include: {
-                  payments: { select: { guestPaymentAmount: true, sentOn: true, status: true } },
+                  payments: {
+                    select: {
+                      id: true,
+                      guestPaymentAmount: true,
+                      sentOn: true,
+                      status: true,
+                      transferId: true,
+                    },
+                  },
                 },
               },
             },
@@ -319,31 +327,44 @@ export class ForwardedReceiptsService implements OnApplicationBootstrap, OnModul
     // Someone else's name on a payment for this guest (a parent paying for a child) is who sent it.
     const paidBy =
       read.payerName && guestsNamed(read.payerName, [guest]).length === 0 ? read.payerName : ''
-    // An organizer's own forward is confirmed as it arrives; a guest's only where the trip says so (owner's decisions,
-    // 2026-10-29). Otherwise it is the guest's reported payment, for the organizer to confirm as any other.
-    const confirm = sender.organizer || optionsOf(trip).confirmReceipts
+    // An organizer's forward of a guest's payment is confirmed as it arrives; a guest's only where the trip says so
+    // (owner's decisions, 2026-10-29). An organizer paying their own way counts as a guest. Otherwise it is the guest's
+    // reported payment, for the organizer to confirm as any other.
+    const confirm = placement.byOrganizer || optionsOf(trip).confirmReceipts
+    const confirmed = { status: 'confirmed', decidedAt: new Date() }
     await runAsSystem(() =>
       this.prisma.$transaction(async (tx) => {
-        const payment = await tx.payment.create({
-          data: {
-            tripId: trip.id,
-            guestId: guest.id,
-            guestPaymentAmount: read.amountCents!,
-            method: methodFor(paymentMethodsOf(trip), read.methodKind),
-            methodKind: read.methodKind ?? 'other',
-            sentOn,
-            paidByName: paidBy.slice(0, 100),
-            loggedBy: 'email',
-            // Confirmed: no step for the organizer, who can still open it as proof and mark it not received.
-            ...(confirm
-              ? {
-                  status: 'confirmed',
-                  receivedPaymentAmount: read.amountCents!,
-                  decidedAt: new Date(),
-                }
-              : { status: 'reported' }),
-          },
-        })
+        // The guest already said they sent it ("I've paid"): the receipt is that payment's proof, never a second one.
+        const twin = placement.paymentId
+        if (twin) {
+          const { count } = await tx.payment.updateMany({
+            where: { id: twin, guestId: guest.id, status: 'reported' },
+            data: {
+              loggedBy: 'email',
+              ...(confirm ? { ...confirmed, receivedPaymentAmount: read.amountCents! } : {}),
+            },
+          })
+          // Decided a moment ago: worked on again, it is read afresh.
+          if (!count) throw new Error('The reported payment changed while the receipt was read')
+        }
+        const payment = twin
+          ? { id: twin }
+          : await tx.payment.create({
+              data: {
+                tripId: trip.id,
+                guestId: guest.id,
+                guestPaymentAmount: read.amountCents!,
+                method: methodFor(paymentMethodsOf(trip), read.methodKind),
+                methodKind: read.methodKind ?? 'other',
+                sentOn,
+                paidByName: paidBy.slice(0, 100),
+                loggedBy: 'email',
+                // Confirmed: no step for the organizer, who can still open it as proof and mark it not received.
+                ...(confirm
+                  ? { ...confirmed, receivedPaymentAmount: read.amountCents! }
+                  : { status: 'reported' }),
+              },
+            })
         await tx.forwardedReceipt.update({
           where: { id: row.id },
           data: {
@@ -409,17 +430,36 @@ export class ForwardedReceiptsService implements OnApplicationBootstrap, OnModul
       throw new ConflictException('Someone dealt with it a moment ago. Reload.')
     const kind = (row.methodKind as PaymentMethodKind | null) ?? null
     const paymentId = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          tripId,
-          guestId: guest.id,
-          guestPaymentAmount: input.amountCents,
-          method: methodFor(trip.paymentMethods, kind),
-          methodKind: kind ?? 'other',
-          sentOn: input.sentOn,
-          loggedBy: 'email',
-        },
-      })
+      // What the guest already reported for this amount ("I've paid") is the payment this receipt backs up: matching
+      // it never counts the money twice.
+      const twin = reportedTwin(
+        await tx.payment.findMany({
+          where: { tripId, guestId: guest.id },
+          select: {
+            id: true,
+            guestPaymentAmount: true,
+            sentOn: true,
+            status: true,
+            transferId: true,
+          },
+        }),
+        input.amountCents,
+        input.sentOn
+      )
+      if (twin) await tx.payment.update({ where: { id: twin }, data: { loggedBy: 'email' } })
+      const payment = twin
+        ? { id: twin }
+        : await tx.payment.create({
+            data: {
+              tripId,
+              guestId: guest.id,
+              guestPaymentAmount: input.amountCents,
+              method: methodFor(trip.paymentMethods, kind),
+              methodKind: kind ?? 'other',
+              sentOn: input.sentOn,
+              loggedBy: 'email',
+            },
+          })
       const { count } = await tx.forwardedReceipt.updateMany({
         where: { id, tripId, status: 'unmatched' },
         data: {
