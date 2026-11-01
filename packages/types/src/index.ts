@@ -253,6 +253,22 @@ export interface BalanceAdjustmentInput {
 /** What a guest owes in all: their signed price with the adjustments that count. */
 export const totalDueCents = (terms: GuestTerms): number => terms.priceCents + terms.adjustmentCents
 
+/**
+ * A guest's signed plan with its due dates: the ones their agreement quoted, or, when it quoted none, the trip's
+ * current ones for the same number of payments (the rule reminders follow, so the page, the emails and the reminders
+ * agree). The amounts are always the signed ones.
+ */
+export function datedSchedule(
+  terms: GuestTerms,
+  tripDueDates: (string | null)[]
+): PlannedPayment[] {
+  const signed = terms.schedule
+  if (signed.every((p) => p.dueOn)) return signed
+  return tripDueDates.length === signed.length && tripDueDates.every(Boolean)
+    ? signed.map((p, i) => ({ ...p, dueOn: tripDueDates[i] }))
+    : signed
+}
+
 /** The ways guests can pay an organizer that Travel HQ knows by name, and a free-form one ("Pay in person"). */
 export const PAYMENT_METHOD_KINDS = [
   { kind: 'cashapp', name: 'Cash App', handle: '$cashtag or phone number' },

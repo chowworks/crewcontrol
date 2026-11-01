@@ -2,10 +2,12 @@ import { money } from '../join/agreement'
 import { canPay, owed } from '../join/guest-pay'
 import {
   PAYMENT_METHOD_KINDS,
+  datedSchedule,
   totalDueCents,
   type JoinView,
   type MyGuest,
   type PaymentMethod,
+  type PlannedPayment,
 } from '../trips/trip-types'
 import type { GuestEmailContext } from './email-template'
 
@@ -69,7 +71,10 @@ export interface GuestEmailView {
     | 'keyDates'
     | 'joinMode'
     | 'refundPolicy'
-  > & { rooms: { id: string; name: string }[] }
+  > & { rooms: { id: string; name: string }[] } & (
+      | { paymentPlan: PlannedPayment[] } // the join page's view
+      | { paymentDueDates: string[] } // Trip Control's
+    )
   me: Pick<
     MyGuest,
     'firstName' | 'lastName' | 'status' | 'roomId' | 'waitlistedAt' | 'offeredAt' | 'terms'
@@ -85,7 +90,10 @@ export function guestEmailContext(
   if (!me) throw new Error('An email to a guest needs a guest who joined')
   const terms = me.terms
   const left = terms ? owed(terms) : null
-  const plan = terms?.schedule ?? []
+  // Their signed plan, with the trip's due dates when they signed before it had any (as reminders do).
+  const tripDue =
+    'paymentPlan' in trip ? trip.paymentPlan.map((p) => p.dueOn) : trip.paymentDueDates
+  const plan = terms ? datedSchedule(terms, tripDue) : []
   const hasDeposit = plan.length > 1 && plan[0].amountCents !== plan[1].amountCents
   return {
     trip: {
@@ -138,6 +146,13 @@ export function guestEmailContext(
                 : `${terms.adjustmentCents < 0 ? '−' : '+'}${money(Math.abs(terms.adjustmentCents))}`,
             total: money(totalDueCents(terms)),
             firstPayment: money(terms.firstInstallmentCents),
+            firstDue: plan[0]?.dueOn ? day(plan[0].dueOn) : '',
+            plan: plan.map((p) => ({
+              date: p.dueOn ? day(p.dueOn) : '',
+              amount: money(p.amountCents),
+            })),
+            onePayment: plan.length <= 1,
+            datesSet: plan.length > 0 && plan.every((p) => p.dueOn),
             // A deposit: the signed plan's first payment differs from the rest ("Deposit first").
             deposit: hasDeposit,
             depositKept: hasDeposit && trip.refundPolicy === 'first_payment_kept',

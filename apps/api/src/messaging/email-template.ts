@@ -59,6 +59,14 @@ export interface EmailContext {
     adjustments: string
     total: string
     firstPayment: string
+    /** The first payment's due date ("Nov 6, 2026"), or "" when it has none. */
+    firstDue: string
+    /** Each payment of their plan: its due date ("" when none) and amount. */
+    plan: { date: string; amount: string }[]
+    /** The whole price in one payment, so it isn't a "first" payment. */
+    onePayment: boolean
+    /** Every payment has a due date. */
+    datesSet: boolean
     /** The plan starts with a deposit ("Deposit first"), and whether the trip keeps it when a guest drops out. */
     deposit: boolean
     depositKept: boolean
@@ -340,6 +348,17 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
       path: 'paymentDetails.firstPayment',
       label: 'First payment (the deposit, when there is one)',
     },
+    { path: 'paymentDetails.firstDue', label: 'First payment due by (empty when no date)' },
+    {
+      path: 'paymentDetails.plan',
+      label: 'Their payment plan',
+      fields: [
+        { name: 'date', label: 'Due by (empty when no date)' },
+        { name: 'amount', label: 'Amount' },
+      ],
+    },
+    { path: 'paymentDetails.onePayment', label: 'Paid in one payment (yes or no)' },
+    { path: 'paymentDetails.datesSet', label: 'Every payment has a due date (yes or no)' },
     { path: 'paymentDetails.deposit', label: 'Starts with a deposit (yes or no)' },
     { path: 'paymentDetails.depositKept', label: 'Deposit is non-refundable (yes or no)' },
     { path: 'paymentDetails.paid', label: 'Paid (confirmed)' },

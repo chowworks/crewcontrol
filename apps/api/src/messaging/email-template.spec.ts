@@ -43,6 +43,14 @@ const context: GuestEmailContext = {
     adjustments: '',
     total: '$1,200',
     firstPayment: '$400',
+    firstDue: 'Nov 15, 2027',
+    plan: [
+      { date: 'Nov 15, 2027', amount: '$400' },
+      { date: 'Dec 15, 2027', amount: '$400' },
+      { date: 'Jan 15, 2028', amount: '$400' },
+    ],
+    onePayment: false,
+    datesSet: true,
     deposit: false,
     depositKept: false,
     paid: '$0',
@@ -173,6 +181,41 @@ describe('render', () => {
     const first = render(k, context)
     expect(first.text).toContain('saves your spot')
     expect(first.html).toContain('(555) 010-0199')
+  })
+
+  it('shows the payment plan with its due dates, or says plainly that none is set', () => {
+    const k = emailKind('accepted')!
+    const out = render(k, context)
+    expect(out.text).toContain('Your price is $1,200, paid in 3 payments')
+    expect(out.text).toContain('$400, due by Dec 15, 2027')
+    expect(out.text).not.toContain('hasn')
+    const one = render(k, {
+      ...context,
+      paymentDetails: {
+        ...context.paymentDetails!,
+        firstPayment: '$1,200',
+        firstDue: 'Nov 15, 2027',
+        plan: [{ date: 'Nov 15, 2027', amount: '$1,200' }],
+        onePayment: true,
+        installmentCount: 1,
+      },
+    })
+    expect(one.text).toContain('paid in one payment, due by Nov 15, 2027.')
+    expect(one.text).not.toContain('first payment')
+    const undated = render(k, {
+      ...context,
+      paymentDetails: {
+        ...context.paymentDetails!,
+        firstPayment: '$1,200',
+        firstDue: '',
+        plan: [{ date: '', amount: '$1,200' }],
+        onePayment: true,
+        datesSet: false,
+        installmentCount: 1,
+      },
+    })
+    expect(undated.text).toContain('paid in one payment.')
+    expect(undated.text).toContain('Nia hasn’t set a due date yet.')
   })
 
   it('offers a spot that opened with how to pay, first come, first served', () => {
