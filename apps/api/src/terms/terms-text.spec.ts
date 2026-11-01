@@ -42,7 +42,7 @@ describe('the Terms version', () => {
     const text = TERMS.organizer.sections.map((s) => `${s.heading}\n${s.body}`).join('\n')
     expect(text).toContain('Addendum: the trip agreement your guests sign')
     expect(text).toContain('Agreement: 5. If the trip changes or is cancelled')
-    expect(text).toContain('[your full name] ([organizer], [your email])')
+    expect(text).toContain('[your full name] ([your email])')
     // Both refund presets and every way in are spelled out.
     expect(text).toContain(
       'Keep the deposit: "If you drop out after you\'re accepted, your deposit, the first payment'

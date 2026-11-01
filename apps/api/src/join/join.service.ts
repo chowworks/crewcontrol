@@ -34,7 +34,14 @@ import {
   type PaymentReport,
 } from '../trips/trip-types'
 import { roomFull, TripsService } from '../trips/trips.service'
-import { agreementPreview, hashOf, refundTerms, TEMPLATE_VERSION, termsOf } from './agreement'
+import {
+  agreementPreview,
+  hashOf,
+  organizerWords,
+  refundTerms,
+  TEMPLATE_VERSION,
+  termsOf,
+} from './agreement'
 import { canPay, owed } from './guest-pay'
 import { sendText } from './send-text'
 
@@ -118,7 +125,10 @@ export class JoinService {
         receiptsEmail: pay && receiptsConfig() ? receiptsEmail(row.trip.receiptsAddress) : null,
       }
     }
-    const facts = { ...trip, organizer: await this.trips.organizerContact(await this.tripId(slug)) }
+    const facts = {
+      ...trip,
+      organizers: await this.trips.organizerContacts(await this.tripId(slug)),
+    }
     return {
       trip,
       agreement: agreementPreview(facts),
@@ -231,6 +241,11 @@ export class JoinService {
     )
       throw new BadRequestException('Pick a room to join')
     const tripId = await this.tripId(slug)
+    // The refund terms kept with the signature name the organizers as the agreement does.
+    const organizers = organizerWords({
+      organizerName: trip.organizerName,
+      organizers: await this.trips.organizerContacts(tripId),
+    })
     const [firstName, lastName] = splitName(input.name)
     // Signing for someone, the text kept names both of them, as the screen showed it (fillAgreementNames).
     const signedText = onBehalf
@@ -265,7 +280,7 @@ export class JoinService {
               startDate: trip.startDate,
               endDate: trip.endDate,
               refundTerms: refundTerms(
-                trip.organizerName,
+                organizers,
                 trip.joinMode,
                 trip.refundPolicy,
                 plan[0].amountCents

@@ -17,7 +17,7 @@ import { AGREEMENT_SIGNER, AGREEMENT_TRAVELER, paymentPlan } from '../trips/trip
  * the wording only with a new TEMPLATE_VERSION, and only after a lawyer has reviewed it: this version has not been reviewed. A guest's signature keeps the text exactly as they saw it, so changing the
  * template never changes what anyone already signed.
  */
-export const TEMPLATE_VERSION = '2026-10-29.4'
+export const TEMPLATE_VERSION = '2026-11-01'
 
 /** The trip facts the agreement quotes. A trip row and the public trip both have them. */
 export interface AgreementFacts {
@@ -26,8 +26,11 @@ export interface AgreementFacts {
   startDate: string
   endDate: string
   organizerName: string
-  /** Who the agreement is with, from the trip owner's sign-in (TripsService.organizerContact); none on sample trips. */
-  organizer?: { name: string; email: string } | null
+  /**
+   * Who the agreement is with: everyone who runs the trip, by the name and email they signed in with
+   * (TripsService.organizerContacts); none on sample trips, which fall back to organizerName.
+   */
+  organizers?: { name: string; email: string }[]
   costPerPersonCents: number
   installmentCount: number
   /** Each installment's amount and due date, as the trip editor set them (paymentPlan). */
@@ -50,27 +53,87 @@ export function firstInstallmentCents(priceCents: number, installmentCount: numb
   return installmentCount <= 1 ? priceCents : Math.floor(priceCents / installmentCount)
 }
 
+/**
+ * How the agreement calls the people it is with. One organizer: their first name from sign-in ("Chris"). Several:
+ * "the organizers", with plural verbs. Never the trip page's "Hosted by" text, which need not name an organizer at all
+ * (a trip run from one account for a friend once read "Chris Howard ("Derrell", …)"); a trip with nobody on it (the
+ * sample trips) uses it, as it has no one else to name.
+ */
+export interface Who {
+  /** "Chris" or "the organizers", inside a sentence. */
+  o: string
+  /** The same, starting a sentence. */
+  O: string
+  /** "Chris's" or "the organizers'". */
+  poss: string
+  /** The verb that goes with them: v('accepts', 'accept'). */
+  v: (one: string, many: string) => string
+  /** "Chris Avery (chris@example.com)", or each of them: "A (a), B (b) and C (c)". */
+  party: string
+  /** For the title: "Chris", or "Derrell and Chris". */
+  short: string
+  many: boolean
+}
+
+const andList = (xs: string[]) =>
+  xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`
+
+export function organizerWords(trip: Pick<AgreementFacts, 'organizerName' | 'organizers'>): Who {
+  const people = (trip.organizers ?? [])
+    .map((p) => ({ name: p.name.trim(), email: p.email.trim() }))
+    .map((p) => ({ ...p, name: p.name === p.email ? '' : p.name }))
+  const many = people.length > 1
+  const v = (one: string, plural: string) => (many ? plural : one)
+  const first = (p: { name: string }) => p.name.split(/\s+/)[0] || 'the organizer'
+  const named = (p: { name: string; email: string }) =>
+    p.name && p.email ? `${p.name} (${p.email})` : p.name || p.email
+  if (many) {
+    return {
+      o: 'the organizers',
+      O: 'The organizers',
+      poss: "the organizers'",
+      v,
+      party: andList(people.map(named)),
+      short: andList(people.map(first)),
+      many,
+    }
+  }
+  const o = people.length ? first(people[0]) : trip.organizerName.trim()
+  const cap = o.charAt(0).toUpperCase() + o.slice(1)
+  return {
+    o,
+    O: cap,
+    poss: `${o}'s`,
+    v,
+    party: (people.length && named(people[0])) || o,
+    short: o,
+    many,
+  }
+}
+
 /** What happens when a guest drops out, under the refund policy the organizer picked. */
-function dropOutTerms(organizer: string, refundPolicy: string, firstPayment: string): string {
+function dropOutTerms(w: Who, refundPolicy: string, firstPayment: string): string {
+  const fills = `${w.o} ${w.v('fills', 'fill')} your spot`
   return (refundPolicy as RefundPolicy) === 'first_payment_kept'
     ? `If you drop out after you're accepted, your deposit, the first payment (${firstPayment}), isn't refunded. ` +
-        `Money you paid after it comes back only if ${organizer} fills your spot, and only as much as that person ` +
+        `Money you paid after it comes back only if ${fills}, and only as much as that person ` +
         `pays for it.`
-    : `If you drop out after you're accepted, money you paid comes back only if ${organizer} fills your spot, and ` +
+    : `If you drop out after you're accepted, money you paid comes back only if ${fills}, and ` +
         `only as much as that person pays for it.`
 }
 
 /** The refund a guest is owed when they don't get a spot, which depends on how the trip lets guests in. */
-function notAcceptedTerms(organizer: string, joinMode: string): string {
+function notAcceptedTerms(w: Who, joinMode: string): string {
+  const { o, v } = w
   return joinMode === 'accept_first'
-    ? `You pay nothing until ${organizer} accepts you. If ${organizer} turns you down after you paid anything, ` +
-        `${organizer} refunds it in full.`
-    : `If ${organizer} does not accept you, or the trip is full by the time your payment is confirmed, ` +
-        `${organizer} refunds everything you paid, in full.`
+    ? `You pay nothing until ${o} ${v('accepts', 'accept')} you. If ${o} ${v('turns', 'turn')} you down after you ` +
+        `paid anything, ${o} ${v('refunds', 'refund')} it in full.`
+    : `If ${o} ${v('does', 'do')} not accept you, or the trip is full by the time your payment is confirmed, ` +
+        `${o} ${v('refunds', 'refund')} everything you paid, in full.`
 }
 
-const removedTerms = (organizer: string) =>
-  `If ${organizer} removes you from the trip, ${organizer} refunds everything you paid.`
+const removedTerms = ({ o, v }: Who) =>
+  `If ${o} ${v('removes', 'remove')} you from the trip, ${o} ${v('refunds', 'refund')} everything you paid.`
 
 /**
  * The refund terms. The drop-out rule is the organizer's pick (the trip's refund policy); the rest every trip on
@@ -78,29 +141,33 @@ const removedTerms = (organizer: string) =>
  * they sent this refund. `firstCents` is the first payment the guest's plan asks for.
  */
 export function refundTerms(
-  organizer: string,
+  w: Who,
   joinMode: string,
   refundPolicy: string,
   firstCents: number
 ): string {
   return (
-    `${organizer} chose this for the trip: ${dropOutTerms(organizer, refundPolicy, money(firstCents))} Every trip ` +
-    `run on Travel HQ also has these terms, and ${organizer} agreed to them: ` +
-    `${notAcceptedTerms(organizer, joinMode)} ${removedTerms(organizer)}`
+    `${w.O} chose this for the trip: ${dropOutTerms(w, refundPolicy, money(firstCents))} Every trip ` +
+    `run on Travel HQ also has these terms, and ${w.o} agreed to them: ` +
+    `${notAcceptedTerms(w, joinMode)} ${removedTerms(w)}`
   )
 }
 
-function spotTerms(organizer: string, joinMode: JoinMode): string {
+function spotTerms(w: Who, joinMode: JoinMode): string {
+  const { o, v } = w
   if (joinMode === 'first_come')
     return (
-      `Spots go first come, first served, in the order ${organizer} confirms payments arrived. Signing and paying ` +
-      `does not hold a spot until ${organizer} confirms your payment.`
+      `Spots go first come, first served, in the order ${o} ${v('confirms', 'confirm')} payments arrived. ` +
+      `Signing and paying does not hold a spot until ${o} ${v('confirms', 'confirm')} your payment.`
     )
   if (joinMode === 'pay_first')
-    return `Signing and paying does not guarantee a spot: ${organizer} accepts who comes, once your payment arrives.`
+    return (
+      `Signing and paying does not guarantee a spot: ${o} ${v('accepts', 'accept')} who comes, once your ` +
+      `payment arrives.`
+    )
   return (
-    `Signing does not guarantee a spot: ${organizer} accepts who comes. Once ${organizer} accepts you, you pay the ` +
-    `first installment the way ${organizer}'s payment instructions say.`
+    `Signing does not guarantee a spot: ${o} ${v('accepts', 'accept')} who comes. Once ${o} ` +
+    `${v('accepts', 'accept')} you, you pay the first installment the way ${w.poss} payment instructions say.`
   )
 }
 
@@ -118,10 +185,8 @@ function planText(plan: PlannedPayment[]): string {
 
 /** The words that differ from trip to trip; the rest of the agreement is the same for every trip. */
 interface Fill {
-  /** The name the trip's pages use for the organizer. */
-  o: string
-  /** The organizer as the agreement names them: name, display name and email. */
-  party: string
+  /** Who the agreement is with, and how it calls them. */
+  w: Who
   name: string
   /** What the opening adds when someone signs for a traveler they look after; '' otherwise. */
   onBehalf: string
@@ -141,36 +206,41 @@ const ON_BEHALF =
 
 /** The agreement's sections, each a heading and its text, filled in. */
 function sections(f: Fill): { heading: string; body: string }[] {
-  const o = f.o
+  const { o, O, poss, v } = f.w
+  const opening = f.w.many
+    ? `This agreement is between you, the guest, and ${f.w.party}, who organize ${f.name} ("the organizers"). ` +
+      `${f.onBehalf}Every promise in it is the organizers'.`
+    : `This agreement is between you, the guest, and ${f.w.party}, who organizes ${f.name}. ${f.onBehalf}` +
+      `Every promise in it is ${poss}.`
   return [
     {
       heading: '',
       body:
-        `This agreement is between you, the guest, and ${f.party}, who organizes ${f.name}. ${f.onBehalf}` +
-        `Every promise in it is ${o}'s. Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
+        `${opening} Travel HQ supplies this standard form and the app the trip runs on, and nothing more: it is ` +
         `not a party to this agreement, does not plan, book or sell the trip, never holds, moves or refunds your ` +
-        `money, and is not responsible for what ${o} promises here or does or doesn't deliver. If something goes ` +
-        `wrong, you and ${o} settle it between you.`,
+        `money, and is not responsible for what ${o} ${v('promises', 'promise')} here or ${v('does', 'do')} or ` +
+        `${v("doesn't", "don't")} deliver. If something goes wrong, you and ${o} settle it between you.`,
     },
     {
       heading: '1. The trip',
-      body: `${f.trip}. ${o} can change the trip's details; section 5 says what happens if ${o} does.`,
+      body: `${f.trip}. ${O} can change the trip's details; section 5 says what happens if ${o} ${v('does', 'do')}.`,
     },
     {
       heading: '2. Your price',
       body:
-        `${f.price}. You pay ${o} directly, the way ${o}'s payment instructions say. ${o} can't raise your price ` +
-        `after you sign. Travel HQ keeps a record of the payments you and ${o} report; when ${o} confirms a ` +
-        `payment there, that is ${o}'s receipt, not Travel HQ's.`,
+        `${f.price}. You pay ${o} directly, the way ${poss} payment instructions say. ${O} can't raise your price ` +
+        `after you sign. Travel HQ keeps a record of the payments you and ${o} report; when ${o} ` +
+        `${v('confirms', 'confirm')} a payment there, that is ${poss} receipt, not Travel HQ's.`,
     },
     { heading: '3. Your spot', body: f.spot },
-    { heading: `4. ${o}'s refund terms`, body: f.refunds },
+    { heading: `4. ${poss.charAt(0).toUpperCase() + poss.slice(1)} refund terms`, body: f.refunds },
     {
       heading: '5. If the trip changes or is cancelled',
       body:
-        `If ${o} changes the trip's dates or destination after you sign, ${o} tells you. If you can't make the new ` +
-        `plan, or ${o} cancels the trip, ${o} refunds what you paid, less any money ${o} already spent on the trip ` +
-        `and can't get back; ${o} shows you what that was.`,
+        `If ${o} ${v('changes', 'change')} the trip's dates or destination after you sign, ${o} ` +
+        `${v('tells', 'tell')} you. If you can't make the new plan, or ${o} ${v('cancels', 'cancel')} the trip, ` +
+        `${o} ${v('refunds', 'refund')} what you paid, less any money ${o} already spent on the trip and can't ` +
+        `get back; ${o} ${v('shows', 'show')} you what that was.`,
     },
     {
       heading: '6. Signing',
@@ -188,25 +258,20 @@ function sections(f: Fill): { heading: string; body: string }[] {
  * naming both of them (fillAgreementNames fills the names in).
  */
 export function agreementText(trip: AgreementFacts, onBehalf = false): string {
-  const o = trip.organizerName
-  // "Nia Thompson ("Nia", nia@example.com)": the organizer's name and email from sign-in, beside the name the pages use.
-  const name = trip.organizer?.name.trim()
-  const email = trip.organizer?.email.trim()
-  const aka = [name && name !== o ? `"${o}"` : '', email].filter(Boolean).join(', ')
+  const w = organizerWords(trip)
   const first = trip.paymentPlan[0]?.amountCents ?? trip.costPerPersonCents
   const plan = planText(trip.paymentPlan)
   const fill: Fill = {
-    o,
-    party: `${name || o}${aka ? ` (${aka})` : ''}`,
+    w,
     name: trip.name,
     onBehalf: onBehalf ? ON_BEHALF : '',
     trip: `${trip.name}, ${trip.destination}, from ${trip.startDate} to ${trip.endDate}`,
     price: `${money(trip.costPerPersonCents)} per person, ${plan}`,
-    spot: spotTerms(o, trip.joinMode as JoinMode),
-    refunds: refundTerms(o, trip.joinMode, trip.refundPolicy, first),
+    spot: spotTerms(w, trip.joinMode as JoinMode),
+    refunds: refundTerms(w, trip.joinMode, trip.refundPolicy, first),
   }
   return [
-    `Trip agreement between you and ${o}`,
+    `Trip agreement between you and ${w.short}`,
     ...sections(fill).map((s) => (s.heading ? `${s.heading}\n${s.body}` : s.body)),
   ].join('\n\n')
 }
@@ -228,7 +293,15 @@ const REFUND_POLICY_LABELS: Record<RefundPolicy, string> = {
  * with each guest. Built from the same sections as agreementText, so the two can't drift apart.
  */
 export function agreementTemplate(): { heading: string; body: string }[] {
-  const o = '[organizer]'
+  const o: Who = {
+    o: '[organizer]',
+    O: '[organizer]',
+    poss: "[organizer]'s",
+    v: (one) => one,
+    party: '[your full name] ([your email])',
+    short: '[organizer]',
+    many: false,
+  }
   const modes = Object.keys(JOIN_MODE_LABELS) as JoinMode[]
   const policies = Object.keys(REFUND_POLICY_LABELS) as RefundPolicy[]
   // One line per version; trip settings that read the same are named together.
@@ -242,8 +315,7 @@ export function agreementTemplate(): { heading: string; body: string }[] {
     return [...lines].map(([t, ks]) => `- ${ks.map(label).join(' or ')}: "${t}"`).join('\n')
   }
   const [opening, ...rest] = sections({
-    o,
-    party: '[your full name] ([organizer], [your email])',
+    w: o,
     name: '[trip name]',
     onBehalf: '',
     trip: '[trip name], [destination], from [start date] to [end date]',

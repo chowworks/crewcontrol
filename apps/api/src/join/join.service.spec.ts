@@ -72,6 +72,7 @@ function service(rows: ReturnType<typeof row>[]) {
   }
   const trips = {
     organizerContact: jest.fn(async () => null),
+    organizerContacts: jest.fn(async () => []),
     getPublic: jest.fn(async () => ({
       slug: 'trip',
       name: 'Trip',
@@ -270,6 +271,7 @@ describe('emails when someone signs a traveler up', () => {
       } as unknown as PrismaService,
       {
         organizerContact: async () => ({ name: 'Chris', email: 'chris@example.com' }),
+        organizerContacts: async () => [{ name: 'Chris', email: 'chris@example.com' }],
       } as unknown as TripsService,
       {} as unknown as TermsService,
       {
