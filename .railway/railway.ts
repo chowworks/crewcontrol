@@ -53,8 +53,16 @@ export default defineRailway((ctx) => {
         DATABASE_URL: preserve(),
         SCHEMA_DATABASE_URL: '${{Postgres.DATABASE_URL}}?sslmode=require',
         REQUIRE_TENANT_RLS: 'on',
-        // The web app's address, for CORS: a laptop (http://localhost:5373) or the Vercel project's address.
-        FRONTEND_URL: preserve(),
+        // The web app's addresses, for CORS (core/cors-origins.ts): a laptop, the Vercel project's own addresses, and
+        // every branch preview (Vercel's travel-hq-git-<branch>-ludakhris-projects.vercel.app), so a PR's preview link
+        // reaches dev without adding it by hand. The * matches letters, digits and hyphens only.
+        FRONTEND_URL: [
+          'http://localhost:5373',
+          'https://travelhq-vert.vercel.app',
+          'https://crewcontrol-vert.vercel.app',
+          'https://crewcontrol-ludakhris-projects.vercel.app',
+          'https://travel-hq-git-*-ludakhris-projects.vercel.app',
+        ].join(','),
         // Trip photos: the dev R2 bucket, private; guests get signed links (DEVELOPMENT.md, "Photos").
         ...photoBucket,
         // Where contact form messages go.
