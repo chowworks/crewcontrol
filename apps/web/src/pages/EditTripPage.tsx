@@ -39,7 +39,11 @@ import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/Admi
 import { Dialog } from '@/components/Dialog'
 import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
-import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
+import {
+  HighlightIcon as HighlightIconMark,
+  HIGHLIGHT_ICON_LABELS,
+} from '@/components/HighlightIcon'
+import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { PriceSimulator } from '@/components/PriceSimulator'
@@ -817,18 +821,13 @@ export function EditTripPage() {
                         className="flex flex-col gap-2 rounded-xl border border-rule p-3"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <select
-                            className={`${field} min-w-0 flex-[1_1_140px]`}
-                            aria-label="Icon"
+                          <Dropdown<HighlightIcon>
+                            className="min-w-0 flex-[1_1_140px]"
+                            label="Icon"
                             value={h.icon}
-                            onChange={(e) => update({ icon: e.target.value as HighlightIcon })}
-                          >
-                            {HIGHLIGHT_ICONS.map((icon) => (
-                              <option key={icon} value={icon}>
-                                {HIGHLIGHT_ICON_LABELS[icon]}
-                              </option>
-                            ))}
-                          </select>
+                            options={HIGHLIGHT_ICON_OPTIONS}
+                            onChange={(icon) => update({ icon })}
+                          />
                           <input
                             className={`${field} min-w-0 flex-[2_1_180px]`}
                             aria-label="Highlight title"
@@ -1151,6 +1150,24 @@ function Text({
   )
 }
 
+/** The highlight icon picker's choices, each showing its icon. */
+const HIGHLIGHT_ICON_OPTIONS = HIGHLIGHT_ICONS.map((icon) => ({
+  value: icon,
+  label: HIGHLIGHT_ICON_LABELS[icon],
+  icon: (
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-royal-pale text-royal">
+      <HighlightIconMark icon={icon} className="h-4 w-4" />
+    </span>
+  ),
+}))
+
+/** The way-to-pay picker's choices, each with its service's mark. */
+const PAYMENT_METHOD_OPTIONS = PAYMENT_METHOD_KINDS.map((k) => ({
+  value: k.kind as PaymentMethodKind,
+  label: k.name,
+  icon: <PaymentMethodIcon kind={k.kind} />,
+}))
+
 /** What's missing from a way to pay, if anything: a fixed kind needs its handle, a custom one its name. */
 function methodProblem(m: PaymentMethod): string | null {
   if (m.kind === 'custom') return m.label.trim() ? null : 'Give it a name, like “Pay in person”.'
@@ -1183,20 +1200,13 @@ function PaymentMethodsEditor({
         return (
           <div key={i} className="flex flex-col gap-2 rounded-xl border border-rule p-3">
             <div className="flex flex-wrap gap-2">
-              <select
-                className={`${field} min-w-[150px] flex-1`}
+              <Dropdown<PaymentMethodKind>
+                className="min-w-[150px] flex-1"
+                label="Way to pay"
                 value={m.kind}
-                aria-label="Way to pay"
-                onChange={(e) =>
-                  put(i, { ...m, kind: e.target.value as PaymentMethodKind, label: '' })
-                }
-              >
-                {PAYMENT_METHOD_KINDS.map((k) => (
-                  <option key={k.kind} value={k.kind}>
-                    {k.name}
-                  </option>
-                ))}
-              </select>
+                options={PAYMENT_METHOD_OPTIONS}
+                onChange={(kind) => put(i, { ...m, kind, label: '' })}
+              />
               <button
                 type="button"
                 onClick={() => onChange(methods.filter((_, j) => j !== i))}

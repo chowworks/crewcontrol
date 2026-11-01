@@ -15,6 +15,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CopyText } from '@/components/CopyText'
+import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
 import { RoomCard } from '@/components/RoomCard'
@@ -929,7 +930,8 @@ function MyPlace({
           {me.paymentMethods.length > 0 && (
             <ul className="mt-1 flex flex-col">
               {me.paymentMethods.map((m, i) => (
-                <li key={i}>
+                <li key={i} className="flex items-center gap-2.5">
+                  <PaymentMethodIcon kind={m.kind} className="h-6 w-6 rounded-md" />
                   {/* The handle is what they paste into Cash App or their bank, so it copies on its own. */}
                   {m.handle.trim() ? (
                     <CopyText
@@ -939,7 +941,7 @@ function MyPlace({
                       {paymentMethodLabel(m)}
                     </CopyText>
                   ) : (
-                    paymentMethodLabel(m)
+                    <span>{paymentMethodLabel(m)}</span>
                   )}
                 </li>
               ))}
