@@ -10,7 +10,7 @@
 
 ```sh
 npm install
-railway link -p crew-control -e dev
+railway link -p travel-hq -e dev
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 apps/api/scripts/dev-db-url.sh --app      # paste as DATABASE_URL in apps/api/.env (the restricted role)
@@ -123,7 +123,7 @@ Done for `crew-control` on 2026-10-18; kept here for a rebuild.
 1. Create the Railway project `crew-control` and its `dev` environment: `railway init`, then
    `railway environment new dev`. IaC can't create an environment.
 2. From the repository root (after `npm install`, which brings the `railway` SDK):
-   `railway link -p crew-control -e dev`, `railway config plan`, then `railway config apply --environment dev`.
+   `railway link -p travel-hq -e dev`, `railway config plan`, then `railway config apply --environment dev`.
 3. Give `api-dev` a public domain: `railway domain -s api-dev -e dev`.
 4. Set its one hand-set value, the web app's address for CORS:
    `railway variables -s api-dev -e dev --set FRONTEND_URL=http://localhost:5373` (or the Vercel address).

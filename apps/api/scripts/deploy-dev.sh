@@ -11,6 +11,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
+# `railway up` deploys to whatever project this folder is linked to, and from an unlinked folder it makes a new one
+# (a stray project named "repo", 2026-10-31). So stop unless this folder is linked to Travel HQ's project, environment
+# dev. The project is checked by its id, which survives a rename.
+PROJECT_ID='ab2f90a6-907a-4add-961a-e8774e9f7615'
+STATUS="$(railway status 2>&1 || true)"
+LINKED_PROJECT="$(awk '/^Project ID:/ { print $3 }' <<<"$STATUS")"
+LINKED_ENV="$(awk '/^Environment:/ { print $2 }' <<<"$STATUS")"
+if [[ "$LINKED_PROJECT" != "$PROJECT_ID" || "$LINKED_ENV" != dev ]]; then
+  echo "This folder ($PWD) is not linked to Travel HQ's Railway project, environment dev. Stopping." >&2
+  echo "railway status says:" >&2
+  sed 's/^/  /' <<<"$STATUS" >&2
+  echo "Link it with: railway link -p $PROJECT_ID -e dev" >&2
+  exit 1
+fi
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 rsync -a --filter=':- .gitignore' --exclude '.git/' --exclude '/.claude/' ./ "$TMP/repo/"
