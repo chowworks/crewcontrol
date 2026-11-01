@@ -145,6 +145,7 @@ export function RoomsEditor({
               <input
                 className={field}
                 type="number"
+                onFocus={(e) => e.target.select()}
                 min={1}
                 max={20}
                 value={r.capacity}
@@ -167,6 +168,7 @@ export function RoomsEditor({
                 <input
                   className={field}
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   min={0.1}
                   max={10}
                   step={0.05}
@@ -179,6 +181,7 @@ export function RoomsEditor({
               <input
                 className={field}
                 type="number"
+                onFocus={(e) => e.target.select()}
                 min={1}
                 max={r.capacity}
                 value={r.minPeople}

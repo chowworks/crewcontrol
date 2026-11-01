@@ -18,6 +18,7 @@
     "@codemirror/view": "^6.43.15",
     "@uiw/react-codemirror": "^4.25.12",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/functions": "^3.10.5",
     "fflate": "^0.8.3",
     "lucide-react": "^1.7.0",
     "qrcode-generator": "^1.4.4",

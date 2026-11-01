@@ -11,7 +11,7 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft, FileImage, Lightbulb, Users } from 'lucide-react'
+import { ArrowLeft, Lightbulb, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -26,6 +26,7 @@ import { money } from '@/lib/format'
 import { DangerZone } from './DeleteTrip'
 import { ActionsCard, GuestsCard, transferOf } from './TripGuests'
 import { useTripInterest } from './TripInterest'
+import { TripLinkCard } from './TripLink'
 import { TripLogCard } from './TripLog'
 import { AnnouncementsCard } from './TripAnnouncements'
 import { useTripQuestions } from './TripQuestions'
@@ -279,21 +280,10 @@ export function ControlPanelPage() {
             className={`${admin ? 'inline-flex' : 'hidden sm:inline-flex'} min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4`}
           >
             {/* On a phone the buttons show their icons only, so the header stays on one line. An organizer's way
-                back is in the account menu there, which makes room for Flyer. */}
+                back is in the account menu there. The flyer is in Advertise your trip, above Actions. */}
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
-          {!admin && (
-            <button
-              type="button"
-              onClick={() => setFlyer(true)}
-              aria-label="Flyer"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal bg-royal px-2.5 font-semibold text-white hover:bg-royal-dark sm:px-4"
-            >
-              <FileImage className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Flyer</span>
-            </button>
-          )}
           <Link
             to={admin ? `/admin/trips/${id}/people` : `/organize/${id}/people`}
             aria-label="People"
@@ -319,6 +309,7 @@ export function ControlPanelPage() {
             {guestError}
           </p>
         )}
+        {!admin && <TripLinkCard trip={trip} onFlyer={() => setFlyer(true)} />}
         {/* What needs the organizer is theirs to do, not an admin's. */}
         {!admin && (
           <ActionsCard

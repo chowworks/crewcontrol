@@ -308,6 +308,7 @@ export function PriceSimulator({
                         <input
                           className={`${field} w-20`}
                           type="number"
+                          onFocus={(e) => e.target.select()}
                           min={0}
                           max={r.capacity}
                           value={people}
@@ -409,6 +410,7 @@ export function PriceSimulator({
             <input
               className={field}
               type="number"
+              onFocus={(e) => e.target.select()}
               min={1}
               max={24}
               value={installments}
