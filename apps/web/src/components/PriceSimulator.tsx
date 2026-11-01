@@ -285,13 +285,13 @@ export function PriceSimulator({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left">
+            <table className="w-full text-left">
               <thead className="text-sm text-muted">
                 <tr>
                   <th className="py-2 font-semibold">Room</th>
                   <th className="py-2 font-semibold">People</th>
-                  <th className="py-2 text-right font-semibold">Each pays</th>
-                  <th className="py-2 text-right font-semibold">Room total</th>
+                  <th className="py-2 pl-3 text-right font-semibold">Each pays</th>
+                  <th className="py-2 pl-3 text-right font-semibold">Room total</th>
                 </tr>
               </thead>
               <tbody>
@@ -324,10 +324,10 @@ export function PriceSimulator({
                           aria-label={`People in ${r.name || 'room'}`}
                         />
                       </td>
-                      <td className="py-2.5 text-right font-semibold">
+                      <td className="py-2.5 pl-3 text-right font-semibold">
                         {each !== undefined ? money(each) : '—'}
                       </td>
-                      <td className="py-2.5 text-right">
+                      <td className="py-2.5 pl-3 text-right">
                         {each !== undefined ? money(each * people) : '—'}
                       </td>
                     </tr>

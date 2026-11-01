@@ -12,4 +12,13 @@
   h3 {
     @apply font-display;
   }
+
+  /* iPhone Safari gives a date field a minimum width wider than half a phone and centres the date, so two side by
+     side ran past the card. Let it shrink to its column, keep its height when empty, and start at the left. */
+  input[type='date'] {
+    @apply min-h-[50px] min-w-0 appearance-none;
+  }
+  input[type='date']::-webkit-date-and-time-value {
+    @apply text-left;
+  }
 }
