@@ -162,6 +162,10 @@ export const api = {
   getRooms: (id: string, admin = false) => request<TripRoom[]>(`${tripBase(id, admin)}/rooms`),
   setRooms: (id: string, rooms: TripRoom[]) =>
     request<TripRoom[]>(`/trips/${id}/rooms`, json('PUT', { rooms })),
+  // An organizer going on their own trip, and not after all (issue #53).
+  goingToo: (id: string, input: { name: string; phone: string; email: string }) =>
+    request<OrganizerTrip>(`/trips/${id}/going`, json('POST', input)),
+  notGoing: (id: string) => request<OrganizerTrip>(`/trips/${id}/going`, { method: 'DELETE' }),
   updateGuest: (id: string, guestId: string, update: GuestUpdate) =>
     request<OrganizerTrip>(`/trips/${id}/guests/${guestId}`, json('PATCH', update)),
   getAgreement: (id: string, admin = false) =>

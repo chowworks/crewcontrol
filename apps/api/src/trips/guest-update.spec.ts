@@ -140,6 +140,19 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
         )
         return {}
       },
+      // An organizer going on their own trip (issue #53).
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        writes.push(data)
+        guests.push({ ...guest('new', { agreement: null }), ...data } as ReturnType<typeof guest>)
+        return {}
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        guests.splice(
+          guests.findIndex((g) => g.id === where.id),
+          1
+        )
+        return {}
+      },
     },
     payment: {
       update: async ({ where, data }: { where: { id: string }; data: Partial<PaymentRow> }) => {
@@ -541,5 +554,46 @@ describe('a guest’s spot in Trip Control', () => {
     expect(guests.map((g) => g.payments[0].receivedPaymentAmount)).toEqual([500, 300])
     await service.decidePayment('t1', 'pb', { status: 'reported' }, caller)
     expect(guests.map((g) => g.payments[0].status)).toEqual(['reported', 'reported'])
+  })
+})
+
+describe('an organizer going on their own trip (issue #53)', () => {
+  it('takes a spot at once, with no agreement, owing nothing, and emails nobody', () => {
+    const { service, guests, emails } = setup({ joinMode: 'accept_first' }, [])
+    return service
+      .goingToo('t1', { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com' }, caller)
+      .then((trip) => {
+        expect(guests[0]).toMatchObject({ userId: 'u1', status: 'approved', firstName: 'Sam' })
+        const me = trip.guests.find((g) => g.id === trip.myGuestId)!
+        expect(me).toMatchObject({ organizer: true, signedAt: null, status: 'approved' })
+        expect(me.terms).toMatchObject({ priceCents: 0, balanceCents: 0 })
+        expect(emails.sendToGuest).not.toHaveBeenCalled()
+      })
+  })
+
+  it('turns their own place as a guest into this one, and refuses when they’re already going', async () => {
+    const mine = guest('mine', { userId: 'u1' })
+    const { service, guests } = setup({}, [mine])
+    await service.goingToo(
+      't1',
+      { name: 'Sam R', phone: '5550199', email: 's@example.com' },
+      caller
+    )
+    expect(guests).toHaveLength(1)
+    expect(guests[0].status).toBe('approved')
+    await expect(
+      service.goingToo('t1', { name: 'Sam R', phone: '5550199', email: 's@example.com' }, caller)
+    ).rejects.toThrow(ConflictException)
+  })
+
+  it('gives the spot back: the place goes when nothing was logged, and stays turned down when it was', async () => {
+    const going = { userId: 'u1', status: 'approved', organizerGoingAt: at, agreement: null }
+    const empty = setup({}, [guest('me', going)])
+    await empty.service.notGoing('t1', caller)
+    expect(empty.guests).toHaveLength(0)
+    const logged = setup({}, [paidGuest('me', going)])
+    await logged.service.notGoing('t1', caller)
+    expect(logged.guests[0]).toMatchObject({ status: 'declined', roomId: null })
+    await expect(logged.service.notGoing('t1', caller)).rejects.toThrow(BadRequestException)
   })
 })

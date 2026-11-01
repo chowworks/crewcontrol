@@ -22,6 +22,7 @@ import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard
 import {
   parseAdjustment,
   parseExpense,
+  parseOrganizerGoing,
   parseGuestUpdate,
   parseOrganizerRequest,
   parsePaymentDecision,
@@ -131,6 +132,17 @@ export class TripsController {
   @Put(':id/rooms')
   setRooms(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     return this.trips.setRooms(id, parseRooms(body), caller)
+  }
+
+  // An organizer going on their own trip (issue #53): they take a spot as an accepted guest, and can give it back.
+  @Post(':id/going')
+  goingToo(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.trips.goingToo(id, parseOrganizerGoing(body), caller)
+  }
+
+  @Delete(':id/going')
+  notGoing(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.trips.notGoing(id, caller)
   }
 
   @Patch(':id/guests/:guestId')

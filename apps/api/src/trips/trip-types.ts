@@ -154,8 +154,13 @@ export interface Guest {
   roomNote: string
   /** When they signed the trip agreement, or null if they haven't (guests from before signing). */
   signedAt: string | null
-  /** The terms their signed agreement quoted, which their balance uses; null if unsigned. */
+  /**
+   * The terms their signed agreement quoted, which their balance uses; null if unsigned. An organizer going on their own
+   * trip signs nothing: theirs are a $0 price, so their balance is the charges an organizer adds.
+   */
   terms: GuestTerms | null
+  /** An organizer of the trip who said "I'm going too" (issue #53): accepted at once, with no trip agreement. */
+  organizer: boolean
   /** Whether they have an account of their own (signed in to join, or took over a sign-up made for them). */
   hasAccount: boolean
   /**
@@ -628,6 +633,8 @@ export interface OrganizerTrip extends TripInput {
   waitlistBufferPercent: number
   /** Guests' questions nobody has answered yet (issue #13): each is one of Trip Control's Actions. */
   questionsWaiting: number
+  /** The guest row of the organizer looking at Trip Control, if they're on the trip (issue #53). */
+  myGuestId: string | null
   updatedAt: string
 }
 

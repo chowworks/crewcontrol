@@ -154,7 +154,9 @@ function useParts(props: DetailsProps) {
           Signed agreement
         </button>
       ) : (
-        <span className="self-center text-sm text-muted">Agreement not signed</span>
+        <span className="self-center text-sm text-muted">
+          {g.organizer ? 'Organizer: no agreement to sign' : 'Agreement not signed'}
+        </span>
       )}
     </div>
   )
@@ -166,7 +168,14 @@ function useParts(props: DetailsProps) {
  * from deep to royal purple; the words carry the meaning for screen readers. With credits or charges, what they owe in
  * all is the signed price with those, and a line under it says so.
  */
-function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
+function PaidBar({
+  terms,
+  organizer = false,
+}: {
+  terms: NonNullable<Guest['terms']>
+  /** An organizer going on their own trip (issue #53), who signed nothing. */
+  organizer?: boolean
+}) {
   const due = totalDueCents(terms)
   const pct = due ? Math.min(100, Math.round((terms.paidCents / due) * 100)) : 0
   return (
@@ -191,13 +200,19 @@ function PaidBar({ terms }: { terms: NonNullable<Guest['terms']> }) {
         </span>
         <span className="whitespace-nowrap text-muted">{money(terms.balanceCents)} left</span>
       </div>
-      {terms.adjustmentCents !== 0 && (
+      {organizer ? (
         <p className="mt-1 text-sm text-muted">
-          Signed price {money(terms.priceCents)},{' '}
-          {terms.adjustmentCents < 0
-            ? `less ${money(-terms.adjustmentCents)} in credits.`
-            : `plus ${money(terms.adjustmentCents)} in charges.`}
+          Organizer, no agreement: what they owe is the charges added for their share.
         </p>
+      ) : (
+        terms.adjustmentCents !== 0 && (
+          <p className="mt-1 text-sm text-muted">
+            Signed price {money(terms.priceCents)},{' '}
+            {terms.adjustmentCents < 0
+              ? `less ${money(-terms.adjustmentCents)} in credits.`
+              : `plus ${money(terms.adjustmentCents)} in charges.`}
+          </p>
+        )
       )}
     </div>
   )
@@ -254,7 +269,7 @@ export function GuestDetails(props: DetailsProps) {
           {error}
         </p>
       )}
-      {g.terms && g.status !== 'declined' && <PaidBar terms={g.terms} />}
+      {g.terms && g.status !== 'declined' && <PaidBar terms={g.terms} organizer={g.organizer} />}
       <div role="tablist" className="mb-4 flex gap-1 rounded-xl bg-ground p-1">
         {tabs.map((t) => (
           <button

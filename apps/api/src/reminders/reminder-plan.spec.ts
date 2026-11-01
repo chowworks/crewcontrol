@@ -52,6 +52,16 @@ describe('remindersFor', () => {
     ])
   })
 
+  it('sends an organizer going on their own trip key dates, never payment reminders (issue #53)', () => {
+    const me = guest('org', {
+      organizer: true,
+      terms: terms({ priceCents: 0, adjustmentCents: 23500 }),
+    })
+    expect(keys(remindersFor(trip, [me], () => false))).toEqual([
+      'org date:2027-02-10:Book your flight 2027-01-27',
+    ])
+  })
+
   it('uses the trip’s dates for a guest who signed before plans had dates', () => {
     const old = guest('old', { terms: terms({ schedule: paymentPlan(1200, 3, null, []) }) })
     expect(

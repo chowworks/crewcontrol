@@ -367,6 +367,28 @@ export function agreementPreview(trip: AgreementFacts, onBehalf = false): Agreem
  * The terms a signature saved, with the balance worked out from them, the organizer's adjustments that still count
  * (issue #17) and the payments the organizer confirmed. The signed price itself never changes.
  */
+/**
+ * The terms of an organizer going on their own trip (issue #53), who signs no agreement: a $0 price in one payment, so
+ * what they owe is the charges an organizer adds for their share, less what they logged as paid.
+ */
+export function organizerTerms(
+  trip: { startDate: string; endDate: string },
+  payments: Parameters<typeof termsOf>[1],
+  adjustments: Parameters<typeof termsOf>[2] = []
+): GuestTerms {
+  return termsOf(
+    {
+      priceCents: 0,
+      installmentCount: 1,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+      refundTerms: '',
+    },
+    payments,
+    adjustments
+  )
+}
+
 export function termsOf(
   sig: {
     priceCents: number
