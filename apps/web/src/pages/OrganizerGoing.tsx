@@ -152,3 +152,82 @@ export function NotGoingButton({ onNotGoing }: { onNotGoing: () => Promise<boole
     </>
   )
 }
+
+/**
+ * Editor step 2, beside the number of spots (owner's decision, 2026-11-01): whether the organizer is going too, and
+ * their phone if so. Saving the step takes their spot. Once they're going, it says so; giving the spot back is on Trip
+ * Control.
+ */
+export function GoingQuestion({
+  going,
+  want,
+  phone,
+  phoneProblem,
+  onWant,
+  onPhone,
+}: {
+  going: boolean
+  want: boolean | null
+  phone: string
+  phoneProblem: string | null
+  onWant: (want: boolean) => void
+  onPhone: (phone: string) => void
+}) {
+  if (going)
+    return (
+      <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+        You’re going on this trip, so one of these spots is yours. To give it up, use “I’m not
+        going” in Manage Guests on Trip Control.
+      </p>
+    )
+  return (
+    <fieldset className="flex flex-col gap-2.5">
+      <legend className="mb-1 text-sm font-semibold">Are you going on this trip too?</legend>
+      <p className="mb-1 text-sm text-muted">
+        Yes takes one of the spots above for you when you save. You don’t sign the trip agreement or
+        accept yourself.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        {[
+          { value: true, label: 'Yes, I’m going' },
+          { value: false, label: 'No' },
+        ].map((o) => (
+          <label
+            key={o.label}
+            className={`flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border-2 px-3.5 ${
+              want === o.value ? 'border-royal bg-royal-pale' : 'border-rule'
+            }`}
+          >
+            <input
+              type="radio"
+              name="organizerGoing"
+              checked={want === o.value}
+              onChange={() => onWant(o.value)}
+              className="h-4 w-4 accent-royal"
+            />
+            <span className="font-semibold">{o.label}</span>
+          </label>
+        ))}
+      </div>
+      {want && (
+        <label className="flex flex-col gap-1.5 text-sm font-semibold">
+          Your phone
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => onPhone(e.target.value)}
+            aria-invalid={Boolean(phoneProblem)}
+            className={input}
+          />
+          {phoneProblem ? (
+            <span className="font-semibold text-[#B42318]">{phoneProblem}</span>
+          ) : (
+            <span className="font-normal text-muted">
+              So guests and other organizers can reach you, as with every guest.
+            </span>
+          )}
+        </label>
+      )}
+    </fieldset>
+  )
+}

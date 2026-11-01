@@ -33,9 +33,11 @@ import {
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
+import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { HIGHLIGHT_ICON_LABELS } from '@/components/HighlightIcon'
 import { Logo } from '@/components/Logo'
@@ -177,6 +179,12 @@ export function EditTripPage() {
   // The trip link as typed; saved only when it differs from `slug`.
   const [link, setLink] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
+  // The organizer going on their own trip (issue #53): their guest row, and the step 2 answer not yet saved.
+  const { user } = useUser()
+  const [myGuestId, setMyGuestId] = useState<string | null>(null)
+  const [goingWant, setGoingWant] = useState<boolean | null>(null)
+  const [goingPhone, setGoingPhone] = useState(() => user?.primaryPhoneNumber?.phoneNumber ?? '')
+  const going = guests.some((g) => g.id === myGuestId && g.status === 'approved')
   // The system's waitlist buffer, for the preview's "Join the waitlist" (a new trip uses the default until saved).
   const [buffer, setBuffer] = useState(10)
   const [loading, setLoading] = useState(Boolean(id))
@@ -196,8 +204,12 @@ export function EditTripPage() {
   const [params, setParams] = useSearchParams()
   const step = Math.min(STEPS.length, Math.max(1, Number(params.get('step')) || 1))
   const roomsDirty = Boolean(id) && JSON.stringify(rooms) !== savedRooms
+  const goingPending = Boolean(id) && goingWant === true && !going
   const dirty =
-    JSON.stringify(trip) !== savedTrip || (link.trim() !== '' && link.trim() !== slug) || roomsDirty
+    JSON.stringify(trip) !== savedTrip ||
+    (link.trim() !== '' && link.trim() !== slug) ||
+    roomsDirty ||
+    goingPending
 
   // Rooms with their own prices (step 3): the trip's price is the cheapest room's, so the trip page's "From $X" and
   // anything that falls back to the trip's price match a room guests can pick.
@@ -261,6 +273,7 @@ export function EditTripPage() {
         setSlug(slug)
         setLink(slug)
         setGuests(guests)
+        setMyGuestId(loaded.myGuestId)
         setBuffer(loaded.waitlistBufferPercent)
         setReceipts(loaded.receipts)
       })
@@ -290,6 +303,9 @@ export function EditTripPage() {
       ? 'Use 3 to 60 lowercase letters, numbers and single hyphens, like mv-2027.'
       : null
 
+  const goingPhoneProblem =
+    goingPending && goingPhone.replace(/\D/g, '').length < 7 ? 'Add a phone number.' : null
+
   /** Saves the trip and, when they changed, its rooms. True when everything saved. */
   async function save(): Promise<boolean> {
     const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r, trip.options.roomPricing))
@@ -298,7 +314,15 @@ export function EditTripPage() {
       trip.paymentDueDates.some((d, i) => i > 0 && d < trip.paymentDueDates[i - 1]) ||
       (trip.firstPaymentCents ?? 0) > trip.costPerPersonCents
     // A problem can sit on another step than this one: open that step, where it shows beside its field.
-    const problemStep = roomsBad ? 3 : methodsBad || planBad ? 4 : linkProblem ? 5 : 0
+    const problemStep = goingPhoneProblem
+      ? 2
+      : roomsBad
+        ? 3
+        : methodsBad || planBad
+          ? 4
+          : linkProblem
+            ? 5
+            : 0
     if (problemStep) {
       show(problemStep)
       setMessage({
@@ -323,8 +347,23 @@ export function EditTripPage() {
           // A removed room is cleared from its guests.
           setGuests((await api.getTrip(id)).guests)
         }
+        // "Yes, I'm going" on step 2 takes the organizer's spot once the trip saved (issue #53).
+        if (goingPending) {
+          const after = await api.goingToo(id, {
+            name: user?.fullName || trip.organizerName,
+            email: user?.primaryEmailAddress?.emailAddress ?? '',
+            phone: goingPhone,
+          })
+          setGuests(after.guests)
+          setMyGuestId(after.myGuestId)
+          setGoingWant(null)
+        }
         toast({
-          text: trip.published ? 'Saved. Guests see the changes now.' : 'Saved as a draft.',
+          text: goingPending
+            ? 'Saved. You took a spot on the trip.'
+            : trip.published
+              ? 'Saved. Guests see the changes now.'
+              : 'Saved as a draft.',
         })
       } else {
         const created = await api.createTrip(trip, chosen)
@@ -600,6 +639,16 @@ export function EditTripPage() {
                     }
                     placeholder="No limit"
                   />
+                  {id && !admin && (
+                    <GoingQuestion
+                      going={going}
+                      want={goingWant}
+                      phone={goingPhone}
+                      phoneProblem={goingPhoneProblem}
+                      onWant={setGoingWant}
+                      onPhone={setGoingPhone}
+                    />
+                  )}
                   <fieldset className="flex flex-col gap-2.5">
                     <legend className="mb-1 text-sm font-semibold">Who gets a spot</legend>
                     <p className="mb-1 text-sm text-muted">
