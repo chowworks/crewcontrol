@@ -488,6 +488,36 @@ model OrganizerRequest {
   @@index([createdAt])
 }
 
+/// Organizer help (issue #66, migration 20261101060000_organizer_help): the admin's version of one default answer
+/// (src/help/help-defaults.ts), or an answer the admin added (defaultHash null).
+model HelpEntry {
+  key             String   @id
+  topic           String
+  question        String
+  answer          String
+  pages           String[] @default([])
+  hidden          Boolean  @default(false)
+  defaultHash     String?
+  updatedAt       DateTime @default(now())
+  updatedByUserId String?
+}
+
+/// A question an organizer asked from the Help panel; the admin answers it and the answer is emailed to them.
+model HelpQuestion {
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userId           String
+  page             String
+  tripId           String?
+  tripName         String    @default("")
+  question         String
+  answer           String?
+  answeredAt       DateTime?
+  answeredByUserId String?
+  createdAt        DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
 // Someone asking to start trips while Travel HQ is a limited preview, from the public page: name, email (lowercased,
 // one request each) and an optional note. Anyone adds one; only the admin reads them (migration 20261031010000).
 // Someone who runs a trip can refer a person, which tags the request with them; the admin approves a request, and

@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module'
 import { ContactModule } from './contact/contact.module'
 import { TenantMiddleware } from './core/tenant.middleware'
 import { HealthModule } from './health/health.module'
+import { HelpModule } from './help/help.module'
 import { JoinModule } from './join/join.module'
 import { MessagingModule } from './messaging/messaging.module'
 import { PhotosModule } from './photos/photos.module'
@@ -33,6 +34,7 @@ import { TripsModule } from './trips/trips.module'
     QuestionsModule,
     InterestModule,
     AlertsModule,
+    HelpModule,
   ],
 })
 export class AppModule implements NestModule {
