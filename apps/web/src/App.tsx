@@ -13,6 +13,7 @@ import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
 import { AdminEmailPage, AdminEmailsPage } from './pages/AdminEmailsPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { AdminSentEmailsPage } from './pages/AdminSentEmailsPage'
+import { AdminMetricsPage } from './pages/AdminMetricsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
 import { ContactPage } from './pages/ContactPage'
@@ -180,6 +181,14 @@ export default function App() {
           element={
             <RequireSignIn>
               <AdminForwardedReceiptsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/metrics"
+          element={
+            <RequireSignIn>
+              <AdminMetricsPage />
             </RequireSignIn>
           }
         />

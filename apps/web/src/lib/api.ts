@@ -9,6 +9,7 @@ import {
   type EmailPreview,
   type EmailPreviewGuest,
   type EmailProblemNotice,
+  type AdminMetrics,
   type AdminSentEmails,
   type EmailTemplateInput,
   type EmailTemplateView,
@@ -253,6 +254,7 @@ export const api = {
   adminEmails: () => request<EmailTemplateView[]>('/admin/emails'),
   adminEmailProblems: () => request<EmailProblemNotice[]>('/admin/emails/problems'),
   adminSentEmails: () => request<AdminSentEmails>('/admin/emails/sent'),
+  adminMetrics: () => request<AdminMetrics>('/admin/metrics'),
   adminEmail: (kind: string) => request<EmailTemplateView>(`/admin/emails/${kind}`),
   previewEmail: (kind: string, draft: EmailTemplateInput, guest: EmailPreviewGuest) =>
     request<EmailPreview>(`/admin/emails/${kind}/preview?guest=${guest}`, json('POST', draft)),

@@ -1,4 +1,5 @@
 import {
+  ChartColumn,
   Inbox,
   Luggage,
   Mail,
@@ -27,6 +28,14 @@ const TOOLS: {
   sub: string
   how: string
 }[] = [
+  {
+    to: '/admin/metrics',
+    icon: ChartColumn,
+    title: 'Track Metrics',
+    text: 'How many people use Travel HQ, how many trips they made and how many payments they tracked.',
+    sub: 'People, trips and payments, all time and the last 30 days.',
+    how: 'People are everyone who accepted Travel HQ’s Terms of Use: they joined a trip or opened the organizer screens. Signing in and leaving doesn’t count. Trips are every trip created, counted on the day it was made; a deleted trip counts until it is erased 30 days later. Live trips are published, not deleted, and have at least one accepted guest. Payments are those an organizer confirmed, counted on the day they confirmed them, with the money they recorded as arrived; a refunded payment is not counted, and payments a guest reported that the organizer hasn’t confirmed yet are shown apart. Who logged them counts every payment on a trip, whatever became of it: the guest reporting it, the organizer adding it, or a forwarded receipt. If organizers log nearly all of them, guests aren’t using their page. The three sample trips are left out. Admins count like anyone else.',
+  },
   {
     to: '/admin/trips',
     icon: Luggage,
