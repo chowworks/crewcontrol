@@ -65,7 +65,10 @@ export function TripsPage() {
           >
             <Plus className="h-5 w-5" aria-hidden="true" />
             {/* "New" on a phone, so the header fits on one line beside the logo and the account menu. */}
-            New<span className="hidden sm:inline">&nbsp;trip</span>
+            {/* One flex item, so the button's gap sits only after the icon, not again before "trip". */}
+            <span>
+              New<span className="hidden sm:inline">&nbsp;trip</span>
+            </span>
           </Link>
           <AccountMenu />
         </div>
