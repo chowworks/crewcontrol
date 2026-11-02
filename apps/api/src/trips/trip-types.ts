@@ -1181,6 +1181,104 @@ export interface OrganizerRequest {
   approved: boolean
 }
 
+/**
+ * Organizer help (issue #66): Travel HQ's own answers to organizers' questions, behind the Help button on every
+ * organizer page. Not the trip page's Questions, which organizers write for their guests (issue #13).
+ *
+ * Where an answer shows first: one of the trip editor's steps, or Trip Control.
+ */
+export type HelpPage =
+  | 'editor:basics'
+  | 'editor:signups'
+  | 'editor:rooms'
+  | 'editor:pricing'
+  | 'editor:payments'
+  | 'editor:customization'
+  | 'control'
+
+export const HELP_PAGES: { value: HelpPage; label: string }[] = [
+  { value: 'editor:basics', label: 'Editor: Trip basics' },
+  { value: 'editor:signups', label: 'Editor: Sign-ups and the trip page' },
+  { value: 'editor:rooms', label: 'Editor: Rooms' },
+  { value: 'editor:pricing', label: 'Editor: Pricing' },
+  { value: 'editor:payments', label: 'Editor: Payments' },
+  { value: 'editor:customization', label: 'Editor: Customization' },
+  { value: 'control', label: 'Trip Control' },
+]
+
+/** The sections of "All topics", in order. */
+export type HelpTopic = 'start' | 'signups' | 'payments' | 'tripPage' | 'questions'
+
+export const HELP_TOPICS: { value: HelpTopic; label: string }[] = [
+  { value: 'start', label: 'Getting started' },
+  { value: 'payments', label: 'Payments' },
+  { value: 'tripPage', label: 'The trip page' },
+  { value: 'questions', label: 'Guests’ questions' },
+  // Last on purpose (owner's ask, 2026-11-02): the Yahoo and "If I'm going" questions come after the rest.
+  { value: 'signups', label: 'Sign-ups' },
+]
+
+export const HELP_QUESTION_MAX = 300
+export const HELP_ANSWER_MAX = 4000
+/** What an organizer types into "Ask us a question". */
+export const HELP_ASK_MAX = 2000
+
+/** One answer as organizers see it. The answer is plain text; a blank line starts a new paragraph. */
+export interface HelpEntry {
+  key: string
+  topic: HelpTopic
+  question: string
+  answer: string
+  pages: HelpPage[]
+}
+
+/** An answer as the admin's Help page shows it: where it comes from, and whether its default moved on since. */
+export interface AdminHelpEntry extends HelpEntry {
+  /** Travel HQ's default as is, the admin's version of a default, or one the admin added. */
+  source: 'default' | 'edited' | 'added'
+  hidden: boolean
+  /** Edited only: the default in code changed after the admin's edit, so the admin should look again. */
+  defaultChanged: boolean
+  /** Edited only: the default it replaces. */
+  original: { question: string; answer: string } | null
+}
+
+/** The admin adding or changing an answer. */
+export interface HelpEntryInput {
+  topic: HelpTopic
+  question: string
+  answer: string
+  pages: HelpPage[]
+  hidden: boolean
+}
+
+/** An organizer asking us: the question, the page they were on, and the trip when there is one. */
+export interface HelpAskInput {
+  question: string
+  page: HelpPage
+  tripId?: string
+}
+
+/** A question an organizer asked, as the admin's Help page lists it. */
+export interface AdminHelpQuestion {
+  id: string
+  question: string
+  page: HelpPage
+  tripName: string
+  userName: string
+  userEmail: string
+  createdAt: string
+  /** null until the admin answers. */
+  answer: string | null
+  answeredAt: string | null
+}
+
+/** The admin's answer, emailed to the organizer, and optionally added to the help for everyone. */
+export interface HelpAnswerInput {
+  answer: string
+  addToHelp: { question: string; topic: HelpTopic; pages: HelpPage[] } | null
+}
+
 /** A variable an email template can use, as the Emails page lists it; a list has fields for inside {{#each}}. */
 export interface EmailVariable {
   path: string

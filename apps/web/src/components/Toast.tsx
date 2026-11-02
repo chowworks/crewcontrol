@@ -27,6 +27,11 @@ const ToastContext = createContext<(toast: ToastInput) => void>(() => {})
 /** Shows a toast. */
 export const useToast = () => useContext(ToastContext)
 
+const ShowingContext = createContext(false)
+
+/** Whether a toast is on screen, so something else at the bottom (the Help button) can move out of its way. */
+export const useToastShowing = () => useContext(ShowingContext)
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<(ToastInput & { id: number }) | null>(null)
   const timer = useRef<number>()
@@ -47,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={show}>
-      {children}
+      <ShowingContext.Provider value={toast !== null}>{children}</ShowingContext.Provider>
       <div
         role="status"
         aria-live="polite"

@@ -20,6 +20,7 @@ import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/Admi
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { FlyerDialog } from '@/components/FlyerDialog'
+import { HelpButton } from '@/components/HelpButton'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
@@ -324,6 +325,7 @@ export function ControlPanelPage() {
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
+      <HelpButton page="control" tripId={id} />
       <header className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-3 px-5 py-4">
         <Logo />
         <div className="flex items-center gap-3">

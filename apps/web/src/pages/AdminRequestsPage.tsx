@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { downloadCsv } from '@/lib/csv'
 import { AdminHow, AdminSection, AdminShell, AdminToolHead } from './AdminPage'
+import { HelpAnswersSection, HelpQuestionsSection } from './AdminHelpSections'
 
 const when = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -57,8 +58,8 @@ const shows: Record<Show, (r: OrganizerRequest) => boolean> = {
 }
 
 /**
- * Requests: what people asked for that Travel HQ doesn't do yet, one section each with its own grid to search, sort and
- * export. Early access, asked for or invited by a friend who runs a trip, is approved here: whoever signs in with that
+ * Requests: organizers' questions from the Help button first (they wait on an answer), then what people asked for that
+ * Travel HQ doesn't do yet, one section each with its own grid to search, sort and export, then the help answers. Early access, asked for or invited by a friend who runs a trip, is approved here: whoever signs in with that
  * email may then start trips (issue #39). Refund terms are organizers' suggestions, to read.
  */
 export function AdminRequestsPage() {
@@ -151,6 +152,7 @@ export function AdminRequestsPage() {
       )}
       {requests && (
         <div className="flex flex-col gap-6">
+          <HelpQuestionsSection />
           <AdminSection
             icon={UserPlus}
             title="Early access"
@@ -195,6 +197,7 @@ export function AdminRequestsPage() {
               empty="No refund terms suggested yet."
             />
           </AdminSection>
+          <HelpAnswersSection />
         </div>
       )}
       <AdminHow to="/admin/requests" />

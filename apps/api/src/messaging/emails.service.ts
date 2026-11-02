@@ -35,6 +35,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   interest: 'Interested person',
   deletion: 'Trip deleted',
   alert: 'What needs them',
+  help: 'Help question',
 }
 
 const PREVIEW_GUESTS: EmailPreviewGuest[] = ['can_pay', 'not_yet', 'waitlisted']
@@ -372,6 +373,35 @@ export class EmailsService {
     ).catch((err) =>
       console.error(`Early access alert failed: ${err instanceof Error ? err.message : err}`)
     )
+  }
+
+  /**
+   * An organizer asked a question from the Help button (issue #66): to support at once, as a contact form email, so
+   * replying answers them directly. The admin can also answer it in the Admin toolbox. Never rejects.
+   */
+  alertHelpQuestion(ask: { name: string; email: string; question: string; where: string }): void {
+    const web = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
+    this.sendContact(
+      {
+        name: ask.name,
+        email: ask.email,
+        topic: 'Organizer help question',
+        message: `${ask.question}\n\nAsked from ${ask.where}.\n\nAnswer it in the Admin toolbox (we email them your answer): ${web}/admin/requests`,
+      },
+      process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app'
+    ).catch((err) =>
+      console.error(`Help question alert failed: ${err instanceof Error ? err.message : err}`)
+    )
+  }
+
+  /** The admin's answer to an organizer's help question, Reply-To support. Throws, so the admin sees it failed. */
+  async sendHelpAnswer(help: NonNullable<EmailContext['help']>, to: string): Promise<void> {
+    const email = render(await this.template(this.kindOf('help_answered')), { help })
+    await this.deliver('help_answered', {
+      to,
+      replyTo: process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app',
+      ...email,
+    })
   }
 
   /** The Admin toolbox's Email problems, newest first; the database lets only the admin read them. */

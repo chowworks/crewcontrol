@@ -1,6 +1,12 @@
 import {
   TERMS_REQUIRED_CODE,
   type AcceptTermsInput,
+  type AdminHelpEntry,
+  type AdminHelpQuestion,
+  type HelpAnswerInput,
+  type HelpAskInput,
+  type HelpEntry,
+  type HelpEntryInput,
   type AdminForwardedReceipts,
   type AgreementPreview,
   type BalanceAdjustmentInput,
@@ -243,6 +249,22 @@ export const api = {
   adminTrips: () => request<ListedTrip[]>('/admin/trips'),
   getSettings: () => request<SystemSettings>('/admin/settings'),
   adminRequests: () => request<OrganizerRequest[]>('/admin/requests'),
+  // Organizer help (issue #66).
+  help: () => request<HelpEntry[]>('/help'),
+  askHelp: (input: HelpAskInput) => request<void>('/help/questions', json('POST', input)),
+  adminHelp: () =>
+    request<{ entries: AdminHelpEntry[]; questions: AdminHelpQuestion[] }>('/admin/help'),
+  adminHelpWaiting: () => request<{ questions: number; changed: number }>('/admin/help/waiting'),
+  addHelpEntry: (input: HelpEntryInput) =>
+    request<AdminHelpEntry[]>('/admin/help/entries', json('POST', input)),
+  saveHelpEntry: (key: string, input: HelpEntryInput) =>
+    request<AdminHelpEntry[]>(`/admin/help/entries/${encodeURIComponent(key)}`, json('PUT', input)),
+  resetHelpEntry: (key: string) =>
+    request<AdminHelpEntry[]>(`/admin/help/entries/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    }),
+  answerHelpQuestion: (id: string, input: HelpAnswerInput) =>
+    request<{ emailed: boolean }>(`/admin/help/questions/${id}/answer`, json('POST', input)),
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
   approveEarlyAccess: (id: string, approved: boolean) =>
     request<void>(`/admin/requests/${id}/approved`, json('PUT', { approved })),

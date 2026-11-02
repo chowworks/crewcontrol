@@ -18,6 +18,7 @@ import {
   type TripOptions,
   type TripReceipts,
   type TripRoom,
+  type HelpPage,
 } from '@cc/types'
 import {
   ArrowDown,
@@ -38,6 +39,7 @@ import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
+import { HelpButton } from '@/components/HelpButton'
 import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import {
@@ -97,6 +99,18 @@ const outlineButton =
 const iconButton = 'rounded-lg p-2.5 text-muted hover:bg-ground hover:text-ink disabled:opacity-30'
 
 /** The editor's steps, in order; `?step=` picks one. */
+/** Which help questions each step shows first (issue #66), in STEPS order. */
+// Keyed by step name, so adding, splitting or reordering steps doesn't show the wrong help. A new step needs its
+// own HelpPage and at least one answer (CLAUDE.md, "Organizer help").
+const HELP_PAGE_OF_STEP: Record<string, HelpPage> = {
+  'Trip basics': 'editor:basics',
+  'Sign-ups and the trip page': 'editor:signups',
+  Rooms: 'editor:rooms',
+  Pricing: 'editor:pricing',
+  Payments: 'editor:payments',
+  Customization: 'editor:customization',
+}
+
 const STEPS = [
   'Trip basics',
   'Sign-ups and the trip page',
@@ -448,6 +462,7 @@ export function EditTripPage() {
 
   return (
     <div className="min-h-screen pb-28">
+      <HelpButton page={HELP_PAGE_OF_STEP[STEPS[step - 1]] ?? 'editor:basics'} tripId={id} />
       <div className="sticky top-0 z-10 border-b border-rule bg-ground/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-2 px-4 py-3 sm:px-5">
           <Logo />

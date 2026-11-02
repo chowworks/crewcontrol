@@ -290,6 +290,22 @@ it is live. Add it at the top: copy an `<article class="entry">` block, keeping 
 the how-to is in the comment at the top of the file. Screenshots go in `docs/screenshots/<feature>/`. Fictional data
 only.
 
+## Organizer help
+
+Every organizer page (the trip editor and Trip Control) has a floating Help button (`components/HelpButton.tsx`, issue
+#66) that opens on the questions for that page or editor step. Travel HQ's default answers live in
+`apps/api/src/help/help-defaults.ts`; the admin can reword, hide or add answers in the Admin toolbox's Review Customer
+Requests (`HelpEntry`), and answers questions organizers ask there (`HelpQuestion`, emailed back; waiting ones add to
+the admin's red count, as do answers the admin edited whose default changed since).
+
+- **A change to what organizers see or do updates the help answers it affects, in the same change**: a renamed button,
+  a moved setting, a new step or a new rule. Check `help-defaults.ts` for the old wording before committing, and say in
+  the commit summary which answers changed or that none did.
+- Never change an answer's `key`: the admin's edits are kept by key. Changing a default the admin has edited flags it
+  on the admin page for the admin to compare.
+- A new editor step or organizer page gets a `HelpPage` value and at least one answer (a spec checks every page has one).
+- Answers are plain text in Travel HQ's voice: short, the organizer's own words for buttons and screens, true today.
+
 ## Reviewing larger PRs
 
 For a PR over about 500 changed lines (`git diff --stat origin/main...HEAD`), review it with parallel

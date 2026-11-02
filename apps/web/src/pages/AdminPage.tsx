@@ -9,11 +9,12 @@ import {
   SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { IconCircle } from './TripGuests'
 import { Logo } from '@/components/Logo'
+import { api } from '@/lib/api'
 
 /**
  * The tools, in the order the Admin toolbox shows them, the way Audit Differently lists its admin tools. Each tool's
@@ -48,9 +49,9 @@ const TOOLS: {
     to: '/admin/requests',
     icon: MessageSquareText,
     title: 'Review Customer Requests',
-    text: 'What people asked for that Travel HQ doesn’t do yet: other refund terms, and early access to start trips.',
-    sub: 'What people asked for, newest first.',
-    how: 'Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like, and anyone who runs a trip can invite a friend from Your trips (shown under “Invited by”). Search, filter by type, sort by any column, or export what’s shown. Approve an early access request and whoever signs in with that email can start trips; Undo approval takes that back. Each new early access request or referral is emailed to support at once. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can delete one.',
+    text: 'Questions organizers asked from the Help button, what people asked for that Travel HQ doesn’t do yet, and the help answers.',
+    sub: 'Organizers’ questions to answer, what people asked for, and the help answers.',
+    how: 'Organizers ask questions from the Help button on every organizer page; each is emailed to support and listed first here. Answer one and your answer is emailed to the organizer, and replies come to support; tick “Also add it to the help” to show it to every organizer at once. Nobody can delete a question. Organizers suggest refund terms from the trip editor (“Suggest other refund terms”) when the presets don’t fit their trip. While Travel HQ is a limited preview, anyone but an admin who presses New trip can ask for early access instead, once each, with a line about their trip if they like, and anyone who runs a trip can invite a friend from Your trips (shown under “Invited by”). Search, filter by type, sort by any column, or export what’s shown. Approve an early access request and whoever signs in with that email can start trips; Undo approval takes that back. Each new early access request or referral is emailed to support at once. Each shows who asked, their email, the trip they were setting up, and their words. Nobody can delete one. The help answers at the bottom are what organizers see behind the Help button; they start as Travel HQ’s own, which come with the app and are updated when the app changes. Edit one to use your own wording, hide one, or add your own; “Use Travel HQ’s wording” goes back. When Travel HQ’s wording changes after you edited an answer, it is flagged so you can compare.',
   },
   {
     to: '/admin/emails',
@@ -115,6 +116,14 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
 
 /** The Admin toolbox: one tile per tool, for admins (Clerk public metadata `{"role": "admin"}`). */
 export function AdminPage() {
+  // Organizers' questions waiting for an answer and help answers to check, as a red count on Review Customer Requests.
+  const [waiting, setWaiting] = useState(0)
+  useEffect(() => {
+    api
+      .adminHelpWaiting()
+      .then((r) => setWaiting(r.questions + r.changed))
+      .catch(() => setWaiting(0))
+  }, [])
   return (
     <AdminShell>
       <div className="mb-6 mt-2">
@@ -130,7 +139,15 @@ export function AdminPage() {
             className="group flex flex-col items-start gap-2 rounded-2xl border border-rule bg-white p-6 shadow-card focus:outline-none focus-visible:ring-4 focus-visible:ring-royal"
           >
             <ToolIcon icon={t.icon} />
-            <span className="text-[17px] font-bold">{t.title}</span>
+            <span className="flex items-center gap-2 text-[17px] font-bold">
+              {t.title}
+              {t.to === '/admin/requests' && waiting > 0 && (
+                <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
+                  {waiting}
+                  <span className="sr-only"> waiting</span>
+                </span>
+              )}
+            </span>
             <span className="min-h-[3em] text-sm text-muted">{t.text}</span>
             <span className="mt-auto pt-1 font-bold text-royal group-hover:underline">
               Open tool →
