@@ -18,6 +18,7 @@ import {
   type TripOptions,
   type TripReceipts,
   type TripRoom,
+  type HelpPage,
 } from '@cc/types'
 import {
   ArrowDown,
@@ -38,6 +39,7 @@ import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
+import { HelpButton } from '@/components/HelpButton'
 import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import {
@@ -105,6 +107,20 @@ const STEPS = [
   'Payments',
   'Customization',
 ]
+
+/**
+ * Which help questions each step shows first (issue #66). Keyed by step name, so adding, splitting or reordering
+ * steps doesn't show the wrong help. A new step needs its own HelpPage and at least one answer (CLAUDE.md,
+ * "Organizer help").
+ */
+const HELP_PAGE_OF_STEP: Record<string, HelpPage> = {
+  'Trip basics': 'editor:basics',
+  'Sign-ups and the trip page': 'editor:signups',
+  Rooms: 'editor:rooms',
+  Pricing: 'editor:pricing',
+  Payments: 'editor:payments',
+  Customization: 'editor:customization',
+}
 
 /** What a guest would see for the trip as edited, before it is saved. */
 function previewOf(
@@ -447,7 +463,9 @@ export function EditTripPage() {
   const guestUrl = slug ? `${window.location.origin}/t/${slug}` : ''
 
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-screen pb-44">
+      {/* pb-44: room so the Help button, lifted above a toast, never covers the last Save. */}
+      <HelpButton page={HELP_PAGE_OF_STEP[STEPS[step - 1]] ?? 'editor:basics'} tripId={id} />
       <div className="sticky top-0 z-10 border-b border-rule bg-ground/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-2 px-4 py-3 sm:px-5">
           <Logo />

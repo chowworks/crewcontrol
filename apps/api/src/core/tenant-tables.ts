@@ -45,6 +45,10 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   'EmailSend',
   // Which Actions each organizer was emailed about: trusted work only.
   'ActionAlert',
+  // Not trip data: organizer help (issue #66). The admin's answers, read by all and written by the admin, and the
+  // questions organizers ask, added by each for themselves and read by the admin only.
+  'HelpEntry',
+  'HelpQuestion',
 ])
 
 type Fields = Map<string, string> // relation field name -> the model it points at

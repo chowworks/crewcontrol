@@ -276,6 +276,19 @@ ${plan('{{guest.firstName}}’s')}
 <p>You signed it on {{deletion.signedOn}} as {{deletion.signedName}}. Your copy is attached, exactly as you signed it.</p>`,
   },
   {
+    kind: 'help_answered',
+    name: 'Help question answered',
+    when: 'To an organizer who asked a question from the Help button, when an admin answers it in the Admin toolbox. Replying reaches support.',
+    groups: ['help'],
+    subject: 'Your question about Travel HQ',
+    body: `<p>Hi {{help.firstName}},</p>
+<p>You asked:</p>
+<p style="font-weight:600;">{{help.question}}</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{help.answer}}</div>
+<p>Anything else? Reply to this email, or tap Help on any organizer page.</p>
+<p><a href="{{help.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trips</a></p>`,
+  },
+  {
     kind: 'contact',
     name: 'Contact form message',
     when: 'To Travel HQ support when someone sends the contact form. Replying answers them.',
@@ -400,6 +413,13 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       ],
       link: 'https://travel-hq.app/organize',
       windowHours: 4,
+    },
+    help: {
+      firstName: 'Nia',
+      question: 'Can a guest pay for their roommate who signed up on their own?',
+      answer:
+        'Yes. Open the roommate’s Details on Trip Control, tap Change next to “Sign-up and payments handled by” and pick who pays for them.',
+      link: 'https://travel-hq.app/organize',
     },
     contact: {
       name: 'Dana Reyes',

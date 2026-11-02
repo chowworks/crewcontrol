@@ -138,6 +138,14 @@ export interface EmailContext {
     /** The hours between alerts (System Settings), for the footer. */
     windowHours: number
   }
+  /** In the email to an organizer whose help question the admin answered (issue #66). */
+  help?: {
+    firstName: string
+    question: string
+    answer: string
+    /** Your trips, where the Help button is. */
+    link: string
+  }
   /** In the contact form's email to Travel HQ support: who wrote, about what, and their message. */
   contact?: {
     name: string
@@ -195,6 +203,7 @@ export type VariableGroup =
   | 'interest'
   | 'deletion'
   | 'alert'
+  | 'help'
 
 export interface Variable {
   path: string
@@ -293,6 +302,12 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     },
     { path: 'alert.link', label: 'Your trips link' },
     { path: 'alert.windowHours', label: 'Hours between these emails' },
+  ],
+  help: [
+    { path: 'help.firstName', label: 'Organizer’s first name' },
+    { path: 'help.question', label: 'What they asked' },
+    { path: 'help.answer', label: 'Your answer' },
+    { path: 'help.link', label: 'Your trips link' },
   ],
   contact: [
     { path: 'contact.name', label: 'Their name' },
@@ -567,12 +582,14 @@ export function render(
               ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
                 `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
                 'everything waiting is in the Actions on each trip’s Trip Control.'
-              : question
-                ? question.answered
-                  ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-                  : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-                    'Reply to this email to answer them directly.'
-                : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+              : context.help
+                ? 'You’re getting this because you asked Travel HQ a question from the Help button. Reply to this email to ask a follow-up.'
+                : question
+                  ? question.answered
+                    ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+                    : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                      'Reply to this email to answer them directly.'
+                  : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

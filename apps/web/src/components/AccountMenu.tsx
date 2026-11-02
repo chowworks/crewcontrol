@@ -13,7 +13,9 @@ import { authConfigured, useIsAdmin } from '@/lib/auth'
  *
  * A red count on the pill says how many things need you across the app (owner's decision, 2026-10-24): on the trips
  * you run, what each one's Actions lists; on trips you joined, a payment that's due. The menu lists each with its
- * count and links there.
+ * count and links there. An admin's count adds the organizers' questions waiting in Review Customer Requests, and help answers they edited
+ * whose default changed since
+ * (owner's ask, 2026-11-02).
  */
 export function AccountMenu() {
   if (!authConfigured) return null
@@ -27,6 +29,7 @@ function SignedInMenu() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const [actions, setActions] = useState<MyActions | null>(null)
+  const [help, setHelp] = useState({ questions: 0, changed: 0 })
   const { pathname } = useLocation()
   const toast = useToast()
 
@@ -51,7 +54,7 @@ function SignedInMenu() {
         action: { label: 'Pay now', to: due.href },
       })
     }
-    const load = () =>
+    const loadActions = () =>
       api
         .myActions()
         .then((a) => {
@@ -59,6 +62,15 @@ function SignedInMenu() {
           remind(a)
         })
         .catch(() => setActions(null))
+    const loadQuestions = () =>
+      api
+        .adminHelpWaiting()
+        .then(setHelp)
+        .catch(() => setHelp({ questions: 0, changed: 0 }))
+    const load = () => {
+      void loadActions()
+      if (isAdmin) void loadQuestions()
+    }
     load()
     // Trip Control says when something was just done (cc:actions-changed).
     window.addEventListener('focus', load)
@@ -67,7 +79,7 @@ function SignedInMenu() {
       window.removeEventListener('focus', load)
       window.removeEventListener('cc:actions-changed', load)
     }
-  }, [isSignedIn, pathname, toast])
+  }, [isSignedIn, isAdmin, pathname, toast])
 
   useEffect(() => {
     if (!open) return
@@ -89,6 +101,7 @@ function SignedInMenu() {
   const email = user.primaryEmailAddress?.emailAddress ?? ''
   const name = user.fullName || email
   const first = (user.firstName || email).split(' ')[0] || 'Account'
+  const total = (actions?.total ?? 0) + help.questions + help.changed
   const item =
     'flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-[15px] font-semibold text-ink hover:bg-ground'
 
@@ -115,13 +128,10 @@ function SignedInMenu() {
               {first.charAt(0).toUpperCase()}
             </span>
           )}
-          {actions && actions.total > 0 && (
+          {total > 0 && (
             <span className="absolute -right-2 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#B42318] px-1 text-xs font-bold text-white ring-2 ring-white">
-              {actions.total}
-              <span className="sr-only">
-                {' '}
-                {actions.total === 1 ? 'thing needs' : 'things need'} you
-              </span>
+              {total}
+              <span className="sr-only"> {total === 1 ? 'thing needs' : 'things need'} you</span>
             </span>
           )}
         </span>
@@ -144,12 +154,28 @@ function SignedInMenu() {
           </div>
           {/* A choice made here closes the menu. */}
           <div onClick={() => setOpen(false)}>
-            {actions && actions.items.length > 0 && (
+            {((actions && actions.items.length > 0) || help.questions + help.changed > 0) && (
               <div className="mb-1.5 border-b border-rule pb-1.5">
                 <span className="block px-3 pb-1 pt-1 text-[13px] font-semibold text-muted">
                   Needs you
                 </span>
-                {actions.items.map((a) => (
+                {help.questions > 0 && (
+                  <Link to="/admin/requests" className={`${item} justify-between gap-3`}>
+                    <span className="min-w-0 truncate">Organizers’ questions</span>
+                    <span className="grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
+                      {help.questions}
+                    </span>
+                  </Link>
+                )}
+                {help.changed > 0 && (
+                  <Link to="/admin/requests" className={`${item} justify-between gap-3`}>
+                    <span className="min-w-0 truncate">Help answers to check</span>
+                    <span className="grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-[#B42318] px-1.5 text-sm font-bold text-white">
+                      {help.changed}
+                    </span>
+                  </Link>
+                )}
+                {actions?.items.map((a) => (
                   <Link key={a.href} to={a.href} className={`${item} justify-between gap-3`}>
                     <span className="min-w-0 truncate">
                       {a.as === 'guest' ? `Pay for ${a.name}` : a.name}

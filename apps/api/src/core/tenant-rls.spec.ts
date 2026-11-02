@@ -149,9 +149,9 @@ suite('trip isolation', () => {
 
   it('shows nothing with no context', async () => {
     await as({}, async () => {
-      // System settings and email templates are read by everyone; every table of trip data shows nothing.
+      // System settings, email templates and help answers are read by everyone; every table of trip data shows nothing.
       for (const t of TENANT_TABLES)
-        if (t !== 'SystemSettings' && t !== 'EmailTemplate')
+        if (t !== 'SystemSettings' && t !== 'EmailTemplate' && t !== 'HelpEntry')
           expect([t, await ids(t)]).toEqual([t, []])
     })
   })
@@ -1294,6 +1294,78 @@ suite('trip isolation', () => {
       })
     } finally {
       await db.query(`DELETE FROM "OrganizerRequest"`)
+    }
+  })
+
+  it('keeps help questions to the admin, who answers them, and help answers written only by the admin', async () => {
+    const ask = (user: string, answer = 'NULL') =>
+      attempt(
+        `INSERT INTO "HelpQuestion" ("userId", page, question, answer) VALUES ('${user}', 'control', 'Why?', ${answer})`
+      )
+    const write = () =>
+      attempt(
+        `INSERT INTO "HelpEntry" (key, topic, question, answer) VALUES ('booking', 'start', 'Q?', 'A.')`
+      )
+    await as(await person('u1'), async () => {
+      expect(await ask('u1')).toEqual({ rows: 1 })
+      expect(await ask('u2')).toEqual({ error: refused })
+      // Nobody answers their own question.
+      expect(await ask('u1', `'Yes.'`)).toEqual({ error: refused })
+      expect(await ids('HelpQuestion')).toEqual([])
+      expect(await write()).toEqual({ error: refused })
+    })
+    await db.query(
+      `INSERT INTO "HelpQuestion" (id, "userId", page, question) VALUES ('H1', 'u1', 'control', 'x')`
+    )
+    try {
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await ids('HelpQuestion')).toEqual(['H1'])
+        expect(
+          await attempt(
+            `UPDATE "HelpQuestion" SET answer = 'Yes.', "answeredAt" = now() WHERE id = 'H1'`
+          )
+        ).toEqual({ rows: 1 })
+        expect(await attempt(`DELETE FROM "HelpQuestion"`)).toEqual({ rows: 0 })
+        expect(await write()).toEqual({ rows: 1 })
+      })
+      // Every signed-in organizer reads the answers.
+      await db.query(
+        `INSERT INTO "HelpEntry" (key, topic, question, answer) VALUES ('booking', 'start', 'Q?', 'A.')`
+      )
+      await as(await person('u2'), async () =>
+        expect(
+          (await db.query<{ key: string }>(`SELECT key FROM "HelpEntry"`)).rows.map((r) => r.key)
+        ).toEqual(['booking'])
+      )
+    } finally {
+      await db.query(`DELETE FROM "HelpQuestion"`)
+      await db.query(`DELETE FROM "HelpEntry"`)
+    }
+  })
+
+  it('erases a help question with the trip it was asked from', async () => {
+    await db.query(
+      `INSERT INTO "Trip" (id, slug, name, destination, "startDate", "endDate", "organizerName", description, "costPerPersonCents", "updatedAt")
+       VALUES ('T-help', 't-help', 'n', 'd', '2027-01-01', '2027-01-02', 'o', 'd', 0, now())`
+    )
+    try {
+      // The tie to the trip is checked without row-level security getting in the way of the asker.
+      await as(await person('u1'), async () => {
+        expect(
+          await attempt(
+            `INSERT INTO "HelpQuestion" ("userId", page, "tripId", question) VALUES ('u1', 'control', 'T-help', 'Why?')`
+          )
+        ).toEqual({ rows: 1 })
+      })
+      await db.query(
+        `INSERT INTO "HelpQuestion" ("userId", page, question) VALUES ('u1', 'control', 'Kept')`
+      )
+      await db.query(`DELETE FROM "Trip" WHERE id = 'T-help'`)
+      const left = await db.query<{ question: string }>(`SELECT question FROM "HelpQuestion"`)
+      expect(left.rows.map((r) => r.question)).toEqual(['Kept'])
+    } finally {
+      await db.query(`DELETE FROM "HelpQuestion"`)
+      await db.query(`DELETE FROM "Trip" WHERE id = 'T-help'`)
     }
   })
 
