@@ -1275,9 +1275,15 @@ export class TripsService {
     return {
       users: { total: n(row.users), recent: n(row.usersRecent) },
       trips: { total: n(row.trips), recent: n(row.tripsRecent) },
+      liveTrips: n(row.liveTrips),
       payments: { total: n(row.payments), recent: n(row.paymentsRecent) },
       paymentCents: { total: n(row.paymentCents), recent: n(row.paymentCentsRecent) },
       paymentsWaiting: n(row.paymentsWaiting),
+      loggedBy: {
+        guest: n(row.loggedByGuest),
+        organizer: n(row.loggedByOrganizer),
+        email: n(row.loggedByEmail),
+      },
     }
   }
 
@@ -1368,11 +1374,15 @@ type MetricsRow = Record<
   | 'usersRecent'
   | 'trips'
   | 'tripsRecent'
+  | 'liveTrips'
   | 'payments'
   | 'paymentsRecent'
   | 'paymentCents'
   | 'paymentCentsRecent'
-  | 'paymentsWaiting',
+  | 'paymentsWaiting'
+  | 'loggedByGuest'
+  | 'loggedByOrganizer'
+  | 'loggedByEmail',
   number | bigint
 >
 
@@ -1380,29 +1390,43 @@ type MetricsRow = Record<
 async function countMetrics(prisma: PrismaService): Promise<MetricsRow> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const real = { trip: { isSample: false } }
-  const [people, trips, tripsRecent, payments, waiting] = await Promise.all([
+  const [people, trips, tripsRecent, liveTrips, payments, waiting, logged] = await Promise.all([
     prisma.termsAcceptance.groupBy({ by: ['userId'], _min: { acceptedAt: true } }),
     prisma.trip.count({ where: { isSample: false } }),
     prisma.trip.count({ where: { isSample: false, createdAt: { gte: since } } }),
+    prisma.trip.count({
+      where: {
+        isSample: false,
+        published: true,
+        deletedAt: null,
+        guests: { some: { status: 'approved' } },
+      },
+    }),
     prisma.payment.findMany({
       where: { ...real, status: 'confirmed' },
       select: { decidedAt: true, receivedPaymentAmount: true },
     }),
     prisma.payment.count({ where: { ...real, status: 'reported' } }),
+    prisma.payment.groupBy({ by: ['loggedBy'], where: real, _count: { _all: true } }),
   ])
   const recent = payments.filter((p) => p.decidedAt && p.decidedAt >= since)
   const cents = (ps: typeof payments) =>
     ps.reduce((sum, p) => sum + (p.receivedPaymentAmount ?? 0), 0)
+  const by = (who: string) => logged.find((l) => l.loggedBy === who)?._count._all ?? 0
   return {
     users: people.length,
     usersRecent: people.filter((p) => p._min.acceptedAt && p._min.acceptedAt >= since).length,
     trips,
     tripsRecent,
+    liveTrips,
     payments: payments.length,
     paymentsRecent: recent.length,
     paymentCents: cents(payments),
     paymentCentsRecent: cents(recent),
     paymentsWaiting: waiting,
+    loggedByGuest: by('guest'),
+    loggedByOrganizer: by('organizer'),
+    loggedByEmail: by('email'),
   }
 }
 

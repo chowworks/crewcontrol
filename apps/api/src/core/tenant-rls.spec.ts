@@ -712,6 +712,8 @@ suite('trip isolation', () => {
       await pay('P-m3', 'T1', 900, 'reported', '0 days')
       await pay('P-m4', 'T1', 300, 'refunded', '1 day')
       await pay('P-mS', 'S', 400, 'confirmed', '1 day')
+      await db.query(`UPDATE "Payment" SET "loggedBy" = 'organizer' WHERE id = 'P-m2'`)
+      await db.query(`UPDATE "Payment" SET "loggedBy" = 'email' WHERE id = 'P-m3'`)
       for (const [user, kind] of [
         ['u1', 'use'],
         ['u1', 'organizer'],
@@ -733,11 +735,16 @@ suite('trip isolation', () => {
           usersRecent: 2,
           trips: 2,
           tripsRecent: 2,
+          // T1 only: T2 is a draft and S a sample.
+          liveTrips: 1,
           payments: 2,
           paymentsRecent: 1,
           paymentCents: 1200,
           paymentCentsRecent: 700,
           paymentsWaiting: 1,
+          loggedByGuest: 2,
+          loggedByOrganizer: 1,
+          loggedByEmail: 1,
         },
       ])
     } finally {

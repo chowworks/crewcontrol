@@ -37,6 +37,31 @@ function Stat({
   )
 }
 
+/** Every payment logged, by who logged it, with each one's share. */
+function LoggedBy({ by }: { by: AdminMetrics['loggedBy'] }) {
+  const all = by.guest + by.organizer + by.email
+  const share = (n: number) => (all ? ` (${Math.round((n / all) * 100)}%)` : '')
+  return (
+    <div className="mt-2 border-t border-rule pt-3 text-sm text-body">
+      <p className="font-semibold">Who logged them ({count(all)} in all)</p>
+      <ul className="mt-1 flex flex-col gap-0.5">
+        <li>
+          Guests: {count(by.guest)}
+          {share(by.guest)}
+        </li>
+        <li>
+          Organizers: {count(by.organizer)}
+          {share(by.organizer)}
+        </li>
+        <li>
+          Forwarded receipts: {count(by.email)}
+          {share(by.email)}
+        </li>
+      </ul>
+    </div>
+  )
+}
+
 /**
  * Admin toolbox → Metrics: how many people use Travel HQ, the trips they made and the payments they tracked, all time
  * and the last 30 days. Sample trips are left out (admin_metrics).
@@ -64,7 +89,12 @@ export function AdminMetricsPage() {
       {metrics && (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Stat icon={Users} label="People" metric={metrics.users} />
-          <Stat icon={Luggage} label="Trips created" metric={metrics.trips} />
+          <Stat icon={Luggage} label="Trips created" metric={metrics.trips}>
+            <p className="text-body">
+              <span className="font-semibold">{count(metrics.liveTrips)}</span> live: published,
+              with an accepted guest
+            </p>
+          </Stat>
           <Stat icon={HandCoins} label="Payments tracked" metric={metrics.payments}>
             <p className="text-body">
               <span className="font-semibold">{money(metrics.paymentCents.total)}</span> recorded,{' '}
@@ -73,6 +103,7 @@ export function AdminMetricsPage() {
             <p className="text-sm text-muted">
               {count(metrics.paymentsWaiting)} more waiting for an organizer to confirm
             </p>
+            <LoggedBy by={metrics.loggedBy} />
           </Stat>
         </div>
       )}

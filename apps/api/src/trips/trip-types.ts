@@ -1283,11 +1283,15 @@ export interface AdminMetrics {
   users: AdminMetric
   /** Trips created (a deleted trip counts until it is erased). */
   trips: AdminMetric
+  /** Trips published, not deleted, with at least one accepted guest: real trips, not drafts. */
+  liveTrips: number
   /** Payments an organizer confirmed, and the money they recorded. */
   payments: AdminMetric
   paymentCents: AdminMetric
   /** Payments a guest reported that wait for the organizer. */
   paymentsWaiting: number
+  /** Every payment by who put it in: the guest, the organizer, or a forwarded receipt. */
+  loggedBy: { guest: number; organizer: number; email: number }
 }
 
 /** A reminder still to go out, for Trip Control's Reminders section. */
