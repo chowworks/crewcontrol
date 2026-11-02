@@ -696,6 +696,55 @@ suite('trip isolation', () => {
     })
   })
 
+  it('gives the admin, and nobody else, the Metrics counts, sample trips left out', async () => {
+    // Written as the owner inside one transaction, then read as the restricted role, and rolled back. What arrived
+    // (received) counts, not what the guest said they sent.
+    await db.exec('BEGIN')
+    try {
+      const pay = (id: string, trip: string, cents: number, status: string, decided: string) =>
+        db.query(
+          `INSERT INTO "Payment" (id, "tripId", "guestId", "guestPaymentAmount", "receivedPaymentAmount", status, "decidedAt", method, "methodKind", "sentOn")
+           VALUES ($1, $2, $3, $4 + 1, CASE WHEN $5 = 'reported' THEN NULL ELSE $4 END, $5, CURRENT_TIMESTAMP - $6::INTERVAL, 'Zelle', 'zelle', '2026-10-24')`,
+          [id, trip, `G-${trip}-a`, cents, status, decided]
+        )
+      await pay('P-m1', 'T1', 500, 'confirmed', '60 days')
+      await pay('P-m2', 'T2', 700, 'confirmed', '1 day')
+      await pay('P-m3', 'T1', 900, 'reported', '0 days')
+      await pay('P-m4', 'T1', 300, 'refunded', '1 day')
+      await pay('P-mS', 'S', 400, 'confirmed', '1 day')
+      for (const [user, kind] of [
+        ['u1', 'use'],
+        ['u1', 'organizer'],
+        ['g1', 'use'],
+      ])
+        await insert(db, 'TermsAcceptance', { userId: user, kind, fingerprint: 'f' })
+      await db.exec('SET LOCAL ROLE cc_app')
+      const metrics = async (admin: boolean) => {
+        await db.query(
+          `SELECT set_config('app.user_id', 'a1', true), set_config('app.admin', $1, true)`,
+          [admin ? 'on' : '']
+        )
+        return (await db.query(`SELECT * FROM "admin_metrics"()`)).rows
+      }
+      expect(await metrics(false)).toEqual([])
+      expect(await metrics(true)).toEqual([
+        {
+          users: 2,
+          usersRecent: 2,
+          trips: 2,
+          tripsRecent: 2,
+          payments: 2,
+          paymentsRecent: 1,
+          paymentCents: 1200,
+          paymentCentsRecent: 700,
+          paymentsWaiting: 1,
+        },
+      ])
+    } finally {
+      await db.exec('ROLLBACK')
+    }
+  })
+
   it('lets a signed-in person join a published trip as themselves, once, never accepted or paid, into a room with a place', async () => {
     const join = (id: string, cols: string, vals: string) =>
       attempt(

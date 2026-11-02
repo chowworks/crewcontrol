@@ -37,6 +37,7 @@ import type {
   GuestEvent,
   Guest,
   GuestUpdate,
+  AdminMetrics,
   OrganizerTrip,
   Payment,
   PaymentDecision,
@@ -1262,6 +1263,25 @@ export class TripsService {
   }
 
   /**
+   * The Admin toolbox's Metrics: people, trips and payments, all time and the last 30 days, sample trips left out.
+   * The admin reads no guest, payment or terms row, so the numbers come from the database (admin_metrics).
+   */
+  async metrics(): Promise<AdminMetrics> {
+    const row = rlsActive()
+      ? (await this.prisma.$queryRaw<MetricsRow[]>(Prisma.sql`SELECT * FROM "admin_metrics"()`))[0]
+      : await countMetrics(this.prisma)
+    if (!row) throw new ForbiddenException('Admins only')
+    const n = (v: number | bigint) => Number(v)
+    return {
+      users: { total: n(row.users), recent: n(row.usersRecent) },
+      trips: { total: n(row.trips), recent: n(row.tripsRecent) },
+      payments: { total: n(row.payments), recent: n(row.paymentsRecent) },
+      paymentCents: { total: n(row.paymentCents), recent: n(row.paymentCentsRecent) },
+      paymentsWaiting: n(row.paymentsWaiting),
+    }
+  }
+
+  /**
    * The admin seats itself on a trip, so it can open the trip's Trip Control panel as a member: as an organizer, or
    * as the owner of a trip that has none (one made before sign-in). The database logs every such change
    * (TripMember_9_admin_logged). Sample trips are reset by the seed, so a seat on one lasts until the next deploy.
@@ -1343,6 +1363,49 @@ interface GuestCounts {
 const ownerIds = { members: { where: { role: 'owner' }, select: { userId: true } } } as const
 
 /** Going and interested per trip, for the trips the caller can read (or `tripIds` of them). */
+type MetricsRow = Record<
+  | 'users'
+  | 'usersRecent'
+  | 'trips'
+  | 'tripsRecent'
+  | 'payments'
+  | 'paymentsRecent'
+  | 'paymentCents'
+  | 'paymentCentsRecent'
+  | 'paymentsWaiting',
+  number | bigint
+>
+
+/** admin_metrics, for a database connection with row-level security off (the owner), where the admin mark isn't set. */
+async function countMetrics(prisma: PrismaService): Promise<MetricsRow> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const real = { trip: { isSample: false } }
+  const [people, trips, tripsRecent, payments, waiting] = await Promise.all([
+    prisma.termsAcceptance.groupBy({ by: ['userId'], _min: { acceptedAt: true } }),
+    prisma.trip.count({ where: { isSample: false } }),
+    prisma.trip.count({ where: { isSample: false, createdAt: { gte: since } } }),
+    prisma.payment.findMany({
+      where: { ...real, status: 'confirmed' },
+      select: { decidedAt: true, receivedPaymentAmount: true },
+    }),
+    prisma.payment.count({ where: { ...real, status: 'reported' } }),
+  ])
+  const recent = payments.filter((p) => p.decidedAt && p.decidedAt >= since)
+  const cents = (ps: typeof payments) =>
+    ps.reduce((sum, p) => sum + (p.receivedPaymentAmount ?? 0), 0)
+  return {
+    users: people.length,
+    usersRecent: people.filter((p) => p._min.acceptedAt && p._min.acceptedAt >= since).length,
+    trips,
+    tripsRecent,
+    payments: payments.length,
+    paymentsRecent: recent.length,
+    paymentCents: cents(payments),
+    paymentCentsRecent: cents(recent),
+    paymentsWaiting: waiting,
+  }
+}
+
 async function countGuests(prisma: PrismaService, tripIds?: string[]): Promise<GuestCounts[]> {
   const groups = await prisma.guest.groupBy({
     by: ['tripId', 'status'],

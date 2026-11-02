@@ -39,6 +39,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'note_email_problem(text,text,text,text)',
   // The Admin toolbox's Email problems, with the guests on each address (admin only).
   'admin_email_problems()',
+  // The Admin toolbox's Metrics: people, trips and payments, counts and totals only (admin only).
+  'admin_metrics()',
   // Whether a receipts address is taken, in use or retired and not released (yes or no only).
   'receipts_address_taken(text)',
   // Whether the caller is on a trip as a guest, and accepted (yes or no only): who reads an announcement.

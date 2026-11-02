@@ -1271,6 +1271,25 @@ export interface AdminSentEmails {
   kinds: { kind: string; name: string }[]
 }
 
+/** One number on the Admin toolbox's Metrics page: all time, and the last 30 days. */
+export interface AdminMetric {
+  total: number
+  recent: number
+}
+
+/** The Admin toolbox's Metrics: sample trips left out. Money in cents. */
+export interface AdminMetrics {
+  /** People who accepted the Terms of Use. */
+  users: AdminMetric
+  /** Trips created (a deleted trip counts until it is erased). */
+  trips: AdminMetric
+  /** Payments an organizer confirmed, and the money they recorded. */
+  payments: AdminMetric
+  paymentCents: AdminMetric
+  /** Payments a guest reported that wait for the organizer. */
+  paymentsWaiting: number
+}
+
 /** A reminder still to go out, for Trip Control's Reminders section. */
 export interface UpcomingReminder {
   date: string

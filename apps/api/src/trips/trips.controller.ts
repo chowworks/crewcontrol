@@ -356,6 +356,12 @@ export class AdminController {
     private readonly clerk: ClerkService
   ) {}
 
+  // The Metrics page: people, trips and payments, counts and totals only.
+  @Get('metrics')
+  metrics() {
+    return this.trips.metrics()
+  }
+
   @Get('trips')
   async allTrips() {
     return withOwnerNames(await this.trips.listAll(), this.clerk)
