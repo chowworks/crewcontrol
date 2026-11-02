@@ -4,6 +4,7 @@ import {
   type AdminHelpEntry,
   type AdminHelpQuestion,
   type HelpAnswerInput,
+  type HelpAnswerResult,
   type HelpAskInput,
   type HelpEntry,
   type HelpEntryInput,
@@ -264,7 +265,7 @@ export const api = {
       method: 'DELETE',
     }),
   answerHelpQuestion: (id: string, input: HelpAnswerInput) =>
-    request<{ emailed: boolean }>(`/admin/help/questions/${id}/answer`, json('POST', input)),
+    request<HelpAnswerResult>(`/admin/help/questions/${id}/answer`, json('POST', input)),
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
   approveEarlyAccess: (id: string, approved: boolean) =>
     request<void>(`/admin/requests/${id}/approved`, json('PUT', { approved })),

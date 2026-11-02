@@ -5,12 +5,13 @@ import {
   HELP_TOPICS,
   type AdminHelpEntry,
   type AdminHelpQuestion,
+  type HelpAnswerResult,
   type HelpEntryInput,
   type HelpPage,
   type HelpTopic,
 } from '@cc/types'
 import { BookOpen, MessageCircleQuestion } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Dropdown } from '@/components/Dropdown'
@@ -84,7 +85,7 @@ function AnswerDialog({
 }: {
   q: AdminHelpQuestion
   onClose: () => void
-  onDone: (emailed: boolean) => void
+  onDone: (result: HelpAnswerResult) => void
 }) {
   const [answer, setAnswer] = useState('')
   const [add, setAdd] = useState(false)
@@ -100,6 +101,10 @@ function AnswerDialog({
     pages: add && pages.length === 0 ? 'Pick at least one page.' : undefined,
   }
   const [tried, setTried] = useState(false)
+  // A field's problem shows once you leave it, or when you press the button (the forms rule).
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const show = (k: string) => tried || touched[k]
+  const leave = (k: string) => () => setTouched((t) => ({ ...t, [k]: true }))
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -108,11 +113,12 @@ function AnswerDialog({
     setBusy(true)
     setError(null)
     try {
-      const { emailed } = await api.answerHelpQuestion(q.id, {
-        answer: answer.trim(),
-        addToHelp: add ? { question: question.trim(), topic, pages } : null,
-      })
-      onDone(emailed)
+      onDone(
+        await api.answerHelpQuestion(q.id, {
+          answer: answer.trim(),
+          addToHelp: add ? { question: question.trim(), topic, pages } : null,
+        })
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That didn’t save. Try again.')
       setBusy(false)
@@ -139,11 +145,12 @@ function AnswerDialog({
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
+            onBlur={leave('answer')}
             maxLength={HELP_ANSWER_MAX}
             rows={6}
             className={field}
           />
-          {tried && problems.answer && <Problem>{problems.answer}</Problem>}
+          {show('answer') && problems.answer && <Problem>{problems.answer}</Problem>}
         </label>
         <p className="text-sm text-muted">
           We email it to {q.userEmail || 'them'}. Replies come to support.
@@ -164,20 +171,18 @@ function AnswerDialog({
               <input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
+                onBlur={leave('question')}
                 maxLength={HELP_QUESTION_MAX}
                 className={field}
               />
-              {tried && problems.question && <Problem>{problems.question}</Problem>}
+              {show('question') && problems.question && <Problem>{problems.question}</Problem>}
             </label>
             <div className="flex flex-col gap-1.5">
               <span className="font-semibold text-ink">Topic</span>
               <Dropdown label="Topic" value={topic} options={topicOptions} onChange={setTopic} />
             </div>
-            <PagePicker
-              value={pages}
-              onChange={setPages}
-              problem={tried ? problems.pages : undefined}
-            />
+            {/* Only unticking the last page empties it, so its problem shows at once. */}
+            <PagePicker value={pages} onChange={setPages} problem={problems.pages} />
           </div>
         )}
         <div className="flex flex-wrap gap-2">
@@ -217,6 +222,9 @@ function EntryDialog({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [tried, setTried] = useState(false)
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const show = (k: string) => tried || touched[k]
+  const leave = (k: string) => () => setTouched((t) => ({ ...t, [k]: true }))
   const [removing, setRemoving] = useState(false)
   const set = <K extends keyof HelpEntryInput>(k: K, v: HelpEntryInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
@@ -270,16 +278,18 @@ function EntryDialog({
           <input
             value={form.question}
             onChange={(e) => set('question', e.target.value)}
+            onBlur={leave('question')}
             maxLength={HELP_QUESTION_MAX}
             className={field}
           />
-          {tried && problems.question && <Problem>{problems.question}</Problem>}
+          {show('question') && problems.question && <Problem>{problems.question}</Problem>}
         </label>
         <label className="flex flex-col gap-1.5 font-semibold text-ink">
           Answer
           <textarea
             value={form.answer}
             onChange={(e) => set('answer', e.target.value)}
+            onBlur={leave('answer')}
             maxLength={HELP_ANSWER_MAX}
             rows={8}
             className={field}
@@ -287,7 +297,7 @@ function EntryDialog({
           <span className="text-sm font-normal text-muted">
             A blank line starts a new paragraph.
           </span>
-          {tried && problems.answer && <Problem>{problems.answer}</Problem>}
+          {show('answer') && problems.answer && <Problem>{problems.answer}</Problem>}
         </label>
         <div className="flex flex-col gap-1.5">
           <span className="font-semibold text-ink">Topic</span>
@@ -300,8 +310,11 @@ function EntryDialog({
         </div>
         <PagePicker
           value={form.pages}
-          onChange={(v) => set('pages', v)}
-          problem={tried ? problems.pages : undefined}
+          onChange={(v) => {
+            set('pages', v)
+            leave('pages')()
+          }}
+          problem={show('pages') ? problems.pages : undefined}
         />
         <label className="flex min-h-[44px] items-center gap-3 font-semibold text-ink">
           <input
@@ -385,24 +398,45 @@ function QuestionRow({ q, onAnswer }: { q: AdminHelpQuestion; onAnswer?: () => v
   )
 }
 
+/** The admin's help data, loaded once for Review Customer Requests and shared by its two help sections. */
+export function useAdminHelp() {
+  const [data, setData] = useState<{
+    entries: AdminHelpEntry[]
+    questions: AdminHelpQuestion[]
+  } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const reload = useCallback(
+    () =>
+      api
+        .adminHelp()
+        .then((d) => {
+          setData(d)
+          setError(null)
+        })
+        .catch(() => setError('Help could not be loaded. Reload the page.')),
+    []
+  )
+  useEffect(() => {
+    void reload()
+  }, [reload])
+  return {
+    entries: data?.entries ?? null,
+    questions: data?.questions ?? null,
+    error,
+    reload,
+    setEntries: (entries: AdminHelpEntry[]) => setData((d) => d && { ...d, entries }),
+  }
+}
+export type AdminHelp = ReturnType<typeof useAdminHelp>
+
 /**
  * Questions organizers asked from the Help button, for Review Customer Requests: waiting ones first with Answer, the
  * answered ones folded below.
  */
-export function HelpQuestionsSection() {
-  const [questions, setQuestions] = useState<AdminHelpQuestion[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export function HelpQuestionsSection({ help }: { help: AdminHelp }) {
+  const { questions, error } = help
   const [answering, setAnswering] = useState<AdminHelpQuestion | null>(null)
   const toast = useToast()
-
-  const load = () =>
-    api
-      .adminHelp()
-      .then((r) => setQuestions(r.questions))
-      .catch(() => setError('The questions could not be loaded.'))
-  useEffect(() => {
-    void load()
-  }, [])
 
   const waiting = (questions ?? []).filter((q) => !q.answeredAt)
   const answered = (questions ?? []).filter((q) => q.answeredAt)
@@ -447,16 +481,18 @@ export function HelpQuestionsSection() {
         <AnswerDialog
           q={answering}
           onClose={() => setAnswering(null)}
-          onDone={(emailed) => {
+          onDone={({ emailed, added }) => {
             const first = answering.userName.split(' ')[0]
-            void load()
+            // Both sections: the question is answered, and the help answers may have a new one.
+            void help.reload()
             // The red count in the account menu drops it.
             window.dispatchEvent(new Event('cc:actions-changed'))
             setAnswering(null)
+            const mail = emailed
+              ? `Answer emailed to ${first}.`
+              : `Answer saved, but the email didn’t go. Reply to ${first} from support.`
             toast({
-              text: emailed
-                ? `Answer emailed to ${first}.`
-                : `Answer saved, but the email didn’t go. Reply to ${first} from support.`,
+              text: added ? mail : `${mail} Adding it to the help didn’t work: use Add an answer.`,
             })
           }}
         />
@@ -466,18 +502,10 @@ export function HelpQuestionsSection() {
 }
 
 /** The answers behind the Help button, for Review Customer Requests: add, edit, hide or go back to Travel HQ's own. */
-export function HelpAnswersSection() {
-  const [entries, setEntries] = useState<AdminHelpEntry[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export function HelpAnswersSection({ help }: { help: AdminHelp }) {
+  const { entries, error } = help
   const [editing, setEditing] = useState<AdminHelpEntry | 'new' | null>(null)
   const toast = useToast()
-
-  useEffect(() => {
-    api
-      .adminHelp()
-      .then((r) => setEntries(r.entries))
-      .catch(() => setError('The help answers could not be loaded.'))
-  }, [])
 
   const changed = (entries ?? []).filter((e) => e.defaultChanged).length
 
@@ -553,7 +581,7 @@ export function HelpAnswersSection() {
           entry={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={(list, text) => {
-            setEntries(list)
+            help.setEntries(list)
             // A checked answer drops off the red count in the account menu.
             window.dispatchEvent(new Event('cc:actions-changed'))
             setEditing(null)

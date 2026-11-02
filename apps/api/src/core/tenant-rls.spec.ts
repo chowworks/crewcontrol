@@ -1343,6 +1343,32 @@ suite('trip isolation', () => {
     }
   })
 
+  it('erases a help question with the trip it was asked from', async () => {
+    await db.query(
+      `INSERT INTO "Trip" (id, slug, name, destination, "startDate", "endDate", "organizerName", description, "costPerPersonCents", "updatedAt")
+       VALUES ('T-help', 't-help', 'n', 'd', '2027-01-01', '2027-01-02', 'o', 'd', 0, now())`
+    )
+    try {
+      // The tie to the trip is checked without row-level security getting in the way of the asker.
+      await as(await person('u1'), async () => {
+        expect(
+          await attempt(
+            `INSERT INTO "HelpQuestion" ("userId", page, "tripId", question) VALUES ('u1', 'control', 'T-help', 'Why?')`
+          )
+        ).toEqual({ rows: 1 })
+      })
+      await db.query(
+        `INSERT INTO "HelpQuestion" ("userId", page, question) VALUES ('u1', 'control', 'Kept')`
+      )
+      await db.query(`DELETE FROM "Trip" WHERE id = 'T-help'`)
+      const left = await db.query<{ question: string }>(`SELECT question FROM "HelpQuestion"`)
+      expect(left.rows.map((r) => r.question)).toEqual(['Kept'])
+    } finally {
+      await db.query(`DELETE FROM "HelpQuestion"`)
+      await db.query(`DELETE FROM "Trip" WHERE id = 'T-help'`)
+    }
+  })
+
   it('lets anyone ask for early access, once per email, and only the admin read the asks', async () => {
     const ask = (email: string) =>
       attempt(

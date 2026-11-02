@@ -6,7 +6,7 @@ import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { downloadCsv } from '@/lib/csv'
 import { AdminHow, AdminSection, AdminShell, AdminToolHead } from './AdminPage'
-import { HelpAnswersSection, HelpQuestionsSection } from './AdminHelpSections'
+import { HelpAnswersSection, HelpQuestionsSection, useAdminHelp } from './AdminHelpSections'
 
 const when = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -67,6 +67,7 @@ export function AdminRequestsPage() {
   const [error, setError] = useState<string | null>(null)
   const [show, setShow] = useState<Show>('all')
   const toast = useToast()
+  const help = useAdminHelp()
 
   useEffect(() => {
     api
@@ -150,56 +151,59 @@ export function AdminRequestsPage() {
           {error}
         </p>
       )}
-      {requests && (
-        <div className="flex flex-col gap-6">
-          <HelpQuestionsSection />
-          <AdminSection
-            icon={UserPlus}
-            title="Early access"
-            steps={[
-              'People who asked to start trips on the limited preview page, and friends invited by someone who runs a trip (Invited by).',
-              'Approve someone and they can start trips as soon as they sign in with that email. Undo approval takes it back.',
-              'Each new one is emailed to support as it arrives.',
-            ]}
-          >
-            <Grid
-              rows={early.filter(shows[show])}
-              total={early.length}
-              columns={earlyColumns}
-              exportName="early-access"
-              exportLabel="Early Access"
-              empty="Nobody has asked for early access yet."
-              filter={
-                <Dropdown
-                  label="Show"
-                  value={show}
-                  options={SHOWS}
-                  onChange={setShow}
-                  className="w-full sm:w-56"
-                />
-              }
-            />
-          </AdminSection>
-          <AdminSection
-            icon={FileText}
-            title="Refund terms"
-            steps={[
-              'Organizers suggest these from the trip editor (Suggest other refund terms) when the presets don’t fit their trip.',
-              'Nothing to approve: read them to decide which presets to add next.',
-            ]}
-          >
-            <Grid
-              rows={refunds}
-              total={refunds.length}
-              columns={refundColumns}
-              exportName="refund-terms-requests"
-              exportLabel="Refund Terms Requests"
-              empty="No refund terms suggested yet."
-            />
-          </AdminSection>
-          <HelpAnswersSection />
-        </div>
-      )}
+      {/* The help sections load on their own, so organizers' questions show even if the requests don't. */}
+      <div className="flex flex-col gap-6">
+        <HelpQuestionsSection help={help} />
+        {requests && (
+          <>
+            <AdminSection
+              icon={UserPlus}
+              title="Early access"
+              steps={[
+                'People who asked to start trips on the limited preview page, and friends invited by someone who runs a trip (Invited by).',
+                'Approve someone and they can start trips as soon as they sign in with that email. Undo approval takes it back.',
+                'Each new one is emailed to support as it arrives.',
+              ]}
+            >
+              <Grid
+                rows={early.filter(shows[show])}
+                total={early.length}
+                columns={earlyColumns}
+                exportName="early-access"
+                exportLabel="Early Access"
+                empty="Nobody has asked for early access yet."
+                filter={
+                  <Dropdown
+                    label="Show"
+                    value={show}
+                    options={SHOWS}
+                    onChange={setShow}
+                    className="w-full sm:w-56"
+                  />
+                }
+              />
+            </AdminSection>
+            <AdminSection
+              icon={FileText}
+              title="Refund terms"
+              steps={[
+                'Organizers suggest these from the trip editor (Suggest other refund terms) when the presets don’t fit their trip.',
+                'Nothing to approve: read them to decide which presets to add next.',
+              ]}
+            >
+              <Grid
+                rows={refunds}
+                total={refunds.length}
+                columns={refundColumns}
+                exportName="refund-terms-requests"
+                exportLabel="Refund Terms Requests"
+                empty="No refund terms suggested yet."
+              />
+            </AdminSection>
+          </>
+        )}
+        <HelpAnswersSection help={help} />
+      </div>
       <AdminHow to="/admin/requests" />
     </AdminShell>
   )

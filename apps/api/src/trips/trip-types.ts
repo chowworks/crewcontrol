@@ -1279,6 +1279,12 @@ export interface HelpAnswerInput {
   addToHelp: { question: string; topic: HelpTopic; pages: HelpPage[] } | null
 }
 
+/** What answering a question did: the email to the organizer went, and the help got the answer (when asked to). */
+export interface HelpAnswerResult {
+  emailed: boolean
+  added: boolean
+}
+
 /** A variable an email template can use, as the Emails page lists it; a list has fields for inside {{#each}}. */
 export interface EmailVariable {
   path: string

@@ -33,9 +33,9 @@ CREATE POLICY "tenant_update" ON "HelpEntry" FOR UPDATE
   USING ((SELECT "app_is_admin"())) WITH CHECK ((SELECT "app_is_admin"()));
 CREATE POLICY "tenant_delete" ON "HelpEntry" FOR DELETE USING ((SELECT "app_is_admin"()));
 
--- A question an organizer asked from the Help panel, in their words, with the page they were on and the trip's name
--- (no tie to the trip: the question outlives it). The admin answers it in the Admin toolbox, and the answer is
--- emailed to them. Nobody deletes one.
+-- A question an organizer asked from the Help panel, in their words, with the page they were on and the trip's name.
+-- The admin answers it in the Admin toolbox, and the answer is emailed to them. Nobody deletes one, but a question
+-- asked from a trip goes when that trip is erased (owner's decision, 2026-11-02: deleted means gone).
 CREATE TABLE "HelpQuestion" (
     "id" TEXT NOT NULL DEFAULT gen_random_uuid()::TEXT,
     "userId" TEXT NOT NULL,
@@ -53,11 +53,14 @@ CREATE TABLE "HelpQuestion" (
     CONSTRAINT "HelpQuestion_answer_check" CHECK ("answer" IS NULL OR length("answer") BETWEEN 1 AND 4000)
 );
 CREATE INDEX "HelpQuestion_createdAt_idx" ON "HelpQuestion"("createdAt");
+CREATE INDEX "HelpQuestion_tripId_idx" ON "HelpQuestion"("tripId");
+ALTER TABLE "HelpQuestion" ADD CONSTRAINT "HelpQuestion_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Anyone signed in adds their own; only the admin reads and answers them.
 ALTER TABLE "HelpQuestion" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "tenant_read" ON "HelpQuestion" FOR SELECT USING ((SELECT "app_is_admin"()));
 CREATE POLICY "tenant_insert" ON "HelpQuestion" FOR INSERT
-  WITH CHECK ("userId" = (SELECT "app_user_id"()) AND "answer" IS NULL AND "answeredAt" IS NULL);
+  WITH CHECK ("userId" = (SELECT "app_user_id"()) AND "answer" IS NULL AND "answeredAt" IS NULL
+    AND "answeredByUserId" IS NULL);
 CREATE POLICY "tenant_update" ON "HelpQuestion" FOR UPDATE
   USING ((SELECT "app_is_admin"())) WITH CHECK ((SELECT "app_is_admin"()));

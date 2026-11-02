@@ -16,8 +16,8 @@ export const HELP_DEFAULTS: readonly HelpEntry[] = [
     question: 'What are the next steps after I make my trip?',
     answer: `1. Finish the six editor steps and publish the trip.
 2. Share the link from the purple row at the top of Trip Control, or share the trip flyer Travel HQ makes for you (Flyer, in the same row).
-3. Guests sign the trip agreement. Depending on how you set sign-ups, you accept them and then they pay, or they pay and then you accept them.
-4. Confirm payments from your Actions as they come in. Reminders go out on your payment plan.
+3. Guests sign the trip agreement. Depending on how you set sign-ups, you accept them and then they pay, they pay and then you accept them, or the first to pay get in.
+4. Confirm payments from your Actions as they come in. Turn on payment reminders in the Payments step and we email anyone who still owes before each due date.
 5. Post announcements to everyone who's going.`,
     pages: ['editor:basics', 'control'],
   },
@@ -45,8 +45,8 @@ The sign-in account is only for signing in: on the join form they can change the
     question: 'If I’m going on the trip too, how does that work?',
     answer: `Just say you're going and you hold a spot on the trip. In the editor, answer "Yes, I'm in" under Max trip attendees, or tap "I'm going too" in Manage Guests on Trip Control.
 
-You show up on the guest list tagged Organizer. You don't sign anything, and your own part of the cost counts as paid on your row, so you don't track your own payments in the app.`,
-    pages: ['editor:signups', 'editor:pricing', 'control'],
+You show up on the guest list tagged Organizer. You don't sign anything, and you owe nothing on your row (on an even split, your own part shows as already paid). To track your own share, add a charge in your Details on Trip Control.`,
+    pages: ['editor:signups', 'control'],
   },
   {
     key: 'whos-going-hidden',
@@ -61,7 +61,7 @@ The one exception: if you let guests pick their own rooms, the list stays on, so
     key: 'public-vs-crew',
     topic: 'tripPage',
     question: 'What can people see before they sign up, and what’s only for my crew?',
-    answer: `Anyone with the link, once the trip is published: the trip's name, place and dates, your name, photos, highlights, key dates, the price and payment plan, how many spots are left, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Who's going" or let guests pick rooms, as first name and last initial.
+    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names" or let guests pick rooms, as first name and last initial.
 
 Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements go only to accepted guests.
 
@@ -76,7 +76,7 @@ Photos, highlights, key dates and rooms only show once you add them. The Questio
     question: 'Can a guest enter a payment themselves?',
     answer: `Yes, and the app can record most payments for you. Each trip gets its own email address (set it in the editor's Payments step). Guests forward their Zelle, Cash App or bank email there and the payment is recorded on their row. With "Confirm guests' receipts as they arrive" on, it counts right away; off, it waits in your Actions for a tap.
 
-Guests can also tap Report a payment on the trip page and type the amount and how they paid. That one always waits in your Actions for you to confirm.
+Guests who can pay also see an "I've paid" button on their join page, where they type the amount and how they paid. That one always waits in your Actions for you to confirm.
 
 You can always record things yourself: on Trip Control, open the guest's Details in Manage Guests, then use Log a payment, or Add a credit or charge to lower or raise what they owe.`,
     pages: ['editor:payments', 'control'],

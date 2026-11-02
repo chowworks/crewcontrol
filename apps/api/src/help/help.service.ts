@@ -11,6 +11,7 @@ import {
   type AdminHelpEntry,
   type AdminHelpQuestion,
   type HelpAnswerInput,
+  type HelpAnswerResult,
   type HelpAskInput,
   type HelpEntry,
   type HelpEntryInput,
@@ -66,9 +67,11 @@ export function newHelpKey(question: string): string {
   const words = question
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .slice(0, 61)
+    // Runs of dashes are single by now, so trimming one at each end is enough (no repeated pattern to backtrack on).
+    .replace(/^-/, '')
     .slice(0, 60)
-    .replace(/-+$/, '')
+    .replace(/-$/, '')
   return `${words || 'answer'}-${randomBytes(3).toString('hex')}`
 }
 
@@ -211,36 +214,40 @@ export class HelpService {
   }
 
   /**
-   * The admin answers a question: it's saved, emailed to the organizer, and added to the help when asked to. Once
-   * answered it stays answered; a follow-up goes by email. Says whether the email went: the answer is saved either way.
+   * The admin answers a question: it's saved, emailed to the organizer, then added to the help when asked to. Once
+   * answered it stays answered; a follow-up goes by email. Saving claims the question in one step, so a second click
+   * or a second tab is refused instead of emailing twice. Says whether the email went and whether the help got it:
+   * the answer is saved either way.
    */
-  async answer(id: string, input: HelpAnswerInput, caller: Caller): Promise<{ emailed: boolean }> {
+  async answer(id: string, input: HelpAnswerInput, caller: Caller): Promise<HelpAnswerResult> {
     const q = await this.prisma.helpQuestion.findUnique({ where: { id } })
     if (!q) throw new NotFoundException('That question is gone. Reload the page.')
-    if (q.answeredAt) throw new ConflictException('That question was already answered.')
-    await this.prisma.helpQuestion.update({
-      where: { id },
+    const { count } = await this.prisma.helpQuestion.updateMany({
+      where: { id, answeredAt: null },
       data: { answer: input.answer, answeredAt: new Date(), answeredByUserId: caller.userId },
     })
-    if (input.addToHelp)
-      await this.add({ ...input.addToHelp, answer: input.answer, hidden: false }, caller)
+    if (!count) throw new ConflictException('That question was already answered.')
     const who = (await this.clerk.people([q.userId])).get(q.userId)
-    if (!who?.email) return { emailed: false }
     const web = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
-    try {
-      await this.emails.sendHelpAnswer(
-        {
-          firstName: who.name.split(' ')[0] || 'there',
-          question: q.question,
-          answer: input.answer,
-          link: `${web}/organize`,
-        },
-        who.email
-      )
-      return { emailed: true }
-    } catch (err) {
-      console.error(`Help answer email failed: ${err instanceof Error ? err.message : err}`)
-      return { emailed: false }
-    }
+    const emailed = who?.email
+      ? await this.emails.sendHelpAnswer(
+          {
+            firstName: who.name.split(' ')[0] || 'there',
+            question: q.question,
+            answer: input.answer,
+            link: `${web}/organize`,
+          },
+          who.email
+        )
+      : false
+    let added = input.addToHelp === null
+    if (input.addToHelp)
+      added = await this.add({ ...input.addToHelp, answer: input.answer, hidden: false }, caller)
+        .then(() => true)
+        .catch((err: unknown) => {
+          console.error(`Adding a help answer failed: ${err instanceof Error ? err.message : err}`)
+          return false
+        })
+    return { emailed, added }
   }
 }

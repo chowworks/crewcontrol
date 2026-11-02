@@ -234,7 +234,12 @@ export class EmailsService {
    */
   async sendContact(contact: NonNullable<EmailContext['contact']>, to: string): Promise<void> {
     const email = render(await this.template(this.kindOf('contact')), { contact })
-    await this.deliver('contact', { to, replyTo: contact.email, ...email })
+    // No reply-to when the sender's email isn't known (a help question whose asker couldn't be looked up).
+    await this.deliver('contact', {
+      to,
+      ...(contact.email && { replyTo: contact.email }),
+      ...email,
+    })
   }
 
   /**
@@ -394,14 +399,25 @@ export class EmailsService {
     )
   }
 
-  /** The admin's answer to an organizer's help question, Reply-To support. Throws, so the admin sees it failed. */
-  async sendHelpAnswer(help: NonNullable<EmailContext['help']>, to: string): Promise<void> {
-    const email = render(await this.template(this.kindOf('help_answered')), { help })
-    await this.deliver('help_answered', {
-      to,
-      replyTo: process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app',
-      ...email,
-    })
+  /**
+   * The admin's answer to an organizer's help question, Reply-To support. Never throws: true when it went (or, with no
+   * Resend key, was logged instead), so the admin knows to reply from support when it didn't.
+   */
+  async sendHelpAnswer(help: NonNullable<EmailContext['help']>, to: string): Promise<boolean> {
+    try {
+      const email = render(await this.template(this.kindOf('help_answered')), { help })
+      const result = await this.deliver('help_answered', {
+        to,
+        replyTo: process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app',
+        ...email,
+      })
+      return result.sent || result.reason === 'mocked'
+    } catch (err) {
+      this.logger.error(
+        `The "help_answered" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+      return false
+    }
   }
 
   /** The Admin toolbox's Email problems, newest first; the database lets only the admin read them. */

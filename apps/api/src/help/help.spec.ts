@@ -72,6 +72,8 @@ describe('newHelpKey', () => {
   it('is words from the question with a random end, within the key rule', () => {
     const key = newHelpKey('Can guests pay with Venmo?')
     expect(key).toMatch(/^can-guests-pay-with-venmo-[0-9a-f]{6}$/)
+    expect(newHelpKey('  ¿What --- now?! ')).toMatch(/^what-now-[0-9a-f]{6}$/)
+    expect(newHelpKey('!!!')).toMatch(/^answer-[0-9a-f]{6}$/)
     expect(newHelpKey('???')).toMatch(/^answer-[0-9a-f]{6}$/)
     expect(newHelpKey('a'.repeat(200)).length).toBeLessThanOrEqual(80)
   })

@@ -12,12 +12,14 @@ import {
 import type { Caller } from '../auth/caller'
 import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import { RateLimiter } from '../core/rate-limit'
+import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import { parseHelpAnswer, parseHelpAsk, parseHelpEntry } from './help-input'
 import { HelpService } from './help.service'
 
 /** Organizer help (issue #66): the answers behind the Help button, and asking us when they don't cover it. */
+// Organizers only: the same Organizer Terms gate as every organizer route, so a guest can't email support from here.
 @Controller('help')
-@UseGuards(SignedInGuard)
+@UseGuards(SignedInGuard, OrganizerTermsGuard)
 export class HelpController {
   constructor(private readonly help: HelpService) {}
 

@@ -110,7 +110,9 @@ export function matches(entry: HelpEntry, query: string): boolean {
 
 function Ask({ page, tripId, onBack }: { page: HelpPage; tripId?: string; onBack: () => void }) {
   const [question, setQuestion] = useState('')
-  const [problem, setProblem] = useState<string | null>(null)
+  // Shown once you leave the box empty, or press Send (the forms rule).
+  const [touched, setTouched] = useState(false)
+  const problem = touched && !question.trim() ? 'Type your question first.' : null
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -118,7 +120,7 @@ function Ask({ page, tripId, onBack }: { page: HelpPage; tripId?: string; onBack
   async function send(e: FormEvent) {
     e.preventDefault()
     const text = question.trim()
-    if (!text) return setProblem('Type your question first.')
+    if (!text) return setTouched(true)
     setSending(true)
     setError(null)
     try {
@@ -154,10 +156,8 @@ function Ask({ page, tripId, onBack }: { page: HelpPage; tripId?: string; onBack
           value={question}
           maxLength={HELP_ASK_MAX}
           rows={4}
-          onChange={(e) => {
-            setQuestion(e.target.value)
-            setProblem(null)
-          }}
+          onChange={(e) => setQuestion(e.target.value)}
+          onBlur={() => setTouched(true)}
           className={`${field} font-normal`}
           placeholder="What do you want to know about Travel HQ?"
         />
