@@ -5,7 +5,8 @@ const HINTS = [
   'Name, dates and how the trip works',
   'Registration, who’s going, photos, highlights',
   'The rooms guests choose from',
-  'Cost, price per person and the schedule',
+  'What it costs and the price per person',
+  'The payment plan and how to pay',
   'Publishing and the trip link',
 ]
 

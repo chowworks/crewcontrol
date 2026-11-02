@@ -2,10 +2,12 @@
 // per guest, and the two spreadsheet exports. Everything comes from the trip already loaded: payments are a log
 // (confirmed, waiting, not received, refunded), and each guest's price comes from the agreement they signed, with the
 // organizer's credits and charges beside it (issue #17).
-import type { Expense, Guest, OrganizerTrip, Payment } from '@cc/types'
-import { DollarSign, Download } from 'lucide-react'
+import type { Expense, Guest, OrganizerTrip, Payment, TripRoom } from '@cc/types'
+import { DollarSign, Download, Scale } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAdminView } from '@/components/AdminView'
+import { Dialog } from '@/components/Dialog'
+import { CostSummary, summaryOf } from '@/components/TripPricing'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
@@ -24,7 +26,9 @@ const sum = (payments: Payment[], status: Payment['status'], arrived = true) =>
  * together), what arrived, what's waiting for the organizer, what was refunded, and what's left.
  */
 function moneyOf(g: Guest) {
-  const paid = sum(g.payments, 'confirmed')
+  // An organizer going on their own trip: what they put in themselves is their price, already paid (issue #65).
+  const own = g.organizer ? (g.terms?.priceCents ?? 0) : 0
+  const paid = sum(g.payments, 'confirmed') + own
   const waiting = sum(g.payments, 'reported', false)
   const refunded = sum(g.payments, 'refunded')
   const signed = g.terms?.priceCents ?? 0
@@ -34,6 +38,7 @@ function moneyOf(g: Guest) {
     signed,
     adjusted,
     price,
+    own,
     paid,
     waiting,
     refunded,
@@ -147,12 +152,21 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
   const toast = useToast()
   // Vendor costs load on their own: they're the organizer's, never part of the trip guests and the public page see.
   const [expenses, setExpenses] = useState<Expense[] | null>(null)
-  // An optional part (owner's decision, 2026-10-28): only for trips that turned it on.
-  const tracksCosts = trip.options.vendorCosts
+  // An optional part (owner's decision, 2026-10-28): for trips that turned it on, or that have costs from the editor's
+  // Pricing step (issue #65).
+  const [loaded, setLoaded] = useState<Expense[] | null>(null)
   useEffect(() => {
-    if (!tracksCosts) return setExpenses(null)
-    api.getExpenses(trip.id, admin).then(setExpenses, () => setExpenses([]))
-  }, [trip.id, admin, tracksCosts])
+    api.getExpenses(trip.id, admin).then(setLoaded, () => setLoaded([]))
+  }, [trip.id, admin])
+  useEffect(() => {
+    setExpenses(loaded && (trip.options.vendorCosts || loaded.length > 0) ? loaded : null)
+  }, [loaded, trip.options.vendorCosts])
+  // "Costs vs collecting" (owner's ask, 2026-11-01): the Pricing step's summary in a dialog; it needs the rooms.
+  const [plan, setPlan] = useState<TripRoom[] | null>(null)
+  const openPlan = () =>
+    trip.options.costSplit === 'room'
+      ? api.getRooms(trip.id, admin).then(setPlan, () => setPlan([]))
+      : setPlan([])
   const line = signupOrder(trip.guests)
   const rows = line.map((g) => ({ g, m: moneyOf(g) }))
   const accepted = rows.filter((r) => r.g.status === 'approved')
@@ -160,8 +174,9 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
     // What the accepted crew agreed to pay, and what they still owe.
     agreed: accepted.reduce((n, r) => n + r.m.price, 0),
     owed: accepted.reduce((n, r) => n + r.m.left, 0),
-    // Money that arrived (anyone's, waiting guests' too), reported and not yet confirmed, and sent back.
-    collected: rows.reduce((n, r) => n + r.m.paid, 0),
+    // Money that arrived (anyone's, waiting guests' too, never the organizer's own part), reported and not yet
+    // confirmed, and sent back.
+    collected: rows.reduce((n, r) => n + r.m.paid - r.m.own, 0),
     waiting: rows.reduce((n, r) => n + r.m.waiting, 0),
     refunded: rows.reduce((n, r) => n + r.m.refunded, 0),
   }
@@ -222,6 +237,24 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
         <IconCircle icon={DollarSign} />
         Trip Financials
       </h2>
+      {plan && expenses && (
+        <Dialog title="Costs vs collecting" onClose={() => setPlan(null)}>
+          <p className="mb-4 text-sm text-muted">
+            The plan from the editor’s Pricing step, with the trip full. What has come in so far is
+            above.
+          </p>
+          <CostSummary
+            expenses={expenses}
+            {...summaryOf({
+              options: trip.options,
+              costCents: trip.costPerPersonCents,
+              maxGuests: trip.maxGuests,
+              going: trip.guests.some((g) => g.id === trip.myGuestId && g.status === 'approved'),
+              rooms: plan,
+            })}
+          />
+        </Dialog>
+      )}
       <div>
         <p className="text-body">
           <span className="font-display text-4xl font-extrabold text-ink">
@@ -274,6 +307,12 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
             ))}
           </ul>
         </div>
+      )}
+      {expenses && expenses.length > 0 && (
+        <button type="button" onClick={openPlan} className={`${outlined} self-start`}>
+          <Scale className="h-4 w-4" aria-hidden="true" />
+          Costs vs collecting
+        </button>
       )}
       {expenses && (
         <Expenses

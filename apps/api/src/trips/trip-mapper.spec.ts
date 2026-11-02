@@ -1,5 +1,5 @@
 import type { Guest, Trip } from '@prisma/client'
-import { shortName, toPublicTrip } from './trip-mapper'
+import { optionsOf, shortName, toPublicTrip } from './trip-mapper'
 
 const trip: Trip = {
   id: 't1',
@@ -15,6 +15,7 @@ const trip: Trip = {
   paymentDueDates: [],
   paymentReminderDays: null,
   firstPaymentCents: null,
+  paymentShares: null,
   galleryTitle: 'The house',
   showGuestNames: true,
   paymentMethods: [{ kind: 'cashapp', label: '', handle: '$chrisMV' }],
@@ -191,6 +192,13 @@ describe('toPublicTrip', () => {
       priceCents: 80000,
       paymentPlan: [200, 200, 200, 200].map((d) => ({ dueOn: null, amountCents: d * 100 })),
     })
+  })
+
+  it('reads a trip saved before the cost split by how its rooms were priced', () => {
+    expect(optionsOf({ options: { roomPricing: 'weights' } }).costSplit).toBe('room')
+    expect(optionsOf({ options: { roomPricing: 'same' } }).costSplit).toBe('set')
+    expect(optionsOf({ options: {} }).costSplit).toBe('even')
+    expect(optionsOf({ options: { roomPricing: 'same' } })).not.toHaveProperty('roomPricing')
   })
 
   it('hides names when the organizer turns them off and guests choose no room', () => {

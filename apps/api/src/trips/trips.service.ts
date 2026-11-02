@@ -96,6 +96,7 @@ function data(input: TripInput) {
     highlights: input.highlights as unknown as Prisma.InputJsonValue,
     keyDates: input.keyDates as unknown as Prisma.InputJsonValue,
     paymentDueDates: input.paymentDueDates as unknown as Prisma.InputJsonValue,
+    paymentShares: input.paymentShares ?? Prisma.DbNull,
     paymentMethods: input.paymentMethods as unknown as Prisma.InputJsonValue,
     options: input.options as unknown as Prisma.InputJsonValue,
   }
@@ -449,12 +450,11 @@ export class TripsService {
       where: { tripId: id },
       orderBy: { position: 'asc' },
     })
-    return rows.map(({ id, name, beds, capacity, weight, bedTypes, minPeople, priceCents }) => ({
+    return rows.map(({ id, name, beds, capacity, bedTypes, minPeople, priceCents }) => ({
       id,
       name,
       beds,
       capacity,
-      weight,
       bedTypes: bedTypes as BedType[],
       minPeople,
       priceCents,
@@ -506,7 +506,8 @@ export class TripsService {
         trip.costPerPersonCents,
         trip.installmentCount,
         trip.firstPaymentCents,
-        trip.paymentDueDates
+        trip.paymentDueDates,
+        trip.paymentShares
       ),
       organizers: await this.organizerContacts(id),
     })

@@ -211,18 +211,28 @@ export interface PlannedPayment {
  * A trip's payment plan for a price: `count` installments, the first `firstPaymentCents` when the organizer set one
  * (never more than the price) or an even share, the rest split evenly, each with its due date when the trip has them.
  * Shares are whole dollars, with what's left over on the last payment (owner's decision, 2026-10-29: nobody sends
- * $466.66). The agreement quotes it and the signature keeps it.
+ * $466.66). With `shares` (a custom plan, issue #65: one number per installment), each installment is its share of the
+ * price; shares that add up to the price are the amounts themselves. The agreement quotes it and the signature keeps it.
  */
 export function paymentPlan(
   priceCents: number,
   count: number,
   firstPaymentCents: number | null,
-  dueDates: string[]
+  dueDates: string[],
+  shares: number[] | null = null
 ): PlannedPayment[] {
   const n = Math.max(1, Math.floor(count))
   const due = (i: number) => dueDates[i] ?? null
   if (n === 1) return [{ dueOn: due(0), amountCents: priceCents }]
   const dollars = (cents: number) => Math.floor(cents / 100) * 100
+  const total = shares?.length === n ? shares.reduce((a, b) => a + b, 0) : 0
+  if (shares && total > 0) {
+    const amounts = shares.map((s) =>
+      total === priceCents ? s : dollars((priceCents * s) / total)
+    )
+    const rest = priceCents - amounts.slice(0, -1).reduce((a, b) => a + b, 0)
+    return amounts.map((a, i) => ({ dueOn: due(i), amountCents: i === n - 1 ? rest : a }))
+  }
   const first = Math.min(priceCents, firstPaymentCents ?? dollars(priceCents / n))
   const each = dollars((priceCents - first) / (n - 1))
   return Array.from({ length: n }, (_, i) => ({
@@ -524,7 +534,10 @@ export type TripChangeField =
   | 'roomChoice'
   | 'signupNote'
   | 'vendorCosts'
+  /** Older log lines only: how rooms were priced before the cost split replaced it (issue #65). */
   | 'roomPricing'
+  | 'costSplit'
+  | 'ownPart'
   | 'confirmReceipts'
 
 /** One part of the trip that changed, with what it said before and after in plain words when that is short. */
@@ -573,10 +586,14 @@ export interface TripOptions {
   /** Trip Financials tracks what the organizer pays vendors (issue #16). Organizer-only: never on a guest's page. */
   vendorCosts: boolean
   /**
-   * How the trip's rooms are priced (owner's decision, 2026-10-29): all the same (the trip's price), each its own price
-   * typed per room (a resort), or the trip's cost split by each room's weight in the editor (a house). Organizer-only.
+   * How the trip splits its cost (issue #65; owner's decisions, 2026-11-01): the vendor costs split evenly among the
+   * guests, a price per person on each room, or a price the organizer types. Organizer-only.
    */
-  roomPricing: RoomPricing
+  costSplit: CostSplit
+  /** With an even split: what the organizer puts in themselves, off the top of the cost. Organizer-only. */
+  ownPartCents: number
+  /** With an even split: how many guests share the rest; null for the guest limit (less the organizer's spot). */
+  splitGuests: number | null
   /**
    * A guest's forwarded receipt that names its guest is confirmed as it arrives; off, it waits in Actions for the
    * organizer to confirm (owner's decision, 2026-10-29: it's about how much the organizer trusts the crew). An
@@ -585,19 +602,28 @@ export interface TripOptions {
   confirmReceipts: boolean
 }
 
-export type RoomPricing = 'same' | 'typed' | 'weights'
+export type CostSplit = 'even' | 'room' | 'set'
+
+/** What the organizer puts in themselves: only an even split has a part of their own (issue #65). */
+export const ownPartOf = (options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>) =>
+  options.costSplit === 'even' ? options.ownPartCents : 0
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
   roomRequired: false,
   signupNote: '',
   vendorCosts: false,
-  roomPricing: 'same',
+  costSplit: 'even',
+  ownPartCents: 0,
+  splitGuests: null,
   confirmReceipts: false,
 }
 
 /** The options a guest's page sees: the organizer-only ones left out. */
-export type PublicTripOptions = Omit<TripOptions, 'vendorCosts' | 'roomPricing' | 'confirmReceipts'>
+export type PublicTripOptions = Omit<
+  TripOptions,
+  'vendorCosts' | 'costSplit' | 'ownPartCents' | 'splitGuests' | 'confirmReceipts'
+>
 
 export interface TripInput {
   name: string
@@ -617,6 +643,11 @@ export interface TripInput {
   paymentReminderDays: number | null
   /** The first payment, which holds the spot, when the organizer sets it; null splits the price evenly. */
   firstPaymentCents: number | null
+  /**
+   * A custom plan (issue #65): each installment's share of the price, one per installment, or null. Dollars in cents
+   * when every guest pays one price (they add up to it), hundredths of a percent when rooms are priced apart.
+   */
+  paymentShares: number[] | null
   galleryTitle: string
   showGuestNames: boolean
   /** How guests can pay the organizer; a guest picks one when they report a payment. */
@@ -704,7 +735,7 @@ export interface ContactInput {
   website?: string
 }
 
-/** A room or sleeping space on a trip: who fits, and how its share of the price is weighted. */
+/** A room or sleeping space on a trip: who fits it, and its price when the trip prices by room. */
 export interface TripRoom {
   /** Set once saved; keep it when editing so guests' choices stay attached. */
   id?: string
@@ -712,8 +743,6 @@ export interface TripRoom {
   /** What's in it, like "King, private bath". */
   beds: string
   capacity: number
-  /** Pricing weight relative to the other rooms; 1 is the baseline. */
-  weight: number
   /** The beds, in order, for the room's picture. */
   bedTypes: BedType[]
   /** The fewest people the room is priced for; fewer than this pay for the empty places too. */

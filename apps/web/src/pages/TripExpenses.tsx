@@ -80,7 +80,7 @@ export function Expenses({
     toast({
       text:
         before === 'new'
-          ? `${money(form.amountCents)} to ${form.payee} added.`
+          ? `${form.payee}, ${money(form.amountCents)}, added.`
           : `${form.payee} updated.`,
     })
     return true
@@ -90,7 +90,7 @@ export function Expenses({
     if (!(await save(() => api.updateExpense(trip.id, e.id, { ...input(e), paidOn: today() }))))
       return
     toast({
-      text: `${money(e.amountCents)} to ${e.payee} marked paid.`,
+      text: `${e.payee}, ${money(e.amountCents)}, marked paid.`,
       action: {
         label: 'Undo',
         onClick: () => void save(() => api.updateExpense(trip.id, e.id, input(e))),
@@ -121,15 +121,7 @@ export function Expenses({
 
   return (
     <div className="flex flex-col gap-3 border-t border-[#E4E9EE] pt-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-lg font-extrabold">Vendor costs</h3>
-        {!admin && (
-          <button type="button" className={filled} onClick={() => setEditing('new')}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add a cost
-          </button>
-        )}
-      </div>
+      <h3 className="text-lg font-extrabold">Vendor costs</h3>
       {error && !editing && (
         <p role="alert" className="font-semibold text-[#B42318]">
           {error}
@@ -141,10 +133,17 @@ export function Expenses({
         {stat('On hand now', onHand, onHand < 0)}
         {stat('Left after bills', atEnd, atEnd < 0)}
       </div>
+
       <p className="text-sm text-muted">
         On hand now is all money in less what you’ve paid. Left after bills is what accepted guests
         agreed to pay, less every cost.
       </p>
+      {!admin && (
+        <button type="button" className={`${filled} self-end`} onClick={() => setEditing('new')}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add a cost
+        </button>
+      )}
       {expenses.length === 0 ? (
         <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
           Add what you pay for the trip (the house, the resort, a chef) to see what’s left after
@@ -206,7 +205,7 @@ export function Expenses({
       )}
       {removing && (
         <ConfirmDialog
-          title={`Remove ${money(removing.amountCents)} to ${removing.payee}?`}
+          title={`Remove ${removing.payee}, ${money(removing.amountCents)}?`}
           confirmLabel="Remove"
           onConfirm={() => void remove(removing)}
           onCancel={() => setRemoving(null)}
@@ -218,8 +217,11 @@ export function Expenses({
   )
 }
 
-/** Adding or changing one cost: who, what for, how much, and whether it's paid (and when) or still owed. */
-function ExpenseForm({
+/**
+ * Adding or changing one cost: what it's for, a note, how much, and whether it's paid (and when) or not yet. Trip
+ * Financials and the trip editor's Pricing step (issue #65) both use it.
+ */
+export function ExpenseForm({
   expense,
   error,
   onSubmit,
@@ -243,7 +245,7 @@ function ExpenseForm({
   const [busy, setBusy] = useState(false)
   const cents = centsFrom(amount)
   const problems: Record<string, string> = {}
-  if (!payee.trim()) problems.payee = 'Say who gets paid.'
+  if (!payee.trim()) problems.payee = 'Say what it’s for.'
   if (!cents) problems.amount = 'Enter the amount.'
   else if (cents > 100_000_00) problems.amount = 'That’s more than $100,000.'
   if (isPaid && !paidOn) problems.paidOn = 'Enter the day you paid.'
@@ -283,10 +285,10 @@ function ExpenseForm({
           </p>
         )}
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
-          Who gets paid
+          What it’s for
           <input
             className={field}
-            placeholder="Seaside Rentals"
+            placeholder="The house"
             maxLength={160}
             value={payee}
             onChange={(e) => setPayee(e.target.value)}
@@ -295,10 +297,10 @@ function ExpenseForm({
           {problem('payee')}
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
-          What it’s for (optional)
+          Note (optional)
           <input
             className={field}
-            placeholder="House deposit"
+            placeholder="Rent and cleaning"
             maxLength={300}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -306,14 +308,17 @@ function ExpenseForm({
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Amount
-          <input
-            className={field}
-            inputMode="decimal"
-            placeholder="$0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onBlur={touch('amount')}
-          />
+          <span className="flex min-h-[44px] items-stretch overflow-hidden rounded-lg border border-[#5B6B80] bg-white focus-within:ring-2 focus-within:ring-royal">
+            <span className="flex items-center bg-ground px-3 font-normal text-muted">$</span>
+            <input
+              className="min-w-0 flex-1 px-3 text-base font-normal text-ink focus:outline-none"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              onBlur={touch('amount')}
+            />
+          </span>
           {problem('amount')}
         </label>
         <div className="flex flex-col gap-1.5 text-sm font-semibold">
@@ -337,7 +342,7 @@ function ExpenseForm({
               className={choice(!isPaid)}
               onClick={() => setIsPaid(false)}
             >
-              Still owed
+              Not yet
             </button>
           </div>
         </div>
@@ -355,7 +360,7 @@ function ExpenseForm({
           </label>
         ) : (
           <label className="flex flex-col gap-1.5 text-sm font-semibold">
-            Due date (optional)
+            Due by (optional)
             <input
               type="date"
               className={field}
@@ -367,6 +372,9 @@ function ExpenseForm({
         <div className="flex flex-wrap gap-2">
           <button type="submit" disabled={busy} className={filled}>
             {expense ? 'Save' : 'Add cost'}
+          </button>
+          <button type="button" className={outlined} onClick={onClose}>
+            Cancel
           </button>
           {expense && (
             <button type="button" className={outlined} onClick={() => onRemove(expense)}>

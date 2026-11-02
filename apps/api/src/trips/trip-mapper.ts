@@ -13,6 +13,7 @@ import { FROM_STRANGER } from '../receipts/place-receipt'
 import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/receipts-config'
 import {
   DEFAULT_TRIP_OPTIONS,
+  ownPartOf,
   paymentPlan,
   roomPrice,
   type BalanceAdjustment,
@@ -87,11 +88,21 @@ export type PublicGuestRow = { status: string; firstName: string | null; lastNam
 
 const photos = (row: TripRow) => row.photos as unknown as TripPhoto[]
 
-/** The trip's options as stored, with a default for any the trip was saved without. */
-export const optionsOf = (row: TripRow): TripOptions => ({
-  ...DEFAULT_TRIP_OPTIONS,
-  ...(row.options as Partial<TripOptions> | null),
-})
+/**
+ * The trip's options as stored, with a default for any the trip was saved without. A trip saved before the cost split
+ * (issue #65) kept how its rooms were priced instead: rooms with their own prices price by room, and one price for
+ * everyone is a price the organizer set.
+ */
+export const optionsOf = (row: Pick<TripRow, 'options'>): TripOptions => {
+  const { roomPricing, ...stored } = (row.options ?? {}) as Partial<TripOptions> & {
+    roomPricing?: string
+  }
+  return {
+    ...DEFAULT_TRIP_OPTIONS,
+    ...(roomPricing ? { costSplit: roomPricing === 'same' ? 'set' : 'room' } : {}),
+    ...stored,
+  }
+}
 
 /** "Jordan" + "Price" → "Jordan P.": enough for friends to recognise, not a full name on a public page. */
 export function shortName(firstName: string, lastName: string): string {
@@ -227,14 +238,19 @@ export const adjustmentsOf = (rows: AdjustmentRow[] | undefined): BalanceAdjustm
 export const planOf = (
   row: Pick<
     TripRow,
-    'costPerPersonCents' | 'installmentCount' | 'firstPaymentCents' | 'paymentDueDates'
+    | 'costPerPersonCents'
+    | 'installmentCount'
+    | 'firstPaymentCents'
+    | 'paymentDueDates'
+    | 'paymentShares'
   >
 ): PlannedPayment[] =>
   paymentPlan(
     row.costPerPersonCents,
     row.installmentCount,
     row.firstPaymentCents,
-    row.paymentDueDates as unknown as string[]
+    row.paymentDueDates as unknown as string[],
+    row.paymentShares as unknown as number[] | null
   )
 
 export const paymentMethodsOf = (row: Pick<TripRow, 'paymentMethods'>): PaymentMethod[] =>
@@ -248,7 +264,7 @@ function toGuest(
   row: GuestWithAgreement,
   all: GuestWithAgreement[],
   priceOfRoom: (roomId: string) => number | null,
-  trip: { startDate: string; endDate: string }
+  trip: { startDate: string; endDate: string; ownPartCents: number }
 ): Guest {
   const payments = paymentsOf(row.payments)
   const adjustments = adjustmentsOf(row.adjustments)
@@ -275,7 +291,7 @@ function toGuest(
     terms: row.agreement
       ? termsOf(row.agreement, payments, adjustments)
       : row.organizerGoingAt
-        ? organizerTerms(trip, payments, adjustments)
+        ? organizerTerms(trip, payments, adjustments, trip.ownPartCents)
         : null,
     organizer: Boolean(row.organizerGoingAt),
     hasAccount: row.userId !== null,
@@ -325,6 +341,7 @@ export function toOrganizerTrip(
     paymentDueDates: row.paymentDueDates as unknown as string[],
     paymentReminderDays: row.paymentReminderDays,
     firstPaymentCents: row.firstPaymentCents,
+    paymentShares: (row.paymentShares as unknown as number[] | null) ?? null,
     galleryTitle: row.galleryTitle,
     showGuestNames: row.showGuestNames,
     paymentMethods: paymentMethodsOf(row),
@@ -346,7 +363,7 @@ export function toOrganizerTrip(
           const room = row.rooms?.find((r) => r.id === roomId)
           return room ? roomPrice(room, row.costPerPersonCents) : null
         },
-        row
+        { ...row, ownPartCents: ownPartOf(optionsOf(row)) }
       )
     ),
     receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),

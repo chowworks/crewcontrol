@@ -108,7 +108,9 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: '',
       vendorCosts: false,
-      roomPricing: 'same',
+      costSplit: 'even',
+      ownPartCents: 0,
+      splitGuests: null,
       confirmReceipts: false,
     })
   })
@@ -120,24 +122,50 @@ describe('trip options', () => {
       roomRequired: false,
       signupNote: 'Bring a towel',
       vendorCosts: false,
-      roomPricing: 'same',
+      costSplit: 'even',
+      ownPartCents: 0,
+      splitGuests: null,
       confirmReceipts: false,
     })
     expect(
-      parseTripInput({ ...valid, options: { roomPricing: 'weights' } }).options.roomPricing
-    ).toBe('weights')
+      parseTripInput({
+        ...valid,
+        options: { costSplit: 'room', ownPartCents: 50000, splitGuests: 5 },
+      }).options
+    ).toMatchObject({ costSplit: 'room', ownPartCents: 50000, splitGuests: 5 })
   })
 
   it.each([
     ['a non-object', 'yes'],
     ['a non-boolean flag', { roomChoice: 'on' }],
-    ['an unknown way to price rooms', { roomPricing: 'guess' }],
+    ['an unknown way to split the cost', { costSplit: 'guess' }],
+    ['a negative part of your own', { ownPartCents: -1 }],
+    ['no guests to split it among', { splitGuests: 0 }],
   ])('rejects %s', (_label, options) => {
     expect(() => parseTripInput({ ...valid, options })).toThrow(BadRequestException)
   })
 })
 
 describe('payments', () => {
+  it('keeps a custom plan’s shares, one per installment, in place of a first payment', () => {
+    const plan = {
+      installmentCount: 3,
+      firstPaymentCents: 10000,
+      paymentShares: [10000, 50000, 40000],
+    }
+    expect(parseTripInput({ ...valid, ...plan })).toMatchObject({
+      paymentShares: [10000, 50000, 40000],
+      firstPaymentCents: null,
+    })
+    expect(
+      parseTripInput({ ...valid, installmentCount: 1, paymentShares: [1] }).paymentShares
+    ).toBeNull()
+    for (const paymentShares of [[1, 2], [0, 1, 2], [1.5, 1, 1], 'x'])
+      expect(() => parseTripInput({ ...valid, installmentCount: 3, paymentShares })).toThrow(
+        BadRequestException
+      )
+  })
+
   it('keeps payment methods: a fixed kind needs its handle, a custom one its name', () => {
     const methods = [
       { kind: 'cashapp', label: 'ignored', handle: ' $nia ' },

@@ -16,6 +16,7 @@ import { receiptsConfig, receiptsEmail } from '../receipts/receipts-config'
 import { TermsService } from '../terms/terms.service'
 import {
   adjustmentsOf,
+  optionsOf,
   paymentMethodsOf,
   paymentsOf,
   toSignedAgreement,
@@ -23,6 +24,7 @@ import {
 import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
+  ownPartOf,
   paymentMethodLabel,
   roomsPricedApart,
   type ClaimInput,
@@ -86,7 +88,14 @@ export class JoinService {
       payments: true,
       // A guest sees the credits and charges that count, not ones the organizer took back.
       adjustments: { where: { removedAt: null } },
-      trip: { select: { paymentInstructions: true, paymentMethods: true, receiptsAddress: true } },
+      trip: {
+        select: {
+          paymentInstructions: true,
+          paymentMethods: true,
+          receiptsAddress: true,
+          options: true,
+        },
+      },
     } as const
     const where = {
       trip: { slug },
@@ -120,7 +129,7 @@ export class JoinService {
         terms: row.agreement
           ? termsOf(row.agreement, payments, adjustments)
           : row.organizerGoingAt
-            ? organizerTerms(trip, payments, adjustments)
+            ? organizerTerms(trip, payments, adjustments, ownPartOf(optionsOf(row.trip)))
             : null,
         agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
         payments,

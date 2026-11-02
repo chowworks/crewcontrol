@@ -22,6 +22,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  CalendarClock,
   Check,
   Copy,
   Eye,
@@ -31,7 +32,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -46,10 +47,13 @@ import {
 import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
-import { PriceSimulator } from '@/components/PriceSimulator'
+import { PaymentPlanCard, sharesProblem } from '@/components/PaymentPlanCard'
 import { RoomsEditor, roomProblem } from '@/components/RoomsEditor'
+import { COST_SPLIT_LABELS, PricingStep } from '@/components/TripPricing'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TripView } from '@/components/TripView'
 import { api } from '@/lib/api'
+import { money } from '@/lib/format'
 import { shrinkPhoto } from '@/lib/resize'
 import { defaultSignupNote, waitlisting } from '@/lib/signups'
 import { StepsFrame } from './EditTripSteps'
@@ -70,6 +74,7 @@ const EMPTY: TripInput = {
   paymentDueDates: [],
   paymentReminderDays: null,
   firstPaymentCents: null,
+  paymentShares: null,
   galleryTitle: 'Photos',
   showGuestNames: false,
   paymentMethods: [],
@@ -96,7 +101,8 @@ const STEPS = [
   'Trip basics',
   'Sign-ups and the trip page',
   'Rooms',
-  'Price and payments',
+  'Pricing',
+  'Payments',
   'Customization',
 ]
 
@@ -120,7 +126,8 @@ function previewOf(
       trip.costPerPersonCents,
       trip.installmentCount,
       trip.firstPaymentCents,
-      trip.paymentDueDates
+      trip.paymentDueDates,
+      trip.paymentShares
     ),
     rooms: trip.options.roomChoice
       ? rooms
@@ -138,7 +145,8 @@ function previewOf(
               roomPrice(r, trip.costPerPersonCents),
               trip.installmentCount,
               trip.firstPaymentCents,
-              trip.paymentDueDates
+              trip.paymentDueDates,
+              trip.paymentShares
             ),
           }))
       : [],
@@ -197,6 +205,9 @@ export function EditTripPage() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const toast = useToast()
   const [preview, setPreview] = useState(false)
+  // A new way to split the cost, waiting for the organizer to say go once they save (owner's decision, 2026-11-01:
+  // no question while they try the ways out, one when it sticks).
+  const [splitAsk, setSplitAsk] = useState<((go: boolean) => void) | null>(null)
   const [rooms, setRooms] = useState<TripRoom[]>([])
   // The trip's forwarded-receipts address (issue #12), saved on its own, not with the trip.
   const [receipts, setReceipts] = useState<TripReceipts | null>(null)
@@ -215,9 +226,9 @@ export function EditTripPage() {
     roomsDirty ||
     goingPending
 
-  // Rooms with their own prices (step 3): the trip's price is the cheapest room's, so the trip page's "From $X" and
-  // anything that falls back to the trip's price match a room guests can pick.
-  const ownRoomPrices = trip.options.roomPricing !== 'same'
+  // Priced by room (step 4): the trip's price is the cheapest room's, so the trip page's "From $X" and anything that
+  // falls back to the trip's price match a room guests can pick.
+  const ownRoomPrices = trip.options.costSplit === 'room'
   const cheapestRoom = ownRoomPrices
     ? Math.min(...rooms.map((r) => r.priceCents ?? Infinity).filter((c) => c > 0))
     : 0
@@ -298,6 +309,7 @@ export function EditTripPage() {
 
   const set = <K extends keyof TripInput>(key: K, value: TripInput[K]) =>
     setTrip((t) => ({ ...t, [key]: value }))
+  const setPrice = useCallback((v: number) => setTrip((t) => ({ ...t, costPerPersonCents: v })), [])
   const setOption = <K extends keyof TripOptions>(key: K, value: TripOptions[K]) =>
     setTrip((t) => ({ ...t, options: { ...t.options, [key]: value } }))
 
@@ -307,26 +319,39 @@ export function EditTripPage() {
       ? 'Use 3 to 60 lowercase letters, numbers and single hyphens, like mv-2027.'
       : null
 
+  // Guests who signed keep the price they signed, whatever the trip's price becomes.
+  const signedGuests = guests.filter((g) => g.signedAt && g.status !== 'declined')
+  const savedSplit = (JSON.parse(savedTrip) as TripInput).options?.costSplit
+
   const goingPhoneProblem =
     goingPending && goingPhone.replace(/\D/g, '').length < 7 ? 'Add a phone number.' : null
 
   /** Saves the trip and, when they changed, its rooms. True when everything saved. */
   async function save(): Promise<boolean> {
-    const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r, trip.options.roomPricing))
+    const roomsBad = roomsDirty && rooms.some((r) => roomProblem(r))
+    const roomPricesBad =
+      roomsDirty && trip.options.costSplit === 'room' && rooms.some((r) => roomProblem(r, true))
     const methodsBad = trip.paymentMethods.some((m) => methodProblem(m))
     const planBad =
       trip.paymentDueDates.some((d, i) => i > 0 && d < trip.paymentDueDates[i - 1]) ||
-      (trip.firstPaymentCents ?? 0) > trip.costPerPersonCents
+      (trip.firstPaymentCents ?? 0) > trip.costPerPersonCents ||
+      sharesProblem(
+        trip.paymentShares,
+        trip.costPerPersonCents,
+        trip.options.costSplit === 'room' && roomsPricedApart(rooms, trip.costPerPersonCents)
+      ) !== null
     // A problem can sit on another step than this one: open that step, where it shows beside its field.
     const problemStep = goingPhoneProblem
       ? 2
       : roomsBad
         ? 3
-        : methodsBad || planBad
+        : roomPricesBad
           ? 4
-          : linkProblem
+          : methodsBad || planBad
             ? 5
-            : 0
+            : linkProblem
+              ? 6
+              : 0
     if (problemStep) {
       show(problemStep)
       setMessage({
@@ -335,6 +360,13 @@ export function EditTripPage() {
       })
       return false
     }
+    if (
+      id &&
+      savedSplit !== trip.options.costSplit &&
+      signedGuests.length > 0 &&
+      !(await new Promise<boolean>((resolve) => setSplitAsk(() => resolve)))
+    )
+      return false
     setSaving(true)
     setMessage(null)
     try {
@@ -435,24 +467,54 @@ export function EditTripPage() {
                 <span className="hidden sm:inline">Control panel</span>
               </Link>
             )}
-            <button
-              type="button"
-              onClick={() => setPreview((p) => !p)}
-              aria-label={preview ? 'Edit' : 'Preview'}
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl border border-royal px-2.5 font-semibold text-royal sm:px-4"
-            >
-              {preview ? (
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-              <span className="hidden sm:inline">{preview ? 'Edit' : 'Preview'}</span>
-            </button>
             <AccountMenu />
           </div>
         </div>
       </div>
 
+      {splitAsk && savedSplit && (
+        <ConfirmDialog
+          title={`Save “${COST_SPLIT_LABELS[trip.options.costSplit]}”?`}
+          confirmLabel="Save"
+          onConfirm={() => {
+            splitAsk(true)
+            setSplitAsk(null)
+          }}
+          onCancel={() => {
+            splitAsk(false)
+            setSplitAsk(null)
+          }}
+        >
+          <p>
+            You changed how the trip splits the cost from “{COST_SPLIT_LABELS[savedSplit]}” to “
+            {COST_SPLIT_LABELS[trip.options.costSplit]}”.
+          </p>
+          <p className="mt-2">
+            {signedGuests.length === 1
+              ? 'This guest has already signed and keeps'
+              : `These ${signedGuests.length} guests have already signed and keep`}{' '}
+            the price they signed:{' '}
+            {signedGuests
+              .map(
+                (g) =>
+                  `${g.firstName} ${g.lastName}`.trim() +
+                  (g.terms ? ` (${money(g.terms.priceCents)})` : '')
+              )
+              .join(', ')}
+            . The new way prices new sign-ups only.
+          </p>
+        </ConfirmDialog>
+      )}
+      {id && (
+        <TripBanner
+          name={trip.name}
+          cover={trip.photos[0]?.url}
+          url={slug ? `${window.location.origin}/t/${slug}` : ''}
+          published={trip.published}
+          preview={preview}
+          onPreview={() => setPreview((p) => !p)}
+        />
+      )}
       {preview ? (
         <TripView trip={previewOf(trip, slug, guests, rooms, buffer)} preview />
       ) : (
@@ -590,8 +652,7 @@ export function EditTripPage() {
                   </AddButton>
                   <p className="text-sm text-muted">
                     Dates sort themselves when you save. A reminder goes out in the morning, by
-                    email, with a link to stop them. Payment due dates go in step 4, Price and
-                    payments.
+                    email, with a link to stop them. Payment due dates go in step 5, Payments.
                   </p>
                 </Card>
               </>
@@ -874,7 +935,7 @@ export function EditTripPage() {
               </>
             )}
 
-            {step === 5 && (
+            {step === 6 && (
               <>
                 <Card title="Publishing">
                   <Toggle
@@ -933,36 +994,31 @@ export function EditTripPage() {
                 <Card title="Room choice">
                   {pricedApart && (
                     <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
-                      {ROOMS_PRICED_APART} Room prices are set in the rooms below.
+                      {ROOMS_PRICED_APART} Room prices are set in step 4.
                     </p>
                   )}
                   <Toggle
-                    disabled={pricedApart}
+                    disabled={pricedApart || trip.options.costSplit === 'room'}
                     checked={trip.options.roomChoice}
-                    onChange={(v) => {
-                      // Off: everyone gets the trip's one price (owner's decision, 2026-10-29), so rooms lose theirs.
+                    onChange={(v) =>
                       setTrip((t) => ({
                         ...t,
-                        options: {
-                          ...t.options,
-                          roomChoice: v,
-                          roomRequired: v,
-                          roomPricing: v ? t.options.roomPricing : 'same',
-                        },
+                        options: { ...t.options, roomChoice: v, roomRequired: v },
                       }))
-                      if (!v) setRooms((rs) => rs.map((r) => ({ ...r, priceCents: null })))
-                    }}
+                    }
                     label="Guests pick their room"
-                    hint="Guests pick one of the rooms below when they sign up, and the trip page shows who's in each. Off: everyone pays the trip’s one price, and you place guests in rooms."
+                    hint={
+                      trip.options.costSplit === 'room'
+                        ? 'Guests pick one of the rooms below when they sign up, and the trip page shows who’s in each. Always on while the trip prices by room (step 4).'
+                        : 'Guests pick one of the rooms below when they sign up, and the trip page shows who’s in each. Off: you place guests in rooms.'
+                    }
                   />
                 </Card>
                 {id ? (
                   <RoomsEditor
                     rooms={rooms}
                     setRooms={setRooms}
-                    tripPriceCents={trip.costPerPersonCents}
-                    pricing={trip.options.roomPricing}
-                    onPricing={(v) => setOption('roomPricing', v)}
+                    pricedByRoom={trip.options.costSplit === 'room'}
                     guestsPick={trip.options.roomChoice}
                   />
                 ) : (
@@ -974,29 +1030,53 @@ export function EditTripPage() {
             {step === 4 && (
               <>
                 {id ? (
-                  <PriceSimulator
-                    tripId={id}
-                    rooms={rooms}
-                    onRooms={setRooms}
-                    roomPricing={trip.options.roomPricing}
-                    guests={guests}
-                    startDate={trip.startDate}
-                    costCents={trip.costPerPersonCents}
-                    onCost={(v) => set('costPerPersonCents', v)}
-                    installments={trip.installmentCount}
-                    onInstallments={(v) => set('installmentCount', v)}
-                    dueDates={trip.paymentDueDates}
-                    onDueDates={(v) => set('paymentDueDates', v)}
-                    firstPaymentCents={trip.firstPaymentCents}
-                    onFirstPayment={(v) => set('firstPaymentCents', v)}
-                    depositKept={trip.refundPolicy === 'first_payment_kept'}
-                    onDepositKept={(kept) =>
-                      set('refundPolicy', kept ? 'first_payment_kept' : 'spot_filled')
-                    }
-                    depositKeptLocked={guests.some((g) => g.signedAt)}
-                    reminderDays={trip.paymentReminderDays}
-                    onReminderDays={(v) => set('paymentReminderDays', v)}
-                  />
+                  <>
+                    <PricingStep
+                      tripId={id}
+                      options={trip.options}
+                      setOptions={(patch) =>
+                        setTrip((t) => ({ ...t, options: { ...t.options, ...patch } }))
+                      }
+                      costCents={trip.costPerPersonCents}
+                      onCost={setPrice}
+                      maxGuests={trip.maxGuests}
+                      going={going}
+                      rooms={rooms}
+                      setRooms={setRooms}
+                    />
+                  </>
+                ) : (
+                  <NeedsTrip />
+                )}
+              </>
+            )}
+
+            {step === 5 && (
+              <>
+                <PaymentsExplainer />
+                {id ? (
+                  <>
+                    <PaymentPlanCard
+                      rooms={trip.options.costSplit === 'room' ? rooms : []}
+                      startDate={trip.startDate}
+                      costCents={trip.costPerPersonCents}
+                      installments={trip.installmentCount}
+                      onInstallments={(v) => set('installmentCount', v)}
+                      dueDates={trip.paymentDueDates}
+                      onDueDates={(v) => set('paymentDueDates', v)}
+                      firstPaymentCents={trip.firstPaymentCents}
+                      onFirstPayment={(v) => set('firstPaymentCents', v)}
+                      shares={trip.paymentShares}
+                      onShares={(v) => set('paymentShares', v)}
+                      depositKept={trip.refundPolicy === 'first_payment_kept'}
+                      onDepositKept={(kept) =>
+                        set('refundPolicy', kept ? 'first_payment_kept' : 'spot_filled')
+                      }
+                      depositKeptLocked={guests.some((g) => g.signedAt)}
+                      reminderDays={trip.paymentReminderDays}
+                      onReminderDays={(v) => set('paymentReminderDays', v)}
+                    />
+                  </>
                 ) : (
                   <NeedsTrip />
                 )}
@@ -1046,14 +1126,6 @@ export function EditTripPage() {
                     />
                   </ReceiptsAddressCard>
                 )}
-                <Card title="Vendor costs">
-                  <Toggle
-                    checked={trip.options.vendorCosts}
-                    onChange={(v) => setOption('vendorCosts', v)}
-                    label="Track what you pay vendors"
-                    hint="Trip Financials adds what you pay the house, the resort or a chef, and shows what's left after costs. Only you and the trip's organizers see it."
-                  />
-                </Card>
               </>
             )}
           </fieldset>
@@ -1109,6 +1181,101 @@ export function EditTripPage() {
           </div>
         </StepsFrame>
       )}
+    </div>
+  )
+}
+
+/** The top of the Payments step: how payments run on Travel HQ, in four short steps (owner's ask, 2026-11-01). */
+function PaymentsExplainer() {
+  return (
+    <section className="flex flex-col gap-2 rounded-xl bg-royal-pale px-4 py-3 text-ink">
+      <p className="flex items-center gap-3 font-semibold">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-royal">
+          <CalendarClock className="h-5 w-5" aria-hidden="true" />
+        </span>
+        How payments work
+      </p>
+      <ol className="list-decimal pl-5 text-sm">
+        <li>Set the plan below: how many payments, and when each is due. Every guest signs it.</li>
+        <li>Guests pay you directly, the ways you list. Travel HQ never touches the money.</li>
+        <li>They tell you when they’ve paid, or forward the receipt, and you confirm it.</li>
+        <li>
+          We email a reminder before each due date to anyone who still owes, if you turn it on.
+        </li>
+      </ol>
+      <p className="text-sm">
+        Change the plan later and only new sign-ups get it; guests who signed keep theirs.
+      </p>
+    </section>
+  )
+}
+
+/**
+ * Above the steps: which trip this is, its cover, name and link, so it's clear what's being edited (owner's ask,
+ * 2026-11-01, after Trip Control's "Advertise your trip"), with the Preview button.
+ */
+function TripBanner({
+  name,
+  cover,
+  url,
+  published,
+  preview,
+  onPreview,
+}: {
+  name: string
+  cover?: string
+  url: string
+  published: boolean
+  preview: boolean
+  onPreview: () => void
+}) {
+  return (
+    <div className="mx-auto max-w-[1120px] px-5 pt-6">
+      <section className="flex flex-wrap items-center gap-4 rounded-2xl bg-royal-pale p-3 pr-4">
+        {cover ? (
+          <img src={cover} alt="" className="h-16 w-24 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="grid h-16 w-24 shrink-0 place-items-center rounded-xl bg-white">
+            <ImagePlus className="h-6 w-6 text-royal" aria-hidden="true" />
+          </span>
+        )}
+        <div className="min-w-0 flex-[1_1_180px]">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="min-w-0 truncate font-extrabold text-ink">
+              {name || 'Untitled trip'}
+            </span>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                published ? 'bg-white text-royal' : 'bg-white text-muted'
+              }`}
+            >
+              {published ? 'Published' : 'Not published'}
+            </span>
+          </p>
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="block truncate text-sm font-semibold text-royal hover:underline"
+            >
+              {url.replace(/^https?:\/\//, '')}
+            </a>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onPreview}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-royal bg-white px-4 font-semibold text-royal hover:bg-royal-pale"
+        >
+          {preview ? (
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Eye className="h-4 w-4" aria-hidden="true" />
+          )}
+          {preview ? 'Back to editing' : 'Preview'}
+        </button>
+      </section>
     </div>
   )
 }

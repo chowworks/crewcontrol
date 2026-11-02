@@ -30,6 +30,8 @@ const LABEL: Record<TripChangeField, string> = {
   signupNote: 'the sign-up note',
   vendorCosts: 'vendor costs',
   roomPricing: 'how rooms are priced',
+  costSplit: 'how the trip splits the cost',
+  ownPart: 'what you put in',
   confirmReceipts: 'confirming forwarded receipts',
 }
 

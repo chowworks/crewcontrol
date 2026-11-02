@@ -30,6 +30,8 @@ model Trip {
   paymentReminderDays Int?
   // The first payment, which holds the spot, when the organizer sets one; null splits the price evenly.
   firstPaymentCents   Int?
+  // A custom plan: each installment's share of the price (issue #65, migration 20261102010000_payment_shares).
+  paymentShares       Json?
   galleryTitle        String               @default("Photos")
   showGuestNames      Boolean              @default(false)
   // Shown only to signed-in guests who joined the trip (their join page). Never on the public page.

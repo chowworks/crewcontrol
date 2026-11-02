@@ -72,6 +72,15 @@ describe('tripChanges', () => {
     ])
   })
 
+  it('names the way the cost is split, reading older trips by how their rooms were priced', () => {
+    const before = { ...trip, options: { roomPricing: 'typed' } }
+    const after = { ...trip, options: { costSplit: 'even', ownPartCents: 50000 } }
+    expect(tripChanges(before, after)).toEqual([
+      { field: 'costSplit', from: 'Price by room', to: 'Split the total evenly' },
+      { field: 'ownPart', from: '$0', to: '$500' },
+    ])
+  })
+
   it('names the join mode and refund terms in words', () => {
     expect(
       tripChanges(trip, { ...trip, joinMode: 'first_come', refundPolicy: 'spot_filled' })
@@ -92,7 +101,6 @@ describe('roomChanges', () => {
     name,
     beds: '',
     capacity: 2,
-    weight: 1,
     bedTypes: ['queen'],
     minPeople: 1,
     priceCents: null,

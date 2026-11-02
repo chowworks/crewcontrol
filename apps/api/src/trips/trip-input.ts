@@ -143,6 +143,22 @@ function firstPayment(body: Body, installmentCount: number, priceCents: number):
   return cents
 }
 
+/**
+ * A custom plan's shares (issue #65): one whole number per installment, or null (none sent, or one payment). It
+ * replaces a first payment.
+ */
+function paymentShares(body: Body, installmentCount: number): number[] | null {
+  const raw = body.paymentShares
+  if (raw === undefined || raw === null || installmentCount <= 1) return null
+  if (!Array.isArray(raw) || raw.length !== installmentCount)
+    fail('paymentShares must give one share per installment')
+  return raw.map((v) =>
+    Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000_00
+      ? (v as number)
+      : fail('Each payment’s share must be a whole number above 0')
+  )
+}
+
 /** The installments' due dates: none, or one per installment, each on or after the one before. */
 function dueDates(body: Body, installmentCount: number): string[] {
   const raw = body.paymentDueDates
@@ -168,6 +184,7 @@ export function parseTripInput(raw: unknown): TripInput {
   const endDate = date(body, 'endDate')
   if (endDate < startDate) fail('endDate must be on or after startDate')
   const installmentCount = int(body, 'installmentCount', 1, 24)
+  const shares = paymentShares(body, installmentCount)
   const costPerPersonCents = int(body, 'costPerPersonCents', 0, 100_000_00)
   const maxGuests =
     body.maxGuests === null || body.maxGuests === undefined ? null : int(body, 'maxGuests', 1, 200)
@@ -188,7 +205,8 @@ export function parseTripInput(raw: unknown): TripInput {
     installmentCount,
     paymentDueDates: dueDates(body, installmentCount),
     paymentReminderDays: remindDays(body, 'paymentReminderDays'),
-    firstPaymentCents: firstPayment(body, installmentCount, costPerPersonCents),
+    firstPaymentCents: shares ? null : firstPayment(body, installmentCount, costPerPersonCents),
+    paymentShares: shares,
     galleryTitle: text(body, 'galleryTitle', 40, false) || 'Photos',
     showGuestNames: bool(body, 'showGuestNames'),
     paymentMethods:
@@ -221,14 +239,17 @@ export function parseOptions(raw: unknown): TripOptions {
     roomRequired: roomChoice && flag('roomRequired'),
     signupNote: body.signupNote === undefined ? '' : text(body, 'signupNote', 500, false),
     vendorCosts: flag('vendorCosts'),
-    roomPricing:
-      body.roomPricing === undefined
-        ? 'same'
-        : body.roomPricing === 'same' ||
-            body.roomPricing === 'typed' ||
-            body.roomPricing === 'weights'
-          ? body.roomPricing
-          : fail('roomPricing must be same, typed or weights'),
+    costSplit:
+      body.costSplit === undefined
+        ? DEFAULT_TRIP_OPTIONS.costSplit
+        : body.costSplit === 'even' || body.costSplit === 'room' || body.costSplit === 'set'
+          ? body.costSplit
+          : fail('costSplit must be even, room or set'),
+    ownPartCents: body.ownPartCents === undefined ? 0 : int(body, 'ownPartCents', 0, 10_000_000),
+    splitGuests:
+      body.splitGuests === undefined || body.splitGuests === null
+        ? null
+        : int(body, 'splitGuests', 1, 1000),
     confirmReceipts: flag('confirmReceipts'),
   }
 }
@@ -257,9 +278,6 @@ export function parseSlug(raw: unknown): string | undefined {
 export function parseRooms(raw: unknown): TripRoom[] {
   if (!raw || typeof raw !== 'object') fail('Expected rooms')
   return list(raw as Body, 'rooms', MAX_TRIP_ROOMS).map((item) => {
-    const weight = item.weight
-    if (typeof weight !== 'number' || !(weight > 0) || weight > 10)
-      fail('A room weight must be a number above 0 and at most 10')
     const id = typeof item.id === 'string' && item.id ? item.id : undefined
     const capacity = int(item, 'capacity', 1, 20)
     const bedTypes = item.bedTypes === undefined ? [] : item.bedTypes
@@ -281,7 +299,6 @@ export function parseRooms(raw: unknown): TripRoom[] {
       name: text(item, 'name', 60),
       beds: text(item, 'beds', 120, false),
       capacity,
-      weight,
       bedTypes: bedTypes as BedType[],
       minPeople,
       priceCents,

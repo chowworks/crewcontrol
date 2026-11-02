@@ -218,6 +218,15 @@ describe('a guest’s terms', () => {
     })
   })
 
+  it('counts what an organizer puts in on an even split as their price, already paid', () => {
+    const dates = { startDate: '2027-06-18', endDate: '2027-06-21' }
+    expect(organizerTerms(dates, [], [], 50000)).toMatchObject({
+      priceCents: 50000,
+      paidCents: 50000,
+      balanceCents: 0,
+    })
+  })
+
   it('takes the balance from what they signed, less the payments the organizer confirmed', () => {
     const pay = (
       status: 'reported' | 'confirmed' | 'refunded',

@@ -1,70 +1,57 @@
 import { describe, expect, it } from 'vitest'
-import { priceRooms, spreadDates, type PricingRoom } from './pricing'
+import { paymentPlan } from '@cc/types'
+import { evenRoomPrice, evenSplit, fullRooms, spreadDates } from './pricing'
 
-// A made-up house: total $22,611.34, of which $2,150 is shared fees.
-const rooms: PricingRoom[] = [
-  { name: 'Primary', occupants: 2, weight: 1.75 },
-  { name: 'Queen', occupants: 2, weight: 1.375 },
-  { name: 'Twins', occupants: 2, weight: 1.125 },
-  { name: 'Bonus', occupants: 6, weight: 1 },
-]
-const base = { rentCents: 2_046_134, feesCents: 215_000, coverCents: 0, rooms }
-const dollars = (r: ReturnType<typeof priceRooms>) =>
-  r.rooms.map((x) => Math.round(x.perPersonCents / 100))
-
-describe('priceRooms', () => {
-  it('splits flat', () => {
-    expect(dollars(priceRooms({ ...base, method: 'flat' }))).toEqual([1884, 1884, 1884, 1884])
+describe('evenSplit', () => {
+  it('takes the organizer’s part off the top and splits the rest', () => {
+    expect(evenSplit(175_000, 50_000, 5)).toBe(25_000)
   })
 
-  it('weights the whole cost by room when tiered', () => {
-    expect(dollars(priceRooms({ ...base, method: 'tiered' }))).toEqual([2729, 2144, 1754, 1559])
+  it('rounds up to the dollar, so the organizer is never short', () => {
+    expect(evenSplit(100_000, 0, 3)).toBe(33_400)
   })
 
-  it('splits fees equally and weights only the rent when hybrid', () => {
-    expect(dollars(priceRooms({ ...base, method: 'hybrid' }))).toEqual([2649, 2119, 1767, 1590])
+  it('is zero with nothing left to split or nobody to split it', () => {
+    expect(evenSplit(50_000, 50_000, 5)).toBe(0)
+    expect(evenSplit(50_000, 0, 0)).toBe(0)
+  })
+})
+
+describe('price by room', () => {
+  const rooms = [
+    { capacity: 2, priceCents: 30_000 },
+    { capacity: 2, priceCents: 25_000 },
+    { capacity: 3, priceCents: 20_000 },
+  ]
+
+  it('collects every place in every room at its price', () => {
+    expect(fullRooms(rooms)).toBe(170_000)
   })
 
-  it('takes what the organizer covers off the rent first', () => {
-    const r = priceRooms({ ...base, coverCents: 261_134, method: 'flat' })
-    expect(r.costCents).toBe(2_000_000)
-    expect(r.rooms[0].perPersonCents).toBe(166_667)
+  it('starts from an even split over every place', () => {
+    expect(evenRoomPrice(175_000, rooms)).toBe(25_000)
+    expect(evenRoomPrice(100_000, rooms)).toBe(14_300)
+    expect(evenRoomPrice(100_000, [])).toBe(0)
+  })
+})
+
+describe('a custom payment plan', () => {
+  const amounts = (plan: { amountCents: number }[]) => plan.map((p) => p.amountCents)
+
+  it('uses dollar shares that add up to the price as they are', () => {
+    expect(amounts(paymentPlan(100_000, 3, null, [], [10_000, 50_000, 40_000]))).toEqual([
+      10_000, 50_000, 40_000,
+    ])
   })
 
-  it('charges someone alone in a room for two for both places', () => {
-    const r = priceRooms({
-      ...base,
-      method: 'flat',
-      rooms: [
-        { name: 'King', occupants: 1, weight: 1, minPeople: 2 },
-        { name: 'Twins', occupants: 2, weight: 1 },
-      ],
-      rentCents: 300_000,
-      feesCents: 0,
-    })
-    expect(r.rooms.map((x) => x.perPersonCents)).toEqual([150_000, 75_000])
-    expect(r.collectedCents).toBe(300_000)
+  it('splits a room’s own price by percentage, whole dollars, the rest last', () => {
+    expect(amounts(paymentPlan(193_400, 3, null, [], [2000, 5000, 3000]))).toEqual([
+      38_600, 96_700, 58_100,
+    ])
   })
 
-  it('treats an emptied or zero weight as 1, never $NaN', () => {
-    const r = priceRooms({
-      ...base,
-      method: 'tiered',
-      rooms: [{ name: 'Only', occupants: 2, weight: 0 }],
-      rentCents: 100_000,
-      feesCents: 0,
-    })
-    expect(r.rooms[0].perPersonCents).toBe(50_000)
-  })
-
-  it('counts only rooms with people in them', () => {
-    const r = priceRooms({
-      ...base,
-      method: 'flat',
-      rooms: rooms.map((x, i) => ({ ...x, occupants: i === 3 ? 2 : x.occupants })),
-    })
-    expect(r.people).toBe(8)
-    expect(dollars(r)[0]).toBe(2826)
+  it('falls back to an even split when the shares don’t fit the plan', () => {
+    expect(amounts(paymentPlan(90_000, 3, null, [], [1, 2]))).toEqual([30_000, 30_000, 30_000])
   })
 })
 

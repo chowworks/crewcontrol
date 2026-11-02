@@ -48,7 +48,7 @@ export function TripLinkCard({ trip, onFlyer }: { trip: OrganizerTrip; onFlyer: 
         {!trip.published && (
           <p className="text-sm text-body">
             Guests can open it once the trip is published.{' '}
-            <Link to={`/organize/${trip.id}?step=5`} className="font-semibold text-royal underline">
+            <Link to={`/organize/${trip.id}?step=6`} className="font-semibold text-royal underline">
               Publish the trip
             </Link>
           </p>

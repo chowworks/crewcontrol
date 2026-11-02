@@ -8,8 +8,8 @@ import { PrismaService, rlsActive } from '../prisma/prisma.service'
 import {
   paymentPlan,
   type JoinMode,
+  type CostSplit,
   type RefundPolicy,
-  type RoomPricing,
   type TripChange,
   type TripFieldChange,
   type TripOptions,
@@ -68,6 +68,7 @@ export interface TripState {
   paymentDueDates: unknown
   paymentReminderDays: number | null
   firstPaymentCents: number | null
+  paymentShares?: unknown
   galleryTitle: string
   showGuestNames: boolean
   paymentMethods: unknown
@@ -92,18 +93,22 @@ const REFUND_POLICIES: Record<RefundPolicy, string> = {
   spot_filled: 'Refund only if the spot is filled',
   first_payment_kept: 'First payment kept',
 }
-const ROOM_PRICING: Record<RoomPricing, string> = {
-  same: 'All the same',
-  typed: 'Each room its own price',
-  weights: 'Split by room size',
+const COST_SPLITS: Record<CostSplit, string> = {
+  even: 'Split the total evenly',
+  room: 'Price by room',
+  set: 'I know the price',
 }
+/** How a trip split its cost: saved before issue #65, how its rooms were priced said it. */
+const splitOf = (o: Partial<TripOptions> & { roomPricing?: string }): CostSplit =>
+  o.costSplit ?? (o.roomPricing ? (o.roomPricing === 'same' ? 'set' : 'room') : 'even')
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const onOff = (v: unknown) => (v ? 'on' : 'off')
 
 function planText(t: TripState): string {
   const dates = Array.isArray(t.paymentDueDates) ? (t.paymentDueDates as string[]) : []
-  return paymentPlan(t.costPerPersonCents, t.installmentCount, t.firstPaymentCents, dates)
+  const shares = Array.isArray(t.paymentShares) ? (t.paymentShares as number[]) : null
+  return paymentPlan(t.costPerPersonCents, t.installmentCount, t.firstPaymentCents, dates, shares)
     .map((p) => (p.dueOn ? `${money(p.amountCents)} by ${day(p.dueOn)}` : money(p.amountCents)))
     .join(', ')
 }
@@ -181,16 +186,18 @@ export function tripChanges(before: TripState, after: TripState): TripFieldChang
     money(before.costPerPersonCents),
     money(after.costPerPersonCents)
   )
+  add(splitOf(a) !== splitOf(b), 'costSplit', COST_SPLITS[splitOf(a)], COST_SPLITS[splitOf(b)])
   add(
-    (a.roomPricing ?? 'same') !== (b.roomPricing ?? 'same'),
-    'roomPricing',
-    ROOM_PRICING[a.roomPricing ?? 'same'],
-    ROOM_PRICING[b.roomPricing ?? 'same']
+    (a.ownPartCents ?? 0) !== (b.ownPartCents ?? 0),
+    'ownPart',
+    money(a.ownPartCents ?? 0),
+    money(b.ownPartCents ?? 0)
   )
   // The plan's own settings: a new price alone already says so above.
   add(
     before.installmentCount !== after.installmentCount ||
       before.firstPaymentCents !== after.firstPaymentCents ||
+      !same(before.paymentShares, after.paymentShares) ||
       !same(before.paymentDueDates, after.paymentDueDates),
     'paymentPlan',
     planText(before),
@@ -224,7 +231,6 @@ export interface RoomState {
   name: string
   beds: unknown
   capacity: number
-  weight: unknown
   bedTypes: unknown
   minPeople: number
   priceCents: number | null
@@ -259,10 +265,9 @@ export function roomChanges(
     if (was.name !== r.name) change.renamed.push({ from: was.name, to: r.name })
     if (price(was.priceCents) !== price(r.priceCents))
       change.prices.push({ room: r.name, from: price(was.priceCents), to: price(r.priceCents) })
-    const rest = ({ beds, capacity, weight, bedTypes, minPeople }: RoomState) => ({
+    const rest = ({ beds, capacity, bedTypes, minPeople }: RoomState) => ({
       beds,
       capacity,
-      weight,
       bedTypes,
       minPeople,
     })

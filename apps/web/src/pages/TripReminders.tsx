@@ -36,7 +36,7 @@ export function RemindersCard({ trip }: { trip: OrganizerTrip }) {
           Reminders
         </h2>
         <Link
-          to={`/organize/${trip.id}?step=4`}
+          to={`/organize/${trip.id}?step=5`}
           className="inline-flex min-h-[44px] items-center rounded-lg border border-royal px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
         >
           Change reminders
@@ -49,8 +49,8 @@ export function RemindersCard({ trip }: { trip: OrganizerTrip }) {
       )}
       {empty && (
         <p className="text-body">
-          No reminders set. Payment reminders are on the editor’s Price and payments step; a key
-          date gets one on Trip basics.
+          No reminders set. Payment reminders are on the editor’s Payments step; a key date gets one
+          on Trip basics.
         </p>
       )}
       {data && data.upcoming.length > 0 && (
