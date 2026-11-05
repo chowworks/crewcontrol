@@ -20,6 +20,19 @@ export function owed(terms: GuestTerms): { left: number; dueNow: number } {
   return { left, dueNow: Math.min(left, Math.max(0, terms.firstInstallmentCents - counted)) }
 }
 
+/**
+ * Why there's nothing to pay right now, for people who signed: said on the card instead of leaving the "I've paid" box
+ * out with no word (a $0 trip once looked like a missing payment screen). Null when nobody signed yet.
+ */
+export function nothingDue(terms: GuestTerms[], organizer: string): string | null {
+  if (terms.length === 0) return null
+  if (terms.some((t) => owed(t).left > 0)) return 'Nothing to pay yet.'
+  if (terms.every((t) => totalDueCents(t) === 0)) return 'Nothing to pay on this trip.'
+  if (terms.some((t) => t.pendingCents > 0))
+    return `All sent. ${organizer} will confirm it arrived.`
+  return 'All paid up.'
+}
+
 // What a guest owes in all, the signed price with the adjustments that count: shared with the API (packages/types).
 export { totalDueCents } from '@cc/types'
 

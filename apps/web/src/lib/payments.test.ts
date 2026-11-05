@@ -1,6 +1,6 @@
-import type { Payment } from '@cc/types'
+import type { GuestTerms, Payment } from '@cc/types'
 import { describe, expect, it } from 'vitest'
-import { confirmedLookalike, shown } from './payments'
+import { confirmedLookalike, nothingDue, shown } from './payments'
 
 const pay = (more: Partial<Payment>): Payment =>
   ({
@@ -52,5 +52,32 @@ describe('shown', () => {
     // The same $200 confirmed from a forwarded receipt: it was the same money reported twice.
     const receipt = pay({ id: 'p1', loggedBy: 'email' })
     expect(show(missing, [missing, receipt])).toBe(false)
+  })
+})
+
+describe('nothingDue', () => {
+  const terms = (more: Partial<GuestTerms>): GuestTerms =>
+    ({
+      priceCents: 50000,
+      firstInstallmentCents: 25000,
+      paidCents: 0,
+      pendingCents: 0,
+      adjustmentCents: 0,
+      balanceCents: 50000,
+      ...more,
+    }) as GuestTerms
+
+  it('says nothing when nobody signed', () => {
+    expect(nothingDue([], 'Simone')).toBeNull()
+  })
+
+  it('tells a $0 trip from one paid up, one waiting on the organizer and one not open to pay yet', () => {
+    const free = terms({ priceCents: 0, firstInstallmentCents: 0, balanceCents: 0 })
+    const paid = terms({ paidCents: 50000, balanceCents: 0 })
+    const sent = terms({ paidCents: 25000, pendingCents: 25000, balanceCents: 25000 })
+    expect(nothingDue([free, free], 'Simone')).toBe('Nothing to pay on this trip.')
+    expect(nothingDue([free, paid], 'Simone')).toBe('All paid up.')
+    expect(nothingDue([paid, sent], 'Simone')).toBe('All sent. Simone will confirm it arrived.')
+    expect(nothingDue([paid, terms({})], 'Simone')).toBe('Nothing to pay yet.')
   })
 })
