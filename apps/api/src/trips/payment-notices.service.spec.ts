@@ -60,6 +60,7 @@ function setup(notifyGuestAt: Date | null, status = 'not_received') {
     installmentCount: 1,
     paymentMethods: [],
     paymentInstructions: '',
+    receipts: { address: null },
     photos: [],
     highlights: [],
     keyDates: [],

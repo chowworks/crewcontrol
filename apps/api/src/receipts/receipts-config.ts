@@ -25,3 +25,7 @@ export const receiptsEmail = (local: string | null): string | null => {
   const domain = receiptsDomain()
   return local && domain ? `${local}@${domain}` : null
 }
+
+/** The address guests forward receipts to, only when forwarded receipts are on here: what a guest is shown. */
+export const forwardTo = (local: string | null): string | null =>
+  receiptsConfig() ? receiptsEmail(local) : null

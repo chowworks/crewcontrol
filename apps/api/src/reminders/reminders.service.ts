@@ -16,6 +16,7 @@ import { toOrganizerTrip } from '../trips/trip-mapper'
 import type { Guest, OrganizerTrip, StopUpdatesView, TripReminders } from '../trips/trip-types'
 import { TripsService } from '../trips/trips.service'
 import { howSoon, isDue, isoDay, remindersFor, type ReminderFor } from './reminder-plan'
+import { forwardTo } from '../receipts/receipts-config'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
 const HOUR = 60 * 60 * 1000
@@ -129,6 +130,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         phone: g.phone,
         paymentMethods: trip.paymentMethods,
         paymentInstructions: trip.paymentInstructions,
+        receiptsEmail: forwardTo(trip.receipts.address),
         replyTo,
       },
       webUrl(),
