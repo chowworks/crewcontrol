@@ -337,6 +337,8 @@ export interface Payment {
   transferId: string | null
   reportedAt: string
   decidedAt: string | null
+  /** With 'not_received': why it didn't arrive, in the organizer's words; '' when they gave none. The guest sees it. */
+  decisionNote: string
 }
 
 /** A guest reporting a payment from their join page. */
@@ -363,6 +365,8 @@ export interface PaymentDecision {
   receivedPaymentAmount?: number
   /** With confirmed, on a transfer for several travelers: what arrived for each, by payment. Left out, as reported. */
   shares?: { paymentId: string; receivedPaymentAmount: number }[]
+  /** With not_received: why, optional, at most 200 characters. The guest is emailed it a minute later. */
+  note?: string
 }
 
 /** The organizer logging a payment handed over in person: it is confirmed as it is logged. */

@@ -364,6 +364,11 @@ model Payment {
   // With 'refunded': the refund it went back with (the guest's refundSentAt then), so undoing that refund counts
   // only these payments again.
   refundedAt            DateTime?
+  // With 'not_received': why, in the organizer's words ('' when none). Shown to the guest.
+  decisionNote          String    @default("")
+  // When the "Payment not received" email to the guest is due: a minute after the decision, so an Undo sends nothing.
+  // Cleared when it goes or when the decision changes.
+  notifyGuestAt         DateTime?
   trip                  Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   guest                 Guest     @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
 

@@ -38,7 +38,7 @@ import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
 import { signupOrder, waitlist } from '@/lib/signups'
 import { AdjustBalance } from './AdjustBalance'
-import { SignedCopy, UndoConfirm } from './ControlPanelPage'
+import { NotReceivedReason, SignedCopy, UndoConfirm } from './ControlPanelPage'
 import { ReceiptActionRow, ReceiptProofButton } from './ForwardedReceipts'
 import { GuestDetails } from './GuestDetails'
 import { GoingButton, NotGoingButton, type OrganizerGoingInput } from './OrganizerGoing'
@@ -547,17 +547,53 @@ function ReviewOne({
           >
             Confirm {cents ? money(cents) : ''}
           </button>
-          <button
-            type="button"
+          <NotReceivedButton
+            who={g.firstName}
             disabled={busy}
-            onClick={() => decide({ status: 'not_received' })}
-            className={outlined}
-          >
-            Not received
-          </button>
+            onMark={(note) => decide({ status: 'not_received', note })}
+          />
         </div>
       </form>
     </Dialog>
+  )
+}
+
+/** "Not received" on a guest's payment: asks first, with why (optional) for the email they get a minute later. */
+function NotReceivedButton({
+  who,
+  disabled,
+  onMark,
+}: {
+  who: string
+  disabled: boolean
+  onMark: (note: string) => void
+}) {
+  const [asking, setAsking] = useState(false)
+  const [note, setNote] = useState('')
+  return (
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setAsking(true)}
+        className={outlined}
+      >
+        Not received
+      </button>
+      {asking && (
+        <ConfirmDialog
+          title="Mark it not received?"
+          confirmLabel="Not received"
+          onConfirm={() => {
+            setAsking(false)
+            onMark(note.trim())
+          }}
+          onCancel={() => setAsking(false)}
+        >
+          <NotReceivedReason who={who} value={note} onChange={setNote} />
+        </ConfirmDialog>
+      )}
+    </>
   )
 }
 
@@ -657,14 +693,11 @@ function ReviewTransfer({
           <button type="submit" disabled={busy || !ok} className={`${filled} disabled:opacity-60`}>
             Confirm {ok ? money(total) : ''}
           </button>
-          <button
-            type="button"
+          <NotReceivedButton
+            who={names(members.map((m) => m.g))}
             disabled={busy}
-            onClick={() => decide({ status: 'not_received' })}
-            className={outlined}
-          >
-            Not received
-          </button>
+            onMark={(note) => decide({ status: 'not_received', note })}
+          />
         </div>
       </form>
     </Dialog>
@@ -1043,6 +1076,9 @@ export function PaymentLine({
           {p.transferId && ' · one payment for several travelers'}
         </span>
         {p.note && <span className="block italic text-body">&ldquo;{p.note}&rdquo;</span>}
+        {p.status === 'not_received' && p.decisionNote && (
+          <span className="block text-body">Why: {p.decisionNote}</span>
+        )}
       </span>
       <span className="flex flex-wrap gap-2">
         {emailed && <ReceiptProofButton tripId={tripId} paymentId={p.id} admin={admin} />}
@@ -1054,10 +1090,21 @@ export function PaymentLine({
           <UndoConfirm
             warning={warning}
             {...(emailed
-              ? { label: 'Not received', title: 'Mark this payment not received?' }
+              ? {
+                  label: 'Not received',
+                  title: 'Mark this payment not received?',
+                  reasonFor: g.firstName,
+                }
               : {})}
-            onUndo={() =>
-              onDecide(p.id, { status: logged || emailed ? 'not_received' : 'reported' })
+            onUndo={(note) =>
+              onDecide(
+                p.id,
+                logged
+                  ? { status: 'not_received' }
+                  : emailed
+                    ? { status: 'not_received', note }
+                    : { status: 'reported' }
+              )
             }
           />
         ) : p.status === 'not_received' && !logged ? (

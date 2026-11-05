@@ -199,8 +199,12 @@ export function ControlPanelPage() {
       toast({ text: `${money(amount)} from ${who} confirmed.${spot}`, action: undo })
     }
     const theirs = members.length > 1 ? `the payment from ${who}` : `${guest.firstName}’s payment`
+    // The guest's word is emailed a minute later (the API waits), so Undo before then sends nothing.
     if (decision.status === 'not_received')
-      toast({ text: `Marked ${theirs} not received.`, action: undo })
+      toast({
+        text: `Marked ${theirs} not received.${payment.loggedBy === 'organizer' ? '' : ' Email goes in a minute.'}`,
+        action: undo,
+      })
     else if (decision.status === 'reported')
       toast({ text: `${theirs[0].toUpperCase()}${theirs.slice(1)} is waiting again.` })
     return true
@@ -759,13 +763,17 @@ export function UndoConfirm({
   warning = 'They lose their place in line.',
   label = 'Undo',
   title = 'Undo this payment?',
+  reasonFor,
 }: {
-  onUndo: () => void
+  onUndo: (reason: string) => void
   warning?: string
   label?: string
   title?: string
+  /** Marking a guest's payment not received: asks why (optional), for the email they get. Their first name. */
+  reasonFor?: string
 }) {
   const [asking, setAsking] = useState(false)
+  const [reason, setReason] = useState('')
   return (
     <>
       <button
@@ -781,13 +789,44 @@ export function UndoConfirm({
           confirmLabel={label === 'Undo' ? 'Undo payment' : label}
           onConfirm={() => {
             setAsking(false)
-            onUndo()
+            onUndo(reason.trim())
           }}
           onCancel={() => setAsking(false)}
         >
           <p>{warning}</p>
+          {reasonFor && <NotReceivedReason who={reasonFor} value={reason} onChange={setReason} />}
         </ConfirmDialog>
       )}
     </>
+  )
+}
+
+/**
+ * Why a payment didn't arrive (owner's decisions, 2026-11-05): optional, and emailed to the guest a minute after it's
+ * marked, so the toast's Undo can call the email off.
+ */
+export function NotReceivedReason({
+  who,
+  value,
+  onChange,
+}: {
+  who: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
+      Why it didn’t arrive (optional)
+      <input
+        className="min-h-[44px] rounded-lg border border-[#5B6B80] bg-white px-3 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal"
+        value={value}
+        maxLength={200}
+        placeholder="Nothing came through under your name"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="font-normal text-muted">
+        We email {who} about it in a minute, with this if you write it.
+      </span>
+    </label>
   )
 }

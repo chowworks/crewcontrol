@@ -36,6 +36,7 @@ const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
   transferId: null,
   reportedAt: at,
   decidedAt: null,
+  decisionNote: '',
 })
 const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   id,

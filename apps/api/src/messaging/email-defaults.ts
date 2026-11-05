@@ -184,6 +184,24 @@ ${plan('{{guest.firstName}}’s')}
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
   {
+    kind: 'payment_not_received',
+    name: 'Payment not received',
+    when: 'To a guest a minute after an organizer marks a payment they reported (or a receipt they forwarded) not received, with why if the organizer said.',
+    groups: ['trip', 'guest', 'paymentDetails', 'payment'],
+    subject: 'Your {{payment.amount}} payment for {{trip.name}} hasn’t arrived',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{trip.organizerName}} marked the <strong>{{payment.amount}}</strong> {{payment.method}} payment you sent on {{payment.sentOn}} for <strong>{{trip.name}}</strong> as not received.</p>
+{{#if payment.reason}}<p>{{trip.organizerName}} says: “{{payment.reason}}”</p>{{/if}}
+<p>Check that it went through and went to the right place. If it bounced or never left, send it again{{#if guest.canPay}} {{#if paymentDetails.oneMethod}}this way{{else}}one of these ways{{/if}}:</p>
+<ul>
+{{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
+{{/each}}</ul>
+{{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
+<p>Then press "I've paid" on your trip page.{{else}}, then press "I've paid" on your trip page.{{/if}}</p>
+<p>Think it did arrive? Reply to this email and it goes to {{trip.organizerName}}.</p>
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
+  },
+  {
     kind: 'date_reminder',
     name: 'Key date reminder',
     when: 'To each accepted guest, the days before a key date the organizer chose (book flights, ferry, rental car).',
@@ -380,6 +398,13 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       amountDue: '',
     },
     stopLink: 'https://travel-hq.app/stop/sample',
+    payment: {
+      amount: '$400',
+      sentOn: 'Nov 3, 2027',
+      method: 'Zelle',
+      reason:
+        'Nothing came through on Zelle under your name. Can you check it went to (555) 010-0199?',
+    },
     announcement: {
       from: 'Nia',
       body: 'The resort sent our room list. Check-in is 3 PM on Mar 3, and the airport shuttle leaves at 1 PM.\nPack something white for the beach dinner on the last night!',

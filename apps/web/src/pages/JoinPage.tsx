@@ -1230,6 +1230,12 @@ export function MyPayments({
               >
                 {paymentStatus(p.status, organizer)}
               </span>
+              {/* Why it didn't arrive, when the organizer said (owner's decision, 2026-11-05). */}
+              {p.status === 'not_received' && p.decisionNote && (
+                <span className="basis-full text-body">
+                  {organizer} says: &ldquo;{p.decisionNote}&rdquo;
+                </span>
+              )}
             </li>
           )
         )}
