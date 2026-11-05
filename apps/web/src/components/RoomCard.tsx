@@ -8,6 +8,7 @@ export function RoomCard({
   checked,
   onChange,
   price,
+  guests,
 }: {
   room: PublicRoom
   /** Left out on the trip page, where the room is only shown, not picked. */
@@ -15,6 +16,8 @@ export function RoomCard({
   onChange?: () => void
   /** Its price per person, shown when the trip's rooms are priced differently (issue #30). */
   price?: number
+  /** Accepted guests already in it, on the join page only (never the public trip page). */
+  guests?: string[]
 }) {
   const full = room.spotsLeft === 0
   // On the trip page the card only shows the room; on the join page it's a choice.
@@ -49,6 +52,9 @@ export function RoomCard({
             {price !== undefined && <> · {money(price)} per person</>}
           </span>
           <span className="text-muted">{sharingLine(room)}</span>
+          {guests && guests.length > 0 && (
+            <span className="text-ink">With {guests.join(', ')}</span>
+          )}
           <span className="font-semibold text-royal">
             {full
               ? 'Full'

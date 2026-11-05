@@ -696,6 +696,14 @@ suite('trip isolation', () => {
     })
   })
 
+  it("names only accepted guests in a published trip's rooms", async () => {
+    await as({ public: true }, async () => {
+      const inRooms = await db.query(`SELECT * FROM "public_room_guests"('T1')`)
+      expect(inRooms.rows).toEqual([{ roomId: 'R-T1', firstName: 'Ann', lastName: 'Approved' }])
+      expect((await db.query(`SELECT * FROM "public_room_guests"('T2')`)).rows).toEqual([])
+    })
+  })
+
   it('gives the admin, and nobody else, the Metrics counts, sample trips left out', async () => {
     // Written as the owner inside one transaction, then read as the restricted role, and rolled back. What arrived
     // (received) counts, not what the guest said they sent.

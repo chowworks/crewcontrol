@@ -140,10 +140,8 @@ export class JoinService {
         receiptsEmail: pay && receiptsConfig() ? receiptsEmail(row.trip.receiptsAddress) : null,
       }
     }
-    const facts = {
-      ...trip,
-      organizers: await this.trips.organizerContacts(await this.tripId(slug)),
-    }
+    const tripId = await this.tripId(slug)
+    const facts = { ...trip, organizers: await this.trips.organizerContacts(tripId) }
     return {
       trip,
       agreement: agreementPreview(facts),
@@ -163,6 +161,9 @@ export class JoinService {
             agreementOnBehalf: agreementPreview(room, true),
           }
         }),
+      // Who's in each room, so guests picking one see who they'd share with. Never on the public page.
+      roomGuests:
+        trip.rooms.length > 0 ? await runAsPublic(() => this.trips.roomGuests(tripId)) : [],
     }
   }
 

@@ -606,6 +606,7 @@ function JoinForm({
                 room={r}
                 checked={draft.roomId === r.id}
                 price={pricedApart ? r.priceCents : undefined}
+                guests={view.roomGuests.find((g) => g.roomId === r.id)?.names}
                 onChange={() =>
                   // Another price is another agreement: it's agreed to again.
                   setDraft((d) => ({

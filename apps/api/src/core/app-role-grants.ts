@@ -17,6 +17,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'public_trip_guests(text)',
   // A published trip's rooms: how many asked for each, never who.
   'public_room_taken(text)',
+  // Accepted guests' names in each room of a published trip, for the signed-in join page's room picker only.
+  'public_room_guests(text)',
   // How many spots are taken on a published trip (accepted guests).
   'public_spots_taken(text)',
   // Whether someone joining a published trip now goes on its waitlist (yes or no, never who).

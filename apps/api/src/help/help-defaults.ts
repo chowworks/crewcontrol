@@ -52,16 +52,14 @@ You show up on the guest list tagged Organizer. You don't sign anything, and you
     key: 'whos-going-hidden',
     topic: 'tripPage',
     question: 'Can I keep “Who’s going” hidden?',
-    answer: `Yes. It's hidden unless you turn on "Show accepted guests' names" in the editor's Sign-ups and the trip page step. Names show as first name and last initial, and only for accepted guests.
-
-The one exception: if you let guests pick their own rooms, the list stays on, so guests can see who they might room with.`,
+    answer: `Yes. It's hidden unless you turn on "Show accepted guests' names" in the editor's Sign-ups and the trip page step. Names show as first name and last initial, and only for accepted guests. Letting guests pick rooms doesn't change this. Guests who sign in to join see who's already in each room when they pick one, but the trip page itself stays without names.`,
     pages: ['editor:signups', 'editor:rooms'],
   },
   {
     key: 'public-vs-crew',
     topic: 'tripPage',
     question: 'What can people see before they sign up, and what’s only for my crew?',
-    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names" or let guests pick rooms, as first name and last initial.
+    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
 
 Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements go only to accepted guests.
 
