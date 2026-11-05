@@ -10,9 +10,9 @@ import { type ChangeGroup, changeSentence, groupText, mergeEdits } from './tripC
 import { LOG_TYPES, type LogType, logType } from './tripLogTypes'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
-// already on the trip, what organizers changed (2026-11-01), changes to who runs it (and the admin's visits), and, with
-// every guest's history. A filter shows the types of line ticked (payments, guests, trip changes, communications), newest or
-// oldest first.
+// already on the trip, what organizers changed (2026-11-01), changes to who runs it (and the admin's visits), and
+// every guest's history. A filter shows the types of line ticked (payments, guests, trip changes, communications),
+// newest or oldest first.
 
 const at = (iso: string) =>
   new Date(iso).toLocaleString('en-US', {
@@ -209,22 +209,28 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
       </div>
       {entries && entries.length > 0 && (
         <div className="grid grid-cols-1 gap-2 sm:max-w-xl sm:grid-cols-2">
-          <MultiDropdown
-            label="Show"
-            none="All activity"
-            values={types}
-            options={LOG_TYPES}
-            onChange={setTypes}
-          />
-          <Dropdown
-            label="Order"
-            value={order}
-            options={[
-              { value: 'newest', label: 'Newest first' },
-              { value: 'oldest', label: 'Oldest first' },
-            ]}
-            onChange={setOrder}
-          />
+          <div className="flex flex-col gap-1.5">
+            <span className="font-semibold text-ink">Show</span>
+            <MultiDropdown
+              label="Show"
+              none="All activity"
+              values={types}
+              options={LOG_TYPES}
+              onChange={setTypes}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="font-semibold text-ink">Sort by</span>
+            <Dropdown
+              label="Sort by"
+              value={order}
+              options={[
+                { value: 'newest', label: 'Newest first' },
+                { value: 'oldest', label: 'Oldest first' },
+              ]}
+              onChange={setOrder}
+            />
+          </div>
         </div>
       )}
       {error && (
