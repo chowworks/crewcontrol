@@ -5,7 +5,7 @@ import { Users } from 'lucide-react'
 import { useState } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { money } from '@/lib/format'
-import { owed, shown, totalDueCents } from '@/lib/payments'
+import { nothingDue, owed, shown, totalDueCents } from '@/lib/payments'
 import { MyPayments, payees, travelerStatus } from './JoinPage'
 
 const primary =
@@ -125,6 +125,9 @@ export function TravelersCard({ view, onPay, onAdd, onJoinMyself }: TravelersPro
   const everyone = me ? [me, ...managed] : managed
   const dueNow = people.reduce((n, g) => n + owed(g.terms!).dueNow, 0)
   const left = everyone.reduce((n, g) => n + (g.terms?.balanceCents ?? 0), 0)
+  // Nobody to pay for right now: say why rather than leave the box out.
+  const signed = everyone.filter((g) => g.status !== 'declined' && g.terms).map((g) => g.terms!)
+  const why = people.length === 0 ? nothingDue(signed, trip.organizerName) : null
   return (
     <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <div className="flex items-center gap-3">
@@ -152,6 +155,12 @@ export function TravelersCard({ view, onPay, onAdd, onJoinMyself }: TravelersPro
             I’ve paid
           </button>
         </div>
+      )}
+      {why && (
+        <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+          {why}
+          {why === 'Nothing to pay yet.' && ' Where each traveler stands is below.'}
+        </p>
       )}
       <ul className="flex flex-col gap-2.5">
         {managed.map((g) => (

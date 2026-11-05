@@ -22,7 +22,7 @@ import { RoomCard } from '@/components/RoomCard'
 import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
-import { owed, paymentStatus, shown, totalDueCents } from '@/lib/payments'
+import { nothingDue, owed, paymentStatus, shown, totalDueCents } from '@/lib/payments'
 import { ReportPayment } from './ReportPayment'
 import { adjustmentAmount } from './AdjustBalance'
 import { PaidBar, TravelersCard } from './TravelersCard'
@@ -970,6 +970,10 @@ function MyPlace({
             </div>
           )}
         </div>
+      )}
+      {/* Nothing left to pay: say so, rather than leave out "I've paid" with no word. */}
+      {canPay && left === 0 && me.terms && (
+        <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">{nothingDue([me.terms], o)}</p>
       )}
       {canPay && left > 0 && me.terms && (
         // Once a payment is waiting, the main thing is done: another payment is a secondary step.
