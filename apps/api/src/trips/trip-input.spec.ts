@@ -222,6 +222,14 @@ describe('payments', () => {
     expect(parsePaymentDecision({ status: 'not_received', receivedPaymentAmount: 450 })).toEqual({
       status: 'not_received',
     })
+    // Why it didn't arrive: optional, trimmed, at most 200 characters.
+    expect(parsePaymentDecision({ status: 'not_received', note: '  Never came  ' })).toEqual({
+      status: 'not_received',
+      note: 'Never came',
+    })
+    expect(() => parsePaymentDecision({ status: 'not_received', note: 'x'.repeat(201) })).toThrow(
+      BadRequestException
+    )
     expect(() => parsePaymentDecision({ status: 'refunded' })).toThrow(BadRequestException)
     // A transfer for several travelers: what arrived for each.
     const shares = [{ paymentId: 'p1', receivedPaymentAmount: 300 }]

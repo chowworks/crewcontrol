@@ -13,6 +13,7 @@ const TRUSTED_CALL_SITES = [
   'receipts/forwarded-queue.ts', // an email Resend received for a receipts address, queued before anyone is known
   'receipts/forwarded-receipts.service.ts', // the worker that reads each queued email, finds its trip and guest
   'reminders/reminders.service.ts', // the hourly reminder run reads every trip; a stop link names a guest by its secret
+  'trips/payment-notices.service.ts', // the run that emails guests whose payment was marked not received reads every trip
   'trips/people.service.ts', // an invite turned into the membership of the person it was for, when they sign in
   'trips/trip-deletion.service.ts', // an owner restores a deleted trip (nobody's to read); the hourly run erases trips
   'trips/trips.service.ts', // a new trip and its owner row, as one step; an owner's deleted trips on Your trips

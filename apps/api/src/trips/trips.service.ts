@@ -79,6 +79,9 @@ async function uniqueSlug<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
+/** How long after "Not received" the guest is emailed about it, so the toast's Undo can call it off (owner's ask). */
+export const NOT_RECEIVED_EMAIL_DELAY_MS = 60 * 1000
+
 export const withGuests = {
   guests: {
     orderBy: { createdAt: 'asc' },
@@ -1012,12 +1015,15 @@ export class TripsService {
           decision.receivedPaymentAmount ??
           p.guestPaymentAmount)
         : null
-    // The same decision again changes nothing, except correcting what arrived on a confirmed payment.
+    const note = decision.status === 'not_received' ? (decision.note ?? '') : ''
+    // The same decision again changes nothing, except correcting what arrived on a confirmed payment, or why one
+    // didn't arrive.
     const changes = group.filter(
       ({ payment }) =>
         !(
           decision.status === payment.status &&
-          !(confirmed && receivedFor(payment) !== payment.receivedPaymentAmount)
+          !(confirmed && receivedFor(payment) !== payment.receivedPaymentAmount) &&
+          !(decision.status === 'not_received' && note !== payment.decisionNote)
         )
     )
     if (changes.length === 0) return trip
@@ -1043,6 +1049,10 @@ export class TripsService {
           `${guest.firstName} has a spot. Put them back to waiting before undoing their payment.`
         )
     }
+    // A guest's word marked not received tells them by email a minute from now (PaymentNoticesService), so an Undo
+    // in that minute sends nothing; any other decision calls off one still waiting (owner's decisions, 2026-11-05).
+    // Only a fresh "not received" waits: correcting why after it went doesn't email again.
+    const notifyAt = new Date(Date.now() + NOT_RECEIVED_EMAIL_DELAY_MS)
     await this.prisma.$transaction(async (tx) => {
       for (const { payment } of changes)
         await tx.payment.update({
@@ -1052,6 +1062,12 @@ export class TripsService {
             receivedPaymentAmount: receivedFor(payment),
             decidedAt: decision.status === 'reported' ? null : new Date(),
             decidedByUserId: decision.status === 'reported' ? null : caller.userId,
+            decisionNote: note,
+            ...(decision.status !== 'not_received'
+              ? { notifyGuestAt: null }
+              : payment.status !== 'not_received' && payment.loggedBy !== 'organizer'
+                ? { notifyGuestAt: notifyAt }
+                : {}),
           },
         })
     })

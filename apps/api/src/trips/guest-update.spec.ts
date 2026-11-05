@@ -29,6 +29,8 @@ type PaymentRow = {
   decidedByUserId: string | null
   refundedAt?: Date | null
   transferId?: string | null
+  decisionNote: string
+  notifyGuestAt?: Date | null
 }
 
 function payment(id: string, status = 'confirmed', amount = FIRST): PaymentRow {
@@ -47,6 +49,8 @@ function payment(id: string, status = 'confirmed', amount = FIRST): PaymentRow {
     reportedAt: at,
     decidedAt: status === 'reported' ? null : at,
     decidedByUserId: null,
+    decisionNote: '',
+    notifyGuestAt: null,
   }
 }
 
@@ -277,6 +281,40 @@ describe('a guest’s spot in Trip Control', () => {
     await expect(service.updateGuest('t1', 'next', { status: 'approved' }, caller)).rejects.toThrow(
       ConflictException
     )
+  })
+
+  it('emails the guest a minute after "not received", with why, and Undo in that minute calls it off', async () => {
+    const { service, guests } = setup({}, [
+      guest('a', { payments: [payment('pa', 'reported', 300)] }),
+    ])
+    const before = Date.now()
+    await service.decidePayment(
+      't1',
+      'pa',
+      { status: 'not_received', note: 'Nothing came through' },
+      caller
+    )
+    const p = guests[0].payments[0]
+    expect(p).toMatchObject({ status: 'not_received', decisionNote: 'Nothing came through' })
+    expect(p.notifyGuestAt!.getTime()).toBeGreaterThanOrEqual(before + 60_000)
+    await service.decidePayment('t1', 'pa', { status: 'reported' }, caller)
+    expect(guests[0].payments[0]).toMatchObject({ decisionNote: '', notifyGuestAt: null })
+  })
+
+  it('corrects why a payment did not arrive without emailing again', async () => {
+    const { service, guests } = setup({}, [
+      guest('a', { payments: [{ ...payment('pa', 'not_received', 300), decisionNote: 'Old' }] }),
+    ])
+    await service.decidePayment('t1', 'pa', { status: 'not_received', note: 'New' }, caller)
+    expect(guests[0].payments[0]).toMatchObject({ decisionNote: 'New', notifyGuestAt: null })
+  })
+
+  it('emails nobody when a payment the organizer logged is removed', async () => {
+    const { service, guests } = setup({}, [
+      guest('a', { payments: [{ ...payment('pa', 'confirmed', 300), loggedBy: 'organizer' }] }),
+    ])
+    await service.decidePayment('t1', 'pa', { status: 'not_received' }, caller)
+    expect(guests[0].payments[0]).toMatchObject({ status: 'not_received', notifyGuestAt: null })
   })
 
   it('confirms what the guest said they sent unless the organizer says otherwise', async () => {

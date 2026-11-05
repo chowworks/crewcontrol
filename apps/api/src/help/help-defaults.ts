@@ -80,6 +80,15 @@ You can always record things yourself: on Trip Control, open the guest's Details
     pages: ['editor:payments', 'control'],
   },
   {
+    key: 'payment-not-received',
+    topic: 'payments',
+    question: 'What happens when I mark a payment not received?',
+    answer: `It stops counting toward the guest's balance, and a minute later they get an email saying it hasn't arrived, so they can check it and send it again. When you choose Not received you can add a quick note for them explaining what happened; it goes in the email and shows beside that payment on their trip page.
+
+Changed your mind? Tap Undo on the message at the bottom of the screen within that minute and no email goes. A payment you logged yourself is just removed, with no email.`,
+    pages: ['control'],
+  },
+  {
     key: 'split-payment',
     topic: 'payments',
     question: 'Can one payment cover more than one traveler?',

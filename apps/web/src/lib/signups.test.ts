@@ -38,6 +38,7 @@ const g = (
           transferId: null,
           reportedAt: sent,
           decidedAt: confirmed,
+          decisionNote: '',
         },
       ]
     : [],

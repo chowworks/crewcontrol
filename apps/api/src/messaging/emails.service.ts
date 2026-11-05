@@ -30,6 +30,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   contact: 'Contact form',
   invite: 'Invite',
   reminder: 'Reminder',
+  payment: 'Payment',
   announcement: 'Announcement',
   question: 'Question',
   interest: 'Interested person',
@@ -143,8 +144,11 @@ export class EmailsService {
     view: GuestEmailView,
     facts: GuestFacts,
     webUrl: string,
-    /** A reminder's date, an announcement or a deleted trip's record, and the "Stop updates for this trip" link. */
-    extra: Pick<EmailContext, 'reminder' | 'announcement' | 'deletion' | 'stopLink'> = {},
+    /** A reminder's date, a payment not received, an announcement or a deleted trip's record, and the "Stop updates for this trip" link. */
+    extra: Pick<
+      EmailContext,
+      'reminder' | 'payment' | 'announcement' | 'deletion' | 'stopLink'
+    > = {},
     attachments?: Email['attachments']
   ): Promise<void> {
     try {

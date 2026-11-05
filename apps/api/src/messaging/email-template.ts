@@ -94,6 +94,17 @@ export interface EmailContext {
    * template can drop it.
    */
   stopLink?: string
+  /** In the email to a guest whose payment the organizer marked not received: which payment, and why if they said. */
+  payment?: {
+    /** What the guest said they sent ("$400"). */
+    amount: string
+    /** "Nov 3, 2026", the day they said they sent it. */
+    sentOn: string
+    /** How, by name only ("Zelle"). */
+    method: string
+    /** Why it didn't arrive, in the organizer's words; "" when they gave none. */
+    reason: string
+  }
   /** In an announcement (issue #12): who posted it and what they wrote. */
   announcement?: {
     from: string
@@ -198,6 +209,7 @@ export type VariableGroup =
   | 'contact'
   | 'invite'
   | 'reminder'
+  | 'payment'
   | 'announcement'
   | 'question'
   | 'interest'
@@ -264,6 +276,12 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'reminder.when', label: 'How soon (like “in 7 days”)' },
     { path: 'reminder.paymentDue', label: 'A payment is due (yes or no)' },
     { path: 'reminder.amountDue', label: 'Owed by the date' },
+  ],
+  payment: [
+    { path: 'payment.amount', label: 'What they said they sent' },
+    { path: 'payment.sentOn', label: 'The day they said they sent it' },
+    { path: 'payment.method', label: 'How they sent it' },
+    { path: 'payment.reason', label: 'Why it didn’t arrive (empty when the organizer didn’t say)' },
   ],
   announcement: [
     { path: 'announcement.from', label: 'Who posted it' },

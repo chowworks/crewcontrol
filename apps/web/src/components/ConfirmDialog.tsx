@@ -29,7 +29,7 @@ export function ConfirmDialog({
     const opener = document.activeElement as HTMLElement | null
     const focusables = () =>
       Array.from(
-        panel.current?.querySelectorAll<HTMLElement>('button, input, [href]') ?? []
+        panel.current?.querySelectorAll<HTMLElement>('button, input, textarea, [href]') ?? []
       ).filter((el) => !el.hasAttribute('disabled'))
     focusables()[0]?.focus()
     // On the window and in the capture phase, so the dialog underneath never sees these keys.

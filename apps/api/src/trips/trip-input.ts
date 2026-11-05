@@ -447,6 +447,10 @@ export function parsePaymentDecision(raw: unknown): PaymentDecision {
   const body = raw as Body
   if (body.status !== 'confirmed' && body.status !== 'not_received' && body.status !== 'reported')
     fail('status must be confirmed, not_received or reported')
+  if (body.status === 'not_received')
+    return body.note === undefined
+      ? { status: 'not_received' }
+      : { status: 'not_received', note: text(body, 'note', 200, false) }
   if (body.status !== 'confirmed') return { status: body.status }
   if (body.shares !== undefined) {
     if (!Array.isArray(body.shares) || body.shares.length === 0 || body.shares.length > 20)

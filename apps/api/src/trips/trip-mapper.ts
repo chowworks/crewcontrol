@@ -213,6 +213,7 @@ export function toPayment(row: PaymentRow): Payment {
     transferId: row.transferId,
     reportedAt: row.reportedAt.toISOString(),
     decidedAt: row.decidedAt?.toISOString() ?? null,
+    decisionNote: row.decisionNote,
   }
 }
 
