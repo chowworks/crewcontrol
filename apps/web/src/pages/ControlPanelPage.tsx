@@ -816,17 +816,15 @@ export function NotReceivedReason({
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
-      Why it didn’t arrive (optional)
-      <input
-        className="min-h-[44px] rounded-lg border border-[#5B6B80] bg-white px-3 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal"
+      Add a quick note for {who} explaining what happened.
+      <textarea
+        rows={3}
+        className="min-h-[88px] rounded-lg border border-[#5B6B80] bg-white px-3 py-2 text-base font-normal text-ink focus:outline-none focus:ring-2 focus:ring-royal"
         value={value}
         maxLength={200}
-        placeholder="Nothing came through under your name"
+        placeholder="Optional"
         onChange={(e) => onChange(e.target.value)}
       />
-      <span className="font-normal text-muted">
-        We email {who} about it in a minute, with this if you write it.
-      </span>
     </label>
   )
 }

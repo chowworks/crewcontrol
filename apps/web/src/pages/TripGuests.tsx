@@ -1077,7 +1077,7 @@ export function PaymentLine({
         </span>
         {p.note && <span className="block italic text-body">&ldquo;{p.note}&rdquo;</span>}
         {p.status === 'not_received' && p.decisionNote && (
-          <span className="block text-body">Why: {p.decisionNote}</span>
+          <span className="block whitespace-pre-line text-body">Why: {p.decisionNote}</span>
         )}
       </span>
       <span className="flex flex-wrap gap-2">
