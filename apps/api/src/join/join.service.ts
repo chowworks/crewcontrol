@@ -12,7 +12,7 @@ import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
-import { receiptsConfig, receiptsEmail } from '../receipts/receipts-config'
+import { forwardTo, receiptsConfig, receiptsEmail } from '../receipts/receipts-config'
 import { TermsService } from '../terms/terms.service'
 import {
   adjustmentsOf,
@@ -363,6 +363,7 @@ export class JoinService {
           phone: input.phone,
           paymentMethods: traveler.paymentMethods,
           paymentInstructions: traveler.paymentInstructions,
+          receiptsEmail: traveler.receiptsEmail,
           replyTo: (await this.trips.organizerContact(tripId))?.email || undefined,
           signedBy: input.typedName,
         }
@@ -398,7 +399,11 @@ export class JoinService {
     const pays = (
       await this.prisma.guest.findFirst({
         where: { userId: caller.userId, trip: { slug } },
-        select: { trip: { select: { paymentMethods: true, paymentInstructions: true } } },
+        select: {
+          trip: {
+            select: { paymentMethods: true, paymentInstructions: true, receiptsAddress: true },
+          },
+        },
       })
     )?.trip
     await this.emails.sendToGuest(
@@ -409,6 +414,7 @@ export class JoinService {
         phone: input.phone,
         paymentMethods: pays ? paymentMethodsOf(pays) : [],
         paymentInstructions: pays?.paymentInstructions ?? '',
+        receiptsEmail: pays ? forwardTo(pays.receiptsAddress) : null,
         replyTo: (await this.trips.organizerContact(tripId))?.email || undefined,
       },
       webUrl()

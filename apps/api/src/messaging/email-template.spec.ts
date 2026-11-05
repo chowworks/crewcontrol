@@ -39,6 +39,7 @@ const context: GuestEmailContext = {
     methods: [{ name: 'Zelle', handle: '(555) 010-0199' }],
     oneMethod: true,
     instructions: 'Put your name in the memo.',
+    receiptsEmail: '',
     price: '$1,200',
     adjustments: '',
     total: '$1,200',
@@ -228,6 +229,34 @@ describe('render', () => {
       guest: { ...context.guest, canPay: false },
     })
     expect(waiting.html).not.toContain('(555) 010-0199')
+  })
+
+  it('gives a guest who may pay the receipts address to forward to, and only when the trip has one', () => {
+    const withAddress = {
+      ...context,
+      paymentDetails: {
+        ...context.paymentDetails!,
+        receiptsEmail: 'aruba-2028@receipts.travel-hq.app',
+      },
+    }
+    for (const kind of [
+      'joined',
+      'accepted',
+      'spot_offered',
+      'signed_up_for',
+      'payment_reminder',
+      'payment_not_received',
+    ]) {
+      expect(render(emailKind(kind)!, withAddress).text).toContain(
+        'aruba-2028@receipts.travel-hq.app'
+      )
+      expect(render(emailKind(kind)!, context).text).not.toContain('forward the Zelle')
+    }
+    const waiting = render(emailKind('spot_offered')!, {
+      ...withAddress,
+      guest: { ...context.guest, canPay: false },
+    })
+    expect(waiting.text).not.toContain('aruba-2028@receipts.travel-hq.app')
   })
 
   it('says sorry when an offered spot is no longer available', () => {

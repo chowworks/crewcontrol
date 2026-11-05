@@ -55,6 +55,8 @@ export interface EmailContext {
     /** Just one way to pay, so the wording can say "this way" rather than "one of these ways". */
     oneMethod: boolean
     instructions: string
+    /** Where to forward a payment receipt (the trip's receipts address), or "" when the trip has none. */
+    receiptsEmail: string
     price: string
     adjustments: string
     total: string
@@ -371,6 +373,7 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     },
     { path: 'paymentDetails.oneMethod', label: 'Only one way to pay (yes or no)' },
     { path: 'paymentDetails.instructions', label: 'Payment note' },
+    { path: 'paymentDetails.receiptsEmail', label: 'Address to forward payment receipts to' },
     { path: 'paymentDetails.price', label: 'Their price' },
     {
       path: 'paymentDetails.adjustments',

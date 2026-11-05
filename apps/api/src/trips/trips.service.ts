@@ -18,6 +18,7 @@ import {
   withPhotoLinks,
 } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
+import { forwardTo } from '../receipts/receipts-config'
 import { reportedTwin } from '../receipts/place-receipt'
 import { agreementPreview, money } from '../join/agreement'
 import { sendText } from '../join/send-text'
@@ -976,6 +977,7 @@ export class TripsService {
         phone: me.phone,
         paymentMethods: trip.paymentMethods,
         paymentInstructions: trip.paymentInstructions,
+        receiptsEmail: forwardTo(trip.receipts.address),
         replyTo: (await this.organizerContact(trip.id))?.email || undefined,
       },
       (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()

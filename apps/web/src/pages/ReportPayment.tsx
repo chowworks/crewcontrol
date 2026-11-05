@@ -4,6 +4,7 @@ import { paymentMethodLabel, type JoinView, type MyGuest } from '@cc/types'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
+import { ReceiptsAddress } from '@/components/ReceiptsAddress'
 import { ApiError, api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { centsFrom, dollarsFor, owed, today } from '@/lib/payments'
@@ -60,6 +61,7 @@ export function ReportPayment({ view, people, onDone, onClose }: PayProps) {
   const { trip, me } = view
   const o = trip.organizerName
   const methods = people[0]?.paymentMethods ?? []
+  const receiptsEmail = people[0]?.receiptsEmail ?? null
   const [amount, setAmount] = useState('')
   const [split, setSplit] = useState<'due' | 'even' | 'own'>('due')
   const [own, setOwn] = useState<Record<string, string> | null>(null)
@@ -341,6 +343,12 @@ export function ReportPayment({ view, people, onDone, onClose }: PayProps) {
           <p role="alert" className="font-semibold text-[#B42318]">
             {error}
           </p>
+        )}
+        {/* Forwarding the receipt records it without this form, so the address is offered first. */}
+        {receiptsEmail && (
+          <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
+            <ReceiptsAddress email={receiptsEmail} inReport />
+          </div>
         )}
         {totalField}
         {/* One person: all of it is theirs, nothing to split. */}

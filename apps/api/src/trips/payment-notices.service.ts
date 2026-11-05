@@ -11,6 +11,7 @@ import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { toOrganizerTrip } from './trip-mapper'
 import { TripsService, withGuests } from './trips.service'
+import { forwardTo } from '../receipts/receipts-config'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
 /** How often it looks: the email goes within half a minute of being due. */
@@ -88,6 +89,7 @@ export class PaymentNoticesService implements OnApplicationBootstrap, OnModuleDe
             phone: guest.phone,
             paymentMethods: trip.paymentMethods,
             paymentInstructions: trip.paymentInstructions,
+            receiptsEmail: forwardTo(trip.receipts.address),
             replyTo: (await this.trips.organizerContact(trip.id))?.email || undefined,
           },
           webUrl(),

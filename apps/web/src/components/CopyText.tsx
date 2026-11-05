@@ -30,7 +30,7 @@ export function CopyText({
     }
   }
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-1 items-center gap-2">
       <div className="min-w-0 flex-1 break-all">{children}</div>
       <button
         type="button"

@@ -3,7 +3,10 @@
 import { paymentMethodLabel, type JoinView, type MyGuest } from '@cc/types'
 import { Users } from 'lucide-react'
 import { useState } from 'react'
+import { CopyText } from '@/components/CopyText'
 import { Dialog } from '@/components/Dialog'
+import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
+import { ReceiptsAddress } from '@/components/ReceiptsAddress'
 import { money } from '@/lib/format'
 import { nothingDue, owed, shown, totalDueCents } from '@/lib/payments'
 import { MyPayments, payees, travelerStatus } from './JoinPage'
@@ -40,14 +43,32 @@ function HowToPay({ g, organizer }: { g: MyGuest; organizer: string }) {
     <div className="text-ink">
       <p className="text-sm font-semibold">How to pay {organizer}</p>
       {g.paymentMethods.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-0.5">
+        <ul className="mt-1 flex flex-col">
           {g.paymentMethods.map((m, i) => (
-            <li key={i}>{paymentMethodLabel(m)}</li>
+            <li key={i} className="flex items-center gap-2.5">
+              <PaymentMethodIcon kind={m.kind} className="h-6 w-6 rounded-md" />
+              {/* The handle copies on its own, as on the join page. */}
+              {m.handle.trim() ? (
+                <CopyText
+                  value={m.handle.trim()}
+                  label={`${paymentMethodLabel(m).split(' · ')[0]} handle`}
+                >
+                  {paymentMethodLabel(m)}
+                </CopyText>
+              ) : (
+                <span>{paymentMethodLabel(m)}</span>
+              )}
+            </li>
           ))}
         </ul>
       )}
       {g.paymentInstructions && (
         <p className="mt-2 whitespace-pre-line text-sm">{g.paymentInstructions}</p>
+      )}
+      {g.receiptsEmail && (
+        <div className="mt-3">
+          <ReceiptsAddress email={g.receiptsEmail} />
+        </div>
       )}
     </div>
   )

@@ -45,6 +45,8 @@ export interface GuestFacts {
   phone: string
   paymentMethods: PaymentMethod[]
   paymentInstructions: string
+  /** The trip's whole receipts address, when forwarded receipts are on and the trip has one (forwardTo). */
+  receiptsEmail?: string | null
   /** The organizer's email: a guest's reply goes to them, not to Travel HQ (owner's decision, 2026-10-28). */
   replyTo?: string
   /** The name typed by whoever signed this traveler up, when it wasn't the traveler (issue #46). */
@@ -138,6 +140,7 @@ export function guestEmailContext(
             })),
             oneMethod: facts.paymentMethods.length === 1,
             instructions: facts.paymentInstructions,
+            receiptsEmail: facts.receiptsEmail ?? '',
             price: money(terms.priceCents),
             // The organizer's credits and charges (issue #17), signed, and the price with them.
             adjustments:

@@ -24,6 +24,7 @@ import { ApiError, api } from '@/lib/api'
 import { dateRange, money, shortDate } from '@/lib/format'
 import { nothingDue, owed, paymentStatus, shown, totalDueCents } from '@/lib/payments'
 import { ReportPayment } from './ReportPayment'
+import { ReceiptsAddress } from '@/components/ReceiptsAddress'
 import { adjustmentAmount } from './AdjustBalance'
 import { PaidBar, TravelersCard } from './TravelersCard'
 import { NotFoundPage } from './NotFoundPage'
@@ -827,8 +828,6 @@ function MyPlace({
   const [reporting, setReporting] = useState(false)
   const [adding, setAdding] = useState(false)
   const toast = useToast()
-  // A forward is matched by the email they sign in with, so they're told which one to send it from.
-  const signInEmail = useUser().user?.primaryEmailAddress?.emailAddress
   const o = trip.organizerName
   const full = trip.maxGuests !== null && trip.spotsTaken >= trip.maxGuests
   // On the waitlist with no spot offered yet: nothing to pay.
@@ -953,21 +952,8 @@ function MyPlace({
           )}
           {/* Forwarding the payment email records it for them (issue #12). */}
           {me.receiptsEmail && (
-            <div className="mt-3 text-sm">
-              <p>Paid? Forward the Zelle, Cash App or bank email to</p>
-              <CopyText value={me.receiptsEmail} label="Receipts address">
-                <span className="font-semibold">{me.receiptsEmail}</span>
-              </CopyText>
-              <p className="text-body">
-                {signInEmail ? (
-                  <>
-                    Send it from <span className="break-all">{signInEmail}</span> and it’s recorded
-                    for you.
-                  </>
-                ) : (
-                  'Send it from the email you sign in with and it’s recorded for you.'
-                )}
-              </p>
+            <div className="mt-3">
+              <ReceiptsAddress email={me.receiptsEmail} />
             </div>
           )}
         </div>
