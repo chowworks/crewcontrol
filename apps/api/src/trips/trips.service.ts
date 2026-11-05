@@ -24,6 +24,7 @@ import { sendText } from '../join/send-text'
 import { EmailsService } from '../messaging/emails.service'
 import {
   eraseOn,
+  shortName,
   toOrganizerTrip,
   toPublicTrip,
   toSignedAgreement,
@@ -443,6 +444,17 @@ export class TripsService {
         waitlisting,
       })
     )
+  }
+
+  /** Accepted guests' names in each room of a published trip, for the signed-in join page's room picker. */
+  async roomGuests(tripId: string): Promise<{ roomId: string; names: string[] }[]> {
+    const rows = await this.prisma.$queryRaw<
+      { roomId: string; firstName: string; lastName: string }[]
+    >(Prisma.sql`SELECT * FROM "public_room_guests"(${tripId})`)
+    const byRoom = new Map<string, string[]>()
+    for (const r of rows)
+      byRoom.set(r.roomId, [...(byRoom.get(r.roomId) ?? []), shortName(r.firstName, r.lastName)])
+    return [...byRoom].map(([roomId, names]) => ({ roomId, names }))
   }
 
   async getRooms(id: string, caller: Caller, admin = false): Promise<TripRoom[]> {

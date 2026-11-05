@@ -206,9 +206,10 @@ describe('toPublicTrip', () => {
     expect(view.guestNames).toBeNull()
   })
 
-  it('shows names while guests choose rooms, so they can see who to share with', () => {
+  it('hides names when the organizer turns them off, even while guests choose rooms', () => {
     const view = toPublicTrip({ ...trip, showGuestNames: false, guests })
-    expect(view.guestNames).toEqual(['Jordan P.', 'Avery L.'])
+    expect(trip.options).toEqual({ roomChoice: true })
+    expect(view.guestNames).toBeNull()
   })
 
   it('shows no rooms when room choice is off', () => {

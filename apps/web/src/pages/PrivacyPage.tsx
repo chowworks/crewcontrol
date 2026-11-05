@@ -7,7 +7,7 @@ import { Logo } from '@/components/Logo'
  * promise on it was built. Keep it true to what the product does: a new promise here needs its feature built first,
  * and any change to what it says moves LAST_UPDATED.
  */
-const LAST_UPDATED = 'October 31, 2026'
+const LAST_UPDATED = 'November 5, 2026'
 
 export function PrivacyPage() {
   return (
@@ -109,9 +109,9 @@ export function PrivacyPage() {
             <li>
               <strong>The public trip page</strong> shows the organizer&apos;s name, and never shows
               guests&apos; phone numbers, emails or money owed, or who asked a question. If the
-              organizer turns on &ldquo;who&apos;s going&rdquo;, or lets guests pick rooms (so they
-              can choose who to share with), it shows accepted guests by first name and last
-              initial.
+              organizer turns on &ldquo;who&apos;s going&rdquo;, it shows accepted guests by first
+              name and last initial. When guests pick rooms, someone signed in to join sees
+              who&apos;s already in each room the same way.
             </li>
             <li>
               <strong>Travel HQ&apos;s admins</strong> can open any trip to support it and keep the

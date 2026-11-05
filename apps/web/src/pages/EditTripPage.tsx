@@ -170,12 +170,11 @@ function previewOf(
     spotsTaken: approved.length,
     waitlisting: waitlisting({ ...trip, waitlistBufferPercent }, guests),
     interestedCount: guests.filter((g) => g.status === 'interested').length,
-    guestNames:
-      trip.showGuestNames || trip.options.roomChoice
-        ? approved.map((g) =>
-            g.lastName ? `${g.firstName} ${g.lastName[0].toUpperCase()}.` : g.firstName
-          )
-        : null,
+    guestNames: trip.showGuestNames
+      ? approved.map((g) =>
+          g.lastName ? `${g.firstName} ${g.lastName[0].toUpperCase()}.` : g.firstName
+        )
+      : null,
   }
 }
 
@@ -802,15 +801,10 @@ export function EditTripPage() {
                 </Card>
                 <Card title="Who's going">
                   <Toggle
-                    checked={trip.showGuestNames || trip.options.roomChoice}
-                    disabled={trip.options.roomChoice}
+                    checked={trip.showGuestNames}
                     onChange={(v) => set('showGuestNames', v)}
                     label="Show accepted guests' names on the trip page"
-                    hint={
-                      trip.options.roomChoice
-                        ? 'Always on while guests choose their room, so they can see who to share with.'
-                        : 'Shown as first name and last initial. People not yet accepted are never listed.'
-                    }
+                    hint="Shown as first name and last initial. People not yet accepted are never listed."
                   />
                   <p className="text-sm text-muted">
                     {guests.filter((g) => g.status === 'approved').length} accepted ·{' '}

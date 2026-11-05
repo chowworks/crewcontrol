@@ -155,11 +155,10 @@ export function toPublicTrip(
     waitlisting: row.waitlisting ?? false,
     saveTheDate: row.saveTheDate,
     interestedCount: row.guests.filter((g) => g.status === 'interested').length,
-    // With room choice on, guests see who's going, so they can choose who to share with.
-    guestNames:
-      row.showGuestNames || options.roomChoice
-        ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
-        : null,
+    // Only when the organizer turns names on; picking rooms doesn't unlock them.
+    guestNames: row.showGuestNames
+      ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
+      : null,
     isSample: row.isSample,
     maxGuests: row.maxGuests,
     joinMode: row.joinMode as JoinMode,

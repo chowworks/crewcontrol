@@ -910,6 +910,11 @@ export interface JoinView {
     agreement: AgreementPreview
     agreementOnBehalf: AgreementPreview
   }[]
+  /**
+   * Who's already in each room, as "First L.", accepted guests only: the room picker shows it so guests can see who
+   * they'd share with. Only here, for a signed-in guest, never on the public trip page.
+   */
+  roomGuests: { roomId: string; names: string[] }[]
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
