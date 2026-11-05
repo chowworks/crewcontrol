@@ -2,14 +2,17 @@ import type { OrganizerTrip, TripLogEntry } from '@cc/types'
 import { Download, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAdminView } from '@/components/AdminView'
+import { Dropdown, MultiDropdown } from '@/components/Dropdown'
 import { api } from '@/lib/api'
 import { type Cell, downloadCsv, fileSlug, stamp } from '@/lib/csv'
 import { eventText, IconCircle } from './TripGuests'
 import { type ChangeGroup, changeSentence, groupText, mergeEdits } from './tripChanges'
+import { LOG_TYPES, type LogType, logType } from './tripLogTypes'
 
 // The trip log at the bottom of Trip Control (owner's decision, 2026-10-24): joins refused because the email is
-// already on the trip, what organizers changed (2026-11-01), changes to who runs it (and the admin's visits), and, with
-// the box ticked, every guest's history, newest first.
+// already on the trip, what organizers changed (2026-11-01), changes to who runs it (and the admin's visits), and
+// every guest's history. A filter shows the types of line ticked (payments, guests, trip changes, communications),
+// newest or oldest first.
 
 const at = (iso: string) =>
   new Date(iso).toLocaleString('en-US', {
@@ -165,7 +168,8 @@ export function tripLogRows(entries: TripLogEntry[]): Cell[][] {
 export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
   const [entries, setEntries] = useState<TripLogEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [guests, setGuests] = useState(true)
+  const [types, setTypes] = useState<LogType[]>([])
+  const [order, setOrder] = useState<'newest' | 'oldest'>('newest')
   const [all, setAll] = useState(false)
   const admin = useAdminView()
   useEffect(() => {
@@ -180,7 +184,10 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
     return () => window.removeEventListener('cc:actions-changed', load)
   }, [trip, admin])
   // One person's editor saves close together read as one line; the Export keeps each save.
-  const shown = mergeEdits((entries ?? []).filter((e) => guests || e.kind !== 'guest'))
+  const merged = mergeEdits(
+    (entries ?? []).filter((e) => types.length === 0 || types.includes(logType(e)))
+  )
+  const shown = order === 'newest' ? merged : [...merged].reverse()
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -188,7 +195,7 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
           <IconCircle icon={ScrollText} />
           Trip log
         </h2>
-        {/* Every line, guest activity included, whatever the box below shows (owner's decision, 2026-10-26). */}
+        {/* Every line, whatever the filter below shows (owner's decision, 2026-10-26). */}
         {entries && entries.length > 0 && (
           <button
             type="button"
@@ -200,21 +207,42 @@ export function TripLogCard({ trip }: { trip: OrganizerTrip }) {
           </button>
         )}
       </div>
-      <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-semibold">
-        <input
-          type="checkbox"
-          checked={guests}
-          onChange={(e) => setGuests(e.target.checked)}
-          className="h-5 w-5 accent-royal"
-        />
-        Show guest activity
-      </label>
+      {entries && entries.length > 0 && (
+        <div className="grid grid-cols-1 gap-2 sm:max-w-xl sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="font-semibold text-ink">Show</span>
+            <MultiDropdown
+              label="Show"
+              none="All activity"
+              values={types}
+              options={LOG_TYPES}
+              onChange={setTypes}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="font-semibold text-ink">Sort by</span>
+            <Dropdown
+              label="Sort by"
+              value={order}
+              options={[
+                { value: 'newest', label: 'Newest first' },
+                { value: 'oldest', label: 'Oldest first' },
+              ]}
+              onChange={setOrder}
+            />
+          </div>
+        </div>
+      )}
       {error && (
         <p role="alert" className="font-semibold text-[#B42318]">
           {error}
         </p>
       )}
-      {entries && shown.length === 0 && <p className="text-body">Nothing logged yet.</p>}
+      {entries && shown.length === 0 && (
+        <p className="text-body">
+          {entries.length === 0 ? 'Nothing logged yet.' : 'Nothing of this type logged yet.'}
+        </p>
+      )}
       {shown.length > 0 && (
         <ol className="flex flex-col">
           {(all ? shown : shown.slice(0, 30)).map((e, i) => (
