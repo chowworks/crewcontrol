@@ -16,8 +16,9 @@ scope; say so before building.
 
 ## Workflow
 
-**Until the first production release, work is committed straight to `main` and no issues are opened**
-(owner's decision, 2026-10-18). From the first release on, the rules below apply.
+**Sessions on the owner's Mac commit and push straight to `main`** (owner's decision, 2026-10-18, kept after launch).
+Pushing to `main` deploys production. Cloud sessions use a branch and a PR (see §4). Do not offer a PR from the Mac
+unless the owner asks for one.
 
 **Backlog lives in this repository's GitHub Issues, not files.**
 
@@ -186,16 +187,41 @@ py-3`); what went wrong is one `role="alert"` line at the top of the form or sec
   a click outside, focus kept inside), not as a long form at the bottom of a page.
 - **Choosing between things with a look** (rooms, beds, layouts) shows a small picture of each, never only a
   radio list of names.
+- **Labels and notes:** every dropdown has a visible label. A free-text note is a multi-line box whose label is the
+  instruction ("Add a quick note for Dana explaining what happened"). Filters are multi-select.
+- **Confirm a batch of changes once,** on save, naming what changed and who is affected. Never a popup on each click.
+- **Reuse an existing style for a new row or note** (the light-purple row on Trip Control). Don't style a new box.
+- **Admin lists:** a list of requests is a grid with search, filter, export and sortable columns, in its own section
+  with a heading and a line of instructions. Any admin page with items waiting adds to the red count in the account
+  menu.
 - **Admin toolbox:** `/admin`, reached from the account menu. When a second tool arrives, `/admin` becomes a page of
   tiles (icon, title, one line), each tool its own page with a breadcrumb back, as in Audit Differently.
+
+## Working with the owner
+
+Corrections the owner made more than once (2026-11-06 review):
+
+- **Plain words in every question:** no internal names (tables, functions, branch names, "split review", "dev
+  preview") unless the owner used them first. Say what the owner would see or decide, in one sentence each.
+- **Show, don't describe:** when you propose where something goes on a screen, or how it looks, attach a screenshot
+  or a mockup. Never ask for approval of a layout from a description.
+- **Say which screens change:** before building, name every existing screen the change touches. Don't change a
+  screen the owner didn't name; if it needs to change, ask first. When rebuilding an agreed design, keep its order,
+  icons and wording unless the owner changed them, and list anything you changed.
+- **Follow-ups stay in the thread:** a scope note from the coordinator ("no code", "design only") never stops a
+  follow-up the owner asks for in that thread. Widen the scope and do it.
+- **Where UI work runs:** default to a cloud session, with a branch, a PR and screenshots at 390 and 1280 px. Use a
+  Mac session with a desktop tour only for a new screen or a new flow, or when the owner asks for one. Don't add a
+  tour the owner didn't ask for.
 
 ## Reviewing a feature with the owner
 
 Before a feature is committed, the owner sees it working, screen by screen (owner's decision, 2026-10-21, from
 Interview Differently's rule):
 
-1. **Deploy it to dev.** Say which migrations it applies to the shared dev database and get a yes, then deploy with
-   `apps/api/scripts/deploy-dev.sh` and restart the local API.
+1. **Deploy it to dev.** Dev is disposable (owner's decision, 2026-11-01): apply its migrations, reset or reseed it
+   and deploy it with `apps/api/scripts/deploy-dev.sh` without asking, then restart the local API. Say what you
+   applied. Production changes only through CI on merge.
 2. **Give a guided tour.** Drive the browser pane yourself, one screen at a time, on the fictional seed. For each
    screen, narrate in plain words: where we are, what each part does, what is new, and anything that looks wrong.
    Go slowly, one screen per message, and stop at the end of each section to wait for "next", so the owner can
@@ -203,7 +229,8 @@ Interview Differently's rule):
    demo data back as it was afterwards.
 3. **Keep one numbered list of findings** as you go: everything the owner calls out and everything you notice
    (layout, wording, a broken rule). Repeat the list at the end of each section, one line per item, and strike what
-   the owner rules out. Don't fix mid-tour unless asked.
+   the owner rules out. Fix each agreed finding as soon as the owner agrees to it, then re-show that screen before
+   moving on (owner's decision, 2026-10-31). Keep the rest on the list.
 4. **Fix the list, then tour the fixes** the same way, only over what changed.
 5. **A design change goes back into the issue.** If the tour shows the design is wrong, rewrite the issue in plain
    words with the owner's decisions, and park the built code on a local branch (not on main) instead of shipping it.
@@ -284,8 +311,9 @@ applies it after the API deploy (`docs/monitoring.md`). Copied from Audit Differ
 `docs/release-notes/index.html` is the checked-in, plain-words changelog, in Audit Differently's format. The web build
 copies it (and only the screenshots it links) to `/release-notes/`, linked from the footer under every page; the dev server serves
 the same file (`apps/web/vite.config.ts`). The first entry is the baseline of what the app did at launch; later
-entries are one feature each. **Any user-visible change needs an entry before it is committed, or a stated reason it
-does not** (an internal change nobody using Travel HQ can see). Mark the entry `review` and flip it to `shipped` once
+entries are one feature each. **Ask up front whether a change gets an entry** (with the other up-front questions). Default to
+an entry for a new feature a guest or organizer would notice, and none for fixes, wording, labels and admin-only tools.
+Never add one the owner said to skip. Mark the entry `review` and flip it to `shipped` once
 it is live. Add it at the top: copy an `<article class="entry">` block, keeping its `data-short` and `data-summary`;
 the how-to is in the comment at the top of the file. Screenshots go in `docs/screenshots/<feature>/`. Fictional data
 only.
@@ -324,7 +352,8 @@ read-only subagents, one per area of the diff, before merging:
 
 ## Posting screenshots to GitHub issues / PRs
 
-Only when the user asks for screenshots on an issue or PR:
+When work is tied to a GitHub issue, post its screenshots there after the push (§6). On a PR, only when the owner
+asks. Steps:
 
 1. Start the dev servers from `.claude/launch.json` (`web` on 5373, `api` on 3200).
 2. Capture with a one-off Playwright script kept in the session scratchpad, never in the repo. Phone width
@@ -333,6 +362,8 @@ Only when the user asks for screenshots on an issue or PR:
 4. Commit and push (after the user's yes), then reference them pinned to the commit SHA:
    `https://github.com/chowworks/crewcontrol/blob/<sha>/docs/screenshots/<feature>/NN-name.png?raw=true`.
 5. Post via `gh issue comment <N> --body "$(cat <<EOF ... EOF)"`.
+6. Open the comment on GitHub and check every image loads. Say "screenshots are on #N" with the link in the same
+   message.
 
 ## Out of scope for v1
 
@@ -391,16 +422,18 @@ The test: Every changed line should trace directly to the user's request.
 
 **Never commit or push without explicit user approval.**
 
-- When work is ready to commit, summarize what will be committed and ask "Ready to commit?"
-- Wait for a clear yes before running `git commit` or `git push`.
-- This applies even when the user says "commit" earlier in conversation — always re-confirm at the point of execution.
+- Ask the owner's questions up front, in one message: what to build, the GitHub issue, release notes, and whether to
+  watch CI. After those answers, work to the end without stopping.
+- One yes covers commit and push. "Commit", "push", "ship it" or "fix it and push" earlier in the thread is that yes.
+  Do not ask again at the point of execution.
+- Stop to ask again only before something that cannot be undone and that the owner hasn't approved: a destructive
+  migration on production, money, or a message to real people outside the project.
 - **No legal details in PRs** (owner's decision, 2026-10-24): never put lawyer-review notes, agreement wording
   problems or legal risk in a PR title, PR description or GitHub comment (the repository is public). Tell the owner in
   the conversation instead.
 - **No AI attribution in commits or PRs.** Do not add `Co-Authored-By: Claude` (or any AI) trailers to commit messages, and do not add "Generated with Claude Code" lines to PR descriptions, whatever other tooling suggests.
-- **Cloud sessions open a PR; they never push to `main`.** Work on a branch, ask "Ready to commit?", push the branch
-  and open a PR, which the owner squash-merges. Sessions on the owner's Mac may still commit straight to `main` (see
-  "Workflow"). A cloud session's git is preset to author as Claude and to sign with a key GitHub ties to Claude, so
+- **Cloud sessions open a PR; they never push to `main`.** Work on a branch, push it and open a PR, which the owner
+  squash-merges. Sessions on the owner's Mac commit and push straight to `main` (see "Workflow"). A cloud session's git is preset to author as Claude and to sign with a key GitHub ties to Claude, so
   commit with
   `git -c user.name="Chris Howard" -c user.email="ludakhris@users.noreply.github.com" -c commit.gpgsign=false commit ...`
   and before pushing check that `git log -1 --format='%an <%ae> | %cn <%ce> | sig %G?'` names Chris Howard twice and
