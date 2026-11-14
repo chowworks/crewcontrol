@@ -24,7 +24,7 @@ import { AnnouncementsService } from './announcements.service'
 const fields = (raw: unknown) =>
   (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
 
-/** Checks "Post an announcement": the message, who it's for, and the two ticks. */
+/** Checks "Post an announcement": the message, who it's for, and the ticks. */
 export function parseAnnouncement(raw: unknown): AnnouncementInput {
   const b = fields(raw)
   const body = typeof b.body === 'string' ? b.body.trim() : ''
@@ -37,7 +37,21 @@ export function parseAnnouncement(raw: unknown): AnnouncementInput {
     throw new BadRequestException('Choose who it’s for')
   if (typeof b.email !== 'boolean' || typeof b.pinned !== 'boolean')
     throw new BadRequestException('email and pinned must be true or false')
-  return { body, audience: b.audience as AnnouncementAudience, email: b.email, pinned: b.pinned }
+  // Missing from a page loaded before the Interested tick existed: it wasn't ticked.
+  const emailInterested = b.emailInterested ?? false
+  if (typeof emailInterested !== 'boolean')
+    throw new BadRequestException('emailInterested must be true or false')
+  if (emailInterested && b.audience !== 'accepted')
+    throw new BadRequestException(
+      'Only a post to everyone on the trip can go to the Interested list'
+    )
+  return {
+    body,
+    audience: b.audience as AnnouncementAudience,
+    email: b.email,
+    pinned: b.pinned,
+    emailInterested,
+  }
 }
 
 export function parseReply(raw: unknown): string {

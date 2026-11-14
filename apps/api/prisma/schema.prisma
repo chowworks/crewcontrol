@@ -296,6 +296,8 @@ model Announcement {
   audience     String // AnnouncementAudience
   pinned       Boolean                 @default(false)
   emailed      Boolean                 @default(false)
+  // How many on the trip's Interested list it was emailed to (issue #77).
+  interestedEmailedTo Int              @default(0)
   createdAt    DateTime                @default(now())
   trip         Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   recipients   AnnouncementRecipient[]
@@ -713,6 +715,9 @@ model TripInterest {
   createdAt DateTime  @default(now())
   // When an organizer emailed them that sign-ups are open.
   toldAt    DateTime?
+  // Their "Stop updates for this trip" link's secret, and when they used it (announcement emails, issue #77).
+  updatesToken     String    @unique @default(dbgenerated("(gen_random_uuid())::text"))
+  updatesStoppedAt DateTime?
   trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@unique([tripId, userId])

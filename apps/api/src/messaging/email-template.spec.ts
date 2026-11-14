@@ -1,4 +1,4 @@
-import { emailKind } from './email-defaults'
+import { emailKind, sampleFor } from './email-defaults'
 import { checkTemplate, htmlToText, render, type GuestEmailContext } from './email-template'
 
 const context: GuestEmailContext = {
@@ -281,6 +281,20 @@ describe('render', () => {
     expect(traveler.text).toContain(
       'You’re getting this because Marcus Reyes signed the trip agreement for Dana on Aruba Crew Getaway 2028'
     )
+  })
+
+  it('emails an announcement to the Interested list with their own stop link, and nothing about the trip they aren’t on', () => {
+    const k = emailKind('announcement_interested')!
+    const out = render(k, sampleFor(k, 'can_pay'))
+    expect(out.subject).toBe('[Travel HQ] Nia posted an update for Aruba Crew Getaway 2028')
+    expect(out.text).toMatch(/^Hi Dana,/)
+    expect(out.text).toContain('The resort sent our room list.')
+    expect(out.html).toContain('href="https://travel-hq.app/stop/sample"')
+    expect(out.text).toContain(
+      'You’re getting this update because you said you’re interested in Aruba Crew Getaway 2028'
+    )
+    expect(out.text).not.toContain('signed the trip agreement')
+    expect(out.html).not.toContain('(555) 010-0199')
   })
 })
 

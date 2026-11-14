@@ -4,6 +4,7 @@ import type { Caller } from '../auth/caller'
 import { ClerkService } from '../auth/clerk.service'
 import { runAsPublic } from '../core/tenant-context'
 import { owed } from '../join/guest-pay'
+import { dateRange } from '../messaging/email-context'
 import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import type {
@@ -86,6 +87,7 @@ export class AnnouncementsService {
       where: { tripId: id },
       include: { ...withReplies, recipients: { select: { emailedAt: true } } },
     })
+    const interested = await this.interestedOf(id)
     const audiences = Object.fromEntries(
       AUDIENCES.map((a) => {
         const guests = audienceOf(trip, a)
@@ -100,8 +102,13 @@ export class AnnouncementsService {
         ...toView(r, caller),
         sentTo: r.recipients.length,
         emailedTo: r.recipients.filter((x) => x.emailedAt).length,
+        interestedEmailedTo: r.interestedEmailedTo,
       })),
       audiences,
+      interested: {
+        people: interested.length,
+        stopped: interested.filter((r) => r.updatesStoppedAt).length,
+      },
     }
   }
 
@@ -109,7 +116,10 @@ export class AnnouncementsService {
   async post(id: string, input: AnnouncementInput, caller: Caller): Promise<TripAnnouncements> {
     const trip = await this.trips.get(id, caller)
     const to = audienceOf(trip, input.audience)
-    if (to.length === 0) throw new BadRequestException('Nobody is in that group yet')
+    const interested = input.emailInterested ? await this.interestedOf(id) : []
+    // A save the date with nobody accepted yet can still email its Interested list.
+    if (to.length === 0 && interested.length === 0)
+      throw new BadRequestException('Nobody is in that group yet')
     const me = await this.clerk.contact(caller.userId)
     const from = me.name.split(' ')[0] || trip.organizerName || 'The organizer'
     const row = await this.prisma.announcement.create({
@@ -160,6 +170,31 @@ export class AnnouncementsService {
         })
       }
     }
+    let told = 0
+    for (const r of interested.filter((x) => !x.updatesStoppedAt)) {
+      const sent = await this.emails.sendInterestAnnouncement(
+        {
+          interest: {
+            firstName: r.firstName,
+            tripName: trip.name,
+            dates: dateRange(trip.startDate, trip.endDate),
+            organizerName: trip.organizerName,
+            link: `${webUrl()}/t/${trip.slug}${trip.saveTheDate ? '' : '/join'}`,
+          },
+          announcement: { from, body: input.body },
+          stopLink: `${webUrl()}/stop/${r.updatesToken}`,
+        },
+        r.email,
+        me.email || undefined,
+        id
+      )
+      if (sent) told++
+    }
+    if (told)
+      await this.prisma.announcement.update({
+        where: { id: row.id },
+        data: { interestedEmailedTo: told },
+      })
     return this.forTrip(id, caller)
   }
 
@@ -292,6 +327,22 @@ export class AnnouncementsService {
     })
     if (guests.length === 0) throw new NotFoundException('Trip not found')
     return { tripId: trip.id, guests }
+  }
+
+  /**
+   * The Interested list an announcement can also be emailed to (issue #77): everyone on it but those accepted onto the
+   * trip, who get it as guests. Email only: none of them read announcements on the trip page or reply.
+   */
+  private async interestedOf(tripId: string) {
+    const [rows, accepted] = await Promise.all([
+      this.prisma.tripInterest.findMany({ where: { tripId }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.guest.findMany({
+        where: { tripId, status: 'approved', userId: { not: null } },
+        select: { userId: true },
+      }),
+    ])
+    const onTrip = new Set(accepted.map((g) => g.userId))
+    return rows.filter((r) => !onTrip.has(r.userId))
   }
 
   private async stoppedIds(tripId: string): Promise<Set<string>> {
