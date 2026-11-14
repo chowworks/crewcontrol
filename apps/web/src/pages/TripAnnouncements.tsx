@@ -96,6 +96,7 @@ export function AnnouncementsCard({ trip }: { trip: OrganizerTrip }) {
             <p className="text-sm text-muted">
               {AUDIENCE_NAMES[p.audience]} · {plural(p.sentTo ?? 0, 'guest')}
               {p.emailedTo ? ` · emailed to ${p.emailedTo}` : ''}
+              {p.interestedEmailedTo ? ` · emailed to ${p.interestedEmailedTo} interested` : ''}
             </p>
           )}
           actions={(p) => (
@@ -122,13 +123,21 @@ export function AnnouncementsCard({ trip }: { trip: OrganizerTrip }) {
       {posting && data && (
         <PostDialog
           audiences={data.audiences}
+          interested={data.interested}
           error={error}
           onClose={() => setPosting(false)}
           onPost={async (input) => {
             const n = data.audiences[input.audience].guests
+            const told = input.emailInterested
+              ? data.interested.people - data.interested.stopped
+              : 0
+            const emailed = [
+              input.email && n > 0 ? plural(n, 'guest') : '',
+              told > 0 ? `${told} interested` : '',
+            ].filter(Boolean)
             const ok = await change(
               () => api.postAnnouncement(trip.id, input),
-              input.email ? `Posted and emailed to ${plural(n, 'guest')}.` : 'Posted.'
+              emailed.length ? `Posted and emailed to ${emailed.join(' and ')}.` : 'Posted.'
             )
             if (ok) setPosting(false)
             return ok
@@ -158,11 +167,13 @@ export function AnnouncementsCard({ trip }: { trip: OrganizerTrip }) {
 
 function PostDialog({
   audiences,
+  interested,
   error,
   onClose,
   onPost,
 }: {
   audiences: TripAnnouncements['audiences']
+  interested: TripAnnouncements['interested']
   error: string | null
   onClose: () => void
   onPost: (input: {
@@ -170,18 +181,28 @@ function PostDialog({
     audience: AnnouncementAudience
     email: boolean
     pinned: boolean
+    emailInterested: boolean
   }) => Promise<boolean>
 }) {
   const [body, setBody] = useState('')
   const [audience, setAudience] = useState<AnnouncementAudience>('accepted')
   const [email, setEmail] = useState(true)
   const [pinned, setPinned] = useState(false)
+  const [toInterested, setToInterested] = useState(false)
   const [sending, setSending] = useState(false)
   const [tried, setTried] = useState(false)
   const group = audiences[audience]
+  // The Interested list (issue #77): only for a post to everyone on the trip, and only when someone is on it.
+  const canReachInterested = audience === 'accepted' && interested.people > 0
+  const emailInterested = canReachInterested && toInterested
   const problems = {
     body: body.trim() ? null : 'Write the announcement.',
-    audience: group.guests > 0 ? null : 'Nobody is in that group yet.',
+    audience:
+      group.guests > 0 || emailInterested
+        ? null
+        : canReachInterested
+          ? 'Nobody is on the trip yet. Tick “Also email the Interested list” to send it to them.'
+          : 'Nobody is in that group yet.',
   }
   const ok = !problems.body && !problems.audience
 
@@ -194,7 +215,7 @@ function PostDialog({
           setTried(true)
           if (!ok || sending) return
           setSending(true)
-          await onPost({ body: body.trim(), audience, email, pinned })
+          await onPost({ body: body.trim(), audience, email, pinned, emailInterested })
           setSending(false)
         }}
       >
@@ -249,6 +270,26 @@ function PostDialog({
             )}
           </span>
         </label>
+        {canReachInterested && (
+          <label className="flex min-h-[44px] items-start gap-3 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={toInterested}
+              onChange={(e) => setToInterested(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
+            />
+            <span>
+              Also email the Interested list ({interested.people})
+              <span className="block font-normal text-muted">
+                People who said they’re interested but aren’t on the trip. They get the email only:
+                no trip page view and no replies.
+                {toInterested && interested.stopped > 0
+                  ? ` ${plural(interested.stopped, 'person', 'people')} stopped updates and won’t get it.`
+                  : ''}
+              </span>
+            </span>
+          </label>
+        )}
         <label className="flex min-h-[44px] items-center gap-3 text-sm font-semibold">
           <input
             type="checkbox"

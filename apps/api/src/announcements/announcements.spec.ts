@@ -47,9 +47,25 @@ describe('shortName', () => {
 })
 
 describe('parseAnnouncement', () => {
-  const ok = { body: '  Check-in is at 4.  ', audience: 'accepted', email: true, pinned: false }
+  const ok = {
+    body: '  Check-in is at 4.  ',
+    audience: 'accepted',
+    email: true,
+    pinned: false,
+    emailInterested: false,
+  }
   it('trims the message', () => {
     expect(parseAnnouncement(ok)).toEqual({ ...ok, body: 'Check-in is at 4.' })
+  })
+  it('takes a missing Interested tick as not ticked', () => {
+    expect(parseAnnouncement({ ...ok, emailInterested: undefined }).emailInterested).toBe(false)
+  })
+  it('sends to the Interested list only with a post to everyone on the trip', () => {
+    expect(parseAnnouncement({ ...ok, emailInterested: true }).emailInterested).toBe(true)
+    expect(() => parseAnnouncement({ ...ok, emailInterested: 'yes' })).toThrow(BadRequestException)
+    expect(() => parseAnnouncement({ ...ok, audience: 'owing', emailInterested: true })).toThrow(
+      BadRequestException
+    )
   })
   it('refuses an empty message, an unknown group or a missing tick', () => {
     expect(() => parseAnnouncement({ ...ok, body: ' ' })).toThrow(BadRequestException)

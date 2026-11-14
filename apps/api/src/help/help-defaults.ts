@@ -61,7 +61,7 @@ You show up on the guest list tagged Organizer. You don't sign anything, and you
     question: 'What can people see before they sign up, and what’s only for my crew?',
     answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
 
-Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements go only to accepted guests.
+Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements show only to accepted guests. You can also email one to your Interested list, but they don't see it on the trip page.
 
 Never shown to guests: anyone's email or phone, anyone's agreement but their own, and the names of people you haven't accepted.
 
@@ -105,6 +105,15 @@ A guest is responsible for the travelers they signed up. If two people signed up
 
 You can edit any question and answer at any time, reorder them, or add your own before anyone asks, from the Questions card at the end of Trip Control. Answer once for everyone and you won't get asked the same thing twice.`,
     pages: ['control', 'editor:customization'],
+  },
+  {
+    key: 'announce-interested',
+    topic: 'start',
+    question: 'Can I send an update to people who are only interested?',
+    answer: `Yes. In "Post an announcement" on Trip Control, choose "Everyone on the trip" and tick "Also email the Interested list". Everyone on your Interested list who isn't on the trip yet gets it by email, and their replies come to your email.
+
+They only get the email: the announcement doesn't show to them on the trip page, and they can't reply under it. Each email has a link to stop updates for the trip. It works on a save the date too, before anyone has joined.`,
+    pages: ['control'],
   },
 ]
 

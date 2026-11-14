@@ -1437,6 +1437,8 @@ export interface StopUpdatesView {
   tripName: string
   firstName: string
   stopped: boolean
+  /** The link is from the trip's Interested list (issue #77), not a guest's: they only get announcement emails. */
+  interested: boolean
 }
 
 // ── Announcements (issue #12) ──────────────────────────────────────────────────
@@ -1457,6 +1459,11 @@ export interface AnnouncementInput {
   /** Email it as well; guests who stopped updates still see it on their join page. */
   email: boolean
   pinned: boolean
+  /**
+   * Email it to the trip's Interested list too (issue #77; owner's decisions, 2026-11-14): optional per post, for a
+   * post to everyone on the trip. Email only: they don't see it on the trip page and can't reply.
+   */
+  emailInterested: boolean
 }
 
 export interface AnnouncementReplyView {
@@ -1481,12 +1488,16 @@ export interface AnnouncementView {
   /** Trip Control only: how many guests it was for when it went, and how many it was emailed to. */
   sentTo?: number
   emailedTo?: number
+  /** Trip Control only: how many on the Interested list it was emailed to. */
+  interestedEmailedTo?: number
 }
 
 /** Trip Control's Announcements: the posts, pinned first, and who each audience reaches now (for the dialog). */
 export interface TripAnnouncements {
   announcements: AnnouncementView[]
   audiences: Record<AnnouncementAudience, { guests: number; stopped: number }>
+  /** The Interested list an announcement can also be emailed to: people not accepted onto the trip, and how many of them stopped updates. */
+  interested: { people: number; stopped: number }
 }
 
 /** The join page's Announcements: the posts for the caller (none until they're accepted), and whether they may reply. */

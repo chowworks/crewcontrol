@@ -233,6 +233,33 @@ export class EmailsService {
   }
 
   /**
+   * An announcement to someone on a trip's Interested list (issue #77), with their own stop link and Reply-To the
+   * organizer who posted it. Logged, never thrown: the post is on the trip either way. True when it went (or was
+   * logged instead, with no Resend key).
+   */
+  async sendInterestAnnouncement(
+    extra: Required<Pick<EmailContext, 'interest' | 'announcement' | 'stopLink'>>,
+    to: string,
+    replyTo?: string,
+    tripId?: string
+  ): Promise<boolean> {
+    try {
+      const email = render(await this.template(this.kindOf('announcement_interested')), extra)
+      const result = await this.deliver(
+        'announcement_interested',
+        { to, replyTo, ...email },
+        { id: tripId }
+      )
+      return result.sent || result.reason === 'mocked'
+    } catch (err) {
+      this.logger.error(
+        `The "announcement_interested" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+      return false
+    }
+  }
+
+  /**
    * The contact form's message to Travel HQ support, with Reply-To set to the sender so replying answers them. A
    * failure throws: the person is still on the form and can send it again.
    */

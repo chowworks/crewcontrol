@@ -305,7 +305,10 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'interest.tripName', label: 'Trip name' },
     { path: 'interest.dates', label: 'Dates, written out' },
     { path: 'interest.organizerName', label: 'Organizer’s name' },
-    { path: 'interest.link', label: 'Link to sign up (the join page)' },
+    {
+      path: 'interest.link',
+      label: 'Link to the trip (the join page once sign-ups are open, the trip page before)',
+    },
   ],
   alert: [
     { path: 'alert.firstName', label: 'Organizer’s first name' },
@@ -580,37 +583,43 @@ export function render(
     trip: Handlebars.escapeExpression(context.question.tripName),
     answered: context.question.answer !== '',
   }
-  const footer = context.stopLink
-    ? `You’re getting this ${context.announcement ? 'update' : 'reminder'} because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
-      `Don’t want ${context.announcement ? 'updates' : 'reminders'} like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
-      `Travel HQ never handles money: you pay ${organizer} directly.`
-    : context.deletion
-      ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} deleted from Travel HQ. ` +
-        `Travel HQ never handles money: payments go to ${organizer} directly.`
-      : context.guest?.signedBy
-        ? // Someone signed a traveler up (issue #46): the same line fits the one who signed and the traveler.
-          `You’re getting this because ${Handlebars.escapeExpression(context.guest.signedBy)} signed the trip agreement for ` +
-          `${Handlebars.escapeExpression(context.guest.firstName)} on ${trip}, which ${organizer} runs on Travel HQ. ` +
+  const footer =
+    context.stopLink && context.interest
+      ? // An announcement to the Interested list (issue #77): no trip context, since they aren't on the trip.
+        `You’re getting this update because you said you’re interested in ${Handlebars.escapeExpression(context.interest.tripName)}, ` +
+        `which ${Handlebars.escapeExpression(context.interest.organizerName)} runs on Travel HQ. ` +
+        `Don’t want updates like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>.`
+      : context.stopLink
+        ? `You’re getting this ${context.announcement ? 'update' : 'reminder'} because you’re on ${trip}, which ${organizer} runs on Travel HQ. ` +
+          `Don’t want ${context.announcement ? 'updates' : 'reminders'} like this one? <a href="${Handlebars.escapeExpression(context.stopLink)}" style="color:#5A2D91;">Stop updates for this trip</a>. ` +
           `Travel HQ never handles money: you pay ${organizer} directly.`
-        : context.trip
-          ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
-            `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
-            `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
-          : invite
-            ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
-              `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
-            : context.alert
-              ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
-                `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
-                'everything waiting is in the Actions on each trip’s Trip Control.'
-              : context.help
-                ? 'You’re getting this because you asked Travel HQ a question from the Help button. Reply to this email to ask a follow-up.'
-                : question
-                  ? question.answered
-                    ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-                    : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-                      'Reply to this email to answer them directly.'
-                  : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+        : context.deletion
+          ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} deleted from Travel HQ. ` +
+            `Travel HQ never handles money: payments go to ${organizer} directly.`
+          : context.guest?.signedBy
+            ? // Someone signed a traveler up (issue #46): the same line fits the one who signed and the traveler.
+              `You’re getting this because ${Handlebars.escapeExpression(context.guest.signedBy)} signed the trip agreement for ` +
+              `${Handlebars.escapeExpression(context.guest.firstName)} on ${trip}, which ${organizer} runs on Travel HQ. ` +
+              `Travel HQ never handles money: you pay ${organizer} directly.`
+            : context.trip
+              ? `You’re getting this because you signed the trip agreement for ${trip}, which ${organizer} runs on Travel HQ. ` +
+                `While you’re on the trip, you’ll get emails about your spot and your payments. To stop them, reply to this email to ask ` +
+                `${organizer} to take you off the trip. Travel HQ never handles money: you pay ${organizer} directly.`
+              : invite
+                ? `You’re getting this because ${invite.by} added you to help run ${invite.trip} on Travel HQ. ` +
+                  `If you weren’t expecting it, reply to this email to tell ${invite.by}.`
+                : context.alert
+                  ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
+                    `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
+                    'everything waiting is in the Actions on each trip’s Trip Control.'
+                  : context.help
+                    ? 'You’re getting this because you asked Travel HQ a question from the Help button. Reply to this email to ask a follow-up.'
+                    : question
+                      ? question.answered
+                        ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+                        : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                          'Reply to this email to answer them directly.'
+                      : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

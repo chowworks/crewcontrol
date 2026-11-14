@@ -201,7 +201,10 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     }
   }
 
-  /** The "Stop updates for this trip" page: whose link it is. Trusted work, since the link names no trip. */
+  /**
+   * The "Stop updates for this trip" page: whose link it is, a guest's or (issue #77) someone's on the Interested list.
+   * Trusted work, since the link names no trip.
+   */
   async stopView(token: string): Promise<StopUpdatesView> {
     const g = await runAsSystem(() =>
       this.prisma.guest.findUnique({
@@ -209,19 +212,32 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         select: { firstName: true, updatesStoppedAt: true, trip: { select: { name: true } } },
       })
     )
-    if (!g) throw new NotFoundException('This link doesn’t work any more')
-    return { tripName: g.trip.name, firstName: g.firstName, stopped: g.updatesStoppedAt !== null }
+    const who =
+      g ??
+      (await runAsSystem(() =>
+        this.prisma.tripInterest.findUnique({
+          where: { updatesToken: token },
+          select: { firstName: true, updatesStoppedAt: true, trip: { select: { name: true } } },
+        })
+      ))
+    if (!who) throw new NotFoundException('This link doesn’t work any more')
+    return {
+      tripName: who.trip.name,
+      firstName: who.firstName,
+      stopped: who.updatesStoppedAt !== null,
+      interested: !g,
+    }
   }
 
-  /** Stops reminders for the guest whose link it is, or starts them again. */
+  /** Stops reminders and announcement emails for whoever's link it is, or starts them again. */
   async setStopped(token: string, stopped: boolean): Promise<StopUpdatesView> {
     await this.stopView(token)
-    await runAsSystem(() =>
-      this.prisma.guest.update({
-        where: { updatesToken: token },
-        data: { updatesStoppedAt: stopped ? new Date() : null },
-      })
-    )
+    const data = { updatesStoppedAt: stopped ? new Date() : null }
+    await runAsSystem(async () => {
+      const { count } = await this.prisma.guest.updateMany({ where: { updatesToken: token }, data })
+      if (count === 0)
+        await this.prisma.tripInterest.updateMany({ where: { updatesToken: token }, data })
+    })
     return this.stopView(token)
   }
 }

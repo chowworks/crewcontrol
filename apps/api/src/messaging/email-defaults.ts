@@ -227,6 +227,19 @@ ${plan('{{guest.firstName}}’s')}
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
   {
+    kind: 'announcement_interested',
+    name: 'Announcement to Interested',
+    when: 'To each person on a trip’s Interested list who isn’t on the trip yet, when an organizer posts an announcement and ticks “Also email the Interested list”.',
+    groups: ['interest', 'announcement'],
+    stopLink: true,
+    subject: '{{announcement.from}} posted an update for {{interest.tripName}}',
+    body: `<p>Hi {{interest.firstName}},</p>
+<p>You said you were interested in <strong>{{interest.tripName}}</strong>, {{interest.dates}}. {{announcement.from}} posted an update:</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{announcement.body}}</div>
+<p>Questions? Reply to this email to reach {{interest.organizerName}}.</p>
+<p><a href="{{interest.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
+  },
+  {
     kind: 'question_asked',
     name: 'Question asked',
     when: 'To each owner and organizer of a trip when someone asks a question on its trip page. Replying answers the person who asked.',
