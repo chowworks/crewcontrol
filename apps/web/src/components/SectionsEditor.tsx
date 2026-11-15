@@ -5,11 +5,12 @@ import {
   SECTION_TITLE_IDEAS,
   type TripSection,
 } from '@cc/types'
-import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Lightbox } from '@/components/PhotoGallery'
+import { PhotoList } from '@/components/PhotoList'
 import { field } from '@/components/EditorParts'
 import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
@@ -293,52 +294,28 @@ function SectionDialog({
             Photos{' '}
             <span className="font-normal text-muted">(optional, up to {MAX_SECTION_PHOTOS})</span>
           </span>
-          <div className="flex flex-wrap gap-2">
-            {draft.photos.map((p, i) => (
-              <span key={p.url + i} className="relative">
-                <button
-                  type="button"
-                  aria-label={`Open photo ${i + 1}`}
-                  onClick={() => setViewing(i)}
-                  className="block rounded-lg"
-                >
-                  <img
-                    src={p.url}
-                    alt=""
-                    className="h-[72px] w-[72px] rounded-lg bg-placeholder object-cover"
-                  />
-                </button>
-                {/* A 44px tap area around the small visible circle. */}
-                <button
-                  type="button"
-                  aria-label={`Remove photo ${i + 1}`}
-                  onClick={() => set({ photos: draft.photos.filter((_, j) => j !== i) })}
-                  className="absolute -right-3 -top-3 grid h-11 w-11 place-items-center"
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-white">
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                </button>
-              </span>
-            ))}
-            {left > 0 && (
-              <label className="grid h-[72px] w-[72px] cursor-pointer place-items-center rounded-lg border-[1.5px] border-dashed border-royal text-royal focus-within:ring-2 focus-within:ring-royal">
-                <ImagePlus className="h-6 w-6" aria-hidden="true" />
-                <span className="sr-only">{uploading ? 'Uploading…' : 'Add photos'}</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  className="sr-only"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    void addPhotos(e.target.files)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-            )}
-          </div>
+          <PhotoList
+            photos={draft.photos}
+            onChange={(photos) => set({ photos })}
+            onOpen={setViewing}
+          />
+          {left > 0 && (
+            <label className="inline-flex min-h-[44px] w-fit cursor-pointer items-center gap-2 rounded-xl border border-royal px-4 font-semibold text-royal focus-within:ring-2 focus-within:ring-royal">
+              <ImagePlus className="h-5 w-5" aria-hidden="true" />
+              {uploading ? 'Uploading…' : 'Add photos'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  void addPhotos(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          )}
           {viewing !== null && draft.photos[viewing] && (
             <Lightbox
               photos={draft.photos}

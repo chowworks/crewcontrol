@@ -37,6 +37,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
+import { PhotoList } from '@/components/PhotoList'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
 import { Lightbox } from '@/components/PhotoGallery'
@@ -848,50 +849,12 @@ export function EditTripPage() {
                     The first photo is the cover. The section shows once there are two or more. Up
                     to {MAX_TRIP_PHOTOS} photos on the trip, your sections&apos; photos included.
                   </p>
-                  <ul className="flex flex-col gap-3">
-                    {trip.photos.map((p, i) => (
-                      <li key={p.url + i} className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          aria-label={`Open photo ${i + 1}`}
-                          onClick={() => setViewing(i)}
-                          className="shrink-0 rounded-lg"
-                        >
-                          <img
-                            src={p.url}
-                            alt=""
-                            className="h-16 w-20 rounded-lg bg-placeholder object-cover"
-                          />
-                        </button>
-                        <input
-                          className={`${field} min-w-0 flex-[1_1_180px]`}
-                          aria-label={`Caption for photo ${i + 1}`}
-                          value={p.caption}
-                          placeholder={i === 0 ? 'Cover photo caption' : 'Caption'}
-                          onChange={(e) =>
-                            set(
-                              'photos',
-                              trip.photos.map((x, j) =>
-                                j === i ? { ...x, caption: e.target.value } : x
-                              )
-                            )
-                          }
-                        />
-                        <Reorder
-                          index={i}
-                          length={trip.photos.length}
-                          name="photo"
-                          onMove={(to) => set('photos', move(trip.photos, i, to))}
-                          onRemove={() =>
-                            set(
-                              'photos',
-                              trip.photos.filter((_, j) => j !== i)
-                            )
-                          }
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  <PhotoList
+                    photos={trip.photos}
+                    onChange={(photos) => set('photos', photos)}
+                    onOpen={setViewing}
+                    captions
+                  />
                   {viewing !== null && trip.photos[viewing] && (
                     <Lightbox
                       photos={trip.photos}
