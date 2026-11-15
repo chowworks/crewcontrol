@@ -13,6 +13,7 @@ import { AdminForwardedReceiptsPage } from './pages/AdminForwardedReceiptsPage'
 import { AdminEmailPage, AdminEmailsPage } from './pages/AdminEmailsPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { AdminSentEmailsPage } from './pages/AdminSentEmailsPage'
+import { AdminMembershipsPage } from './pages/AdminMembershipsPage'
 import { AdminMetricsPage } from './pages/AdminMetricsPage'
 import { AdminSettingsPage } from './pages/AdminSettingsPage'
 import { AdminTripsPage } from './pages/AdminTripsPage'
@@ -25,6 +26,7 @@ import { HomePage } from './pages/HomePage'
 import { JoinPage } from './pages/JoinPage'
 import { LimitedPreviewPage } from './pages/LimitedPreviewPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { PaidFeaturesPage } from './pages/PaidFeaturesPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { SignInPage } from './pages/SignInPage'
@@ -189,6 +191,24 @@ export default function App() {
           element={
             <RequireSignIn>
               <AdminMetricsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/admin/memberships"
+          element={
+            <RequireSignIn>
+              <AdminMembershipsPage />
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/organize/features"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <PaidFeaturesPage />
+              </OrganizerTerms>
             </RequireSignIn>
           }
         />

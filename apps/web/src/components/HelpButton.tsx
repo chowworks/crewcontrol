@@ -1,6 +1,7 @@
 import { HELP_ASK_MAX, HELP_TOPICS, type HelpEntry, type HelpPage, type HelpTopic } from '@cc/types'
 import { ChevronDown, CircleHelp, Search } from 'lucide-react'
 import { useEffect, useId, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { Dialog } from './Dialog'
 import { useToastShowing } from './Toast'
@@ -258,6 +259,13 @@ function HelpPanel({ page, tripId }: { page: HelpPage; tripId?: string }) {
           </section>
         </>
       )}
+
+      <div className="flex flex-col items-start gap-3 rounded-xl bg-royal-pale px-4 py-3">
+        <p className="text-ink">Your paid features, and asking to try one early.</p>
+        <Link to="/organize/features" className={outlined}>
+          Paid features
+        </Link>
+      </div>
 
       <div className="flex flex-col items-start gap-3 rounded-xl bg-royal-pale px-4 py-3">
         <p className="text-ink">Didn’t find it? Ask us and we’ll email you the answer.</p>

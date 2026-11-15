@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Logo } from '@/components/Logo'
 import { TermsText } from '@/components/TermsText'
 import { api, TERMS_REQUIRED_EVENT } from '@/lib/api'
+import { FeatureIntros } from './FeatureIntros'
 
 /**
  * The organizer screens, behind Travel HQ's Terms: anyone who runs a trip accepts the Terms of Use and the Organizer
@@ -49,7 +50,13 @@ export function OrganizerTerms({ children }: { children: ReactNode }) {
       </div>
     )
   if (!mine) return <div className="min-h-screen bg-ground" aria-busy="true" />
-  if (mine.organizer.accepted) return <>{children}</>
+  if (mine.organizer.accepted)
+    return (
+      <>
+        {children}
+        <FeatureIntros />
+      </>
+    )
   const screen = <TermsScreen mine={mine} onAccepted={setMine} />
   if (!shown) return screen
   return (

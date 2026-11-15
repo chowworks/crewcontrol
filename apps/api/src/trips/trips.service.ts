@@ -67,6 +67,7 @@ import {
   roomsPricedApart,
   totalDueCents,
   tripActionCount,
+  PAID_FEATURES,
 } from './trip-types'
 
 /** A chosen trip link that another trip already has reads as a 409 the editor can show as it is. */
@@ -157,6 +158,15 @@ export class TripsService {
           select: { id: true, name: true },
         })
       : null
+    // Asking again for the same paid feature adds nothing: support was told the first time.
+    if (input.kind === 'feature_access') {
+      const asked = await runAsSystem(() =>
+        this.prisma.organizerRequest.count({
+          where: { kind: 'feature_access', userId: caller.userId, feature: input.feature },
+        })
+      )
+      if (asked) return
+    }
     // Written without reading it back: only the admin reads requests, and create() would read the new row.
     await this.prisma.organizerRequest.createMany({
       data: {
@@ -165,8 +175,18 @@ export class TripsService {
         tripId: trip?.id ?? null,
         tripName: trip?.name ?? '',
         text: input.text,
+        feature: input.feature ?? null,
       },
     })
+    if (input.kind === 'feature_access' && input.feature) {
+      const who = await this.clerk.contact(caller.userId)
+      if (who.email)
+        this.emails.alertFeatureAccess({
+          ...who,
+          feature: PAID_FEATURES.find((f) => f.key === input.feature)?.title ?? input.feature,
+          text: input.text,
+        })
+    }
   }
 
   /** Every request, newest first, for the Admin toolbox (who asked comes from sign-in, by user id). */

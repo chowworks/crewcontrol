@@ -483,6 +483,7 @@ export class AdminController {
     const requests = rows.map((r): OrganizerRequest => ({
       id: r.id,
       kind: r.kind as OrganizerRequest['kind'],
+      feature: (r.feature ?? '') as OrganizerRequest['feature'],
       userName: people.get(r.userId)?.name ?? 'Unknown',
       userEmail: people.get(r.userId)?.email ?? '',
       tripName: r.tripName,
@@ -495,6 +496,7 @@ export class AdminController {
     const asks = early.map((r): OrganizerRequest => ({
       id: r.id,
       kind: 'early_access',
+      feature: '',
       userName: r.name,
       userEmail: r.email,
       tripName: '',

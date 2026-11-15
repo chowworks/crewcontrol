@@ -1410,6 +1410,81 @@ suite('trip isolation', () => {
     }
   })
 
+  it('lets only the admin read and change paid features, and trusted work read them and mark popups seen', async () => {
+    const add = `INSERT INTO "Membership" (id, email, features) VALUES ('MS1', 'dana@example.com', ARRAY['custom_domain'])`
+    try {
+      await as(await person('u1'), async () => {
+        expect(await attempt(add)).toEqual({ error: refused })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await attempt(add)).toEqual({ rows: 1 })
+        expect(
+          await attempt(
+            `INSERT INTO "Membership" (email, features) VALUES ('kai@example.com', ARRAY['free_lunch'])`
+          )
+        ).toEqual({ error: expect.stringMatching(/Membership_features_check/) })
+        expect(
+          await attempt(`INSERT INTO "Membership" (email) VALUES ('Kai@Example.com')`)
+        ).toEqual({ error: expect.stringMatching(/Membership_email_check/) })
+      })
+      await db.query(add)
+      await as(await person('u1'), async () => {
+        expect(await ids('Membership')).toEqual([])
+        expect(await attempt(`UPDATE "Membership" SET features = ARRAY['organizer_link']`)).toEqual(
+          {
+            rows: 0,
+          }
+        )
+      })
+      await as({ system: true }, async () => {
+        expect(await ids('Membership')).toEqual(['MS1'])
+        expect(
+          await attempt(`UPDATE "Membership" SET "introsSeen" = ARRAY['custom_domain']`)
+        ).toEqual({ rows: 1 })
+        expect(await attempt(`DELETE FROM "Membership"`)).toEqual({ rows: 0 })
+      })
+      await as(await person('a1', { admin: true }), async () => {
+        expect(await attempt(`DELETE FROM "Membership"`)).toEqual({ rows: 1 })
+      })
+    } finally {
+      await db.query(`DELETE FROM "Membership"`)
+    }
+  })
+
+  it('takes a request to try a paid feature only with the feature named', async () => {
+    const ask = (feature: string, text = '') =>
+      attempt(
+        `INSERT INTO "OrganizerRequest" (kind, "userId", text, feature) VALUES ('feature_access', 'u1', '${text}', ${feature})`
+      )
+    try {
+      await as(await person('u1'), async () => {
+        expect(await ask(`'custom_domain'`)).toEqual({ rows: 1 })
+        expect(await ask('NULL')).toEqual({
+          error: expect.stringMatching(/OrganizerRequest_feature_check/),
+        })
+        expect(await ask(`'free_lunch'`)).toEqual({
+          error: expect.stringMatching(/OrganizerRequest_feature_check/),
+        })
+        expect(await ids('OrganizerRequest')).toEqual([])
+        // Refund terms still need their words, and no feature.
+        expect(
+          await attempt(
+            `INSERT INTO "OrganizerRequest" (kind, "userId", text) VALUES ('refund_terms', 'u1', '')`
+          )
+        ).toEqual({ error: expect.stringMatching(/OrganizerRequest_text_check/) })
+      })
+      await db.query(
+        `INSERT INTO "OrganizerRequest" (id, kind, "userId", text, feature) VALUES ('R1', 'feature_access', 'u1', '', 'custom_domain')`
+      )
+      // Trusted work sees a person's earlier asks, so asking twice emails support once.
+      await as({ system: true }, async () => {
+        expect(await ids('OrganizerRequest')).toEqual(['R1'])
+      })
+    } finally {
+      await db.query(`DELETE FROM "OrganizerRequest"`)
+    }
+  })
+
   it('lets everyone read the system settings and only the admin change them', async () => {
     const set = (pct: number) =>
       attempt(`UPDATE "SystemSettings" SET "waitlistBufferPercent" = ${pct}`)

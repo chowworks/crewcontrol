@@ -1259,7 +1259,9 @@ export interface MyActions {
 
 /** An organizer asking for something Travel HQ doesn't do yet (for now, other refund terms). */
 export interface OrganizerRequestInput {
-  kind: 'refund_terms'
+  kind: 'refund_terms' | 'feature_access'
+  /** feature_access only: the paid feature they asked to try. */
+  feature?: PaidFeature
   /** The trip they were setting up, if it's saved. */
   tripId?: string
   text: string
@@ -1271,7 +1273,9 @@ export interface OrganizerRequestInput {
  */
 export interface OrganizerRequest {
   id: string
-  kind: 'refund_terms' | 'early_access'
+  kind: 'refund_terms' | 'early_access' | 'feature_access'
+  /** feature_access only: the paid feature they asked to try ('' otherwise). */
+  feature: PaidFeature | ''
   /** Who asked, by name and email, and the trip they were setting up. */
   userName: string
   userEmail: string
@@ -1297,6 +1301,7 @@ export type HelpPage =
   | 'editor:payments'
   | 'editor:customization'
   | 'control'
+  | 'features'
 
 export const HELP_PAGES: { value: HelpPage; label: string }[] = [
   { value: 'editor:basics', label: 'Editor: Trip basics' },
@@ -1306,6 +1311,7 @@ export const HELP_PAGES: { value: HelpPage; label: string }[] = [
   { value: 'editor:payments', label: 'Editor: Payments' },
   { value: 'editor:customization', label: 'Editor: Customization' },
   { value: 'control', label: 'Trip Control' },
+  { value: 'features', label: 'Paid features' },
 ]
 
 /** The sections of "All topics", in order. */
@@ -1887,4 +1893,57 @@ export interface InterestTold {
 export interface OpenSignupsResult {
   trip: OrganizerTrip
   told: number
+}
+
+/**
+ * Paid features (issue #90). Travel HQ takes no payment for them: the admin gives a person features by email in the
+ * Admin toolbox (Manage Memberships), with an optional end date and a note. The app asks one question wherever a
+ * feature is used: does this person have it? A new feature adds an entry here and its key to the
+ * Membership_features_check constraint (a migration). `built` is false until the feature itself exists, and the
+ * screens call it "Coming soon".
+ */
+export type PaidFeature = 'organizer_link' | 'custom_domain'
+
+export const PAID_FEATURES: { key: PaidFeature; title: string; text: string; built: boolean }[] = [
+  {
+    key: 'organizer_link',
+    title: 'Your own organizer link',
+    text: 'Your trips live at your own link, like travel-hq.app/yourname, easy to say in the group chat.',
+    built: false,
+  },
+  {
+    key: 'custom_domain',
+    title: 'Custom domains',
+    text: 'Put a trip on its own web address, like staycation.travel-hq.app or a domain you own.',
+    built: false,
+  },
+]
+
+/** One person's paid features as the admin sets them, found by the email they sign in with. */
+export interface Membership {
+  email: string
+  features: PaidFeature[]
+  /** The last day the features are on (YYYY-MM-DD), or null for no end. */
+  endsOn: string | null
+  note: string
+  /** Whether the end date has passed, so the features are off. */
+  ended: boolean
+  updatedAt: string
+  /** Who last changed it, by name. */
+  updatedBy: string
+}
+
+export interface MembershipInput {
+  features: PaidFeature[]
+  endsOn: string | null
+  note: string
+}
+
+export const MEMBERSHIP_NOTE_MAX = 2000
+
+/** The signed-in person's paid features: which they have, and those to introduce in a popup once. */
+export interface MyFeatures {
+  features: { key: PaidFeature; has: boolean; endsOn: string | null }[]
+  /** Features they have and haven't been shown yet. */
+  intros: PaidFeature[]
 }

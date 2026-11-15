@@ -498,9 +498,26 @@ model OrganizerRequest {
   tripId    String?
   tripName  String   @default("")
   text      String
+  // feature_access only: the paid feature they asked to try (issue #90).
+  feature   String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// One person's paid features (issue #90, migration 20261115040000_memberships), found by the email they sign in
+/// with, as early access is. The admin sets them by hand; Travel HQ takes no payment. Off after `endsOn`.
+model Membership {
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  email           String    @unique
+  features        String[]  @default([])
+  endsOn          DateTime? @db.Date
+  note            String    @default("")
+  // The features they were already shown in the popup, so each shows once.
+  introsSeen      String[]  @default([])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now())
+  updatedByUserId String?
 }
 
 /// Organizer help (issue #66, migration 20261102040000_organizer_help): the admin's version of one default answer
