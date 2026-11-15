@@ -116,6 +116,10 @@ export interface PublicTrip {
   saveTheDate: boolean
   /** Someone joining now goes on the waitlist: the trip is full (or, where guests pay first, enough people can pay). */
   waitlisting: boolean
+  /** The trip has started on its own clock (issue #88): nobody new can sign up or say they're interested. */
+  signupsClosed: boolean
+  /** The trip's last day has passed on its own clock (issue #88). */
+  ended: boolean
 }
 
 /** Joining, then accepted, or turned down by the organizer. */
@@ -570,6 +574,7 @@ export type TripChangeField =
   | 'paymentInstructions'
   | 'reminders'
   | 'saveTheDate'
+  | 'timeZone'
   | 'roomChoice'
   | 'signupNote'
   | 'vendorCosts'
@@ -629,7 +634,7 @@ export interface TripOptions {
    * guests, a price per person on each room, or a price the organizer types. Organizer-only.
    */
   costSplit: CostSplit
-  /** With an even split: what the organizer puts in themselves, off the top of the cost. Organizer-only. */
+  /** With an even split or price by room: what the organizer puts in themselves, off the top of the cost. Organizer-only. */
   ownPartCents: number
   /** With an even split: how many guests share the rest; null for the guest limit (less the organizer's spot). */
   splitGuests: number | null
@@ -643,9 +648,9 @@ export interface TripOptions {
 
 export type CostSplit = 'even' | 'room' | 'set'
 
-/** What the organizer puts in themselves: only an even split has a part of their own (issue #65). */
+/** What the organizer puts in themselves: an even split or price by room (issue #65); "I know the price" has none. */
 export const ownPartOf = (options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>) =>
-  options.costSplit === 'even' ? options.ownPartCents : 0
+  options.costSplit === 'even' || options.costSplit === 'room' ? options.ownPartCents : 0
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
@@ -709,6 +714,11 @@ export interface TripInput {
    * join", and nobody can sign. Turning it off opens sign-ups.
    */
   saveTheDate: boolean
+  /**
+   * The trip's own clock, as an IANA time zone ("America/New_York"): sign-ups close at midnight there on the first day
+   * (issue #88; owner's decision, 2026-11-15).
+   */
+  timeZone: string
 }
 
 export interface OrganizerTrip extends TripInput {
@@ -738,7 +748,44 @@ export interface TripSummary {
   published: boolean
   coverUrl: string | null
   isSample: boolean
+  /** The trip's last day has passed on its own clock (issue #88): Your trips lists it under Past trips. */
+  ended: boolean
 }
+
+/** A trip with no time zone of its own counts on this clock. */
+export const DEFAULT_TIME_ZONE = 'America/New_York'
+
+/** Whether `timeZone` is a time zone this runtime knows. */
+export function knownTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Today ('YYYY-MM-DD') on the trip's own clock (issue #88). */
+export function tripToday(timeZone: string, now = new Date()): string {
+  const zone = knownTimeZone(timeZone) ? timeZone : DEFAULT_TIME_ZONE
+  // en-CA writes a date as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+}
+
+/** The trip's first day has come on its own clock: sign-ups are closed for good (owner's decision, 2026-11-15). */
+export const tripStarted = (
+  trip: { startDate: string; timeZone: string },
+  now = new Date()
+): boolean => tripToday(trip.timeZone, now) >= trip.startDate
+
+/** The trip's last day has passed on its own clock. */
+export const tripEnded = (trip: { endDate: string; timeZone: string }, now = new Date()): boolean =>
+  tripToday(trip.timeZone, now) > trip.endDate
 
 /** Photos on a trip, its sections' photos included (owner's decision, 2026-11-15, up from 15). */
 export const MAX_TRIP_PHOTOS = 50

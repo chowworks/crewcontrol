@@ -8,6 +8,7 @@ const trip: Trip = {
   destination: "Martha's Vineyard, MA",
   startDate: '2027-06-18',
   endDate: '2027-06-21',
+  timeZone: 'America/New_York',
   organizerName: 'Chris',
   description: 'A long weekend.',
   costPerPersonCents: 120000,
@@ -71,6 +72,12 @@ const guests = [
 ]
 
 describe('toPublicTrip', () => {
+  it('closes sign-ups once the trip has started, and says when it has ended (issue #88)', () => {
+    expect(toPublicTrip({ ...trip, guests })).toMatchObject({ signupsClosed: false, ended: false })
+    const past = { ...trip, startDate: '2020-01-10', endDate: '2020-01-12', guests }
+    expect(toPublicTrip(past)).toMatchObject({ signupsClosed: true, ended: true })
+  })
+
   it('never exposes payment instructions or guest contact details', () => {
     const json = JSON.stringify(toPublicTrip({ ...trip, guests }))
     expect(json).not.toContain('Zelle')

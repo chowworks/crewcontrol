@@ -241,7 +241,7 @@ export function CostSummary({
   crewLabel,
 }: {
   expenses: Expense[]
-  /** What the organizer puts in themselves (an even split's "You put in"). */
+  /** What the organizer puts in themselves ("You put in", with an even split or price by room). */
   ownPartCents: number
   /** How the guests' part is made up: "5 guests at $250", "Rooms full, from $1,884". */
   each: string
@@ -413,7 +413,7 @@ export function PricingStep({
     // Price by room: guests pick their room, so they sign its price. Each room without a price starts from an even
     // split. Leaving it, rooms go back to the trip's one price.
     if (next === 'room') {
-      const start = evenRoomPrice(total, rooms) || costCents || null
+      const start = evenRoomPrice(total - options.ownPartCents, rooms) || costCents || null
       setRooms((rs) => rs.map((r) => ({ ...r, priceCents: r.priceCents ?? start })))
       setOptions({ costSplit: next, roomChoice: true, roomRequired: true })
     } else {
@@ -484,7 +484,8 @@ export function PricingStep({
     setRooms((rs) =>
       rs.map((r, j) => (j === i ? { ...r, priceCents: price > 0 ? price : null } : r))
     )
-  const collected = fullRooms(rooms)
+  // Price by room: the rooms full plus the organizer's own part, against what the trip costs.
+  const collected = fullRooms(rooms) + options.ownPartCents
   const gap = collected - total
   const known = costCents * guests
   const noCosts = expenses !== null && expenses.length === 0
@@ -645,10 +646,22 @@ export function PricingStep({
             </p>
           ) : (
             <>
+              <Field
+                label="You put in"
+                hint={`Your own part${total ? ` of the ${money(total)}` : ''}, if you’re chipping in`}
+              >
+                <span className="block sm:w-48">
+                  <Money
+                    value={dollars(options.ownPartCents)}
+                    onChange={(v) => setOptions({ ownPartCents: cents(v) })}
+                  />
+                </span>
+              </Field>
               <div className="flex flex-col gap-1.5">
                 <div className="flex flex-wrap justify-between gap-x-3 text-sm">
                   <span>
-                    Rooms full: you collect <strong>{money(collected)}</strong>
+                    Rooms full{options.ownPartCents > 0 ? ' and your part' : ''}: you collect{' '}
+                    <strong>{money(collected)}</strong>
                   </span>
                   {total > 0 && (
                     <span className={`font-semibold ${gap < 0 ? 'text-[#B42318]' : 'text-royal'}`}>
@@ -714,7 +727,7 @@ export function PricingStep({
                 className={outlined}
                 disabled={total === 0}
                 onClick={() => {
-                  const price = evenRoomPrice(total, rooms)
+                  const price = evenRoomPrice(total - options.ownPartCents, rooms)
                   setRooms((rs) => rs.map((r) => ({ ...r, priceCents: price })))
                 }}
               >

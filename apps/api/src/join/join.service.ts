@@ -237,6 +237,9 @@ export class JoinService {
     // Someone signing up a traveler they look after signs the agreement on that traveler's behalf.
     const agreement = onBehalf ? priced.agreementOnBehalf : priced.agreement
     if (me && !onBehalf) throw new ConflictException('You’ve already joined this trip')
+    // Sign-ups close for good on the trip's first day, on its own clock (issue #88; owner's decision, 2026-11-15).
+    if (trip.signupsClosed)
+      throw new ConflictException('Sign-ups for this trip closed when it started.')
     // A save the date takes "I'm interested", never a signature (issue #47).
     if (trip.saveTheDate)
       throw new ConflictException(

@@ -26,6 +26,7 @@ const trip: TripState = {
   refundPolicy: 'first_payment_kept',
   options: { roomChoice: false, roomRequired: false, signupNote: '' },
   saveTheDate: false,
+  timeZone: 'America/New_York',
 }
 
 describe('tripChanges', () => {

@@ -133,6 +133,7 @@ const trips: Seed[] = [
     destination: 'Palm Beach, Aruba',
     startDate: '2028-04-13',
     endDate: '2028-04-18',
+    timeZone: 'America/Puerto_Rico',
     organizerName: 'Nia',
     description:
       'Five nights at an all-inclusive resort on Palm Beach. Days are yours: pool, beach, or the catamaran. We come together for a welcome dinner the first night and a sunset sail mid-week.',
@@ -216,6 +217,7 @@ const trips: Seed[] = [
     destination: 'Tulum, Mexico',
     startDate: '2027-02-11',
     endDate: '2027-02-15',
+    timeZone: 'America/Cancun',
     organizerName: 'Simone',
     description:
       'Four nights in a jungle villa with its own pool, ten minutes from the beach. We swim a cenote, walk the ruins on the cliff, and celebrate with a private chef dinner on Saturday.',

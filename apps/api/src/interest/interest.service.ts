@@ -8,6 +8,7 @@ import { EmailsService } from '../messaging/emails.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { recordChange } from '../trips/trip-changes'
 import { splitName } from '../trips/trip-input'
+import { tripStarted } from '../trips/trip-types'
 import type {
   InterestInput,
   InterestTold,
@@ -144,6 +145,8 @@ export class InterestService {
   /** "I'm interested": on a save the date only, with their sign-in's email. Saying it twice changes nothing. */
   async add(slug: string, input: InterestInput, caller: Caller): Promise<MyInterest> {
     const trip = await this.published(slug)
+    // Nobody new once the trip has started (issue #88).
+    if (tripStarted(trip)) throw new ConflictException('This trip has already started.')
     if (!trip.saveTheDate)
       throw new ConflictException('Sign-ups for this trip are open. Sign up instead.')
     const existing = await this.mine(slug, caller)
@@ -187,7 +190,14 @@ export class InterestService {
     const trip = await runAsPublic(() =>
       this.prisma.trip.findUnique({
         where: { slug },
-        select: { id: true, published: true, saveTheDate: true, deletedAt: true },
+        select: {
+          id: true,
+          published: true,
+          saveTheDate: true,
+          deletedAt: true,
+          startDate: true,
+          timeZone: true,
+        },
       })
     )
     if (!trip?.published || trip.deletedAt) throw new NotFoundException('Trip not found')

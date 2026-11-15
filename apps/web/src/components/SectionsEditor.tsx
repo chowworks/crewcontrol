@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp, ImagePlus, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
+import { Lightbox } from '@/components/PhotoGallery'
 import { field } from '@/components/EditorParts'
 import { api } from '@/lib/api'
 import { shrinkPhoto } from '@/lib/resize'
@@ -184,6 +185,7 @@ function SectionDialog({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
+  const [viewing, setViewing] = useState<number | null>(null)
   // Uploads stop once the dialog is gone, so a cancelled section doesn't keep sending photos.
   const open = useRef(true)
   useEffect(
@@ -294,11 +296,18 @@ function SectionDialog({
           <div className="flex flex-wrap gap-2">
             {draft.photos.map((p, i) => (
               <span key={p.url + i} className="relative">
-                <img
-                  src={p.url}
-                  alt=""
-                  className="h-[72px] w-[72px] rounded-lg bg-placeholder object-cover"
-                />
+                <button
+                  type="button"
+                  aria-label={`Open photo ${i + 1}`}
+                  onClick={() => setViewing(i)}
+                  className="block rounded-lg"
+                >
+                  <img
+                    src={p.url}
+                    alt=""
+                    className="h-[72px] w-[72px] rounded-lg bg-placeholder object-cover"
+                  />
+                </button>
                 {/* A 44px tap area around the small visible circle. */}
                 <button
                   type="button"
@@ -330,6 +339,14 @@ function SectionDialog({
               </label>
             )}
           </div>
+          {viewing !== null && draft.photos[viewing] && (
+            <Lightbox
+              photos={draft.photos}
+              index={viewing}
+              onIndex={setViewing}
+              onClose={() => setViewing(null)}
+            />
+          )}
           {uploading && <span className="text-sm text-muted">Uploading…</span>}
           {left <= 0 && draft.photos.length < MAX_SECTION_PHOTOS && (
             <span className="text-sm text-muted">
