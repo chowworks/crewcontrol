@@ -58,6 +58,9 @@ import {
   type MyQuestion,
   type QuestionAnswerInput,
   type TripQuestions,
+  type TripChangeRequest,
+  type ChangeCloseInput,
+  type MyChangeRequests,
   type InterestInput,
   type InterestTold,
   type InterestedPerson,
@@ -330,6 +333,15 @@ export const api = {
   removeQuestion: (id: string, qid: string) =>
     request<TripQuestions>(`/trips/${id}/questions/${qid}`, { method: 'DELETE' }),
   getMyQuestions: (slug: string) => request<MyQuestion[]>(`/join/${slug}/questions`),
+  // Trip change requests (issue #82): Trip Control's, and the signed-in guest's own.
+  getChangeRequests: (id: string) => request<TripChangeRequest[]>(`/trips/${id}/changes`),
+  addChangeNote: (id: string, rid: string, text: string) =>
+    request<TripChangeRequest[]>(`/trips/${id}/changes/${rid}/notes`, json('POST', { text })),
+  closeChangeRequest: (id: string, rid: string, input: ChangeCloseInput) =>
+    request<TripChangeRequest[]>(`/trips/${id}/changes/${rid}/close`, json('POST', input)),
+  getMyChangeRequests: (slug: string) => request<MyChangeRequests>(`/join/${slug}/changes`),
+  requestChange: (slug: string, text: string) =>
+    request<MyChangeRequests>(`/join/${slug}/changes`, json('POST', { request: text })),
   askQuestion: (slug: string, question: string) =>
     request<MyQuestion[]>(`/join/${slug}/questions`, json('POST', { question })),
   // Save the date's interest list (issue #47): Trip Control's, and the signed-in person's own entry.

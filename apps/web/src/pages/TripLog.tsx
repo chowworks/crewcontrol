@@ -51,6 +51,16 @@ function questionText(e: QuestionEntry): string {
     : `${e.name} answered ${e.askerName}’s question for everyone: “${e.question}”`
 }
 
+type ChangeRequestEntry = Extract<TripLogEntry, { kind: 'change_request' }>
+/** A trip change request asked or closed, in plain words (issue #82). */
+function changeRequestText(e: ChangeRequestEntry): string {
+  const about = e.name === e.guestName ? '' : ` for ${e.guestName}`
+  if (e.action === 'asked') return `${e.name} requested a trip change${about}: “${e.request}”`
+  return e.action === 'done'
+    ? `${e.name} marked ${e.guestName}’s trip change done: “${e.request}”`
+    : `${e.name} said ${e.guestName}’s trip change isn’t possible: “${e.request}”`
+}
+
 /** "Nov 1, 9:02 AM – 9:14 AM" for saves on one day, both in full otherwise. */
 function span(first: string, last: string): string {
   if (at(first) === at(last)) return at(last)
@@ -98,6 +108,13 @@ function Line({ e }: { e: TripLogEntry | ChangeGroup }) {
         <div className="text-sm text-muted">{at(e.at)}</div>
       </>
     )
+  if (e.kind === 'change_request')
+    return (
+      <>
+        <div className="font-semibold [overflow-wrap:anywhere]">{changeRequestText(e)}</div>
+        <div className="text-sm text-muted">{at(e.at)}</div>
+      </>
+    )
   if (e.kind === 'question')
     return (
       <>
@@ -137,6 +154,8 @@ function row(e: TripLogEntry): (string | null)[] {
     ]
   if (e.kind === 'people') return [stamp(e.at), peopleText(e), null, actor(e), null, null, null]
   if (e.kind === 'question') return [stamp(e.at), questionText(e), null, e.name, null, null, null]
+  if (e.kind === 'change_request')
+    return [stamp(e.at), changeRequestText(e), e.guestName, e.name, null, null, null]
   if (e.kind === 'change')
     return [
       stamp(e.at),

@@ -136,6 +136,18 @@ export interface EmailContext {
     /** Trip Control for the owner; the trip page for the asker. */
     link: string
   }
+  /** In the email to a guest whose trip change request an organizer closed (issue #82). */
+  change?: {
+    tripName: string
+    firstName: string
+    request: string
+    /** The organizer's message; "" when they gave none (only when it's done). */
+    reply: string
+    /** Done; otherwise not possible. */
+    done: boolean
+    /** The trip page. */
+    link: string
+  }
   /**
    * In the email to an organizer about what needs them (organizer alerts): only what's new since the last one, by
    * trip, with a sentence each ("2 payments to confirm, 1 guest to accept").
@@ -214,6 +226,7 @@ export type VariableGroup =
   | 'payment'
   | 'announcement'
   | 'question'
+  | 'change'
   | 'interest'
   | 'deletion'
   | 'alert'
@@ -299,6 +312,14 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
       path: 'question.link',
       label: 'Link: Trip Control for the owner, the trip page for the asker',
     },
+  ],
+  change: [
+    { path: 'change.tripName', label: 'Trip name' },
+    { path: 'change.firstName', label: 'Their first name' },
+    { path: 'change.request', label: 'The change they asked for' },
+    { path: 'change.reply', label: 'The organizer’s message (may be empty when it’s done)' },
+    { path: 'change.done', label: 'Done (yes), or not possible (no)' },
+    { path: 'change.link', label: 'Link to the trip page' },
   ],
   interest: [
     { path: 'interest.firstName', label: 'Their first name' },

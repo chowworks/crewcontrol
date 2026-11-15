@@ -253,7 +253,7 @@ ${plan('{{guest.firstName}}’s')}
   {
     kind: 'organizer_actions',
     name: 'Something needs you',
-    when: 'To each owner and organizer when something new needs them in a trip’s Actions (a payment to confirm, a guest to accept). One email for all their trips, then none for the hours set in System Settings; what comes up meanwhile goes in the next one. Questions have their own email.',
+    when: 'To each owner and organizer when something new needs them in a trip’s Actions (a payment to confirm, a guest to accept, a trip change request). One email for all their trips, then none for the hours set in System Settings; what comes up meanwhile goes in the next one. Questions have their own email.',
     groups: ['alert'],
     subject:
       '{{alert.count}} new {{#if alert.single}}thing needs{{else}}things need{{/if}} you on your trips',
@@ -276,6 +276,21 @@ ${plan('{{guest.firstName}}’s')}
 <div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{question.answer}}</div>
 <p>{{#if question.private}}Only you see this answer on the trip page.{{else}}It's on the trip page for everyone, without your name.{{/if}}</p>
 <p><a href="{{question.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
+  },
+  {
+    kind: 'change_closed',
+    name: 'Trip change request answered',
+    when: 'To a guest who asked for a change to their trip, when an organizer marks it done or not possible. Replying reaches that organizer.',
+    groups: ['change'],
+    subject:
+      '{{#if change.done}}Done: your trip change for {{change.tripName}}{{else}}About your trip change for {{change.tripName}}{{/if}}',
+    body: `<p>Hi {{change.firstName}},</p>
+<p>You asked for a change to <strong>{{change.tripName}}</strong>:</p>
+<p style="font-weight:600;white-space:pre-wrap;">{{change.request}}</p>
+<p>{{#if change.done}}The organizers marked it done.{{else}}The organizers can’t make this change.{{/if}}</p>
+{{#if change.reply}}<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;white-space:pre-wrap;">{{change.reply}}</div>{{/if}}
+<p>Questions? Reply to this email.</p>
+<p><a href="{{change.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open the trip page</a></p>`,
   },
   {
     kind: 'signups_open',
@@ -430,6 +445,14 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       answer:
         'The resort shuttle meets every flight on Mar 3. Look for the sign with our group name.',
       private: false,
+      link: 'https://travel-hq.app/t/aruba-2028',
+    },
+    change: {
+      tripName: 'Aruba Crew Getaway 2028',
+      firstName: 'Dana',
+      request: 'Can I move to the ocean-view room with Kendra? Happy to pay the difference.',
+      reply: 'Done! You’re in the ocean-view room now. The $150 difference is on your balance.',
+      done: true,
       link: 'https://travel-hq.app/t/aruba-2028',
     },
     interest: {

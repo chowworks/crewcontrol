@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { TripView } from '@/components/TripView'
 import { ApiError, api } from '@/lib/api'
 import { AnnouncementsSection } from './GuestAnnouncements'
+import { ChangeRequestsSection } from './GuestChangeRequests'
 import { InterestTile } from './GuestInterest'
 import { QuestionsSection } from './GuestQuestions'
 import { hasJoined, MyTripPanel } from './JoinPage'
@@ -59,7 +60,13 @@ export function GuestTripPage() {
       mine={
         mine
           ? {
-              place: <MyTripPanel view={view} onChange={setView} />,
+              place: (
+                <>
+                  <MyTripPanel view={view} onChange={setView} />
+                  {/* Accepted guests ask the organizers for a change here (issue #82). */}
+                  <ChangeRequestsSection slug={slug} organizer={trip.organizerName} />
+                </>
+              ),
               announcements: <AnnouncementsSection slug={slug} />,
             }
           : undefined

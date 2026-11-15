@@ -107,6 +107,17 @@ You can edit any question and answer at any time, reorder them, or add your own 
     pages: ['control', 'editor:customization'],
   },
   {
+    key: 'trip-change-requests',
+    topic: 'questions',
+    question: 'A guest asked for a trip change. What do I do?',
+    answer: `Guests you've accepted can tap "Request a trip change" on the trip page and describe what they'd like: a different room, new dates, dropping out, anything. Only you and the other organizers see it. It waits in your Actions until you close it.
+
+Tap Details to read it and add notes as you work on it, like "Asked the resort about the ocean-view room". Notes are only for the organizers; the guest never sees them.
+
+Make the change yourself first, from the guest's Details (their room, a credit or charge, or turning them down). Then tap Close request and choose Done or Not possible. We email the guest with your note, and they see the answer on the trip page. Every request, open or closed, stays in the Trip change requests card on Trip Control.`,
+    pages: ['control'],
+  },
+  {
     key: 'announce-interested',
     topic: 'start',
     question: 'Can I send an update to people who are only interested?',

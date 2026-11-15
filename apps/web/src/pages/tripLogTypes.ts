@@ -36,6 +36,8 @@ export function logType(e: TripLogEntry): LogType {
       return 'changes'
     case 'question':
       return 'comms'
+    case 'change_request':
+      return 'guests'
     case 'change':
       switch (e.change.what) {
         case 'expense':

@@ -33,6 +33,7 @@ import { useTripInterest } from './TripInterest'
 import { TripLinkCard } from './TripLink'
 import { TripLogCard } from './TripLog'
 import { AnnouncementsCard } from './TripAnnouncements'
+import { useTripChangeRequests } from './TripChangeRequests'
 import { useTripQuestions } from './TripQuestions'
 import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
@@ -321,6 +322,8 @@ export function ControlPanelPage() {
   const receiptHandlers = { onMatchReceipt: matchReceipt, onDismissReceipt: dismissReceipt }
   // Guests' questions (issue #13): the organizer's to answer, so not on the admin's read-only view.
   const questions = useTripQuestions(admin ? null : trip)
+  // Guests' trip change requests (issue #82), the organizer's to work, so not on the admin's read-only view either.
+  const changes = useTripChangeRequests(admin ? null : trip)
   // The save the date's Interested list (issue #47), the organizer's to work.
   const interest = useTripInterest(admin ? null : trip, setTrip)
 
@@ -379,7 +382,7 @@ export function ControlPanelPage() {
             rooms={rooms}
             {...handlers}
             {...receiptHandlers}
-            questionRows={[...interest.actionRows, ...questions.actionRows]}
+            questionRows={[...interest.actionRows, ...changes.actionRows, ...questions.actionRows]}
             error={guestError}
           />
         )}
@@ -408,6 +411,7 @@ export function ControlPanelPage() {
           error={guestError}
           {...(admin ? {} : { onGoing: goingToo, onNotGoing: notGoing })}
         />
+        {changes.card}
         {interest.card}
         {!admin && <RemindersCard trip={trip} />}
         <TripLogCard trip={trip} />

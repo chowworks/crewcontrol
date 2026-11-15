@@ -33,6 +33,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   payment: 'Payment',
   announcement: 'Announcement',
   question: 'Question',
+  change: 'Trip change request',
   interest: 'Interested person',
   deletion: 'Trip deleted',
   alert: 'What needs them',
@@ -205,6 +206,23 @@ export class EmailsService {
     } catch (err) {
       this.logger.error(
         `The "${kind}" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+    }
+  }
+
+  /** A guest's trip change request closed (issue #82), with Reply-To the organizer who closed it. Never throws. */
+  async sendChange(
+    change: NonNullable<EmailContext['change']>,
+    to: string,
+    replyTo?: string,
+    tripId?: string
+  ): Promise<void> {
+    try {
+      const email = render(await this.template(this.kindOf('change_closed')), { change })
+      await this.deliver('change_closed', { to, replyTo, ...email }, { id: tripId })
+    } catch (err) {
+      this.logger.error(
+        `The "change_closed" email failed: ${err instanceof Error ? err.message : 'unknown'}`
       )
     }
   }

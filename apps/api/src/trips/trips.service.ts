@@ -93,6 +93,12 @@ export const withGuests = {
   payerAddresses: { orderBy: { createdAt: 'asc' } },
   // Each question nobody answered is one of Trip Control's Actions (issue #13).
   questions: { where: { status: 'waiting' }, select: { id: true } },
+  // Each open trip change request is one too (issue #82).
+  changeRequests: {
+    where: { status: 'open' },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  },
 } satisfies Prisma.TripInclude
 
 function data(input: TripInput) {
@@ -631,11 +637,12 @@ export class TripsService {
    */
   async log(id: string, caller: Caller, admin = false): Promise<TripLogEntry[]> {
     const trip = await this.get(id, caller, admin)
-    const [refused, access, events, questions] = await Promise.all([
+    const [refused, access, events, questions, changeRequests] = await Promise.all([
       this.prisma.tripLog.findMany({ where: { tripId: id } }),
       this.prisma.accessLog.findMany({ where: { tripId: id } }),
       this.events(id),
       this.prisma.tripQuestion.findMany({ where: { tripId: id } }),
+      this.prisma.tripChangeRequest.findMany({ where: { tripId: id } }),
     ])
     const changes = refused.filter((r) => r.kind === 'change')
     // Who changed the trip's people, and whom, and who changed the trip, by name from sign-in.
@@ -713,6 +720,27 @@ export class TripsService {
         return answered ? [asked, answered] : [asked]
       }),
     ]
+    // Trip change requests (issue #82): when each was asked, and closed. Never the notes.
+    for (const r of changeRequests) {
+      const base = {
+        kind: 'change_request' as const,
+        guestName: name(r.guestId),
+        request: r.request,
+      }
+      entries.push({
+        ...base,
+        at: r.createdAt.toISOString(),
+        action: 'asked',
+        name: r.requesterName,
+      })
+      if (r.closedAt)
+        entries.push({
+          ...base,
+          at: r.closedAt.toISOString(),
+          action: r.status === 'declined' ? 'declined' : 'done',
+          name: r.closedByName || 'An organizer',
+        })
+    }
     // Newest first; within one moment, the order things happened in reverse.
     return entries
       .map((e, i) => ({ e, i }))
