@@ -76,7 +76,7 @@ export function useTripInterest(
   // Nothing on a trip that never was a save the date.
   if (list.length === 0 && !trip.saveTheDate) return { actionRows: [], card: null }
 
-  const toTell = list.filter((p) => !p.signed && !p.toldAt)
+  const toTell = list.filter((p) => !p.signed && !p.toldAt && !p.stopped)
   const open = !trip.saveTheDate && trip.published
 
   async function remove(p: InterestedPerson) {
@@ -227,8 +227,12 @@ export function useTripInterest(
                       {name}
                       {p.signed ? (
                         <span className={`${tag} bg-royal-pale text-royal`}>Signed up</span>
+                      ) : p.toldAt ? (
+                        <span className={`${tag} bg-ground text-body`}>Emailed</span>
                       ) : (
-                        p.toldAt && <span className={`${tag} bg-ground text-body`}>Emailed</span>
+                        p.stopped && (
+                          <span className={`${tag} bg-ground text-body`}>Stopped updates</span>
+                        )
                       )}
                     </div>
                     <div className="text-sm text-body [overflow-wrap:anywhere]">

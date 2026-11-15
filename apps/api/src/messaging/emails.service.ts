@@ -216,12 +216,16 @@ export class EmailsService {
    */
   async sendSignupsOpen(
     interest: NonNullable<EmailContext['interest']>,
+    stopLink: string,
     to: string,
     replyTo?: string,
     tripId?: string
   ): Promise<boolean> {
     try {
-      const email = render(await this.template(this.kindOf('signups_open')), { interest })
+      const email = render(await this.template(this.kindOf('signups_open')), {
+        interest,
+        stopLink,
+      })
       const result = await this.deliver('signups_open', { to, replyTo, ...email }, { id: tripId })
       return result.sent || result.reason === 'mocked'
     } catch (err) {
