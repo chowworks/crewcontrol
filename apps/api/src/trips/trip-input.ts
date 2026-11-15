@@ -3,11 +3,13 @@ import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import {
   HIGHLIGHT_ICONS,
   BED_TYPES,
+  DEFAULT_TIME_ZONE,
   DEFAULT_TRIP_OPTIONS,
   MAX_SECTION_PHOTOS,
   MAX_TRIP_PHOTOS,
   MAX_TRIP_ROOMS,
   MAX_TRIP_SECTIONS,
+  knownTimeZone,
   type HighlightIcon,
   type TripHighlight,
   type TripInput,
@@ -247,7 +249,16 @@ export function parseTripInput(raw: unknown): TripInput {
     refundPolicy,
     options: parseOptions(body.options),
     saveTheDate: body.saveTheDate === undefined ? false : bool(body, 'saveTheDate'),
+    timeZone: timeZoneOf(body.timeZone),
   }
+}
+
+/** The trip's own clock (issue #88): a time zone the server knows; New York time when none is given. */
+function timeZoneOf(raw: unknown): string {
+  if (raw === undefined || raw === null || raw === '') return DEFAULT_TIME_ZONE
+  if (typeof raw !== 'string' || raw.length > 64 || !knownTimeZone(raw))
+    fail('timeZone must be a time zone, like America/New_York')
+  return raw
 }
 
 /** The trip's options: known keys only, each checked; a missing one takes its default. */

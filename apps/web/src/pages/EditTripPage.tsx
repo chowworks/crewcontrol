@@ -59,6 +59,7 @@ import { TripView } from '@/components/TripView'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
 import { shrinkPhoto } from '@/lib/resize'
+import { deviceTimeZone, timeZoneOptions } from '@/lib/timeZones'
 import { defaultSignupNote, waitlisting } from '@/lib/signups'
 import { StepsFrame } from './EditTripSteps'
 import { ReceiptsAddressCard } from './ForwardedReceipts'
@@ -85,6 +86,7 @@ const EMPTY: TripInput = {
   paymentInstructions: '',
   published: false,
   saveTheDate: false,
+  timeZone: deviceTimeZone(),
   photos: [],
   highlights: [],
   keyDates: [],
@@ -171,6 +173,9 @@ function previewOf(
       : [],
     goingCount: approved.length,
     spotsTaken: approved.length,
+    // The preview shows the page as it takes sign-ups.
+    signupsClosed: false,
+    ended: false,
     waitlisting: waitlisting({ ...trip, waitlistBufferPercent }, guests),
     interestedCount: guests.filter((g) => g.status === 'interested').length,
     guestNames: trip.showGuestNames
@@ -584,6 +589,18 @@ export function EditTripPage() {
                       value={trip.endDate}
                       onChange={(v) => set('endDate', v)}
                     />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold">Time zone</span>
+                    <Dropdown
+                      label="Time zone"
+                      value={trip.timeZone}
+                      options={timeZoneOptions(trip.timeZone)}
+                      onChange={(v) => set('timeZone', v)}
+                    />
+                    <span className="text-sm text-muted">
+                      Where the trip is. Sign-ups close at midnight there when the trip starts.
+                    </span>
                   </div>
                   <Text
                     label="Hosted by"

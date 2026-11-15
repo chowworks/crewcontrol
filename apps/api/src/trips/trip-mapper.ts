@@ -14,6 +14,8 @@ import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/recei
 import {
   DEFAULT_TRIP_OPTIONS,
   ownPartOf,
+  tripEnded,
+  tripStarted,
   paymentPlan,
   roomPrice,
   type BalanceAdjustment,
@@ -169,6 +171,8 @@ export function toPublicTrip(
     spotsTaken: row.spotsTaken ?? approved.length,
     waitlisting: row.waitlisting ?? false,
     saveTheDate: row.saveTheDate,
+    signupsClosed: tripStarted(row),
+    ended: tripEnded(row),
     interestedCount: row.guests.filter((g) => g.status === 'interested').length,
     // Only when the organizer turns names on; picking rooms doesn't unlock them.
     guestNames: row.showGuestNames
@@ -371,6 +375,7 @@ export function toOrganizerTrip(
     refundPolicy: row.refundPolicy as RefundPolicy,
     options: optionsOf(row),
     saveTheDate: row.saveTheDate,
+    timeZone: row.timeZone,
     guests: row.guests.map((g) =>
       toGuest(
         g,
@@ -402,6 +407,7 @@ export function toTripSummary(row: TripRow): TripSummary {
     published: row.published,
     coverUrl: photos(row)[0]?.url ?? null,
     isSample: row.isSample,
+    ended: tripEnded(row),
   }
 }
 

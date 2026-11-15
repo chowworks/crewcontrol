@@ -83,6 +83,7 @@ export interface TripState {
   refundPolicy: string
   options: unknown
   saveTheDate: boolean
+  timeZone: string
 }
 
 const JOIN_MODES: Record<JoinMode, string> = {
@@ -134,6 +135,7 @@ export function tripChanges(before: TripState, after: TripState): TripFieldChang
     dateRange(before.startDate, before.endDate),
     dateRange(after.startDate, after.endDate)
   )
+  add(before.timeZone !== after.timeZone, 'timeZone', before.timeZone, after.timeZone)
   add(before.organizerName !== after.organizerName, 'host')
   add(before.description !== after.description, 'description')
   add(before.slug !== after.slug, 'link', before.slug, after.slug)

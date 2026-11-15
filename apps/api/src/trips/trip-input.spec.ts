@@ -29,6 +29,14 @@ const valid = {
 }
 
 describe('parseTripInput', () => {
+  it('takes a known time zone, New York time when none is given, and refuses a made-up one', () => {
+    expect(parseTripInput(valid).timeZone).toBe('America/New_York')
+    expect(parseTripInput({ ...valid, timeZone: 'America/Cancun' }).timeZone).toBe('America/Cancun')
+    expect(() => parseTripInput({ ...valid, timeZone: 'Mars/Olympus' })).toThrow(
+      BadRequestException
+    )
+  })
+
   it('trims text, defaults the gallery title and sorts key dates', () => {
     const input = parseTripInput(valid)
     expect(input.name).toBe('Aruba 2028')

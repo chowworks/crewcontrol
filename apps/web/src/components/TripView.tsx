@@ -43,7 +43,12 @@ export function TripView({
   sections?: TripSection[]
 }) {
   const cover = trip.photos[0]
-  const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
+  // Once sign-ups close, nobody is still joining (issue #88).
+  const going = trip.ended
+    ? `${trip.goingCount} went`
+    : trip.signupsClosed
+      ? `${trip.goingCount} going`
+      : `${trip.goingCount} going · ${trip.interestedCount} joining`
   // A full trip keeps taking sign-ups onto its waitlist, where nobody is asked to send money.
   const full = trip.waitlisting
   // Rooms priced apart (issue #30): the trip shows its cheapest room's price, "From $X".
@@ -109,6 +114,18 @@ export function TripView({
               <div className="flex flex-col gap-4 min-[948px]:hidden">{mine.announcements}</div>
               {mine.place}
             </>
+          ) : trip.signupsClosed ? (
+            // Sign-ups close for good on the trip's first day (issue #88): one card says so, in place of the price.
+            <div className="flex flex-col gap-2 rounded-2xl bg-white p-6 shadow-card">
+              <h2 className="font-display text-[28px] font-extrabold leading-tight">
+                Sign-ups are closed
+              </h2>
+              <p className="text-[15px] text-body">
+                {trip.ended
+                  ? `This trip ran ${dateRange(trip.startDate, trip.endDate)}.`
+                  : `This trip started ${shortDate(trip.startDate)}.`}
+              </p>
+            </div>
           ) : (
             <>
               <div className="flex flex-col gap-3.5 rounded-2xl bg-white p-6 shadow-card">

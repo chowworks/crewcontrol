@@ -85,7 +85,7 @@ export function Dropdown<T extends string | number | null>({
           aria-label={label}
           aria-activedescendant={`${uid}-${active}`}
           onKeyDown={onKey}
-          className="absolute left-0 top-[calc(100%+6px)] z-20 w-full min-w-[220px] rounded-2xl border border-rule bg-white p-2 shadow-[0_16px_40px_rgba(15,28,46,0.14)] focus:outline-none"
+          className="absolute left-0 top-[calc(100%+6px)] z-20 max-h-[320px] w-full min-w-[220px] overflow-y-auto rounded-2xl border border-rule bg-white p-2 shadow-[0_16px_40px_rgba(15,28,46,0.14)] focus:outline-none"
         >
           {options.map((o, i) => (
             <li

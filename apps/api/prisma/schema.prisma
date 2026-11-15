@@ -20,6 +20,8 @@ model Trip {
   destination         String
   startDate           String // 'YYYY-MM-DD', a calendar date with no time zone
   endDate             String
+  // The trip's own clock, an IANA time zone: sign-ups close at midnight there on startDate (issue #88).
+  timeZone            String               @default("America/New_York")
   organizerName       String
   description         String
   costPerPersonCents  Int

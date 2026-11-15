@@ -27,6 +27,7 @@ const LABEL: Record<TripChangeField, string> = {
   paymentInstructions: 'the payment instructions',
   reminders: 'the payment reminders',
   saveTheDate: 'save the date',
+  timeZone: 'the time zone',
   roomChoice: 'room picking',
   signupNote: 'the sign-up note',
   vendorCosts: 'vendor costs',

@@ -78,6 +78,8 @@ export function JoinPage() {
   if (hasJoined(view) && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
   // A save the date takes "I'm interested" on the trip page, never a signature (issue #47).
   if (trip.saveTheDate && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
+  // Nobody new once the trip has started (issue #88); the trip page says so.
+  if (trip.signupsClosed && !view.claimable) return <Navigate to={`/t/${trip.slug}`} replace />
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">

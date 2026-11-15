@@ -99,6 +99,33 @@ export function TripList({
       )
   }, [trips, query, sort])
 
+  // Trips whose last day has passed go under Past trips (issue #88), in the same order.
+  const current = shown.filter((t) => !t.ended)
+  const past = shown.filter((t) => t.ended)
+  const rows = (list: ListedTrip[]) => (
+    <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-2xl bg-white shadow-card">
+      {list.map((t) => (
+        <li key={t.id} className="flex flex-wrap items-center gap-4 p-4">
+          <Cover t={t} className="h-24 w-36 shrink-0 rounded-xl" />
+          <div className="flex min-w-[220px] flex-1 flex-col gap-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-lg font-extrabold">{t.name}</span>
+              <Status t={t} />
+              {t.isSample && <SampleTripBadge />}
+            </span>
+            <span className="text-sm text-muted">
+              {t.destination} · {dateRange(t.startDate, t.endDate)} · Run by {owner(t)}
+            </span>
+            <div className="mt-1 max-w-[320px]">
+              <SignupMeter t={t} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">{actions(t)}</div>
+        </li>
+      ))}
+    </ul>
+  )
+
   const field =
     'min-h-[48px] rounded-xl border border-rule bg-white px-4 text-[16px] text-ink focus:border-royal focus:outline-none focus:ring-2 focus:ring-royal/30'
   return (
@@ -139,27 +166,15 @@ export function TripList({
           : `${shown.length} of ${trips.length} trips`}
       </p>
       {shown.length > 0 ? (
-        <ul className="flex flex-col divide-y divide-rule overflow-hidden rounded-2xl bg-white shadow-card">
-          {shown.map((t) => (
-            <li key={t.id} className="flex flex-wrap items-center gap-4 p-4">
-              <Cover t={t} className="h-24 w-36 shrink-0 rounded-xl" />
-              <div className="flex min-w-[220px] flex-1 flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-lg font-extrabold">{t.name}</span>
-                  <Status t={t} />
-                  {t.isSample && <SampleTripBadge />}
-                </span>
-                <span className="text-sm text-muted">
-                  {t.destination} · {dateRange(t.startDate, t.endDate)} · Run by {owner(t)}
-                </span>
-                <div className="mt-1 max-w-[320px]">
-                  <SignupMeter t={t} />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">{actions(t)}</div>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-6">
+          {current.length > 0 && rows(current)}
+          {past.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="text-xl font-extrabold">Past trips</h2>
+              {rows(past)}
+            </section>
+          )}
+        </div>
       ) : (
         <p className="rounded-xl bg-royal-pale px-4 py-3 text-ink">No trip matches “{query}”.</p>
       )}

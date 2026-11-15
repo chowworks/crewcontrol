@@ -6,7 +6,14 @@ import {
   organizerTerms,
   termsOf,
 } from './agreement'
-import { fillAgreementNames, ownPartOf, paymentPlan } from '../trips/trip-types'
+import {
+  fillAgreementNames,
+  ownPartOf,
+  paymentPlan,
+  tripEnded,
+  tripStarted,
+  tripToday,
+} from '../trips/trip-types'
 import { toE164 } from './send-text'
 
 const trip = {
@@ -312,5 +319,25 @@ describe('toE164', () => {
     expect(toE164('1 555 555 0100')).toBe('+15555550100')
     expect(toE164('+44 20 7946 0000')).toBe('+442079460000')
     expect(toE164('555-0100')).toBeNull()
+  })
+})
+
+describe('the trip clock (issue #88)', () => {
+  // 03:30 UTC on Feb 3 is still Feb 2 in New York and Cancún, already Feb 3 in London.
+  const now = new Date('2028-02-03T03:30:00Z')
+  const trip = { startDate: '2028-02-03', endDate: '2028-02-07' }
+
+  it('reads today on the trip’s own clock', () => {
+    expect(tripToday('America/New_York', now)).toBe('2028-02-02')
+    expect(tripToday('Europe/London', now)).toBe('2028-02-03')
+    expect(tripToday('Not/A_Zone', now)).toBe('2028-02-02')
+  })
+
+  it('starts the trip at midnight where it is, and ends it after the last day', () => {
+    expect(tripStarted({ ...trip, timeZone: 'America/Cancun' }, now)).toBe(false)
+    expect(tripStarted({ ...trip, timeZone: 'Europe/London' }, now)).toBe(true)
+    const lastDay = new Date('2028-02-07T23:00:00Z')
+    expect(tripEnded({ ...trip, timeZone: 'America/New_York' }, lastDay)).toBe(false)
+    expect(tripEnded({ ...trip, timeZone: 'Asia/Tokyo' }, lastDay)).toBe(true)
   })
 })

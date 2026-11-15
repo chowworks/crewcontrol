@@ -69,6 +69,15 @@ Photos, highlights, sections, key dates and rooms only show once you add them. T
     pages: ['editor:customization', 'editor:signups', 'control'],
   },
   {
+    key: 'trip-started',
+    topic: 'signups',
+    question: 'What happens when my trip starts or ends?',
+    answer: `Sign-ups close for good at midnight on the trip's first day, in the trip's time zone (Trip basics, under the dates). From then on the trip page says "Sign-ups are closed" instead of "Want in?", and nobody new can sign up or say they're interested.
+
+Everyone who joined keeps their trip page, and Trip Control, payments and announcements keep working, so you can settle up after the trip. Once the last day has passed, the trip moves to Past trips on Your trips.`,
+    pages: ['editor:basics', 'control'],
+  },
+  {
     key: 'trip-sections',
     topic: 'tripPage',
     question: 'How do I add a section like Transportation or What to pack?',
