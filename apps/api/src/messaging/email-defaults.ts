@@ -280,8 +280,9 @@ ${plan('{{guest.firstName}}’s')}
   {
     kind: 'signups_open',
     name: 'Sign-ups are open',
-    when: 'To each person who said they’re interested in a save the date, when an organizer opens sign-ups and presses “Email them”.',
+    when: 'To each person who said they’re interested in a save the date, when an organizer opens sign-ups and presses “Email them”. Not to anyone who stopped updates for the trip.',
     groups: ['interest'],
+    stopLink: true,
     subject: 'Sign-ups are open: {{interest.tripName}}',
     body: `<p>Hi {{interest.firstName}},</p>
 <p>You said you were interested in <strong>{{interest.tripName}}</strong>, {{interest.dates}}. Sign-ups are open now.</p>

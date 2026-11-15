@@ -1708,6 +1708,8 @@ export interface InterestedPerson {
   signed: boolean
   /** ISO time they were emailed that sign-ups are open, or null. */
   toldAt: string | null
+  /** They used the stop link in an email from this trip, so they get no more emails about it. */
+  stopped: boolean
 }
 
 /** "I'm interested": the name and phone (the email is their sign-in's). */

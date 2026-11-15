@@ -52,6 +52,7 @@ export class InterestService {
       createdAt: r.createdAt.toISOString(),
       signed: signed.has(r.userId),
       toldAt: r.toldAt?.toISOString() ?? null,
+      stopped: r.updatesStoppedAt !== null,
     }))
   }
 
@@ -91,15 +92,15 @@ export class InterestService {
   }
 
   /**
-   * "Sign-ups are open", to everyone on the list who hasn't signed up or been told yet, with Reply-To the organizer who
-   * pressed it. Only once sign-ups are open.
+   * "Sign-ups are open", to everyone on the list who hasn't signed up, been told yet or stopped updates, with Reply-To
+   * the organizer who pressed it and their own stop link. Only once sign-ups are open.
    */
   async tell(id: string, caller: Caller): Promise<InterestTold> {
     const trip = await this.trips.get(id, caller)
     if (trip.saveTheDate) throw new ConflictException('Open sign-ups first, then email them.')
     if (!trip.published) throw new ConflictException('Publish the trip first, then email them.')
     const rows = await this.prisma.tripInterest.findMany({
-      where: { tripId: id, toldAt: null },
+      where: { tripId: id, toldAt: null, updatesStoppedAt: null },
       orderBy: { createdAt: 'asc' },
     })
     const signed = await this.signedUserIds(id, rows)
@@ -114,6 +115,7 @@ export class InterestService {
           organizerName: trip.organizerName,
           link: `${webUrl()}/t/${trip.slug}/join`,
         },
+        `${webUrl()}/stop/${r.updatesToken}`,
         r.email,
         me.email || undefined,
         id

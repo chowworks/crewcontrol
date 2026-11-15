@@ -296,6 +296,13 @@ describe('render', () => {
     expect(out.text).not.toContain('signed the trip agreement')
     expect(out.html).not.toContain('(555) 010-0199')
   })
+
+  it('gives the “Sign-ups are open” email a stop link, so stopping updates stops it too', () => {
+    const k = emailKind('signups_open')!
+    expect(render(k, sampleFor(k, 'can_pay')).html).toContain(
+      'href="https://travel-hq.app/stop/sample"'
+    )
+  })
 })
 
 it('turns HTML into readable text', () => {
