@@ -1904,17 +1904,29 @@ export interface OpenSignupsResult {
  */
 export type PaidFeature = 'organizer_link' | 'custom_domain'
 
-export const PAID_FEATURES: { key: PaidFeature; title: string; text: string; built: boolean }[] = [
+/**
+ * Paid features, in the order the admin sees them. `bucket` groups them in Manage Memberships; it is only a
+ * shortcut for ticking several at once, never stored on a membership.
+ */
+export const PAID_FEATURES: {
+  key: PaidFeature
+  title: string
+  text: string
+  bucket: string
+  built: boolean
+}[] = [
   {
     key: 'organizer_link',
     title: 'Your own organizer link',
     text: 'Your trips live at your own link, like travel-hq.app/yourname, easy to say in the group chat.',
+    bucket: 'Branding',
     built: false,
   },
   {
     key: 'custom_domain',
     title: 'Custom domains',
     text: 'Put a trip on its own web address, like staycation.travel-hq.app or a domain you own.',
+    bucket: 'Branding',
     built: false,
   },
 ]

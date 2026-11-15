@@ -5,8 +5,8 @@ import {
   type MembershipInput,
   type PaidFeature,
 } from '@cc/types'
-import { Check, Gem, Globe, Link2, Plus, Search, X, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Gem, Globe, Link2, Plus, Search, type LucideIcon } from 'lucide-react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { AdminGrid, type GridColumn } from '@/components/AdminGrid'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
@@ -299,7 +299,7 @@ function MemberDialog({
   }
 
   return (
-    <Dialog title={member ? 'Change paid features' : 'Add a member'} onClose={onClose}>
+    <Dialog title={member ? 'Change paid features' : 'Add a member'} onClose={onClose} wide>
       <form onSubmit={save} className="flex flex-col gap-5" noValidate>
         {error && (
           <p role="alert" className="font-semibold text-[#B42318]">
@@ -373,6 +373,24 @@ function MemberDialog({
  * Picking features (owner's ask, 2026-11-15): a search box that lists the matching features with tick boxes, and the
  * ticked ones below as tiles, each with Remove.
  */
+const BUCKETS = [...new Set(PAID_FEATURES.map((f) => f.bucket))]
+
+/** "3 features: all of Branding, 1 from Messaging". */
+function pickedSummary(features: PaidFeature[]): string {
+  const parts = BUCKETS.flatMap((b) => {
+    const all = PAID_FEATURES.filter((f) => f.bucket === b)
+    const n = all.filter((f) => features.includes(f.key)).length
+    if (n === 0) return []
+    return [n === all.length ? `all of ${b}` : `${n} from ${b}`]
+  })
+  const n = features.length
+  return `${n} ${n === 1 ? 'feature' : 'features'}: ${parts.join(', ')}`
+}
+
+/**
+ * Buckets on the left, the chosen bucket's features on the right (Chow's option C, 2026-11-15). A bucket only
+ * ticks its features; the search looks through every feature.
+ */
 function FeaturePicker({
   features,
   onToggle,
@@ -383,35 +401,44 @@ function FeaturePicker({
   problem: string | null
 }) {
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(0)
+  const [bucket, setBucket] = useState<string | null>(null)
   const uid = useId()
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const found = PAID_FEATURES.filter((f) =>
-    words.every((w) => `${f.title} ${f.text}`.toLowerCase().includes(w))
-  )
-  const picked = PAID_FEATURES.filter((f) => features.includes(f.key))
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      setOpen(true)
-      setActive((i) => Math.min(found.length - 1, i + 1))
-    } else if (e.key === 'ArrowUp') setActive((i) => Math.max(0, i - 1))
-    else if (e.key === 'Enter' && open && found[active]) {
-      const k = found[active].key
-      onToggle(k, !features.includes(k))
-    } else return
-    e.preventDefault()
+  const shown = words.length
+    ? PAID_FEATURES.filter((f) =>
+        words.every((w) => `${f.title} ${f.text} ${f.bucket}`.toLowerCase().includes(w))
+      )
+    : PAID_FEATURES.filter((f) => bucket === null || f.bucket === bucket)
+  const heading = words.length ? 'Matches' : (bucket ?? 'All features')
+  const allOn = shown.length > 0 && shown.every((f) => features.includes(f.key))
+  const count = (b: string | null) => {
+    const all = PAID_FEATURES.filter((f) => b === null || f.bucket === b)
+    return `${all.filter((f) => features.includes(f.key)).length} / ${all.length}`
+  }
+  const navItem = (b: string | null) => {
+    const on = !words.length && bucket === b
+    return (
+      <button
+        key={b ?? 'all'}
+        type="button"
+        aria-pressed={on}
+        onClick={() => {
+          setBucket(b)
+          setQuery('')
+        }}
+        className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-left ${
+          on ? 'bg-royal-pale font-semibold text-royal' : 'text-ink hover:bg-ground'
+        }`}
+      >
+        <span className="flex-1">{b ?? 'All features'}</span>
+        <span className={`text-sm ${on ? 'text-royal' : 'text-muted'}`}>{count(b)}</span>
+      </button>
+    )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <div
-        className="relative"
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false)
-        }}
-      >
+      <div className="relative">
         <label htmlFor={`${uid}-search`} className="mb-1.5 block font-semibold text-ink">
           Paid features
         </label>
@@ -422,98 +449,83 @@ function FeaturePicker({
         <input
           id={`${uid}-search`}
           type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={`${uid}-list`}
-          aria-activedescendant={open && found[active] ? `${uid}-${active}` : undefined}
           autoComplete="off"
           value={query}
-          placeholder="Search features to add"
-          onFocus={() => setOpen(true)}
-          onClick={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setActive(0)
-            setOpen(true)
-          }}
-          onKeyDown={onKey}
+          placeholder="Search all features"
+          onChange={(e) => setQuery(e.target.value)}
           className={`${field} pl-11`}
         />
-        {open && (
-          <ul
-            id={`${uid}-list`}
-            role="listbox"
-            aria-multiselectable="true"
-            aria-label="Paid features"
-            className="absolute left-0 top-[calc(100%+6px)] z-20 w-full rounded-2xl border border-rule bg-white p-2 shadow-[0_16px_40px_rgba(15,28,46,0.14)]"
-          >
-            {found.length === 0 && <li className="px-3 py-2.5 text-body">No feature matches.</li>}
-            {found.map((f, i) => {
-              const on = features.includes(f.key)
-              return (
-                <li
-                  key={f.key}
-                  id={`${uid}-${i}`}
-                  role="option"
-                  aria-selected={on}
-                  // Keeps the focus in the search box, so the list stays open while ticking.
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onToggle(f.key, !on)}
-                  onPointerEnter={() => setActive(i)}
-                  className={`flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl px-3 ${
-                    i === active ? 'bg-royal-pale' : ''
-                  }`}
-                >
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                      on ? 'border-royal bg-royal text-white' : 'border-rule bg-white'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {on && <Check className="h-3.5 w-3.5" />}
-                  </span>
-                  <span className="text-ink">{f.title}</span>
-                  {!f.built && <span className="text-sm text-muted">Coming soon</span>}
-                </li>
-              )
-            })}
-          </ul>
-        )}
       </div>
-      {problem && <span className={problemText}>{problem}</span>}
-      {picked.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-label="Their features">
-          {picked.map((f) => {
+      <div className="flex flex-col gap-3 rounded-2xl border border-rule p-3 sm:flex-row sm:gap-4">
+        <nav
+          aria-label="Feature buckets"
+          className="flex flex-col gap-1 border-b border-rule pb-3 sm:w-52 sm:shrink-0 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-3"
+        >
+          {navItem(null)}
+          {BUCKETS.map(navItem)}
+        </nav>
+        <section aria-labelledby={`${uid}-head`} className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 id={`${uid}-head`} className="text-xl font-bold text-ink">
+              {heading}
+            </h3>
+            {shown.length > 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  shown.forEach((f) => {
+                    if (features.includes(f.key) === allOn) onToggle(f.key, !allOn)
+                  })
+                }
+                className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-royal bg-white px-3 text-sm font-semibold text-royal hover:bg-royal-pale"
+              >
+                {allOn ? `Untick all ${shown.length}` : `Tick all ${shown.length}`}
+              </button>
+            )}
+          </div>
+          {shown.length === 0 && <p className="text-body">No feature matches.</p>}
+          {shown.map((f) => {
+            const on = features.includes(f.key)
             const Art = FEATURE_ART[f.key]
             return (
-              <li
+              <label
                 key={f.key}
-                className="flex items-start gap-3 rounded-xl border-2 border-royal bg-royal-pale p-3"
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 ${
+                  on ? 'border-royal bg-royal-pale' : 'border-rule bg-white hover:border-royal'
+                }`}
               >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={(e) => onToggle(f.key, e.target.checked)}
+                  className="mt-1 h-5 w-5 shrink-0 accent-royal"
+                />
                 <Art className="mt-0.5 h-6 w-6 shrink-0 text-royal" aria-hidden="true" />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex flex-wrap items-center gap-2 font-semibold text-ink">
                     {f.title}
                     {!f.built && (
-                      <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-royal">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold text-royal ${
+                          on ? 'bg-white' : 'bg-royal-pale'
+                        }`}
+                      >
                         Coming soon
                       </span>
                     )}
                   </span>
-                  <span className="text-sm text-body">{f.text}</span>
+                  <span className="text-sm font-normal text-body">{f.text}</span>
+                  {words.length > 0 && <span className="text-sm text-muted">In {f.bucket}</span>}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onToggle(f.key, false)}
-                  aria-label={`Remove ${f.title}`}
-                  className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-royal bg-white text-royal hover:bg-royal-pale"
-                >
-                  <X className="h-5 w-5" aria-hidden="true" />
-                </button>
-              </li>
+              </label>
             )
           })}
-        </ul>
+        </section>
+      </div>
+      {problem ? (
+        <span className={problemText}>{problem}</span>
+      ) : (
+        features.length > 0 && <p className="text-sm text-body">{pickedSummary(features)}</p>
       )}
     </div>
   )
