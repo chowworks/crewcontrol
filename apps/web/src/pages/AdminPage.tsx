@@ -1,5 +1,6 @@
 import {
   ChartColumn,
+  Gem,
   Inbox,
   Luggage,
   Mail,
@@ -44,6 +45,14 @@ const TOOLS: {
     text: 'Every trip on Travel HQ: who runs it and who has signed up, to look at read-only or hand to an owner.',
     sub: 'Every trip, to look at read-only or hand to an owner.',
     how: 'Control panel and Edit open a trip read-only: you see its guests and money but change nothing, and a look is not logged. To change a trip, add yourself on its People screen; every change you make to a trip’s people is written to its access log, which its owners can read. Sample trips belong to no one and are reset by the seed, which also clears people added to them. A trip made before sign-in has no owner until an admin takes it over with “Make me the owner”.',
+  },
+  {
+    to: '/admin/memberships',
+    icon: Gem,
+    title: 'Manage Memberships',
+    text: 'Who has paid features, like their own organizer link or a custom domain, by the email they sign in with.',
+    sub: 'Who has which paid features, until when, and what they paid.',
+    how: 'Travel HQ takes no payment for paid features: you give them here by hand and keep a note of what was paid and how. Add the email someone signs in with and tick their features; they needn’t have signed in yet. A person has a feature while their last day hasn’t passed (Eastern time), or always with no last day. Each feature you give them is introduced in a popup the next time they open an organizer page, once. A feature they were shown isn’t shown again, unless their last day had passed and you renew it. Remove them and add them again (or Undo) and they aren’t shown it twice either. After the last day, or when you remove them, the features switch off on their own and nothing breaks: links fall back to the free ones. Features marked Coming soon aren’t built yet, so giving one changes nothing yet but the popup. Organizers ask to try a feature from Your Membership in the Help; those asks are in Review Customer Requests.',
   },
   {
     to: '/admin/requests',

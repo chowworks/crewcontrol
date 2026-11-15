@@ -24,6 +24,7 @@ import {
   type JoinInput,
   type JoinMode,
   DISMISS_RECEIPT_REASONS,
+  PAID_FEATURES,
   PAYMENT_METHOD_KINDS,
   REMIND_DAYS,
   type BalanceAdjustmentInput,
@@ -33,6 +34,7 @@ import {
   type PaymentDecision,
   type PaymentLog,
   type PaymentMethod,
+  type PaidFeature,
   type PaymentMethodKind,
   type PaymentReport,
   type SystemSettings,
@@ -585,7 +587,14 @@ export function parseSystemSettings(raw: unknown): SystemSettings {
 export function parseOrganizerRequest(raw: unknown): OrganizerRequestInput {
   if (!raw || typeof raw !== 'object') fail('Expected a request')
   const body = raw as Body
-  if (body.kind !== 'refund_terms') fail('kind must be refund_terms')
+  // Asking to try a paid feature (issue #90): which one, and optionally why.
+  if (body.kind === 'feature_access') {
+    if (!PAID_FEATURES.some((f) => f.key === body.feature)) fail('feature must be a paid feature')
+    const why = typeof body.text === 'string' ? body.text.trim() : ''
+    if (why.length > 2000) fail('Keep it under 2000 characters.')
+    return { kind: 'feature_access', feature: body.feature as PaidFeature, text: why }
+  }
+  if (body.kind !== 'refund_terms') fail('kind must be refund_terms or feature_access')
   return {
     kind: 'refund_terms',
     tripId: typeof body.tripId === 'string' && body.tripId ? body.tripId : undefined,

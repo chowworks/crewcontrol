@@ -31,6 +31,15 @@ Travel HQ handles the bookkeeping: sign-ups and the trip agreement, who has paid
     pages: ['editor:basics', 'editor:pricing'],
   },
   {
+    key: 'paid-features',
+    topic: 'start',
+    question: 'Does Travel HQ have paid features?',
+    answer: `A few extras will be paid upgrades: your own organizer link (travel-hq.app/yourname) and custom domains for a trip. Both are coming soon. Running a trip stays free, and Travel HQ never takes a cut of the trip money.
+
+To try one early, tap "Your Membership" at the bottom of this Help, then "Ask for early access". When you get a paid feature, we tell you about it the next time you open Travel HQ.`,
+    pages: ['control', 'features'],
+  },
+  {
     key: 'yahoo-email',
     topic: 'signups',
     question: 'What if a guest only has a Yahoo email?',

@@ -434,6 +434,30 @@ export class EmailsService {
   }
 
   /**
+   * An organizer asked to try a paid feature early (issue #90): to support at once, as a contact form email, so
+   * replying answers them. It is also on the Requests page. Never rejects.
+   */
+  alertFeatureAccess(ask: { name: string; email: string; feature: string; text: string }): void {
+    const web = (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
+    const lines = [
+      `${ask.name || ask.email} asked to try ${ask.feature} early.`,
+      ask.text && `How they'd use it: ${ask.text}`,
+      `To give it to them, add their email in the Admin toolbox: ${web}/admin/memberships`,
+    ]
+    this.sendContact(
+      {
+        name: ask.name || ask.email,
+        email: ask.email,
+        topic: 'Paid feature request',
+        message: lines.filter(Boolean).join('\n\n'),
+      },
+      process.env.SUPPORT_EMAIL ?? 'support@travel-hq.app'
+    ).catch((err) =>
+      console.error(`Paid feature alert failed: ${err instanceof Error ? err.message : err}`)
+    )
+  }
+
+  /**
    * An organizer asked a question from the Help button (issue #66): to support at once, as a contact form email, so
    * replying answers them directly. The admin can also answer it in the Admin toolbox. Never rejects.
    */

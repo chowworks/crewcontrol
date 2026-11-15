@@ -8,10 +8,13 @@ import { useEffect, useRef, type ReactNode } from 'react'
 export function Dialog({
   title,
   onClose,
+  wide = false,
   children,
 }: {
   title: string
   onClose: () => void
+  /** A wider panel on a computer, for a task with two columns. */
+  wide?: boolean
   children: ReactNode
 }) {
   const panel = useRef<HTMLDivElement>(null)
@@ -73,7 +76,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex max-h-[100dvh] w-full flex-col overflow-y-auto bg-white p-6 shadow-[0_24px_60px_rgba(15,28,46,0.3)] sm:max-h-[90vh] sm:max-w-[640px] sm:rounded-3xl"
+        className={`flex max-h-[100dvh] w-full flex-col overflow-y-auto bg-white p-6 shadow-[0_24px_60px_rgba(15,28,46,0.3)] sm:max-h-[90vh] ${wide ? 'sm:max-w-[900px]' : 'sm:max-w-[640px]'} sm:rounded-3xl`}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 className="text-[26px] font-extrabold leading-tight">{title}</h2>

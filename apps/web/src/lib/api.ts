@@ -34,6 +34,10 @@ import {
   type JoinView,
   type MyActions,
   type MyTerms,
+  type Membership,
+  type MembershipInput,
+  type MyFeatures,
+  type PaidFeature,
   type OrganizerRequest,
   type OrganizerRequestInput,
   type OrganizerTrip,
@@ -270,6 +274,19 @@ export const api = {
   answerHelpQuestion: (id: string, input: HelpAnswerInput) =>
     request<HelpAnswerResult>(`/admin/help/questions/${id}/answer`, json('POST', input)),
   addRequest: (input: OrganizerRequestInput) => request<void>('/requests', json('POST', input)),
+  // Paid features (issue #90): the signed-in organizer's, and the admin's Manage Memberships.
+  myFeatures: () => request<MyFeatures>('/me/features'),
+  markFeaturesSeen: (features: PaidFeature[]) =>
+    request<void>('/me/features/seen', json('POST', { features })),
+  adminMemberships: () => request<Membership[]>('/admin/memberships'),
+  // isNew: adding someone, refused if they're already a member.
+  setMembership: (email: string, input: MembershipInput, isNew: boolean) =>
+    request<Membership[]>(
+      `/admin/memberships/${encodeURIComponent(email)}`,
+      json('PUT', { ...input, isNew })
+    ),
+  removeMembership: (email: string) =>
+    request<Membership[]>(`/admin/memberships/${encodeURIComponent(email)}`, { method: 'DELETE' }),
   approveEarlyAccess: (id: string, approved: boolean) =>
     request<void>(`/admin/requests/${id}/approved`, json('PUT', { approved })),
   // Referrals (issue #39): someone who runs a trip refers a person; the admin approves them to start trips.

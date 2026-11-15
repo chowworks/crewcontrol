@@ -51,6 +51,9 @@ export const TENANT_TABLES: ReadonlySet<string> = new Set([
   // questions organizers ask, added by each for themselves and read by the admin only.
   'HelpEntry',
   'HelpQuestion',
+  // Not trip data: who has which paid features (issue #90), read and written by the admin; trusted work reads a
+  // person's own when they sign in.
+  'Membership',
 ])
 
 type Fields = Map<string, string> // relation field name -> the model it points at
