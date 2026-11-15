@@ -1309,7 +1309,7 @@ export const HELP_PAGES: { value: HelpPage; label: string }[] = [
   { value: 'editor:payments', label: 'Editor: Payments' },
   { value: 'editor:customization', label: 'Editor: Customization' },
   { value: 'control', label: 'Trip Control' },
-  { value: 'features', label: 'Paid features' },
+  { value: 'features', label: 'Your Membership' },
 ]
 
 /** The sections of "All topics", in order. */

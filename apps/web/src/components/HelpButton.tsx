@@ -263,7 +263,7 @@ function HelpPanel({ page, tripId }: { page: HelpPage; tripId?: string }) {
       <div className="flex flex-col items-start gap-3 rounded-xl bg-royal-pale px-4 py-3">
         <p className="text-ink">Your paid features, and asking to try one early.</p>
         <Link to="/organize/features" className={outlined}>
-          Paid features
+          Your Membership
         </Link>
       </div>
 

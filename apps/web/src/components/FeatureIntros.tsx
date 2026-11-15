@@ -74,7 +74,7 @@ export function FeatureIntros() {
             onClick={close}
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-royal px-4 font-semibold text-royal hover:bg-royal-pale"
           >
-            See all paid features
+            See your membership
           </Link>
         </div>
       </div>

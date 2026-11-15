@@ -195,7 +195,7 @@ export function AdminRequestsPage() {
               icon={Gem}
               title="Paid features"
               steps={[
-                'Organizers ask to try a paid feature early from Paid features, in the Help. Each one is emailed to support as it arrives; replying answers them.',
+                'Organizers ask to try a paid feature early from Your Membership, in the Help. Each one is emailed to support as it arrives; replying answers them.',
                 'To give it to them, add their email in Manage Memberships and tick the feature.',
               ]}
             >

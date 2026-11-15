@@ -36,7 +36,7 @@ export function PaidFeaturesPage() {
     api
       .myFeatures()
       .then(setMine)
-      .catch(() => setError('Your paid features could not be loaded. Reload to try again.'))
+      .catch(() => setError('Your membership could not be loaded. Reload to try again.'))
   }, [])
 
   return (
@@ -53,10 +53,10 @@ export function PaidFeaturesPage() {
       </header>
       <main className="mx-auto flex max-w-[960px] flex-col gap-6 px-5">
         <div>
-          <h1 className="text-3xl font-extrabold">Paid features</h1>
+          <h1 className="text-3xl font-extrabold">Your Membership</h1>
           <p className="mt-1 text-body">
-            Extras on top of running a trip, which stays free. Travel HQ never takes a cut of the
-            trip money.
+            Paid features on top of running a trip, which stays free. Travel HQ never takes a cut of
+            the trip money.
           </p>
         </div>
         {error && (

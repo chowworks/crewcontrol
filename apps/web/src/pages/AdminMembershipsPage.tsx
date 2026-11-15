@@ -5,7 +5,7 @@ import {
   type MembershipInput,
   type PaidFeature,
 } from '@cc/types'
-import { Gem, Plus } from 'lucide-react'
+import { Check, Gem, Globe, Link2, Plus, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { AdminGrid, type GridColumn } from '@/components/AdminGrid'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -36,6 +36,12 @@ const when = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Row = Membership & { id: string }
+
+/** A small picture for each feature's tile. */
+const FEATURE_ART: Record<PaidFeature, LucideIcon> = {
+  organizer_link: Link2,
+  custom_domain: Globe,
+}
 
 /** Today in Eastern time (YYYY-MM-DD), the way the API decides a last day has passed. */
 const todayEastern = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
@@ -316,30 +322,46 @@ function MemberDialog({
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 font-semibold text-ink">Paid features</legend>
-          {PAID_FEATURES.map((f) => (
-            <label
-              key={f.key}
-              className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border border-rule px-4 py-3"
-            >
-              <input
-                type="checkbox"
-                checked={features.includes(f.key)}
-                onChange={(e) => toggle(f.key, e.target.checked)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-royal"
-              />
-              <span className="flex flex-col gap-0.5">
-                <span className="flex flex-wrap items-center gap-2 font-semibold text-ink">
-                  {f.title}
-                  {!f.built && (
-                    <span className="rounded-full bg-royal-pale px-2.5 py-0.5 text-xs font-semibold text-royal">
-                      Coming soon
-                    </span>
-                  )}
-                </span>
-                <span className="text-sm text-body">{f.text}</span>
-              </span>
-            </label>
-          ))}
+          {/* Tiles like the trip editor's pricing choices, with a tick box, since several can be on. */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {PAID_FEATURES.map((f) => {
+              const on = features.includes(f.key)
+              const Art = FEATURE_ART[f.key]
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={on}
+                  onClick={() => toggle(f.key, !on)}
+                  className={`relative flex min-h-[44px] flex-col items-start gap-2 rounded-xl border-2 p-3 pr-11 text-left ${
+                    on ? 'border-royal bg-royal-pale' : 'border-rule bg-white hover:border-royal'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-md border-2 ${
+                      on ? 'border-royal bg-royal text-white' : 'border-[#5B6B80] bg-white'
+                    }`}
+                  >
+                    {on && <Check className="h-4 w-4" strokeWidth={3} />}
+                  </span>
+                  <Art className="h-7 w-7 text-royal" aria-hidden="true" />
+                  <span className="flex flex-wrap items-center gap-2 font-semibold text-ink">
+                    {f.title}
+                    {!f.built && (
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold text-royal ${on ? 'bg-white' : 'bg-royal-pale'}`}
+                      >
+                        Coming soon
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm text-body">{f.text}</span>
+                </button>
+              )
+            })}
+          </div>
           {touched.features && featuresProblem && (
             <span className={problemText}>{featuresProblem}</span>
           )}
