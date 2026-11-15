@@ -7,6 +7,9 @@ import { agreementPdf } from './agreement-pdf'
 import { allPhotosOf } from './trip-mapper'
 import { TripsService } from './trips.service'
 
+/** How many photos the export downloads at once. */
+const PHOTO_DOWNLOADS_AT_ONCE = 6
+
 /** "Kendra M. O'Neal" → "kendra-m-oneal", for file names. */
 const fileSlug = (s: string) =>
   s
@@ -52,16 +55,22 @@ export class TripExportService {
     const bucket = photoBucket()
     // The sections' photos too (issue #85), numbered on after the trip's own.
     const refs = allPhotosOf(row).map((p) => p.url)
-    for (const [i, ref] of refs.entries()) {
-      if (!bucket || !isPhotoRef(ref)) continue
-      const res = await fetch(await bucket.sign(ref))
-      if (!res.ok) throw new ServiceUnavailableException('A photo could not be loaded')
-      // Photos are already compressed, so they are stored as they are.
-      files[`photos/${String(i + 1).padStart(2, '0')}.${ref.split('.').pop()}`] = [
-        new Uint8Array(await res.arrayBuffer()),
-        { level: 0 },
-      ]
+    // Six at a time (up to 50 photos since issue #85): one by one took about 20 seconds for 50 in a test, six at a
+    // time about 4. Each keeps its place in the numbering.
+    const queue = [...refs.entries()].filter(([, ref]) => bucket && isPhotoRef(ref))
+    const fetchNext = async (): Promise<void> => {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        const [i, ref] = next
+        const res = await fetch(await bucket!.sign(ref))
+        if (!res.ok) throw new ServiceUnavailableException('A photo could not be loaded')
+        // Photos are already compressed, so they are stored as they are.
+        files[`photos/${String(i + 1).padStart(2, '0')}.${ref.split('.').pop()}`] = [
+          new Uint8Array(await res.arrayBuffer()),
+          { level: 0 },
+        ]
+      }
     }
+    await Promise.all(Array.from({ length: PHOTO_DOWNLOADS_AT_ONCE }, fetchNext))
     return Buffer.from(zipSync(files))
   }
 }
