@@ -107,12 +107,19 @@ export async function photoUrl(url: string): Promise<string> {
   return bucket && isPhotoRef(url) ? bucket.sign(url) : url
 }
 
-/** The trip with each photo's reference swapped for a signed link. */
-export async function withPhotoLinks<T extends { photos: TripPhoto[] }>(trip: T): Promise<T> {
-  const photos = await Promise.all(
-    trip.photos.map(async (p) => ({ ...p, url: await photoUrl(p.url) }))
+const linked = (photos: TripPhoto[]) =>
+  Promise.all(photos.map(async (p) => ({ ...p, url: await photoUrl(p.url) })))
+
+/** The trip with each photo's reference swapped for a signed link, its sections' photos too (issue #85). */
+export async function withPhotoLinks<
+  T extends { photos: TripPhoto[]; sections?: { photos: TripPhoto[] }[] | null },
+>(trip: T): Promise<T> {
+  const photos = await linked(trip.photos)
+  if (!trip.sections) return { ...trip, photos }
+  const sections = await Promise.all(
+    trip.sections.map(async (s) => ({ ...s, photos: await linked(s.photos) }))
   )
-  return { ...trip, photos }
+  return { ...trip, photos, sections }
 }
 
 /** The summary with its cover's reference swapped for a signed link. */

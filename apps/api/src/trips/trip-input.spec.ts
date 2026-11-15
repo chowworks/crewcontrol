@@ -36,6 +36,50 @@ describe('parseTripInput', () => {
     expect(input.keyDates.map((d) => d.date)).toEqual(['2027-11-01', '2028-03-01'])
   })
 
+  it('keeps sections in order, with who sees each, and none when an older editor sends none', () => {
+    expect(parseTripInput(valid).sections).toEqual([])
+    const input = parseTripInput({
+      ...valid,
+      sections: [
+        { title: ' Getting there ', body: 'Fly into AUA.', photos: [], acceptedOnly: true },
+        {
+          title: 'What to pack',
+          body: '',
+          photos: [{ url: 'https://example.com/b.jpg', caption: '' }],
+        },
+      ],
+    })
+    expect(input.sections).toEqual([
+      { title: 'Getting there', body: 'Fly into AUA.', photos: [], acceptedOnly: true },
+      {
+        title: 'What to pack',
+        body: '',
+        photos: [{ url: 'https://example.com/b.jpg', caption: '' }],
+        acceptedOnly: false,
+      },
+    ])
+  })
+
+  it('needs a section title, and caps sections and photos across the trip', () => {
+    const section = { title: 'Getting there', body: '', photos: [], acceptedOnly: false }
+    expect(() => parseTripInput({ ...valid, sections: [{ ...section, title: ' ' }] })).toThrow(
+      BadRequestException
+    )
+    expect(() => parseTripInput({ ...valid, sections: Array(7).fill(section) })).toThrow(
+      BadRequestException
+    )
+    const photo = { url: 'https://example.com/c.jpg', caption: '' }
+    const six = { ...section, photos: Array(6).fill(photo) }
+    // 1 trip photo + 6 sections of 6 = 37 is fine; 45 trip photos + 6 more is over 50.
+    expect(parseTripInput({ ...valid, sections: Array(6).fill(six) }).sections).toHaveLength(6)
+    expect(() =>
+      parseTripInput({ ...valid, photos: Array(45).fill(photo), sections: [six] })
+    ).toThrow(BadRequestException)
+    expect(() =>
+      parseTripInput({ ...valid, sections: [{ ...section, photos: Array(7).fill(photo) }] })
+    ).toThrow(BadRequestException)
+  })
+
   it('keeps a due date for each installment, and the payment reminder', () => {
     const input = parseTripInput({
       ...valid,
@@ -91,7 +135,7 @@ describe('parseTripInput', () => {
     ['an unknown icon', { highlights: [{ title: 'x', detail: '', icon: 'rocket' }] }],
     [
       'too many photos',
-      { photos: Array.from({ length: 16 }, () => ({ url: '/a.jpg', caption: '' })) },
+      { photos: Array.from({ length: 51 }, () => ({ url: '/a.jpg', caption: '' })) },
     ],
     ['a photo URL that is not a link', { photos: [{ url: 'javascript:alert(1)', caption: '' }] }],
     ['a protocol-relative photo URL', { photos: [{ url: '//evil.example/a.jpg', caption: '' }] }],

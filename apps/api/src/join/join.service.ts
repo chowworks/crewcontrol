@@ -11,6 +11,7 @@ import { ClerkService } from '../auth/clerk.service'
 import { RateLimiter } from '../core/rate-limit'
 import { runAsPublic } from '../core/tenant-context'
 import { EmailsService } from '../messaging/emails.service'
+import { withPhotoLinks } from '../photos/photo-bucket'
 import { PrismaService } from '../prisma/prisma.service'
 import { forwardTo, receiptsConfig, receiptsEmail } from '../receipts/receipts-config'
 import { TermsService } from '../terms/terms.service'
@@ -19,6 +20,7 @@ import {
   optionsOf,
   paymentMethodsOf,
   paymentsOf,
+  sectionsOf,
   toSignedAgreement,
 } from '../trips/trip-mapper'
 import { splitName } from '../trips/trip-input'
@@ -94,6 +96,7 @@ export class JoinService {
           paymentMethods: true,
           receiptsAddress: true,
           options: true,
+          sections: true,
         },
       },
     } as const
@@ -142,6 +145,8 @@ export class JoinService {
     }
     const tripId = await this.tripId(slug)
     const facts = { ...trip, organizers: await this.trips.organizerContacts(tripId) }
+    // Sections for accepted guests only (issue #85) reach the caller once they, or a traveler they look after, are in.
+    const accepted = rows.find((r) => r.status === 'approved')
     return {
       trip,
       agreement: agreementPreview(facts),
@@ -164,6 +169,9 @@ export class JoinService {
       // Who's in each room, so guests picking one see who they'd share with. Never on the public page.
       roomGuests:
         trip.rooms.length > 0 ? await runAsPublic(() => this.trips.roomGuests(tripId)) : [],
+      sections: accepted
+        ? (await withPhotoLinks({ photos: [], sections: sectionsOf(accepted.trip) })).sections
+        : null,
     }
   }
 

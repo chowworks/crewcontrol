@@ -15,7 +15,8 @@ export function GuestTripPage() {
   const { slug = '' } = useParams()
   const [trip, setTrip] = useState<PublicTrip | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const { isSignedIn } = useUser()
+  const { isSignedIn, user } = useUser()
+  const userId = user?.id
   // Someone on the trip sees their place here, with what the organizers posted (owner's decision, 2026-10-29).
   const [view, setView] = useState<JoinView | null>(null)
 
@@ -36,7 +37,8 @@ export function GuestTripPage() {
   }, [slug])
 
   useEffect(() => {
-    if (!isSignedIn) return setView(null)
+    setView(null)
+    if (!isSignedIn) return
     let live = true
     api
       .getJoin(slug)
@@ -45,7 +47,8 @@ export function GuestTripPage() {
     return () => {
       live = false
     }
-  }, [slug, isSignedIn])
+    // Switching accounts in the same tab reads the new person's place (and sections) afresh.
+  }, [slug, isSignedIn, userId])
 
   if (error === 'not-found')
     return (
@@ -71,6 +74,8 @@ export function GuestTripPage() {
             }
           : undefined
       }
+      // An accepted guest sees every section, those for accepted guests only included (issue #85).
+      sections={view?.sections ?? trip.sections}
       questions={<QuestionsSection trip={trip} />}
       interest={<InterestTile trip={trip} />}
     />

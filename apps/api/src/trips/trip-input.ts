@@ -4,8 +4,10 @@ import {
   HIGHLIGHT_ICONS,
   BED_TYPES,
   DEFAULT_TRIP_OPTIONS,
+  MAX_SECTION_PHOTOS,
   MAX_TRIP_PHOTOS,
   MAX_TRIP_ROOMS,
+  MAX_TRIP_SECTIONS,
   type HighlightIcon,
   type TripHighlight,
   type TripInput,
@@ -13,6 +15,7 @@ import {
   type TripKeyDate,
   type TripPhoto,
   type TripRoom,
+  type TripSection,
   type BedType,
   type ClaimInput,
   type GuestUpdate,
@@ -99,6 +102,19 @@ function highlight(item: Body): TripHighlight {
     title: text(item, 'title', 60),
     detail: text(item, 'detail', 160, false),
     icon: icon as HighlightIcon,
+  }
+}
+
+/** One of the organizer's own sections (issue #85): a title, text, photos and who sees it. */
+function section(item: Body): TripSection {
+  if (Array.isArray(item.photos) && item.photos.length > MAX_SECTION_PHOTOS)
+    fail(`A section can have at most ${MAX_SECTION_PHOTOS} photos`)
+  const photos = list(item, 'photos', MAX_SECTION_PHOTOS)
+  return {
+    title: text(item, 'title', 60),
+    body: text(item, 'body', 2000, false),
+    photos: photos.map(photo),
+    acceptedOnly: item.acceptedOnly === undefined ? false : bool(item, 'acceptedOnly'),
   }
 }
 
@@ -194,6 +210,13 @@ export function parseTripInput(raw: unknown): TripInput {
     fail('refundPolicy must be spot_filled or first_payment_kept')
   if (!JOIN_MODES.includes(joinMode as JoinMode))
     fail('joinMode must be accept_first, pay_first or first_come')
+  const photos = list(body, 'photos', MAX_TRIP_PHOTOS).map(photo)
+  // Older editors send no sections; the trip then has none.
+  const sections =
+    body.sections === undefined ? [] : list(body, 'sections', MAX_TRIP_SECTIONS).map(section)
+  // One limit for the whole trip, the sections' photos included (owner's decision, 2026-11-15).
+  if (photos.length + sections.reduce((n, s) => n + s.photos.length, 0) > MAX_TRIP_PHOTOS)
+    fail(`A trip can have at most ${MAX_TRIP_PHOTOS} photos, its sections' photos included`)
   return {
     name: text(body, 'name', 80),
     destination: text(body, 'destination', 80),
@@ -213,11 +236,12 @@ export function parseTripInput(raw: unknown): TripInput {
       body.paymentMethods === undefined ? [] : list(body, 'paymentMethods', 8).map(paymentMethod),
     paymentInstructions: text(body, 'paymentInstructions', 1000, false),
     published: bool(body, 'published'),
-    photos: list(body, 'photos', MAX_TRIP_PHOTOS).map(photo),
+    photos,
     highlights: list(body, 'highlights', 8).map(highlight),
     keyDates: list(body, 'keyDates', 20)
       .map(keyDate)
       .sort((a, b) => a.date.localeCompare(b.date)),
+    sections,
     maxGuests,
     joinMode: joinMode as JoinMode,
     refundPolicy,

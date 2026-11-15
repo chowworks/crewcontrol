@@ -16,18 +16,21 @@ import {
   type TripHighlight,
   type TripKeyDate,
   type TripPhoto,
+  type TripSection,
 } from '../src/trips/trip-types'
 
 const prisma = new PrismaClient()
 
 type Seed = Omit<
   Prisma.TripCreateInput,
-  'photos' | 'highlights' | 'keyDates' | 'guests' | 'paymentMethods'
+  'photos' | 'highlights' | 'keyDates' | 'sections' | 'guests' | 'paymentMethods'
 > & {
   paymentMethods: PaymentMethod[]
   photos: TripPhoto[]
   highlights: TripHighlight[]
   keyDates: TripKeyDate[]
+  /** The organizer's own sections (issue #85); none when left out. */
+  sections?: TripSection[]
   approved: [string, string][]
   interested: [string, string][]
   /** The trip page's Questions (issue #13): question and answer, answered for everyone. */
@@ -254,6 +257,21 @@ const trips: Seed[] = [
       { date: '2027-01-15', label: 'Final payment due' },
       { date: '2027-02-11', label: 'Arrive. Shuttle from Tulum airport at 2:00 PM' },
     ],
+    // One section for everyone and one for accepted guests only, so both show on the demo (issue #85).
+    sections: [
+      {
+        title: 'Getting there',
+        body: 'Fly into Tulum (TQO) on Thursday, February 11, landing by 1:30 PM. Cancún (CUN) works too, but it is two hours away by road, so plan on your own transfer from there.\n\nFlying out Monday, book a flight after 1:00 PM. Checkout is at 11.',
+        photos: [],
+        acceptedOnly: false,
+      },
+      {
+        title: 'Where we meet',
+        body: 'The shuttle leaves Tulum airport arrivals at 2:00 PM. Look for the driver holding a "Simone 40" sign. Missed it? Text Simone and grab a taxi to the villa. The address and gate code are in the announcements.',
+        photos: [],
+        acceptedOnly: true,
+      },
+    ],
     approved: [
       ['Simone', 'Tate'],
       ['Brianna', 'Moss'],
@@ -329,6 +347,7 @@ async function main() {
     photos,
     highlights,
     keyDates,
+    sections = [],
     paymentMethods,
     ...trip
   } of trips) {
@@ -386,6 +405,7 @@ async function main() {
         photos: photos as unknown as Prisma.InputJsonValue,
         highlights: highlights as unknown as Prisma.InputJsonValue,
         keyDates: keyDates as unknown as Prisma.InputJsonValue,
+        sections: sections as unknown as Prisma.InputJsonValue,
         paymentMethods: paymentMethods as unknown as Prisma.InputJsonValue,
         guests: {
           create: guests.map((g) => ({

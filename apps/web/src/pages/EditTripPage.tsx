@@ -51,6 +51,7 @@ import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { PaymentPlanCard, sharesProblem } from '@/components/PaymentPlanCard'
 import { RoomsEditor, roomProblem } from '@/components/RoomsEditor'
+import { SectionsEditor } from '@/components/SectionsEditor'
 import { COST_SPLIT_LABELS, PricingStep } from '@/components/TripPricing'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TripView } from '@/components/TripView'
@@ -86,6 +87,7 @@ const EMPTY: TripInput = {
   photos: [],
   highlights: [],
   keyDates: [],
+  sections: [],
   maxGuests: null,
   joinMode: 'accept_first',
   refundPolicy: 'spot_filled',
@@ -190,6 +192,10 @@ function toInput(trip: OrganizerTrip): TripInput {
   } = trip
   return input
 }
+
+/** Every photo on the trip, its sections' included: they share one limit (owner's decision, 2026-11-15). */
+const photoCount = (trip: TripInput) =>
+  trip.photos.length + trip.sections.reduce((n, s) => n + s.photos.length, 0)
 
 function move<T>(list: T[], from: number, to: number): T[] {
   const next = [...list]
@@ -432,7 +438,7 @@ export function EditTripPage() {
 
   async function addPhotos(files: FileList | null) {
     if (!files?.length) return
-    const room = MAX_TRIP_PHOTOS - trip.photos.length
+    const room = MAX_TRIP_PHOTOS - photoCount(trip)
     const picked = Array.from(files).slice(0, room)
     setUploading(true)
     setMessage(null)
@@ -445,7 +451,7 @@ export function EditTripPage() {
       if (files.length > room)
         setMessage({
           kind: 'error',
-          text: `A trip can have ${MAX_TRIP_PHOTOS} photos. Extra ones were skipped.`,
+          text: `A trip can have ${MAX_TRIP_PHOTOS} photos, your sections' included. Extra ones were skipped.`,
         })
     } catch (err) {
       setMessage({
@@ -820,7 +826,7 @@ export function EditTripPage() {
                   />
                   <p className="text-sm text-muted">
                     The first photo is the cover. The section shows once there are two or more. Up
-                    to {MAX_TRIP_PHOTOS} photos.
+                    to {MAX_TRIP_PHOTOS} photos on the trip, your sections&apos; photos included.
                   </p>
                   <ul className="flex flex-col gap-3">
                     {trip.photos.map((p, i) => (
@@ -859,7 +865,12 @@ export function EditTripPage() {
                       </li>
                     ))}
                   </ul>
-                  {trip.photos.length < MAX_TRIP_PHOTOS && (
+                  {photoCount(trip) >= MAX_TRIP_PHOTOS ? (
+                    <p className="text-sm text-muted">
+                      The trip has {MAX_TRIP_PHOTOS} photos, your sections&apos; included. Remove
+                      one to add more.
+                    </p>
+                  ) : (
                     <label className="inline-flex min-h-[44px] w-fit cursor-pointer items-center gap-2 rounded-xl border border-royal px-4 font-semibold text-royal focus-within:ring-2 focus-within:ring-royal">
                       <ImagePlus className="h-5 w-5" aria-hidden="true" />
                       {uploading ? 'Uploading…' : 'Add photos'}
@@ -943,6 +954,13 @@ export function EditTripPage() {
                       Add highlight
                     </AddButton>
                   )}
+                </Card>
+                <Card title="Sections">
+                  <SectionsEditor
+                    sections={trip.sections}
+                    otherPhotos={trip.photos.length}
+                    onChange={(sections) => set('sections', sections)}
+                  />
                 </Card>
               </>
             )}

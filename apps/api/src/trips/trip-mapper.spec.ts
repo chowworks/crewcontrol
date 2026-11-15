@@ -28,6 +28,7 @@ const trip: Trip = {
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
   highlights: [],
   keyDates: [],
+  sections: [],
   options: { roomChoice: true },
   createdAt: new Date(),
   receiptsAddress: null,
@@ -107,6 +108,20 @@ describe('toPublicTrip', () => {
     expect(toPublicTrip({ ...trip, keyDates, guests }).keyDates).toEqual([
       { date: '2027-05-01', label: 'Final payment' },
     ])
+  })
+
+  it('shows sections for everyone, never ones for accepted guests only (issue #85)', () => {
+    const sections = [
+      { title: 'What to pack', body: 'Beach stuff.', photos: [], acceptedOnly: false },
+      { title: 'Getting there', body: 'Meet at gate 4.', photos: [], acceptedOnly: true },
+    ]
+    const view = toPublicTrip({ ...trip, sections, guests })
+    expect(view.sections.map((s) => s.title)).toEqual(['What to pack'])
+    expect(JSON.stringify(view)).not.toContain('gate 4')
+  })
+
+  it('reads a trip saved before sections as having none', () => {
+    expect(toPublicTrip({ ...trip, sections: null as never, guests }).sections).toEqual([])
   })
 
   it('never carries a guest’s stop-updates link', () => {

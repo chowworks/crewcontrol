@@ -107,6 +107,7 @@ function data(input: TripInput) {
     photos: input.photos as unknown as Prisma.InputJsonValue,
     highlights: input.highlights as unknown as Prisma.InputJsonValue,
     keyDates: input.keyDates as unknown as Prisma.InputJsonValue,
+    sections: input.sections as unknown as Prisma.InputJsonValue,
     paymentDueDates: input.paymentDueDates as unknown as Prisma.InputJsonValue,
     paymentShares: input.paymentShares ?? Prisma.DbNull,
     paymentMethods: input.paymentMethods as unknown as Prisma.InputJsonValue,

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 /** What each step holds, in one line, under its name in the menu. */
 const HINTS = [
   'Name, dates and how the trip works',
-  'Registration, who’s going, photos, highlights',
+  'Registration, who’s going, photos, highlights, sections',
   'The rooms guests choose from',
   'What it costs and the price per person',
   'The payment plan and how to pay',

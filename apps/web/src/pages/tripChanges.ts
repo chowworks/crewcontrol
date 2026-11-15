@@ -21,6 +21,7 @@ const LABEL: Record<TripChangeField, string> = {
   photoTitle: 'the photo section’s title',
   highlights: 'the highlights',
   keyDates: 'the key dates',
+  sections: 'the sections',
   guestNames: 'showing guests’ names',
   paymentMethods: 'the payment methods',
   paymentInstructions: 'the payment instructions',
