@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { AlertsModule } from './alerts/alerts.module'
 import { AnnouncementsModule } from './announcements/announcements.module'
+import { ChangesModule } from './changes/changes.module'
 import { QuestionsModule } from './questions/questions.module'
 import { InterestModule } from './interest/interest.module'
 import { AuthModule } from './auth/auth.module'
@@ -32,6 +33,7 @@ import { TripsModule } from './trips/trips.module'
     ReceiptsModule,
     AnnouncementsModule,
     QuestionsModule,
+    ChangesModule,
     InterestModule,
     AlertsModule,
     HelpModule,

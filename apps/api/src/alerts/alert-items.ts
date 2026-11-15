@@ -2,7 +2,7 @@ import type { OrganizerTrip } from '../trips/trip-types'
 import { guestActions, waitlistSpotOpen } from '../trips/trip-types'
 
 /** The kinds of Trip Control's Actions an organizer is emailed about. */
-export type AlertKind = 'payment' | 'accept' | 'refund' | 'email' | 'spot' | 'receipt'
+export type AlertKind = 'payment' | 'accept' | 'refund' | 'email' | 'spot' | 'receipt' | 'change'
 
 export interface AlertItem {
   key: string
@@ -21,6 +21,7 @@ export function alertItems(trip: OrganizerTrip): AlertItem[] {
       if (a.kind !== 'room_price') items.set(a.key, { key: a.key, kind: a.kind })
   if (waitlistSpotOpen(trip)) items.set(`${trip.id}-spot`, { key: `${trip.id}-spot`, kind: 'spot' })
   for (const r of trip.receipts.unmatched) items.set(r.id, { key: r.id, kind: 'receipt' })
+  for (const id of trip.changeRequestsOpen) items.set(id, { key: id, kind: 'change' })
   return [...items.values()]
 }
 
@@ -37,8 +38,9 @@ const WORDS: Record<AlertKind, [string, string]> = {
   ],
   spot: ['spot open to offer someone on the waitlist', 'spots open to offer the waitlist'],
   receipt: ['forwarded receipt to match', 'forwarded receipts to match'],
+  change: ['trip change request', 'trip change requests'],
 }
-const ORDER: AlertKind[] = ['payment', 'accept', 'refund', 'receipt', 'spot', 'email']
+const ORDER: AlertKind[] = ['payment', 'accept', 'refund', 'change', 'receipt', 'spot', 'email']
 
 /** One trip's new things in a sentence: "2 payments to confirm, 1 guest to accept." */
 export function summary(items: AlertItem[]): string {

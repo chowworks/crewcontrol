@@ -500,6 +500,16 @@ export type TripLogEntry =
       status: QuestionStatus
     }
   | {
+      /** A guest's trip change request (issue #82): asked, or closed as done or not possible. */
+      kind: 'change_request'
+      at: string
+      action: 'asked' | 'done' | 'declined'
+      /** Who asked, or who closed it. */
+      name: string
+      guestName: string
+      request: string
+    }
+  | {
       /**
        * Something an organizer changed (owner's decision, 2026-11-01): so each owner sees what the others did. Each
        * save is one line; the trip log shows one person's editor saves close together as one.
@@ -684,6 +694,8 @@ export interface OrganizerTrip extends TripInput {
   waitlistBufferPercent: number
   /** Guests' questions nobody has answered yet (issue #13): each is one of Trip Control's Actions. */
   questionsWaiting: number
+  /** The ids of guests' trip change requests still open (issue #82): each is one of Trip Control's Actions. */
+  changeRequestsOpen: string[]
   /** The guest row of the organizer looking at Trip Control, if they're on the trip (issue #53). */
   myGuestId: string | null
   updatedAt: string
@@ -1149,7 +1161,8 @@ export const tripActionCount = (trip: OrganizerTrip): number =>
   new Set(trip.guests.flatMap((g) => guestActions(g, trip).map((a) => a.key))).size +
   (waitlistSpotOpen(trip) ? 1 : 0) +
   trip.receipts.unmatched.length +
-  trip.questionsWaiting
+  trip.questionsWaiting +
+  trip.changeRequestsOpen.length
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
 export interface MyActions {
@@ -1560,6 +1573,64 @@ export interface QuestionAnswerInput {
   question: string
   answer: string
   status: 'public' | 'private'
+}
+
+// ── Trip change requests (issue #82) ───────────────────────────────────────────
+
+export const CHANGE_REQUEST_MAX = 1000
+export const CHANGE_NOTE_MAX = 2000
+export const CHANGE_REPLY_MAX = 2000
+
+/**
+ * Where an accepted guest's request for a change to their trip stands: open, done, or not possible (owner's decisions,
+ * 2026-11-15). Always private: never on the trip page.
+ */
+export type ChangeRequestStatus = 'open' | 'done' | 'declined'
+
+/** One of the signed-in guest's own requests, with the organizer's message once it's closed. Never the notes. */
+export interface MyChangeRequest {
+  id: string
+  request: string
+  status: ChangeRequestStatus
+  reply: string | null
+  createdAt: string
+  closedAt: string | null
+}
+
+/** What the trip page needs for a guest's requests: whether they can ask (accepted), and theirs, newest first. */
+export interface MyChangeRequests {
+  canAsk: boolean
+  requests: MyChangeRequest[]
+}
+
+/** An organizer's note on a request, to track it happening. Only the trip's organizers see notes. */
+export interface ChangeNote {
+  id: string
+  text: string
+  authorName: string
+  createdAt: string
+}
+
+/** Trip Control's view of a request: who asked, about which guest, its notes oldest first, and how it was closed. */
+export interface TripChangeRequest {
+  id: string
+  guestId: string
+  /** The guest it's about, "Kendra Mills", and who asked when that's someone else (who signed them up). */
+  guestName: string
+  requesterName: string
+  request: string
+  status: ChangeRequestStatus
+  reply: string | null
+  closedByName: string | null
+  createdAt: string
+  closedAt: string | null
+  notes: ChangeNote[]
+}
+
+/** Closing a request: done, or not possible ('declined'), with a message to the guest (required when not possible). */
+export interface ChangeCloseInput {
+  status: 'done' | 'declined'
+  reply: string
 }
 
 // ── Forwarded receipts (issue #12, receipts@) ──────────────────────────────────

@@ -50,6 +50,8 @@ type TripWithGuests = TripRow & {
   payerAddresses?: PayerAddressRow[]
   /** The questions nobody answered yet, when the query asked for them. */
   questions?: { id: string }[]
+  /** The trip change requests still open, when the query asked for them (issue #82). */
+  changeRequests?: { id: string }[]
 }
 
 /** A trip's receipts address and the forwarded receipts waiting for an organizer. */
@@ -370,6 +372,7 @@ export function toOrganizerTrip(
     updatedAt: row.updatedAt.toISOString(),
     waitlistBufferPercent,
     questionsWaiting: row.questions?.length ?? 0,
+    changeRequestsOpen: (row.changeRequests ?? []).map((r) => r.id),
     myGuestId: (callerUserId && row.guests.find((g) => g.userId === callerUserId)?.id) || null,
   }
 }

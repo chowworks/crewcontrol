@@ -71,6 +71,7 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
     guests,
     receipts: { address: null, email: null, domain: null, on: false, unmatched: [] },
     questionsWaiting: 0,
+    changeRequestsOpen: [],
     ...extra,
   }) as OrganizerTrip
 
@@ -157,6 +158,10 @@ describe('what needs the organizer', () => {
 
   it('counts each question waiting for an answer', () => {
     expect(tripActionCount({ ...trip([]), questionsWaiting: 2 })).toBe(2)
+  })
+
+  it('counts each trip change request still open', () => {
+    expect(tripActionCount({ ...trip([]), changeRequestsOpen: ['c1', 'c2'] })).toBe(2)
   })
 
   it('counts each forwarded receipt waiting to be matched', () => {

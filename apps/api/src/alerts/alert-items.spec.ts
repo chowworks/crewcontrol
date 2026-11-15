@@ -66,6 +66,7 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
     guests,
     receipts: { address: null, email: null, domain: null, on: false, unmatched: [] },
     questionsWaiting: 0,
+    changeRequestsOpen: [],
     ...extra,
   }) as OrganizerTrip
 
@@ -102,6 +103,15 @@ describe('organizer alert items', () => {
       questionsWaiting: 2,
     })
     expect(alertItems(t)).toEqual([])
+  })
+
+  it('names each open trip change request, and counts them in the sentence', () => {
+    const t = trip([], { changeRequestsOpen: ['c1', 'c2'] })
+    expect(alertItems(t)).toEqual([
+      { key: 'c1', kind: 'change' },
+      { key: 'c2', kind: 'change' },
+    ])
+    expect(summary(alertItems(t))).toBe('2 trip change requests.')
   })
 
   it('names a spot that opened for the waitlist once, for the trip', () => {

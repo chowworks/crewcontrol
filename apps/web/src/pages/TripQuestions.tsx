@@ -404,8 +404,8 @@ function AnswerDialog({
   )
 }
 
-/** One of the two choices of who sees an answer, as a card with a radio button. */
-function Choice({
+/** One of two choices (who sees an answer; how a change request ends), as a card with a radio button. */
+export function Choice({
   checked,
   onChange,
   title,

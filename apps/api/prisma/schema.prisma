@@ -85,6 +85,7 @@ model Trip {
   payerAddresses      PayerAddress[]
   announcements       Announcement[]
   questions           TripQuestion[]
+  changeRequests      TripChangeRequest[]
   emailSends          EmailSend[]
   actionAlerts        ActionAlert[]
   interest            TripInterest[]
@@ -162,6 +163,7 @@ model Guest {
   reminderSends         ReminderSend[]
   announcementsFor      AnnouncementRecipient[]
   announcementReplies   AnnouncementReply[]
+  changeRequests        TripChangeRequest[]
 
   @@unique([tripId, userId])
   @@unique([id, tripId])
@@ -288,20 +290,20 @@ model ReminderSend {
 
 // An organizer's post to the guests who joined, and the replies under it (migration 20261029090000_announcements).
 model Announcement {
-  id           String                  @id @default(dbgenerated("(gen_random_uuid())::text"))
-  tripId       String
-  authorUserId String
-  authorName   String
-  body         String
-  audience     String // AnnouncementAudience
-  pinned       Boolean                 @default(false)
-  emailed      Boolean                 @default(false)
+  id                  String                  @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId              String
+  authorUserId        String
+  authorName          String
+  body                String
+  audience            String // AnnouncementAudience
+  pinned              Boolean                 @default(false)
+  emailed             Boolean                 @default(false)
   // How many on the trip's Interested list it was emailed to (issue #77).
-  interestedEmailedTo Int              @default(0)
-  createdAt    DateTime                @default(now())
-  trip         Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  recipients   AnnouncementRecipient[]
-  replies      AnnouncementReply[]
+  interestedEmailedTo Int                     @default(0)
+  createdAt           DateTime                @default(now())
+  trip                Trip                    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  recipients          AnnouncementRecipient[]
+  replies             AnnouncementReply[]
 
   @@unique([id, tripId])
   @@index([tripId])
@@ -690,6 +692,44 @@ model TripQuestion {
   @@index([askerUserId])
 }
 
+// A guest's request for a change to their trip (issue #82): always private, one of Trip Control's Actions while open.
+// The organizers' notes on it are theirs only. See migration 20261115010000_trip_change_requests.
+model TripChangeRequest {
+  id             String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId         String
+  guestId        String
+  userId         String
+  requesterName  String
+  requesterEmail String?
+  request        String
+  status         String           @default("open") // ChangeRequestStatus
+  reply          String?
+  closedByName   String?
+  createdAt      DateTime         @default(now())
+  closedAt       DateTime?
+  trip           Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  guest          Guest            @relation(fields: [guestId, tripId], references: [id, tripId], onDelete: Cascade)
+  notes          TripChangeNote[]
+
+  @@unique([id, tripId])
+  @@index([tripId])
+  @@index([userId])
+}
+
+model TripChangeNote {
+  id           String            @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId       String
+  requestId    String
+  authorUserId String
+  authorName   String
+  text         String
+  createdAt    DateTime          @default(now())
+  request      TripChangeRequest @relation(fields: [requestId, tripId], references: [id, tripId], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([tripId])
+}
+
 // Failures people hit through no fault of their own, counted by /api/health/server-errors and watched by Better Stack
 // (ops/monitoring.ts). A row is when, which kind and the route pattern: never a trip, person, email or error message,
 // so not a tenant table. See migration 20261031020000.
@@ -705,20 +745,20 @@ model ServiceFailure {
 // "I'm interested" on a save the date (issue #47, migration 20261031080000_trip_interest): a signed-in person, once a
 // trip. Apart from Guest on purpose, so interest is never a signature, a balance or a spot. Organizers only see it.
 model TripInterest {
-  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
-  tripId    String
-  userId    String
-  firstName String
-  lastName  String    @default("")
-  email     String
-  phone     String
-  createdAt DateTime  @default(now())
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId           String
+  userId           String
+  firstName        String
+  lastName         String    @default("")
+  email            String
+  phone            String
+  createdAt        DateTime  @default(now())
   // When an organizer emailed them that sign-ups are open.
-  toldAt    DateTime?
+  toldAt           DateTime?
   // Their "Stop updates for this trip" link's secret, and when they used it (announcement emails, issue #77).
   updatesToken     String    @unique @default(dbgenerated("(gen_random_uuid())::text"))
   updatesStoppedAt DateTime?
-  trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@unique([tripId, userId])
   @@index([userId])
