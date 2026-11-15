@@ -69,12 +69,16 @@ export function Lightbox({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      // Over a dialog (the section editor), Escape closes the photo only, not the dialog under it.
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
       if (e.key === 'ArrowRight') onIndex((index + 1) % photos.length)
       if (e.key === 'ArrowLeft') onIndex((index - 1 + photos.length) % photos.length)
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [index, photos.length, onIndex, onClose])
 
   return (

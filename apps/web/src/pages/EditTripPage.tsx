@@ -39,6 +39,7 @@ import { useUser } from '@clerk/clerk-react'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { Dialog } from '@/components/Dialog'
+import { Lightbox } from '@/components/PhotoGallery'
 import { HelpButton } from '@/components/HelpButton'
 import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
@@ -209,6 +210,8 @@ export function EditTripPage() {
   const navigate = useNavigate()
   const [trip, setTrip] = useState<TripInput>(EMPTY)
   const [slug, setSlug] = useState('')
+  // The photo open full size from the Photos card (owner's ask, 2026-11-15).
+  const [viewing, setViewing] = useState<number | null>(null)
   // The trip link as typed; saved only when it differs from `slug`.
   const [link, setLink] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
@@ -831,11 +834,18 @@ export function EditTripPage() {
                   <ul className="flex flex-col gap-3">
                     {trip.photos.map((p, i) => (
                       <li key={p.url + i} className="flex flex-wrap items-center gap-3">
-                        <img
-                          src={p.url}
-                          alt=""
-                          className="h-16 w-20 shrink-0 rounded-lg bg-placeholder object-cover"
-                        />
+                        <button
+                          type="button"
+                          aria-label={`Open photo ${i + 1}`}
+                          onClick={() => setViewing(i)}
+                          className="shrink-0 rounded-lg"
+                        >
+                          <img
+                            src={p.url}
+                            alt=""
+                            className="h-16 w-20 rounded-lg bg-placeholder object-cover"
+                          />
+                        </button>
                         <input
                           className={`${field} min-w-0 flex-[1_1_180px]`}
                           aria-label={`Caption for photo ${i + 1}`}
@@ -865,6 +875,14 @@ export function EditTripPage() {
                       </li>
                     ))}
                   </ul>
+                  {viewing !== null && trip.photos[viewing] && (
+                    <Lightbox
+                      photos={trip.photos}
+                      index={viewing}
+                      onIndex={setViewing}
+                      onClose={() => setViewing(null)}
+                    />
+                  )}
                   {photoCount(trip) >= MAX_TRIP_PHOTOS ? (
                     <p className="text-sm text-muted">
                       The trip has {MAX_TRIP_PHOTOS} photos, your sections&apos; included. Remove
