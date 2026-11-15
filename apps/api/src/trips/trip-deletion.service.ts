@@ -16,8 +16,8 @@ import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import { PrismaService } from '../prisma/prisma.service'
 import { agreementPdf } from './agreement-pdf'
 import { recordChange } from './trip-changes'
-import { DELETED_KEPT_DAYS, eraseOn } from './trip-mapper'
-import type { Guest, OrganizerTrip, Payment, TripPhoto } from './trip-types'
+import { allPhotosOf, DELETED_KEPT_DAYS, eraseOn } from './trip-mapper'
+import type { Guest, OrganizerTrip, Payment } from './trip-types'
 import { TripsService } from './trips.service'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
@@ -132,18 +132,29 @@ export class TripDeletionService implements OnApplicationBootstrap, OnModuleDest
     const due = await runAsSystem(() =>
       this.prisma.trip.findMany({
         where: { deletedAt: { lte: new Date(now.getTime() - DELETED_KEPT_DAYS * DAY) } },
-        select: { id: true, photos: true },
+        select: { id: true, photos: true, sections: true },
       })
     )
     for (const trip of due) {
       // Everything on the trip goes with it (each table's foreign key cascades).
       await runAsSystem(() => this.prisma.trip.delete({ where: { id: trip.id } }))
       const bucket = photoBucket()
-      const refs = (trip.photos as unknown as TripPhoto[]).map((p) => p.url).filter(isPhotoRef)
-      for (const ref of bucket ? refs : [])
+      const refs = allPhotosOf(trip)
+        .map((p) => p.url)
+        .filter(isPhotoRef)
+      for (const ref of bucket ? refs : []) {
+        // A photo another trip still shows stays: a signed link pasted from one trip's page saves as the same reference.
+        const [{ used }] = await runAsSystem(
+          () =>
+            this.prisma.$queryRaw<{ used: boolean }[]>`
+            SELECT EXISTS (SELECT 1 FROM "Trip"
+              WHERE strpos("photos"::text || "sections"::text, ${ref}) > 0) AS used`
+        )
+        if (used) continue
         await bucket!
           .remove(ref)
           .catch((err) => this.logger.error(`A deleted trip's photo stayed: ${ref}: ${err}`))
+      }
     }
     return due.length
   }

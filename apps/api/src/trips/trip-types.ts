@@ -37,6 +37,28 @@ export interface TripKeyDate {
   remindDaysBefore?: number | null
 }
 
+/**
+ * One of the organizer's own parts of the trip page (issue #85; owner's decisions, 2026-11-15): a title, some text and
+ * photos, such as "Getting there". A plain block, never typed fields. `acceptedOnly` keeps it to accepted guests: it
+ * never reaches the public page, only an accepted guest's own trip page (JoinView.sections).
+ */
+export interface TripSection {
+  title: string
+  body: string
+  photos: TripPhoto[]
+  acceptedOnly: boolean
+}
+
+export const MAX_TRIP_SECTIONS = 6
+export const MAX_SECTION_PHOTOS = 6
+/** Titles the editor offers to tap when adding a section; tapping one fills in only the title. */
+export const SECTION_TITLE_IDEAS = [
+  'Transportation',
+  'Getting there',
+  'What to pack',
+  'The area',
+] as const
+
 /** The choices for a reminder, in days before its date. */
 export const REMIND_DAYS = [0, 1, 3, 7, 14, 30] as const
 
@@ -68,6 +90,8 @@ export interface PublicTrip {
   galleryTitle: string
   highlights: TripHighlight[]
   keyDates: TripKeyDate[]
+  /** The organizer's sections for everyone; ones for accepted guests only are never here. */
+  sections: TripSection[]
   goingCount: number
   interestedCount: number
   /** Approved guests as "First L.", or null when the organizer hides names. */
@@ -540,6 +564,7 @@ export type TripChangeField =
   | 'photoTitle'
   | 'highlights'
   | 'keyDates'
+  | 'sections'
   | 'guestNames'
   | 'paymentMethods'
   | 'paymentInstructions'
@@ -672,6 +697,8 @@ export interface TripInput {
   photos: TripPhoto[]
   highlights: TripHighlight[]
   keyDates: TripKeyDate[]
+  /** The organizer's own sections, in order (issue #85). Their photos count toward MAX_TRIP_PHOTOS with the trip's. */
+  sections: TripSection[]
   /** The most guests the trip takes; null for no limit. */
   maxGuests: number | null
   joinMode: JoinMode
@@ -713,7 +740,8 @@ export interface TripSummary {
   isSample: boolean
 }
 
-export const MAX_TRIP_PHOTOS = 15
+/** Photos on a trip, its sections' photos included (owner's decision, 2026-11-15, up from 15). */
+export const MAX_TRIP_PHOTOS = 50
 
 // The contact form (POST /api/contact). `?topic=` on /contact prefills one of these.
 export const CONTACT_TOPICS = [
@@ -933,6 +961,11 @@ export interface JoinView {
    * they'd share with. Only here, for a signed-in guest, never on the public trip page.
    */
   roomGuests: { roomId: string; names: string[] }[]
+  /**
+   * Every section of the trip, those for accepted guests only included, when the caller (or a traveler they look
+   * after) is accepted; null otherwise, and the page shows the trip's public sections (issue #85).
+   */
+  sections: TripSection[] | null
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */

@@ -33,6 +33,7 @@ import {
   type TripKeyDate,
   type TripOptions,
   type TripPhoto,
+  type TripSection,
   type TripReceipts,
   type TripSummary,
 } from './trip-types'
@@ -89,6 +90,16 @@ export function receiptsOf(
 export type PublicGuestRow = { status: string; firstName: string | null; lastName: string | null }
 
 const photos = (row: TripRow) => row.photos as unknown as TripPhoto[]
+
+/** The organizer's sections as stored (issue #85); a trip saved before them has none. */
+export const sectionsOf = (row: Pick<TripRow, 'sections'>): TripSection[] =>
+  (row.sections as unknown as TripSection[] | null) ?? []
+
+/** Every photo on the trip, its sections' photos after its own: what the export takes and deletion erases. */
+export const allPhotosOf = (row: Pick<TripRow, 'photos' | 'sections'>): TripPhoto[] => [
+  ...(row.photos as unknown as TripPhoto[]),
+  ...sectionsOf(row).flatMap((s) => s.photos),
+]
 
 /**
  * The trip's options as stored, with a default for any the trip was saved without. A trip saved before the cost split
@@ -152,6 +163,8 @@ export function toPublicTrip(
       date: k.date,
       label: k.label,
     })),
+    // A section for accepted guests only never reaches the public page; they get it on their own (JoinView.sections).
+    sections: sectionsOf(row).filter((s) => !s.acceptedOnly),
     goingCount: approved.length,
     spotsTaken: row.spotsTaken ?? approved.length,
     waitlisting: row.waitlisting ?? false,
@@ -352,6 +365,7 @@ export function toOrganizerTrip(
     photos: photos(row),
     highlights: row.highlights as unknown as TripHighlight[],
     keyDates: row.keyDates as unknown as TripKeyDate[],
+    sections: sectionsOf(row),
     maxGuests: row.maxGuests,
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,

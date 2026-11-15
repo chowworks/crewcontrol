@@ -4,7 +4,7 @@ import type { Caller } from '../auth/caller'
 import { isPhotoRef, photoBucket } from '../photos/photo-bucket'
 import { PrismaService } from '../prisma/prisma.service'
 import { agreementPdf } from './agreement-pdf'
-import type { TripPhoto } from './trip-types'
+import { allPhotosOf } from './trip-mapper'
 import { TripsService } from './trips.service'
 
 /** "Kendra M. O'Neal" → "kendra-m-oneal", for file names. */
@@ -45,12 +45,13 @@ export class TripExportService {
     }
 
     // Only photos in the bucket: any other address (the seed's) is a link the trip already lists, never fetched here.
-    const { photos } = await this.prisma.trip.findUniqueOrThrow({
+    const row = await this.prisma.trip.findUniqueOrThrow({
       where: { id },
-      select: { photos: true },
+      select: { photos: true, sections: true },
     })
     const bucket = photoBucket()
-    const refs = (photos as unknown as TripPhoto[]).map((p) => p.url)
+    // The sections' photos too (issue #85), numbered on after the trip's own.
+    const refs = allPhotosOf(row).map((p) => p.url)
     for (const [i, ref] of refs.entries()) {
       if (!bucket || !isPhotoRef(ref)) continue
       const res = await fetch(await bucket.sign(ref))

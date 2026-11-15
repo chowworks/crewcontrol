@@ -59,14 +59,25 @@ You show up on the guest list tagged Organizer. You don't sign anything, and you
     key: 'public-vs-crew',
     topic: 'tripPage',
     question: 'What can people see before they sign up, and what’s only for my crew?',
-    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
+    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, your sections set to Everyone, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
 
-Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements show only to accepted guests. You can also email one to your Interested list, but they don't see it on the trip page.
+Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements and sections set to "Accepted guests only" show only to accepted guests. You can also email one to your Interested list, but they don't see it on the trip page.
 
 Never shown to guests: anyone's email or phone, anyone's agreement but their own, and the names of people you haven't accepted.
 
-Photos, highlights, key dates and rooms only show once you add them. The Questions section always shows.`,
+Photos, highlights, sections, key dates and rooms only show once you add them. The Questions section always shows.`,
     pages: ['editor:customization', 'editor:signups', 'control'],
+  },
+  {
+    key: 'trip-sections',
+    topic: 'tripPage',
+    question: 'How do I add a section like Transportation or What to pack?',
+    answer: `In the editor's Sign-ups and the trip page step, under Sections, tap Add section. Give it a title (tap one of the ideas, like Transportation, or type your own), write what guests should know, and add up to 6 photos if you like. Sections show on the trip page after the highlights, in the order you set with the arrows. You can have up to 6.
+
+For each one, pick who sees it. Everyone means anyone with the trip link. "Accepted guests only" keeps it off the public page, which is good for meeting points or pickup details: only guests you've accepted see it on their trip page.
+
+A trip can have 50 photos in all, and that includes the photos in your sections.`,
+    pages: ['editor:signups'],
   },
   {
     key: 'guest-enters-payment',

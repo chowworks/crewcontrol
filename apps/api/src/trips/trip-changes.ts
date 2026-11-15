@@ -77,6 +77,7 @@ export interface TripState {
   photos: unknown
   highlights: unknown
   keyDates: unknown
+  sections?: unknown
   maxGuests: number | null
   joinMode: string
   refundPolicy: string
@@ -222,6 +223,7 @@ export function tripChanges(before: TripState, after: TripState): TripFieldChang
   add(!same(before.photos, after.photos), 'photos')
   add(!same(before.highlights, after.highlights), 'highlights')
   add(!same(before.keyDates, after.keyDates), 'keyDates')
+  add(!same(before.sections ?? [], after.sections ?? []), 'sections')
   return out
 }
 

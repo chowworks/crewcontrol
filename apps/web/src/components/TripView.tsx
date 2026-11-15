@@ -1,4 +1,4 @@
-import { roomsPricedApart, type PublicTrip } from '@cc/types'
+import { roomsPricedApart, type PublicTrip, type TripSection } from '@cc/types'
 import { RoomCard } from '@/components/RoomCard'
 import { CalendarDays, MapPin } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -11,6 +11,7 @@ import { TileArt } from './TileArt'
 import { AccountMenu } from './AccountMenu'
 import { PhotoGallery } from './PhotoGallery'
 import { SampleTripBadge } from './SampleTripBadge'
+import { TripSectionView } from './TripSectionView'
 
 const h2 = 'text-[26px] font-extrabold'
 
@@ -26,6 +27,7 @@ export function TripView({
   mine,
   questions,
   interest,
+  sections = trip.sections,
 }: {
   trip: PublicTrip
   preview?: boolean
@@ -34,6 +36,11 @@ export function TripView({
   questions?: ReactNode
   /** A save the date's "I'm interested" tile for the signed-in person (issue #47); the preview shows it inert. */
   interest?: ReactNode
+  /**
+   * The organizer's sections to show (issue #85): the trip's public ones unless given. An accepted guest's page gives
+   * every section, those for accepted guests only included (JoinView.sections).
+   */
+  sections?: TripSection[]
 }) {
   const cover = trip.photos[0]
   const going = `${trip.goingCount} going · ${trip.interestedCount} joining`
@@ -164,6 +171,10 @@ export function TripView({
               ))}
             </section>
           )}
+
+          {sections.map((s, i) => (
+            <TripSectionView key={i} section={s} />
+          ))}
 
           {trip.options.roomChoice && trip.rooms.length > 0 && (
             <section className="flex flex-col gap-3.5">

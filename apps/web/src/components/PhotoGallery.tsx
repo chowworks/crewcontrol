@@ -53,7 +53,7 @@ export function PhotoGallery({ title, photos }: { title: string; photos: TripPho
   )
 }
 
-function Lightbox({
+export function Lightbox({
   photos,
   index,
   onIndex,

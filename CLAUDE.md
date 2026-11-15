@@ -77,8 +77,10 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   accepts both on a full screen before any `/organize` page, and the API refuses organizer routes until then
   (`OrganizerTermsGuard`, 403 `terms_required`). Each `TermsAcceptance` row keeps the version, time, IP and browser.
   The wording has not had a lawyer's review either. Issue #5.
-- **Trip** = a `Trip` row. Photos, highlights and key dates are ordered JSON lists on it (`TripPhoto[]` etc. in
-  `packages/types`), replaced whole on save. The first photo is the cover.
+- **Trip** = a `Trip` row. Photos, highlights, key dates and sections are ordered JSON lists on it (`TripPhoto[]` etc.
+  in `packages/types`), replaced whole on save. The first photo is the cover. Sections (issue #85) are the organizer's
+  own blocks (title, text, photos); one marked `acceptedOnly` reaches only accepted guests (`JoinView.sections`), never
+  `toPublicTrip`.
 - **A trip page is configured, never built around one kind of trip.** A house, a resort, a cruise and a
   weekend in a city all use the same page: the photo section's title, the highlight cards (icon, title, line)
   and the key dates are the organizer's. Never hard-code "the house" or a trip type. There are three seed trips on
@@ -100,7 +102,7 @@ runs one real trip end to end without falling back to a spreadsheet or a text th
   an email's wording shows them only inside `{{#if guest.canPay}}`, the same rule as the join page.
 - Uploads: JPEG, PNG or WebP, at most 8 MB, and the bytes must begin the way that type does (`looksLikeImage`);
   the browser's claimed type alone is never trusted. The web app shrinks photos before upload (`lib/resize.ts`).
-  At most `MAX_TRIP_PHOTOS` (15) per trip.
+  At most `MAX_TRIP_PHOTOS` (50) per trip, its sections' photos included (owner's decision, 2026-11-15).
 - **Deleting a trip** (owner's decision, 2026-10-30): only an owner deletes one, from the Danger zone at the bottom of
   Trip Control, after downloading everything on it as one zip (a two-step dialog; the API adds the signed agreements as PDFs and the photos, `TripExportService`). It is hidden at once from everyone but the admin (`trips_of_user` skips it, and it is
   unpublished), each guest who signed is emailed their signed agreement and payments, an owner can restore it from
