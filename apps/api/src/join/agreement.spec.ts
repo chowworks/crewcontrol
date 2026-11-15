@@ -6,7 +6,7 @@ import {
   organizerTerms,
   termsOf,
 } from './agreement'
-import { fillAgreementNames, paymentPlan } from '../trips/trip-types'
+import { fillAgreementNames, ownPartOf, paymentPlan } from '../trips/trip-types'
 import { toE164 } from './send-text'
 
 const trip = {
@@ -225,6 +225,12 @@ describe('a guest’s terms', () => {
       paidCents: 50000,
       balanceCents: 0,
     })
+  })
+
+  it('counts what the organizer puts in on an even split or price by room, never on a set price', () => {
+    expect(ownPartOf({ costSplit: 'even', ownPartCents: 50000 })).toBe(50000)
+    expect(ownPartOf({ costSplit: 'room', ownPartCents: 50000 })).toBe(50000)
+    expect(ownPartOf({ costSplit: 'set', ownPartCents: 50000 })).toBe(0)
   })
 
   it('takes the balance from what they signed, less the payments the organizer confirmed', () => {

@@ -629,7 +629,7 @@ export interface TripOptions {
    * guests, a price per person on each room, or a price the organizer types. Organizer-only.
    */
   costSplit: CostSplit
-  /** With an even split: what the organizer puts in themselves, off the top of the cost. Organizer-only. */
+  /** With an even split or price by room: what the organizer puts in themselves, off the top of the cost. Organizer-only. */
   ownPartCents: number
   /** With an even split: how many guests share the rest; null for the guest limit (less the organizer's spot). */
   splitGuests: number | null
@@ -643,9 +643,9 @@ export interface TripOptions {
 
 export type CostSplit = 'even' | 'room' | 'set'
 
-/** What the organizer puts in themselves: only an even split has a part of their own (issue #65). */
+/** What the organizer puts in themselves: an even split or price by room (issue #65); "I know the price" has none. */
 export const ownPartOf = (options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>) =>
-  options.costSplit === 'even' ? options.ownPartCents : 0
+  options.costSplit === 'even' || options.costSplit === 'room' ? options.ownPartCents : 0
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,

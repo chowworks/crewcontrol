@@ -45,7 +45,7 @@ The sign-in account is only for signing in: on the join form they can change the
     question: 'If I’m going on the trip too, how does that work?',
     answer: `Just say you're going and you hold a spot on the trip. In the editor, answer "Yes, I'm in" under Max trip attendees, or tap "I'm going too" in Manage Guests on Trip Control.
 
-You show up on the guest list tagged Organizer. You don't sign anything, and you owe nothing on your row (on an even split, your own part shows as already paid). To track your own share, add a charge in your Details on Trip Control.`,
+You show up on the guest list tagged Organizer. You don't sign anything, and you owe nothing on your row (on an even split or price by room, your own part shows as already paid). To track your own share, add a charge in your Details on Trip Control.`,
     pages: ['editor:signups', 'control'],
   },
   {
