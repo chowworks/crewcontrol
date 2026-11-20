@@ -18,7 +18,7 @@ export function AdminTripView({
   page,
   children,
 }: {
-  page: 'control' | 'edit'
+  page: 'control' | 'edit' | 'planner'
   children: ReactNode
 }) {
   const { id = '' } = useParams()
@@ -32,7 +32,7 @@ export function AdminTripView({
   }, [id])
   if (member === null) return null
   if (member)
-    return <Navigate to={page === 'edit' ? `/organize/${id}` : `/organize/${id}/control`} replace />
+    return <Navigate to={page === 'edit' ? `/organize/${id}` : `/organize/${id}/${page}`} replace />
   return <AdminView.Provider value>{children}</AdminView.Provider>
 }
 
@@ -40,7 +40,7 @@ export function AdminTripView({
  * The other way round: an admin who opens a trip's organizer page without being on the trip (the server says it isn't
  * there for them) goes to the admin's read-only view of it. Returns true when it sent them there.
  */
-export function useAdminFallback(id: string, page: 'control' | 'edit') {
+export function useAdminFallback(id: string, page: 'control' | 'edit' | 'planner') {
   const isAdmin = useIsAdmin()
   const adminView = useAdminView()
   const navigate = useNavigate()

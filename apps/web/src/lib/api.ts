@@ -183,7 +183,7 @@ export const api = {
     request<TripRoom[]>(`/trips/${id}/rooms`, json('PUT', { rooms })),
   // The trip's paid features (those of its owners), and the room planner (issue #93).
   getTripFeatures: (id: string) => request<PaidFeature[]>(`/trips/${id}/features`),
-  getRoomPlan: (id: string) => request<RoomPlan>(`/trips/${id}/room-plan`),
+  getRoomPlan: (id: string, admin = false) => request<RoomPlan>(`${tripBase(id, admin)}/room-plan`),
   saveRoomPlan: (id: string, layout: RoomPlanLayout) =>
     request<RoomPlan>(`/trips/${id}/room-plan`, json('PUT', layout)),
   getRoomPlanMoves: (id: string) => request<RoomPlanMove[]>(`/trips/${id}/room-plan/moves`),
@@ -374,7 +374,8 @@ export const api = {
   askQuestion: (slug: string, question: string) =>
     request<MyQuestion[]>(`/join/${slug}/questions`, json('POST', { question })),
   // Save the date's interest list (issue #47): Trip Control's, and the signed-in person's own entry.
-  getInterest: (id: string) => request<InterestedPerson[]>(`/trips/${id}/interest`),
+  getInterest: (id: string, admin = false) =>
+    request<InterestedPerson[]>(`${tripBase(id, admin)}/interest`),
   removeInterest: (id: string, iid: string) =>
     request<InterestedPerson[]>(`/trips/${id}/interest/${iid}`, { method: 'DELETE' }),
   openSignups: (id: string, email: boolean) =>

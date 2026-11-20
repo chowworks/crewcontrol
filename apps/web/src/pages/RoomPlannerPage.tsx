@@ -12,6 +12,7 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { useAdminFallback, useAdminView } from '@/components/AdminView'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Card, Field, Money, field } from '@/components/EditorParts'
@@ -41,6 +42,9 @@ const savedAt = (iso: string) =>
 export function RoomPlannerPage() {
   const { id = '' } = useParams()
   const toast = useToast()
+  // The admin plans on any trip to help its organizers, but never saves or applies (owner's decision, 2026-11-20).
+  const admin = useAdminView()
+  const toAdminView = useAdminFallback(id, 'planner')
   const [trip, setTrip] = useState<OrganizerTrip | null>(null)
   const [rooms, setRooms] = useState<TripRoom[]>([])
   const [interest, setInterest] = useState<InterestedPerson[]>([])
@@ -60,13 +64,17 @@ export function RoomPlannerPage() {
   const [adding, setAdding] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.getTrip(id), api.getRooms(id), api.getInterest(id).catch(() => [])])
+    Promise.all([
+      api.getTrip(id, admin),
+      api.getRooms(id, admin),
+      api.getInterest(id, admin).catch(() => []),
+    ])
       .then(async ([t, r, i]) => {
         setTrip(t)
         setRooms(r)
         setInterest(i)
         try {
-          const plan = await api.getRoomPlan(id)
+          const plan = await api.getRoomPlan(id, admin)
           setLayoutState(plan.layout)
           setUpdatedAt(plan.updatedAt)
         } catch (err) {
@@ -74,13 +82,14 @@ export function RoomPlannerPage() {
           else throw err
         }
       })
-      .catch(() => setError('The room planner could not be loaded.'))
-  }, [id])
+      .catch((err) => toAdminView(err) || setError('The room planner could not be loaded.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, admin])
 
   // Leaving with changes not saved asks first: closing the tab, and any link in the app (the way back, the account
   // menu).
   useEffect(() => {
-    if (!dirty) return
+    if (!dirty || admin) return
     const warn = (e: BeforeUnloadEvent) => e.preventDefault()
     const click = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
@@ -96,7 +105,7 @@ export function RoomPlannerPage() {
       window.removeEventListener('beforeunload', warn)
       document.removeEventListener('click', click, true)
     }
-  }, [dirty])
+  }, [dirty, admin])
 
   const setLayout = useCallback((update: (l: RoomPlanLayout) => RoomPlanLayout) => {
     revision.current++
@@ -187,7 +196,7 @@ export function RoomPlannerPage() {
   const people = tripPeople(trip.guests, interest)
   const back = (
     <Link
-      to={`/organize/${id}/control`}
+      to={admin ? `/admin/trips/${id}/control` : `/organize/${id}/control`}
       className="inline-flex items-center gap-1.5 text-sm font-semibold text-royal hover:underline"
     >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -218,7 +227,7 @@ export function RoomPlannerPage() {
       <header className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-4">
         <Logo />
         <div className="flex items-center gap-3">
-          <span className="hidden items-center gap-3 lg:flex">
+          <span className={`${admin ? 'hidden' : 'hidden lg:flex'} items-center gap-3`}>
             <button type="button" disabled={busy} onClick={saveDraft} className={outlined}>
               Save draft
             </button>
@@ -238,7 +247,13 @@ export function RoomPlannerPage() {
               Paid feature
             </span>
           </div>
-          <p className="text-body text-muted">
+          {admin && (
+            <p className="mt-2 rounded-xl bg-royal-pale px-4 py-3 text-ink">
+              You’re looking as an admin. Move people and rooms around to try ideas with the
+              organizer; nothing you change here is saved or applied.
+            </p>
+          )}
+          <p className={`text-body text-muted ${admin ? 'hidden' : ''}`}>
             {dirty
               ? 'You have changes that aren’t saved yet. '
               : updatedAt
@@ -259,7 +274,7 @@ export function RoomPlannerPage() {
             rooms={rooms}
             people={people}
             tripPriceCents={trip.costPerPersonCents}
-            onAddRoom={() => setAdding(true)}
+            onAddRoom={admin ? undefined : () => setAdding(true)}
           />
         </div>
         <PhonePlan layout={layout} rooms={rooms} people={people} />

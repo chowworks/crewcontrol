@@ -142,6 +142,16 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/trips/:id/planner"
+          element={
+            <RequireSignIn>
+              <AdminTripView page="planner">
+                <RoomPlannerPage />
+              </AdminTripView>
+            </RequireSignIn>
+          }
+        />
+        <Route
           path="/admin/trips/:id/people"
           element={
             <RequireSignIn>

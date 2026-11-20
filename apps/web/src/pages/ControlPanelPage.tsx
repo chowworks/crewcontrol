@@ -349,13 +349,13 @@ export function ControlPanelPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
-          {!admin && rooms.length >= 2 && hasPlanner !== null && (
+          {rooms.length >= 2 && (admin || hasPlanner !== null) && (
             <Link
-              to={`/organize/${id}/planner`}
+              to={admin ? `/admin/trips/${id}/planner` : `/organize/${id}/planner`}
               aria-label="Room planner"
               className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
             >
-              {hasPlanner ? (
+              {admin || hasPlanner ? (
                 <BedDouble className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <Lock className="h-4 w-4" aria-hidden="true" />

@@ -160,7 +160,8 @@ export function PlannerBoard({
   people: Person[]
   tripPriceCents: number
   /** Opens "+ Room": adds a room to the trip itself. */
-  onAddRoom: () => void
+  /** Left out for the admin, who can't change the trip. */
+  onAddRoom?: () => void
 }) {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState<DragData | null>(null)
@@ -295,10 +296,12 @@ export function PlannerBoard({
         />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <button type="button" onClick={onAddRoom} className={btnOutline}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Room
-            </button>
+            {onAddRoom && (
+              <button type="button" onClick={onAddRoom} className={btnOutline}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Room
+              </button>
+            )}
             <div className="relative">
               <button
                 type="button"
