@@ -614,6 +614,8 @@ export type TripChange =
   | { what: 'question'; action: 'edited' | 'deleted'; question: string }
   | { what: 'trip_deleted' }
   | { what: 'trip_restored' }
+  /** The room planner applied (issue #93): who moved, by name. */
+  | { what: 'rooms_applied'; moved: string[] }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**
@@ -1302,6 +1304,7 @@ export type HelpPage =
   | 'editor:customization'
   | 'control'
   | 'features'
+  | 'planner'
 
 export const HELP_PAGES: { value: HelpPage; label: string }[] = [
   { value: 'editor:basics', label: 'Editor: Trip basics' },
@@ -1312,6 +1315,7 @@ export const HELP_PAGES: { value: HelpPage; label: string }[] = [
   { value: 'editor:customization', label: 'Editor: Customization' },
   { value: 'control', label: 'Trip Control' },
   { value: 'features', label: 'Your Membership' },
+  { value: 'planner', label: 'Room planner' },
 ]
 
 /** The sections of "All topics", in order. */
@@ -1902,7 +1906,7 @@ export interface OpenSignupsResult {
  * Membership_features_check constraint (a migration). `built` is false until the feature itself exists, and the
  * screens call it "Coming soon".
  */
-export type PaidFeature = 'organizer_link' | 'custom_domain'
+export type PaidFeature = 'organizer_link' | 'custom_domain' | 'room_planner'
 
 /**
  * Paid features, in the order the admin sees them. `bucket` groups them in Manage Memberships; it is only a
@@ -1928,6 +1932,13 @@ export const PAID_FEATURES: {
     text: 'Put a trip on its own web address, like staycation.travel-hq.app or a domain you own.',
     bucket: 'Branding',
     built: false,
+  },
+  {
+    key: 'room_planner',
+    title: 'Room planner',
+    text: 'Lay out the house and drag people onto beds to work out who sleeps where, then apply it to the trip.',
+    bucket: 'Planning',
+    built: true,
   },
 ]
 
@@ -1958,4 +1969,122 @@ export interface MyFeatures {
   features: { key: PaidFeature; has: boolean; endsOn: string | null }[]
   /** Features they have and haven't been shown yet. */
   intros: PaidFeature[]
+}
+
+/**
+ * The room planner (issue #93, a paid feature): a draft of who sleeps where, organizers only. The house is laid out as
+ * named parts ("Main floor", "Upstairs, east side"), each a dotted grid holding room tiles (the trip's real rooms) and
+ * landmark tiles (a bath, the kitchen). People go on bed spots; a spot holds a name, typed or picked from the trip's
+ * people. Nothing reaches a guest until the organizer applies the plan, which moves guests into the rooms they're on.
+ */
+export const PLAN_CELL_PX = 20
+/** A part of the house is at most this many dots wide (about three laptop screens) and this many tall. */
+export const PLAN_MAX_COLS = 130
+export const PLAN_MAX_ROWS = 80
+export const PLAN_MAX_SECTIONS = 12
+export const PLAN_MAX_TILES = 150
+export const PLAN_NAME_MAX = 60
+
+export const LANDMARK_KINDS = ['bath', 'kitchen', 'living', 'stairs', 'outdoor', 'other'] as const
+export type LandmarkKind = (typeof LANDMARK_KINDS)[number]
+export const LANDMARK_LABELS: Record<LandmarkKind, string> = {
+  bath: 'Bathroom',
+  kitchen: 'Kitchen',
+  living: 'Living room',
+  stairs: 'Stairs',
+  outdoor: 'Deck or balcony',
+  other: 'Something else',
+}
+
+/** A floor or part of the house. `beside` puts it to the right of the part before it instead of below. */
+export interface PlanSection {
+  id: string
+  name: string
+  beside: boolean
+  /** Its size in dots. */
+  cols: number
+  rows: number
+}
+
+/** A room (one of the trip's rooms) or a landmark on a part of the house, in dots from its top left. */
+export interface PlanTile {
+  id: string
+  sectionId: string
+  roomId: string | null
+  landmark: { kind: LandmarkKind; label: string } | null
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * One person on one place in a room: `index` counts the room's places in bed order (see `roomSpots`). The name is what
+ * the organizer sees; `guestId` or `interestId` says who it was picked from, so applying moves that guest. A typed
+ * name has neither and stays in the planner.
+ */
+export interface PlanSpot {
+  roomId: string
+  index: number
+  name: string
+  guestId: string | null
+  interestId: string | null
+}
+
+export interface RoomPlanLayout {
+  sections: PlanSection[]
+  tiles: PlanTile[]
+  spots: PlanSpot[]
+  /** Names typed in but not placed yet, kept so they wait in the side panel. */
+  waiting: string[]
+}
+
+/** The planner's draft, and when it was last saved (null: never). */
+export interface RoomPlan {
+  layout: RoomPlanLayout
+  updatedAt: string | null
+}
+
+/** One place to sleep in a room: which bed (null: a place the beds don't cover, like a floor mattress) and where on it. */
+export interface RoomSpot {
+  index: number
+  bed: number | null
+  /** 0 for the first person on the bed, 1 for the second; on a bunk, 0 is the top. */
+  slot: number
+}
+
+/**
+ * The places a room has, in bed order: two on a bed that sleeps two, never more than the room sleeps, and plain places
+ * for what the beds don't cover.
+ */
+export function roomSpots(room: { bedTypes: BedType[]; capacity: number }): RoomSpot[] {
+  const spots: RoomSpot[] = []
+  room.bedTypes.forEach((b, bed) => {
+    for (let slot = 0; slot < BED_LABELS[b].sleeps; slot++)
+      if (spots.length < room.capacity) spots.push({ index: spots.length, bed, slot })
+  })
+  while (spots.length < room.capacity) spots.push({ index: spots.length, bed: null, slot: 0 })
+  return spots
+}
+
+/** Applying the plan: whether to email the guests who move their new room. */
+export interface ApplyRoomPlanInput {
+  email: boolean
+}
+
+/** What applying the plan would do, or did: each guest who changes room and what their room price does. */
+export interface RoomPlanMove {
+  guestId: string
+  name: string
+  fromRoom: string | null
+  toRoom: string
+  /** Positive: a charge onto their balance; negative: a credit; 0: same price, or they haven't signed. */
+  priceDiffCents: number
+  /** The guest picked their room themselves when they joined, and this replaces it. */
+  replacesOwnPick: boolean
+}
+
+export interface RoomPlanApplyResult {
+  moved: number
+  emailed: number
 }

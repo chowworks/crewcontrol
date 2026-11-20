@@ -29,6 +29,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PaidFeaturesPage } from './pages/PaidFeaturesPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PrivacyPage } from './pages/PrivacyPage'
+import { RoomPlannerPage } from './pages/RoomPlannerPage'
 import { SignInPage } from './pages/SignInPage'
 import { StopUpdatesPage } from './pages/StopUpdatesPage'
 import { TermsPage } from './pages/TermsPage'
@@ -80,6 +81,16 @@ export default function App() {
             <RequireSignIn>
               <OrganizerTerms>
                 <ControlPanelPage />
+              </OrganizerTerms>
+            </RequireSignIn>
+          }
+        />
+        <Route
+          path="/organize/:id/planner"
+          element={
+            <RequireSignIn>
+              <OrganizerTerms>
+                <RoomPlannerPage />
               </OrganizerTerms>
             </RequireSignIn>
           }

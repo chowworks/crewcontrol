@@ -5,7 +5,7 @@ import {
   type MembershipInput,
   type PaidFeature,
 } from '@cc/types'
-import { Gem, Globe, Link2, Plus, Search, type LucideIcon } from 'lucide-react'
+import { BedDouble, Gem, Globe, Link2, Plus, Search, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { AdminGrid, type GridColumn } from '@/components/AdminGrid'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -41,6 +41,7 @@ type Row = Membership & { id: string }
 const FEATURE_ART: Record<PaidFeature, LucideIcon> = {
   organizer_link: Link2,
   custom_domain: Globe,
+  room_planner: BedDouble,
 }
 
 /** Today in Eastern time (YYYY-MM-DD), the way the API decides a last day has passed. */

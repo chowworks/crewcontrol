@@ -34,10 +34,39 @@ Travel HQ handles the bookkeeping: sign-ups and the trip agreement, who has paid
     key: 'paid-features',
     topic: 'start',
     question: 'Does Travel HQ have paid features?',
-    answer: `A few extras will be paid upgrades: your own organizer link (travel-hq.app/yourname) and custom domains for a trip. Both are coming soon. Running a trip stays free, and Travel HQ never takes a cut of the trip money.
+    answer: `A few extras are paid upgrades: the room planner, where you lay out the house and drag people onto beds, is ready now; your own organizer link (travel-hq.app/yourname) and custom domains for a trip are coming soon. Running a trip stays free, and Travel HQ never takes a cut of the trip money.
 
 To try one early, tap "Your Membership" at the bottom of this Help, then "Ask for early access". When you get a paid feature, we tell you about it the next time you open Travel HQ.`,
     pages: ['control', 'features'],
+  },
+  {
+    key: 'room-planner',
+    topic: 'start',
+    question: 'How do I work out who sleeps where?',
+    answer: `Use the room planner, a paid feature: click "Room planner" on Trip Control, or "Open the room planner" in the editor's Rooms step. It works on a computer; on a phone you can see your latest plan but not change it.
+
+Lay out the house: drag each room into place on the dots and drag its corner to make it bigger. Add bathrooms, the kitchen, stairs and other landmarks with "+ Bathroom or landmark", and floors or other parts of the house with "+ Add a floor or part of the house". Drag a part by its dots to put it below or beside another.
+
+Then drag people onto beds. Rooms you add in the editor wait under "Rooms to place" until you drag them onto the plan, and "+ Room" adds a room to the trip.`,
+    pages: ['planner', 'control', 'editor:rooms'],
+  },
+  {
+    key: 'room-planner-people',
+    topic: 'start',
+    question: 'Who can I put in the room planner?',
+    answer: `Anyone. Everyone from the trip (guests who signed up and people on the Interested list) waits under "Not placed yet", ready to drag onto a bed. For anyone else, type a name under "Add someone who hasn't signed up", like "Kendra's +1". Typed names and people from the Interested list stay in the planner: they're never emailed and never shown on the trip page.
+
+The colours show who's who: filled purple for accepted guests, a purple outline for guests waiting to be accepted, a dashed outline for the Interested list, and grey for names you typed.`,
+    pages: ['planner'],
+  },
+  {
+    key: 'room-planner-apply',
+    topic: 'start',
+    question: 'What happens when I apply rooms?',
+    answer: `Nothing changes for guests while you plan. "Save draft" keeps your plan for next time, so move people around as often as you like.
+
+"Apply rooms" shows every guest who changes room before anything happens. Applying moves them, and if their new room costs more or less, the difference goes straight onto their balance as a charge or credit. Tick "Email the guests their new room" to tell them. A room a guest picked when they signed up is replaced. Typed names and people from the Interested list stay in the plan.`,
+    pages: ['planner'],
   },
   {
     key: 'yahoo-email',

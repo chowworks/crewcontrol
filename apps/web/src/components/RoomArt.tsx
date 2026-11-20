@@ -68,6 +68,27 @@ export function RoomArt({ beds, className = '' }: { beds: BedType[]; className?:
   )
 }
 
+/** One bed's picture on its own, the same drawing as the room art, for the room planner (issue #93). */
+export function BedPicture({
+  type,
+  className = 'h-16 w-auto',
+}: {
+  type: BedType
+  className?: string
+}) {
+  const w = BED_WIDTH[type]
+  return (
+    <svg
+      viewBox={`-2 6 ${w + 4} 62`}
+      className={className}
+      role="img"
+      aria-label={BED_LABELS[type].label}
+    >
+      <Bed type={type} x={0} w={w} />
+    </svg>
+  )
+}
+
 function Bed({ type, x, w }: { type: BedType; x: number; w: number }) {
   // A bunk is drawn from the side, so its two levels show: posts, two mattresses and a ladder.
   if (type === 'bunk')

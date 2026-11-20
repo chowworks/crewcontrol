@@ -58,6 +58,11 @@ export class MembershipsService {
     return activeFeatures(await this.mine(userId)).has(feature)
   }
 
+  /** Every paid feature this person has today. */
+  async featuresOf(userId: string): Promise<Set<PaidFeature>> {
+    return activeFeatures(await this.mine(userId))
+  }
+
   /** What the signed-in person has, and the features to introduce in a popup (each once). */
   async myFeatures(caller: Caller): Promise<MyFeatures> {
     const rows = await this.mine(caller.userId)

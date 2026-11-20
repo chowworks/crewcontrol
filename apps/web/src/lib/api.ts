@@ -71,6 +71,10 @@ import {
   type MyInterest,
   type OpenSignupsResult,
   type TripAnnouncements,
+  type RoomPlan,
+  type RoomPlanLayout,
+  type RoomPlanMove,
+  type RoomPlanApplyResult,
 } from '@cc/types'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -177,6 +181,14 @@ export const api = {
   getRooms: (id: string, admin = false) => request<TripRoom[]>(`${tripBase(id, admin)}/rooms`),
   setRooms: (id: string, rooms: TripRoom[]) =>
     request<TripRoom[]>(`/trips/${id}/rooms`, json('PUT', { rooms })),
+  // The trip's paid features (those of its owners), and the room planner (issue #93).
+  getTripFeatures: (id: string) => request<PaidFeature[]>(`/trips/${id}/features`),
+  getRoomPlan: (id: string) => request<RoomPlan>(`/trips/${id}/room-plan`),
+  saveRoomPlan: (id: string, layout: RoomPlanLayout) =>
+    request<RoomPlan>(`/trips/${id}/room-plan`, json('PUT', layout)),
+  getRoomPlanMoves: (id: string) => request<RoomPlanMove[]>(`/trips/${id}/room-plan/moves`),
+  applyRoomPlan: (id: string, email: boolean) =>
+    request<RoomPlanApplyResult>(`/trips/${id}/room-plan/apply`, json('POST', { email })),
   // An organizer going on their own trip, and not after all (issue #53).
   goingToo: (id: string, input: { name: string; phone: string; email: string }) =>
     request<OrganizerTrip>(`/trips/${id}/going`, json('POST', input)),

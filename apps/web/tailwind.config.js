@@ -9,6 +9,8 @@ export default {
         muted: '#4A5568',
         body: '#2D3748',
         rule: '#E2E8EA',
+        // A firmer grey line: the room planner's tiles, zoom buttons and drop places.
+        line: '#B8BFC9',
         // Royal purple: buttons, links and accents.
         royal: { DEFAULT: '#5A2D91', dark: '#3F1E66', pale: '#F1ECF8' },
         marigold: '#F2B33D',

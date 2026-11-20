@@ -12,7 +12,7 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft, Lightbulb, Users } from 'lucide-react'
+import { ArrowLeft, BedDouble, Lightbulb, Lock, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -37,6 +37,7 @@ import { useTripChangeRequests } from './TripChangeRequests'
 import { useTripQuestions } from './TripQuestions'
 import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
+import { useHasPlanner } from './RoomPlannerPage'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
 // trip editor (steps 3 and 4).
@@ -51,6 +52,8 @@ export function ControlPanelPage() {
   const admin = useAdminView()
   const [flyer, setFlyer] = useState(false)
   const toAdminView = useAdminFallback(id, 'control')
+  // The room planner (issue #93) is a paid feature, for an organizer's own trips.
+  const hasPlanner = useHasPlanner(id, admin)
   // A payment that looks like one already confirmed waits for the organizer's answer here.
   const [same, setSame] = useState<{
     name: string
@@ -346,6 +349,20 @@ export function ControlPanelPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
+          {!admin && rooms.length >= 2 && hasPlanner !== null && (
+            <Link
+              to={`/organize/${id}/planner`}
+              aria-label="Room planner"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
+            >
+              {hasPlanner ? (
+                <BedDouble className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Lock className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">Room planner</span>
+            </Link>
+          )}
           {/* An organizer's owners and organizers are in the Danger zone; an admin seats itself here. */}
           {admin && (
             <Link

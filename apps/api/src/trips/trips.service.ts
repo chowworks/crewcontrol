@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -118,6 +119,8 @@ function data(input: TripInput) {
 
 @Injectable()
 export class TripsService {
+  private readonly logger = new Logger('TripsService')
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly clerk: ClerkService,
@@ -1236,6 +1239,49 @@ export class TripsService {
       data: { roomPriceSettledCents: price },
     })
     return this.get(id, caller)
+  }
+
+  /**
+   * Moves guests into rooms all at once: the room planner's Apply (issue #93). Everyone moving gives up their room
+   * first, so two guests can swap. A move to a room at another price puts the difference straight onto the guest's
+   * balance (owner's decision, 2026-11-20); one that can't be added (a credit bigger than they paid) is left for Trip
+   * Control to ask about, as a guest's own room change is. Returns how many were emailed their new room.
+   */
+  async moveGuests(
+    id: string,
+    moves: { guestId: string; roomId: string }[],
+    email: boolean,
+    caller: Caller
+  ): Promise<number> {
+    if (!moves.length) return 0
+    await roomFull(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.guest.updateMany({
+          where: { tripId: id, id: { in: moves.map((m) => m.guestId) } },
+          data: { roomId: null },
+        })
+        for (const m of moves)
+          await tx.guest.updateMany({
+            where: { tripId: id, id: m.guestId },
+            data: { roomId: m.roomId },
+          })
+      })
+    )
+    for (const m of moves)
+      await this.settleRoomPrice(id, m.guestId, true, caller).catch((err: unknown) =>
+        this.logger.warn(
+          `A room price change wasn't added after the room plan: ${err instanceof Error ? err.message : err}`
+        )
+      )
+    if (!email) return 0
+    const trip = await this.get(id, caller)
+    let emailed = 0
+    for (const m of moves)
+      if (trip.guests.find((g) => g.id === m.guestId)?.email) {
+        await this.sendGuestEmail('room_assigned', trip, m.guestId)
+        emailed++
+      }
+    return emailed
   }
 
   /** Takes an adjustment back: it stays on record, marked removed, and no longer counts. Never edited. */

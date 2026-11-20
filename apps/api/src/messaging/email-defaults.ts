@@ -76,6 +76,18 @@ ${plan('Your')}
 <p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
   },
   {
+    kind: 'room_assigned',
+    name: 'Your room',
+    when: 'To each guest the room planner moves, when the organizer applies the plan and ticks “Email the guests their new room”.',
+    groups: ['trip', 'guest', 'paymentDetails'],
+    subject: 'Your room for {{trip.name}}',
+    body: `<p>Hi {{guest.firstName}},</p>
+<p>{{trip.organizerName}} put you in <strong>{{guest.room}}</strong> for <strong>{{trip.name}}</strong>, {{trip.dates}}.</p>
+{{#if guest.canPay}}{{#if paymentDetails.adjustments}}<p>With credits and charges ({{paymentDetails.adjustments}}), your total is {{paymentDetails.total}}.</p>{{/if}}{{/if}}
+<p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
+<p>Questions about it? Reply to this email.</p>`,
+  },
+  {
     kind: 'spot_offered',
     name: 'A spot opened',
     when: 'To a guest on the waitlist when the organizer offers them a spot that opened, with how to pay for it.',

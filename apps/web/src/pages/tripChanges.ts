@@ -187,6 +187,8 @@ export function changeText(c: TripChange): string {
       return 'deleted the trip'
     case 'trip_restored':
       return 'restored the trip'
+    case 'rooms_applied':
+      return `applied the room plan and moved ${c.moved.join(', ')}`
   }
 }
 

@@ -94,6 +94,7 @@ model Trip {
   emailSends          EmailSend[]
   actionAlerts        ActionAlert[]
   interest            TripInterest[]
+  roomPlan            RoomPlan?
 
   @@index([deletedAt])
 }
@@ -784,4 +785,16 @@ model TripInterest {
 
   @@unique([tripId, userId])
   @@index([userId])
+}
+
+/// The room planner's draft (issue #93, paid; migration 20261120010000_room_plan): one per trip, the RoomPlanLayout
+/// JSON (sections, room and landmark tiles, bed spots). Only the trip's members read or write it; nothing in it reaches
+/// a guest until the organizer applies it.
+model RoomPlan {
+  id              String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId          String   @unique
+  layout          Json     @default("{}")
+  updatedAt       DateTime @default(now())
+  updatedByUserId String?
+  trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }

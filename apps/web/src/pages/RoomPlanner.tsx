@@ -1,0 +1,1014 @@
+import {
+  BED_LABELS,
+  LANDMARK_KINDS,
+  LANDMARK_LABELS,
+  PLAN_CELL_PX,
+  PLAN_MAX_SECTIONS,
+  roomSpots,
+  type LandmarkKind,
+  type PlanSection,
+  type PlanTile,
+  type RoomPlanLayout,
+  type RoomSpot,
+  type TripRoom,
+} from '@cc/types'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  Bath,
+  CookingPot,
+  GripVertical,
+  MapPin,
+  Minus,
+  Pencil,
+  Plus,
+  Sofa,
+  Trash2,
+  TreePalm,
+  Users,
+  X,
+} from 'lucide-react'
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { BedPicture } from '@/components/RoomArt'
+import { money } from '@/lib/format'
+import {
+  addTyped,
+  moveSection,
+  notPlaced,
+  place,
+  removeSection,
+  removeTile,
+  removeTyped,
+  sectionRows,
+  setTile,
+  spotPerson,
+  uid,
+  unplace,
+  type From,
+  type Person,
+  type PersonKind,
+} from '@/lib/roomPlan'
+
+/**
+ * The room planner's board (issue #93, option E): the side panel of people and rooms to place, and the house laid out
+ * as named parts on dotted grids, with room tiles holding the beds' pictures and a place under each for a person.
+ * Desktop only; a phone shows the plan as a list (RoomPlannerPage).
+ */
+
+const CELL = PLAN_CELL_PX
+const ZOOMS = [0.5, 0.75, 1, 1.25]
+
+export const KIND_CHIP: Record<PersonKind, string> = {
+  accepted: 'border-2 border-royal bg-royal text-white',
+  pending: 'border-2 border-royal bg-white text-royal',
+  interested: 'border-2 border-dashed border-royal bg-white text-royal',
+  typed: 'border-2 border-dotted border-muted bg-rule italic text-ink',
+}
+
+const KIND_LABEL: Record<PersonKind, string> = {
+  accepted: 'Accepted guest',
+  pending: 'Pending (signed, not accepted)',
+  interested: 'Interested list',
+  typed: 'Typed name, planner only',
+}
+
+const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
+  bath: <Bath className="h-5 w-5" aria-hidden="true" />,
+  kitchen: <CookingPot className="h-5 w-5" aria-hidden="true" />,
+  living: <Sofa className="h-5 w-5" aria-hidden="true" />,
+  stairs: (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+    >
+      <path d="M4 20h4v-4h4v-4h4V8h4" />
+    </svg>
+  ),
+  outdoor: <TreePalm className="h-5 w-5" aria-hidden="true" />,
+  other: <MapPin className="h-5 w-5" aria-hidden="true" />,
+}
+
+/** A new room tile: wide enough for its beds' pictures, tall enough for a name under each. */
+export const tileSize = (room: Pick<TripRoom, 'bedTypes'>) => ({
+  // A bunk's places sit beside it, so it takes more width than a bed with its names under it.
+  w: Math.min(
+    43,
+    Math.max(
+      10,
+      room.bedTypes.reduce((n, b) => n + (b === 'bunk' ? 8 : 5), 2)
+    )
+  ),
+  h: 12,
+})
+
+type DragData =
+  | { type: 'person'; person: Person; from: From }
+  | { type: 'room'; roomId: string }
+  | { type: 'section'; sectionId: string }
+
+const btnOutline =
+  'inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border-2 border-royal bg-white px-3 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50'
+
+export function PlannerBoard({
+  layout,
+  setLayout,
+  rooms,
+  people,
+  tripPriceCents,
+  onAddRoom,
+}: {
+  layout: RoomPlanLayout
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
+  rooms: TripRoom[]
+  people: Person[]
+  tripPriceCents: number
+  /** Opens "+ Room": adds a room to the trip itself. */
+  onAddRoom: () => void
+}) {
+  const [zoom, setZoom] = useState(1)
+  const [dragging, setDragging] = useState<DragData | null>(null)
+  const [menu, setMenu] = useState(false)
+  const [removing, setRemoving] = useState<PlanSection | null>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  )
+
+  const waiting = notPlaced(layout, people)
+  const onPlan = new Set(layout.tiles.flatMap((t) => (t.roomId ? [t.roomId] : [])))
+  const toPlace = rooms.filter((r) => r.id && !onPlan.has(r.id))
+  const places = rooms
+    .filter((r) => r.id && onPlan.has(r.id))
+    .reduce((n, r) => n + roomSpots(r).length, 0)
+  const placed = layout.spots.filter((s) => onPlan.has(s.roomId)).length
+
+  function onDragStart(e: DragStartEvent) {
+    setDragging((e.active.data.current as DragData) ?? null)
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    setDragging(null)
+    const data = e.active.data.current as DragData | undefined
+    const over = e.over?.data.current as
+      | { type: 'spot'; roomId: string; index: number }
+      | { type: 'panel' }
+      | { type: 'grid'; sectionId: string }
+      | { type: 'zone'; sectionId: string; where: 'below' | 'beside' }
+      | undefined
+    if (!data || !over) return
+    if (data.type === 'person') {
+      if (over.type === 'spot')
+        setLayout((l) =>
+          place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
+        )
+      else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
+        const from = data.from
+        setLayout((l) => unplace(l, from.roomId, from.index))
+      }
+    } else if (data.type === 'room' && over.type === 'grid') {
+      const room = rooms.find((r) => r.id === data.roomId)
+      const dropped = e.active.rect.current.translated
+      if (!room || !dropped || !e.over) return
+      const x = Math.round((dropped.left - e.over.rect.left) / (CELL * zoom))
+      const y = Math.round((dropped.top - e.over.rect.top) / (CELL * zoom))
+      setLayout((l) =>
+        setTile(l, {
+          id: uid(),
+          sectionId: over.sectionId,
+          roomId: data.roomId,
+          landmark: null,
+          x,
+          y,
+          ...tileSize(room),
+        })
+      )
+    } else if (data.type === 'section' && over.type === 'zone')
+      setLayout((l) => moveSection(l, data.sectionId, over.sectionId, over.where))
+  }
+
+  function addLandmark(kind: LandmarkKind) {
+    setMenu(false)
+    setLayout((l) => {
+      const section = l.sections[0]
+      const bottom = Math.max(
+        0,
+        ...l.tiles.filter((t) => t.sectionId === section.id).map((t) => t.y + t.h + 1)
+      )
+      return setTile(l, {
+        id: uid(),
+        sectionId: section.id,
+        roomId: null,
+        landmark: { kind, label: kind === 'other' ? 'Landmark' : LANDMARK_LABELS[kind] },
+        x: 0,
+        y: bottom,
+        w: 6,
+        h: 4,
+      })
+    })
+  }
+
+  function addSection() {
+    setLayout((l) => ({
+      ...l,
+      sections: [
+        ...l.sections,
+        {
+          id: uid(),
+          name: l.sections.length === 1 ? 'Upstairs' : 'New part of the house',
+          beside: false,
+          cols: 43,
+          rows: 14,
+        },
+      ],
+    }))
+  }
+
+  function fit() {
+    const width = Math.max(
+      ...sectionRows(layout.sections).map((row) => row.reduce((w, s) => w + s.cols * CELL + 24, 0))
+    )
+    const room = (scroller.current?.clientWidth ?? width) - 8
+    setZoom(Math.max(0.4, Math.min(1, room / width)))
+  }
+
+  const stepZoom = (dir: 1 | -1) =>
+    setZoom((z) => {
+      const i = ZOOMS.findIndex((x) => x >= z - 0.001)
+      const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? 2 : i) + dir))]
+      return next
+    })
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setDragging(null)}
+    >
+      <div className="flex min-h-0 gap-6">
+        <SidePanel
+          setLayout={setLayout}
+          waiting={waiting}
+          people={people}
+          toPlace={toPlace}
+          placed={placed}
+          places={places}
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button type="button" onClick={onAddRoom} className={btnOutline}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Room
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                aria-expanded={menu}
+                onClick={() => setMenu((m) => !m)}
+                className={btnOutline}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Bathroom or landmark
+              </button>
+              {menu && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-rule bg-white shadow-[0_8px_24px_rgba(15,28,46,0.12)]">
+                  {LANDMARK_KINDS.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => addLandmark(k)}
+                      className="flex min-h-[44px] w-full items-center gap-2.5 px-3 text-left hover:bg-royal-pale"
+                    >
+                      {LANDMARK_ICON[k]}
+                      {LANDMARK_LABELS[k]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Zoom out"
+                onClick={() => stepZoom(-1)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white hover:bg-ground"
+              >
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span className="w-14 text-center text-sm font-semibold">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                onClick={() => stepZoom(1)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white hover:bg-ground"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button type="button" onClick={fit} className={`${btnOutline} ml-1`}>
+                Fit to screen
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
+            <div ref={scroller} className="overflow-x-auto pb-2">
+              <div style={{ zoom }} className="flex w-max flex-col gap-4">
+                {sectionRows(layout.sections).map((row) => (
+                  <div key={row[0].id} className="flex items-start gap-5">
+                    {row.map((s, i) => (
+                      <div key={s.id} className="flex items-start gap-5">
+                        {i > 0 && <span aria-hidden="true" className="w-px self-stretch bg-line" />}
+                        <Section
+                          section={s}
+                          layout={layout}
+                          setLayout={setLayout}
+                          rooms={rooms}
+                          people={people}
+                          tripPriceCents={tripPriceCents}
+                          zoom={zoom}
+                          draggingSection={dragging?.type === 'section' ? dragging.sectionId : null}
+                          onRemove={() =>
+                            layout.tiles.some((t) => t.sectionId === s.id)
+                              ? setRemoving(s)
+                              : setLayout((l) => removeSection(l, s.id))
+                          }
+                          canRemove={layout.sections.length > 1}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={layout.sections.length >= PLAN_MAX_SECTIONS}
+              onClick={addSection}
+              className="min-h-[44px] rounded-xl border-2 border-dashed border-royal bg-white font-semibold text-royal hover:bg-royal-pale disabled:opacity-50"
+            >
+              + Add a floor or part of the house
+            </button>
+            <p className="text-sm text-muted">
+              Drag a room by its name to move it, and its corner to resize it. Everything snaps to
+              the dots. Drag a part of the house by its dots to put it below or beside another.
+            </p>
+          </div>
+        </div>
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {dragging?.type === 'person' && <Chip person={dragging.person} lifted />}
+        {dragging?.type === 'room' && (
+          <div className="rounded-xl border-2 border-royal bg-white px-3 py-2 font-display font-bold shadow-[0_8px_20px_rgba(15,28,46,0.25)]">
+            {rooms.find((r) => r.id === dragging.roomId)?.name}
+          </div>
+        )}
+        {dragging?.type === 'section' && (
+          <div className="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">
+            {layout.sections.find((s) => s.id === dragging.sectionId)?.name}
+          </div>
+        )}
+      </DragOverlay>
+      {removing && (
+        <ConfirmDialog
+          title={`Remove ${removing.name}?`}
+          confirmLabel="Remove"
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            setLayout((l) => removeSection(l, removing.id))
+            setRemoving(null)
+          }}
+        >
+          Its rooms go back to Rooms to place, and the people in them back to Not placed yet. Its
+          bathrooms and landmarks are removed.
+        </ConfirmDialog>
+      )}
+    </DndContext>
+  )
+}
+
+function SidePanel({
+  setLayout,
+  waiting,
+  people,
+  toPlace,
+  placed,
+  places,
+}: {
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
+  waiting: Person[]
+  people: Person[]
+  toPlace: TripRoom[]
+  placed: number
+  places: number
+}) {
+  const [name, setName] = useState('')
+  const { setNodeRef, isOver } = useDroppable({ id: 'panel', data: { type: 'panel' } })
+  const typed = name.trim()
+  const match =
+    typed.length >= 2
+      ? people.find((p) => p.name.toLowerCase().startsWith(typed.toLowerCase()))
+      : undefined
+  const total = waiting.length + placed
+
+  function add() {
+    if (!typed) return
+    setLayout((l) => addTyped(l, typed.slice(0, 60)))
+    setName('')
+  }
+
+  return (
+    <aside
+      ref={setNodeRef}
+      className={`flex w-[290px] shrink-0 flex-col gap-4 self-start rounded-2xl border bg-white p-5 shadow-card ${isOver ? 'border-royal' : 'border-rule'}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-royal-pale">
+          <Users className="h-[18px] w-[18px] text-royal" aria-hidden="true" />
+        </span>
+        <h2 className="text-xl font-extrabold">People</h2>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <label htmlFor="plan-add-name" className="mb-1.5 block text-sm font-semibold">
+          Add someone who hasn’t signed up
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="plan-add-name"
+            value={name}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Like Kendra’s +1"
+            className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-line px-3"
+          />
+          <button
+            type="submit"
+            disabled={!typed}
+            className="min-h-[44px] rounded-xl border-2 border-royal px-3 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+        {match && (
+          <p className="mt-1.5 text-sm text-muted">
+            {match.name} is on the trip already: drag them from the list below.
+          </p>
+        )}
+      </form>
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-muted">Not placed yet ({waiting.length})</h3>
+        {waiting.length ? (
+          <div className="flex flex-wrap gap-2">
+            {waiting.map((p) => (
+              <PanelChip
+                key={p.key}
+                person={p}
+                onRemove={
+                  p.key.startsWith('w:')
+                    ? () => setLayout((l) => removeTyped(l, Number(p.key.slice(2))))
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Everyone’s on a bed.</p>
+        )}
+      </div>
+      <p className="text-sm text-muted">
+        Placed: {placed} of {total} {total === 1 ? 'name' : 'names'}. Beds left:{' '}
+        {Math.max(0, places - placed)}.
+      </p>
+      {toPlace.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-muted">
+            Rooms to place ({toPlace.length})
+          </h3>
+          <div className="flex flex-col gap-2">
+            {toPlace.map((r) => (
+              <RoomToPlace key={r.id} room={r} />
+            ))}
+          </div>
+          <p className="mt-1.5 text-sm text-muted">Drag a room onto the plan.</p>
+        </div>
+      )}
+      <div className="flex flex-col gap-2 border-t border-rule pt-3.5">
+        <h3 className="text-sm font-semibold">Who’s who</h3>
+        {(Object.keys(KIND_LABEL) as PersonKind[]).map((k) => (
+          <div key={k} className="flex items-center gap-2 text-sm">
+            <span
+              className={`inline-flex h-[22px] items-center rounded-full px-2 text-xs font-semibold ${KIND_CHIP[k]}`}
+            >
+              Name
+            </span>
+            {KIND_LABEL[k]}
+          </div>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+function RoomToPlace({ room }: { room: TripRoom }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `room:${room.id}`,
+    data: { type: 'room', roomId: room.id ?? '' } satisfies DragData,
+  })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      {...attributes}
+      {...listeners}
+      className={`flex min-h-[44px] cursor-grab flex-col items-start rounded-xl border-2 border-royal bg-white px-3 py-1.5 text-left ${isDragging ? 'opacity-40' : ''}`}
+    >
+      <span className="font-display font-bold">{room.name}</span>
+      <span className="text-xs text-muted">
+        {room.bedTypes.length
+          ? room.bedTypes.map((b) => BED_LABELS[b].label).join(', ')
+          : `Sleeps ${room.capacity}`}
+      </span>
+    </button>
+  )
+}
+
+export function Chip({ person, lifted = false }: { person: Person; lifted?: boolean }) {
+  return (
+    <span
+      className={`inline-flex h-7 max-w-[120px] items-center truncate whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${KIND_CHIP[person.kind]} ${lifted ? '-rotate-3 shadow-[0_8px_20px_rgba(15,28,46,0.25)]' : ''}`}
+    >
+      <span className="truncate">{person.name}</span>
+    </span>
+  )
+}
+
+function PanelChip({ person, onRemove }: { person: Person; onRemove?: () => void }) {
+  const from: From = person.key.startsWith('w:')
+    ? { waiting: Number(person.key.slice(2)) }
+    : 'panel'
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `p:${person.key}`,
+    data: { type: 'person', person, from } satisfies DragData,
+  })
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${isDragging ? 'opacity-40' : ''}`}>
+      <button
+        ref={setNodeRef}
+        type="button"
+        aria-label={`Drag ${person.name} onto a bed`}
+        {...attributes}
+        {...listeners}
+        className="cursor-grab"
+      >
+        <Chip person={person} />
+      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${person.name}`}
+          className="rounded-full p-1 text-muted hover:bg-ground hover:text-ink"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </span>
+  )
+}
+
+function Section({
+  section,
+  layout,
+  setLayout,
+  rooms,
+  people,
+  tripPriceCents,
+  zoom,
+  draggingSection,
+  onRemove,
+  canRemove,
+}: {
+  section: PlanSection
+  layout: RoomPlanLayout
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
+  rooms: TripRoom[]
+  people: Person[]
+  tripPriceCents: number
+  zoom: number
+  draggingSection: string | null
+  onRemove: () => void
+  canRemove: boolean
+}) {
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState(section.name)
+  const grid = useDroppable({
+    id: `grid:${section.id}`,
+    data: { type: 'grid', sectionId: section.id },
+  })
+  const handle = useDraggable({
+    id: `section:${section.id}`,
+    data: { type: 'section', sectionId: section.id } satisfies DragData,
+  })
+  const tiles = layout.tiles.filter((t) => t.sectionId === section.id)
+
+  function rename() {
+    const n = name.trim().slice(0, 60)
+    if (n)
+      setLayout((l) => ({
+        ...l,
+        sections: l.sections.map((s) => (s.id === section.id ? { ...s, name: n } : s)),
+      }))
+    else setName(section.name)
+    setRenaming(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5" style={{ width: section.cols * CELL }}>
+      <div className="flex items-center gap-2">
+        <button
+          ref={handle.setNodeRef}
+          type="button"
+          aria-label={`Move ${section.name}`}
+          {...handle.attributes}
+          {...handle.listeners}
+          className="cursor-grab rounded-md p-1 text-muted hover:bg-ground"
+        >
+          <GripVertical className="h-5 w-5" aria-hidden="true" />
+        </button>
+        {renaming ? (
+          <input
+            aria-label="Name of this part of the house"
+            autoFocus
+            value={name}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={rename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') rename()
+              if (e.key === 'Escape') {
+                setName(section.name)
+                setRenaming(false)
+              }
+            }}
+            className="h-9 w-56 rounded-lg border-2 border-royal px-2.5 text-sm font-semibold"
+          />
+        ) : (
+          <>
+            <span className="text-sm font-semibold text-muted">{section.name}</span>
+            <button
+              type="button"
+              aria-label={`Rename ${section.name}`}
+              onClick={() => {
+                setName(section.name)
+                setRenaming(true)
+              }}
+              className="rounded-md p-2 text-royal hover:bg-royal-pale"
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </>
+        )}
+        <span aria-hidden="true" className="h-px flex-1 bg-line" />
+        {canRemove && (
+          <button
+            type="button"
+            aria-label={`Remove ${section.name}`}
+            onClick={onRemove}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white hover:bg-ground"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <div className="relative">
+        <div
+          ref={grid.setNodeRef}
+          className={`relative rounded-xl ${grid.isOver ? 'ring-2 ring-royal' : ''}`}
+          style={{
+            width: section.cols * CELL,
+            height: section.rows * CELL,
+            backgroundColor: 'white',
+            backgroundImage: 'radial-gradient(#A3ABB6 1.5px, transparent 1.6px)',
+            backgroundSize: `${CELL}px ${CELL}px`,
+            backgroundPosition: `-${CELL / 2}px -${CELL / 2}px`,
+          }}
+        >
+          {tiles.map((t) => (
+            <Tile
+              key={t.id}
+              tile={t}
+              layout={layout}
+              setLayout={setLayout}
+              room={rooms.find((r) => r.id === t.roomId)}
+              people={people}
+              tripPriceCents={tripPriceCents}
+              zoom={zoom}
+            />
+          ))}
+        </div>
+        {draggingSection && draggingSection !== section.id && (
+          <>
+            <Zone id={section.id} where="beside" />
+            <Zone id={section.id} where="below" />
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `${where}:${id}`,
+    data: { type: 'zone', sectionId: id, where },
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`absolute z-10 flex items-center justify-center rounded-xl border-2 border-dashed text-sm font-semibold ${
+        isOver ? 'border-royal bg-royal-pale text-royal' : 'border-line bg-white/80 text-muted'
+      } ${where === 'beside' ? '-right-3 top-0 h-full w-24 translate-x-full' : '-bottom-3 left-0 h-14 w-full translate-y-full'}`}
+    >
+      {where === 'beside' ? 'Put beside' : 'Put below'}
+    </div>
+  )
+}
+
+/** Dragging a tile by its name moves it; by its corner, resizes it. Both snap to the dots. */
+function useTileDrag(
+  tile: PlanTile,
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void,
+  zoom: number
+) {
+  const start = useRef<{ x: number; y: number; tile: PlanTile; mode: 'move' | 'resize' } | null>(
+    null
+  )
+  const down = (mode: 'move' | 'resize') => (e: ReactPointerEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    start.current = { x: e.clientX, y: e.clientY, tile, mode }
+  }
+  const move = (e: ReactPointerEvent) => {
+    const s = start.current
+    if (!s) return
+    const dx = Math.round((e.clientX - s.x) / (CELL * zoom))
+    const dy = Math.round((e.clientY - s.y) / (CELL * zoom))
+    setLayout((l) =>
+      setTile(
+        l,
+        s.mode === 'move'
+          ? { ...s.tile, x: s.tile.x + dx, y: s.tile.y + dy }
+          : { ...s.tile, w: s.tile.w + dx, h: s.tile.h + dy }
+      )
+    )
+  }
+  const up = () => {
+    start.current = null
+  }
+  return { down, move, up }
+}
+
+function Tile({
+  tile,
+  layout,
+  setLayout,
+  room,
+  people,
+  tripPriceCents,
+  zoom,
+}: {
+  tile: PlanTile
+  layout: RoomPlanLayout
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
+  room: TripRoom | undefined
+  people: Person[]
+  tripPriceCents: number
+  zoom: number
+}) {
+  const drag = useTileDrag(tile, setLayout, zoom)
+  const [renaming, setRenaming] = useState(false)
+  const style = {
+    left: tile.x * CELL + 3,
+    top: tile.y * CELL + 3,
+    width: tile.w * CELL - 6,
+    height: tile.h * CELL - 6,
+  }
+  const remove = () => setLayout((l) => removeTile(l, tile.id))
+  const grip = (
+    <span
+      onPointerDown={drag.down('resize')}
+      onPointerMove={drag.move}
+      onPointerUp={drag.up}
+      aria-hidden="true"
+      className="absolute bottom-1 right-1 h-3 w-3 cursor-nwse-resize rounded-br border-b-[3px] border-r-[3px] border-royal"
+    />
+  )
+
+  if (tile.landmark) {
+    const lm = tile.landmark
+    return (
+      <div
+        className={`group absolute flex flex-col items-center justify-center gap-1 rounded-xl px-2 text-center text-[13px] font-semibold ${lm.kind === 'outdoor' ? 'border-2 border-dashed border-line bg-white' : 'bg-rule'}`}
+        style={style}
+      >
+        <div
+          onPointerDown={drag.down('move')}
+          onPointerMove={drag.move}
+          onPointerUp={drag.up}
+          className="absolute inset-0 cursor-move rounded-xl"
+          aria-hidden="true"
+        />
+        <span className="pointer-events-none relative">{LANDMARK_ICON[lm.kind]}</span>
+        {renaming ? (
+          <input
+            aria-label="Landmark name"
+            autoFocus
+            defaultValue={lm.label}
+            maxLength={60}
+            onBlur={(e) => {
+              const label = e.target.value.trim()
+              if (label) setLayout((l) => setTile(l, { ...tile, landmark: { ...lm, label } }))
+              setRenaming(false)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            className="relative w-full rounded border border-royal px-1 text-center text-xs"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRenaming(true)}
+            className="relative truncate hover:underline"
+            title="Rename"
+          >
+            {lm.label}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={remove}
+          aria-label={`Remove ${lm.label}`}
+          className="absolute right-1 top-1 hidden rounded-full p-1 text-muted hover:bg-white group-focus-within:block group-hover:block"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        {grip}
+      </div>
+    )
+  }
+
+  if (!room) return null
+  const spots = roomSpots(room)
+  const beds = room.bedTypes.map((type, bed) => ({
+    type,
+    spots: spots.filter((s) => s.bed === bed),
+  }))
+  const extra = spots.filter((s) => s.bed === null)
+  const price = room.priceCents ?? tripPriceCents
+  return (
+    <div
+      className="group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
+      style={style}
+    >
+      <div
+        onPointerDown={drag.down('move')}
+        onPointerMove={drag.move}
+        onPointerUp={drag.up}
+        className="-mx-3 -mt-2.5 cursor-move px-3 pt-2.5"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <strong className="truncate font-display text-[15px]">{room.name}</strong>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={remove}
+            aria-label={`Take ${room.name} off the plan`}
+            className="hidden rounded-full p-1 text-muted hover:bg-ground group-focus-within:block group-hover:block"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="text-[11px] text-muted">{money(price)} each</div>
+      </div>
+      <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
+        {beds.map((b, i) =>
+          b.type === 'bunk' ? (
+            <div key={i} className="flex items-start gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <BedPicture type="bunk" className="h-[72px] w-auto" />
+                <span className="text-[10px] font-semibold text-royal-dark">Bunk</span>
+              </div>
+              <div className="flex flex-col gap-3 pt-1.5">
+                {b.spots.map((s) => (
+                  <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <BedPicture type={b.type} className="h-16 w-auto" />
+              <span className="text-[10px] font-semibold text-royal-dark">
+                {BED_LABELS[b.type].label}
+              </span>
+              {b.spots.map((s) => (
+                <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+              ))}
+            </div>
+          )
+        )}
+        {extra.length > 0 && (
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[10px] font-semibold text-royal-dark">
+              {room.bedTypes.length ? 'Extra places' : 'Places'}
+            </span>
+            {extra.map((s) => (
+              <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+            ))}
+          </div>
+        )}
+      </div>
+      {grip}
+    </div>
+  )
+}
+
+function Spot({
+  room,
+  spot,
+  layout,
+  people,
+}: {
+  room: TripRoom
+  spot: RoomSpot
+  layout: RoomPlanLayout
+  people: Person[]
+}) {
+  const roomId = room.id!
+  const { setNodeRef, isOver } = useDroppable({
+    id: `spot:${roomId}:${spot.index}`,
+    data: { type: 'spot', roomId, index: spot.index },
+  })
+  const taken = layout.spots.find((s) => s.roomId === roomId && s.index === spot.index)
+  return (
+    <div ref={setNodeRef}>
+      {taken ? (
+        <PlacedChip
+          person={spotPerson(taken, people)}
+          from={{ roomId, index: spot.index }}
+          hot={isOver}
+        />
+      ) : (
+        <span
+          className={`inline-flex h-7 items-center rounded-full border-2 px-2.5 text-[11px] font-medium ${
+            isOver
+              ? 'border-solid border-royal bg-royal-pale text-royal'
+              : 'border-dashed border-line bg-white text-muted'
+          }`}
+        >
+          {isOver ? 'Drop here' : 'Empty'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function PlacedChip({ person, from, hot }: { person: Person; from: From; hot: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `placed:${typeof from === 'object' && 'roomId' in from ? `${from.roomId}:${from.index}` : person.key}`,
+    data: { type: 'person', person, from } satisfies DragData,
+  })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      aria-label={`Move ${person.name}`}
+      {...attributes}
+      {...listeners}
+      className={`cursor-grab rounded-full ${hot ? 'ring-2 ring-royal ring-offset-1' : ''} ${isDragging ? 'opacity-40' : ''}`}
+    >
+      <Chip person={person} />
+    </button>
+  )
+}
