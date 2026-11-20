@@ -65,7 +65,7 @@ The colours show who's who: filled purple for accepted guests, a purple outline 
     question: 'What happens when I apply rooms?',
     answer: `Nothing changes for guests while you plan. "Save draft" keeps your plan for next time, so move people around as often as you like.
 
-"Apply rooms" shows every guest who changes room before anything happens. Applying moves them, and if their new room costs more or less, the difference goes straight onto their balance as a charge or credit. Tick "Email the guests their new room" to tell them. A room a guest picked when they signed up is replaced. Typed names and people from the Interested list stay in the plan.`,
+"Apply rooms" shows every guest who changes room before anything happens. Applying moves them, and if their new room costs more or less, the difference goes straight onto their balance as a charge or credit. A guest with a room who is on no bed in your plan leaves their room. Tick "Email the guests their new room" to tell them. A room a guest picked when they signed up is replaced. Typed names and people from the Interested list stay in the plan.`,
     pages: ['planner'],
   },
   {

@@ -188,7 +188,11 @@ export function setTile(layout: RoomPlanLayout, tile: PlanTile): RoomPlanLayout 
     ...layout,
     sections: layout.sections.map((s) =>
       s.id === section.id
-        ? { ...s, cols: Math.max(s.cols, x + w), rows: Math.max(s.rows, y + h + 1) }
+        ? {
+            ...s,
+            cols: Math.max(s.cols, x + w),
+            rows: Math.min(PLAN_MAX_ROWS, Math.max(s.rows, y + h + 1)),
+          }
         : s
     ),
     tiles: layout.tiles.some((t) => t.id === tile.id)
@@ -208,8 +212,10 @@ export function moveSection(
   const moving = layout.sections.find((s) => s.id === id)
   if (!moving) return layout
   const rest = layout.sections.filter((s) => s.id !== id)
-  const i = rest.findIndex((s) => s.id === targetId)
+  let i = rest.findIndex((s) => s.id === targetId)
   if (i < 0) return layout
+  // Below a part goes under its whole row, past the parts beside it, so that row stays together.
+  if (where === 'below') while (rest[i + 1]?.beside) i++
   // Moving a row's first part: the one beside it starts the row now.
   const sections = [
     ...rest.slice(0, i + 1),

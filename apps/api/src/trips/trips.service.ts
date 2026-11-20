@@ -1223,21 +1223,40 @@ export class TripsService {
     const room = await this.prisma.room.findFirst({ where: { id: guest.roomId ?? '', tripId: id } })
     if (!room) return trip
     const price = room.priceCents ?? trip.costPerPersonCents
-    if (adjust)
-      await this.addAdjustment(
-        id,
-        guestId,
-        {
-          kind: diff > 0 ? 'charge' : 'credit',
-          amountCents: Math.abs(diff),
-          reason: `${room.name} costs ${money(price)} a person`,
-        },
-        caller
-      )
-    await this.prisma.guest.update({
-      where: { id: guestId },
+    // Claim the change first, so two requests at once (a double click, two organizers) settle it only once.
+    const before = await this.prisma.guest.findFirst({
+      where: { id: guestId, tripId: id },
+      select: { roomPriceSettledCents: true },
+    })
+    const claimed = await this.prisma.guest.updateMany({
+      where: {
+        id: guestId,
+        tripId: id,
+        roomPriceSettledCents: before?.roomPriceSettledCents ?? null,
+      },
       data: { roomPriceSettledCents: price },
     })
+    if (!claimed.count) return this.get(id, caller)
+    if (adjust)
+      try {
+        await this.addAdjustment(
+          id,
+          guestId,
+          {
+            kind: diff > 0 ? 'charge' : 'credit',
+            amountCents: Math.abs(diff),
+            reason: `${room.name} costs ${money(price)} a person`,
+          },
+          caller
+        )
+      } catch (err) {
+        // Not added: the change waits on Trip Control as before.
+        await this.prisma.guest.updateMany({
+          where: { id: guestId, tripId: id, roomPriceSettledCents: price },
+          data: { roomPriceSettledCents: before?.roomPriceSettledCents ?? null },
+        })
+        throw err
+      }
     return this.get(id, caller)
   }
 
@@ -1249,17 +1268,26 @@ export class TripsService {
    */
   async moveGuests(
     id: string,
-    moves: { guestId: string; roomId: string }[],
+    moves: { guestId: string; roomId: string | null }[],
     email: boolean,
     caller: Caller
-  ): Promise<number> {
-    if (!moves.length) return 0
+  ): Promise<{ emailed: number; unsettled: string[] }> {
+    if (!moves.length) return { emailed: 0, unsettled: [] }
+    const ids = moves.map((m) => m.guestId)
+    const targets = new Set(moves.flatMap((m) => (m.roomId ? [m.roomId] : [])))
     await roomFull(() =>
       this.prisma.$transaction(async (tx) => {
-        await tx.guest.updateMany({
-          where: { tripId: id, id: { in: moves.map((m) => m.guestId) } },
-          data: { roomId: null },
+        // Only those leaving a room someone in the batch moves into give it up first, so a swap fits the room's
+        // places without a "no room" step in everyone's history.
+        const leaving = await tx.guest.findMany({
+          where: { tripId: id, id: { in: ids }, roomId: { in: [...targets] } },
+          select: { id: true },
         })
+        if (leaving.length)
+          await tx.guest.updateMany({
+            where: { tripId: id, id: { in: leaving.map((g) => g.id) } },
+            data: { roomId: null },
+          })
         for (const m of moves)
           await tx.guest.updateMany({
             where: { tripId: id, id: m.guestId },
@@ -1267,21 +1295,23 @@ export class TripsService {
           })
       })
     )
+    const unsettled: string[] = []
     for (const m of moves)
-      await this.settleRoomPrice(id, m.guestId, true, caller).catch((err: unknown) =>
+      await this.settleRoomPrice(id, m.guestId, true, caller).catch((err: unknown) => {
+        unsettled.push(m.guestId)
         this.logger.warn(
           `A room price change wasn't added after the room plan: ${err instanceof Error ? err.message : err}`
         )
-      )
-    if (!email) return 0
+      })
+    if (!email) return { emailed: 0, unsettled }
     const trip = await this.get(id, caller)
     let emailed = 0
     for (const m of moves)
-      if (trip.guests.find((g) => g.id === m.guestId)?.email) {
+      if (m.roomId && trip.guests.find((g) => g.id === m.guestId)?.email) {
         await this.sendGuestEmail('room_assigned', trip, m.guestId)
         emailed++
       }
-    return emailed
+    return { emailed, unsettled }
   }
 
   /** Takes an adjustment back: it stays on record, marked removed, and no longer counts. Never edited. */

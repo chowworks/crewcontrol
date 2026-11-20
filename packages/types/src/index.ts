@@ -2068,6 +2068,8 @@ export function roomSpots(room: { bedTypes: BedType[]; capacity: number }): Room
 /** Applying the plan: whether to email the guests who move their new room. */
 export interface ApplyRoomPlanInput {
   email: boolean
+  /** When the draft the organizer looked at was saved: Apply refuses if it has changed since. */
+  draftAt: string
 }
 
 /** What applying the plan would do, or did: each guest who changes room and what their room price does. */
@@ -2075,7 +2077,9 @@ export interface RoomPlanMove {
   guestId: string
   name: string
   fromRoom: string | null
-  toRoom: string
+  /** The room they move to; null when the plan has them on no bed, which takes them out of their room. */
+  toRoom: string | null
+  toRoomId: string | null
   /** Positive: a charge onto their balance; negative: a credit; 0: same price, or they haven't signed. */
   priceDiffCents: number
   /** The guest picked their room themselves when they joined, and this replaces it. */
@@ -2085,4 +2089,6 @@ export interface RoomPlanMove {
 export interface RoomPlanApplyResult {
   moved: number
   emailed: number
+  /** Guests whose room price change couldn't go onto their balance (Trip Control asks about it). */
+  needsLook: string[]
 }

@@ -17,6 +17,9 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
   useDraggable,
   useDroppable,
   useSensor,
@@ -123,6 +126,25 @@ type DragData =
 
 const btnOutline =
   'inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border-2 border-royal bg-white px-3 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50'
+
+/**
+ * Each kind of drag sees only its own drop places: a room only the dots (where the pointer is, so a bed place under it
+ * never takes the drop), a person only beds and the side panel, a part of the house only the below and beside zones.
+ */
+const ACCEPTS: Record<DragData['type'], string[]> = {
+  room: ['grid'],
+  person: ['spot', 'panel'],
+  section: ['zone'],
+}
+const collide: CollisionDetection = (args) => {
+  const kind = (args.active.data.current as DragData | undefined)?.type
+  if (!kind) return []
+  const containers = args.droppableContainers.filter((c) =>
+    ACCEPTS[kind].includes((c.data.current as { type?: string } | undefined)?.type ?? '')
+  )
+  const narrowed = { ...args, droppableContainers: containers }
+  return kind === 'person' ? rectIntersection(narrowed) : pointerWithin(narrowed)
+}
 
 export function PlannerBoard({
   layout,
@@ -257,6 +279,7 @@ export function PlannerBoard({
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={collide}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={() => setDragging(null)}
@@ -762,20 +785,29 @@ function useTileDrag(
   setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void,
   zoom: number
 ) {
-  const start = useRef<{ x: number; y: number; tile: PlanTile; mode: 'move' | 'resize' } | null>(
-    null
-  )
+  const start = useRef<{
+    x: number
+    y: number
+    dx: number
+    dy: number
+    tile: PlanTile
+    mode: 'move' | 'resize'
+  } | null>(null)
   const down = (mode: 'move' | 'resize') => (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    start.current = { x: e.clientX, y: e.clientY, tile, mode }
+    start.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, tile, mode }
   }
   const move = (e: ReactPointerEvent) => {
     const s = start.current
     if (!s) return
     const dx = Math.round((e.clientX - s.x) / (CELL * zoom))
     const dy = Math.round((e.clientY - s.y) / (CELL * zoom))
+    // Only a move of a whole dot changes the plan, so a click on a name doesn't count as a change.
+    if (dx === s.dx && dy === s.dy) return
+    s.dx = dx
+    s.dy = dy
     setLayout((l) =>
       setTile(
         l,
@@ -822,6 +854,8 @@ function Tile({
       onPointerDown={drag.down('resize')}
       onPointerMove={drag.move}
       onPointerUp={drag.up}
+      onPointerCancel={drag.up}
+      onLostPointerCapture={drag.up}
       aria-hidden="true"
       className="absolute bottom-1 right-1 h-3 w-3 cursor-nwse-resize rounded-br border-b-[3px] border-r-[3px] border-royal"
     />
@@ -838,6 +872,8 @@ function Tile({
           onPointerDown={drag.down('move')}
           onPointerMove={drag.move}
           onPointerUp={drag.up}
+          onPointerCancel={drag.up}
+          onLostPointerCapture={drag.up}
           className="absolute inset-0 cursor-move rounded-xl"
           aria-hidden="true"
         />
@@ -896,6 +932,8 @@ function Tile({
         onPointerDown={drag.down('move')}
         onPointerMove={drag.move}
         onPointerUp={drag.up}
+        onPointerCancel={drag.up}
+        onLostPointerCapture={drag.up}
         className="-mx-3 -mt-2.5 cursor-move px-3 pt-2.5"
       >
         <div className="flex items-start justify-between gap-2">

@@ -269,7 +269,7 @@ export class TripsController {
   @Post(':id/room-plan/apply')
   @HttpCode(200)
   applyRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
-    return this.roomPlans.apply(id, parseApplyRoomPlan(body).email, caller)
+    return this.roomPlans.apply(id, parseApplyRoomPlan(body), caller)
   }
 
   @Put(':id')

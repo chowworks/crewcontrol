@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,9 +13,11 @@ import { recordChange } from './trip-changes'
 import { shortName } from './trip-mapper'
 import {
   PAID_FEATURES,
+  PLAN_MAX_ROWS,
   roomPrice,
   roomSpots,
   type BedType,
+  type ApplyRoomPlanInput,
   type PaidFeature,
   type PlanSpot,
   type PlanTile,
@@ -72,6 +75,10 @@ export class RoomPlanService {
   /** The draft, cleaned of rooms, guests and interested people that have gone since it was saved. */
   async get(tripId: string, caller: Caller, admin = false): Promise<RoomPlan> {
     await this.requireFeature(tripId, caller, admin)
+    return this.draft(tripId)
+  }
+
+  private async draft(tripId: string): Promise<RoomPlan> {
     const [row, facts] = await Promise.all([
       this.prisma.roomPlan.findUnique({ where: { tripId } }),
       this.facts(tripId),
@@ -107,12 +114,60 @@ export class RoomPlanService {
       create: { tripId, ...data },
       update: data,
     })
-    return this.get(tripId, caller)
+    return this.draft(tripId)
   }
 
   /** What applying the saved draft would do: each guest who changes room, and what it does to their balance. */
   async preview(tripId: string, caller: Caller): Promise<RoomPlanMove[]> {
-    const { layout } = await this.get(tripId, caller)
+    await this.requireFeature(tripId, caller)
+    return this.movesOf(tripId, (await this.draft(tripId)).layout, caller)
+  }
+
+  /**
+   * Applies the saved draft: the moves `preview` lists, the price changes with them, and the emails if asked. It
+   * refuses when the draft changed since the organizer looked at the moves (another organizer saved one), so what moves
+   * is what they confirmed.
+   */
+  async apply(
+    tripId: string,
+    { email, draftAt }: ApplyRoomPlanInput,
+    caller: Caller
+  ): Promise<RoomPlanApplyResult> {
+    await this.requireFeature(tripId, caller)
+    const draft = await this.draft(tripId)
+    if (!draft.updatedAt) throw new BadRequestException('Save the draft before applying it')
+    if (draft.updatedAt !== draftAt)
+      throw new ConflictException(
+        'The draft changed since you opened Apply rooms. Open it again to see the moves.'
+      )
+    const moves = await this.movesOf(tripId, draft.layout, caller)
+    if (!moves.length) return { moved: 0, emailed: 0, needsLook: [] }
+    const { emailed, unsettled } = await this.trips.moveGuests(
+      tripId,
+      moves.map((m) => ({ guestId: m.guestId, roomId: m.toRoomId })),
+      email,
+      caller
+    )
+    await recordChange(this.prisma, tripId, caller, {
+      what: 'rooms_applied',
+      moved: moves.map((m) => m.name),
+    })
+    return {
+      moved: moves.length,
+      emailed,
+      needsLook: moves.filter((m) => unsettled.includes(m.guestId)).map((m) => m.name),
+    }
+  }
+
+  /**
+   * The moves a layout makes: each guest on a bed in a room that isn't theirs, and each guest with a room who is on no
+   * bed in the plan, who leaves their room (the plan is how the house will be).
+   */
+  private async movesOf(
+    tripId: string,
+    layout: RoomPlanLayout,
+    caller: Caller
+  ): Promise<RoomPlanMove[]> {
     const trip = await this.trips.get(tripId, caller)
     const rooms = await this.prisma.room.findMany({ where: { tripId } })
     const settled = new Map(
@@ -128,44 +183,28 @@ export class RoomPlanService {
       ).map((g) => [g.id, g.agreement ? (g.roomPriceSettledCents ?? g.agreement.priceCents) : null])
     )
     const roomName = (id: string | null) => rooms.find((r) => r.id === id)?.name ?? null
+    const target = new Map(layout.spots.flatMap((s) => (s.guestId ? [[s.guestId, s.roomId]] : [])))
     const moves: RoomPlanMove[] = []
-    for (const s of layout.spots) {
-      const guest = s.guestId ? trip.guests.find((g) => g.id === s.guestId) : undefined
-      if (!guest || guest.status === 'declined' || guest.roomId === s.roomId) continue
-      const room = rooms.find((r) => r.id === s.roomId)!
+    for (const guest of trip.guests) {
+      if (guest.status === 'declined') continue
+      const to = target.get(guest.id) ?? null
+      if (guest.roomId === to) continue
+      const room = rooms.find((r) => r.id === to)
       const before = settled.get(guest.id)
       moves.push({
         guestId: guest.id,
         name: shortName(guest.firstName, guest.lastName),
         fromRoom: roomName(guest.roomId),
-        toRoom: room.name,
+        toRoom: room?.name ?? null,
+        toRoomId: room?.id ?? null,
         priceDiffCents:
-          before === null || before === undefined
+          !room || before === null || before === undefined
             ? 0
             : roomPrice(room, trip.costPerPersonCents) - before,
         replacesOwnPick: trip.options.roomChoice && guest.roomId !== null,
       })
     }
     return moves
-  }
-
-  /** Applies the saved draft: the moves `preview` lists, the price changes with them, and the emails if asked. */
-  async apply(tripId: string, email: boolean, caller: Caller): Promise<RoomPlanApplyResult> {
-    const moves = await this.preview(tripId, caller)
-    if (!moves.length) return { moved: 0, emailed: 0 }
-    const { layout } = await this.get(tripId, caller)
-    const target = new Map(layout.spots.flatMap((s) => (s.guestId ? [[s.guestId, s.roomId]] : [])))
-    const emailed = await this.trips.moveGuests(
-      tripId,
-      moves.map((m) => ({ guestId: m.guestId, roomId: target.get(m.guestId)! })),
-      email,
-      caller
-    )
-    await recordChange(this.prisma, tripId, caller, {
-      what: 'rooms_applied',
-      moved: moves.map((m) => m.name),
-    })
-    return { moved: moves.length, emailed }
   }
 
   private async requireFeature(tripId: string, caller: Caller, admin = false): Promise<void> {
@@ -195,14 +234,19 @@ export class RoomPlanService {
       this.prisma.guest.findMany({
         where: { tripId, status: { not: 'declined' } },
         orderBy: { createdAt: 'asc' },
-        select: { id: true, firstName: true, lastName: true, roomId: true },
+        select: { id: true, firstName: true, lastName: true, roomId: true, userId: true },
       }),
-      this.prisma.tripInterest.findMany({ where: { tripId }, select: { id: true } }),
+      this.prisma.tripInterest.findMany({ where: { tripId }, select: { id: true, userId: true } }),
     ])
+    const guestOf = new Map(guests.flatMap((g) => (g.userId ? [[g.userId, g.id]] : [])))
     return {
       rooms,
       guests: new Map(guests.map((g) => [g.id, g])),
-      interest: new Set(interest.map((i) => i.id)),
+      // Someone on the Interested list who has since signed up is that guest now.
+      interest: new Set(interest.filter((i) => !guestOf.has(i.userId)).map((i) => i.id)),
+      signedUp: new Map(
+        interest.flatMap((i) => (guestOf.has(i.userId) ? [[i.id, guestOf.get(i.userId)!]] : []))
+      ),
     }
   }
 }
@@ -211,6 +255,8 @@ interface Facts {
   rooms: RoomRow[]
   guests: Map<string, { id: string; firstName: string; lastName: string; roomId: string | null }>
   interest: Set<string>
+  /** Interested people who signed up since: their interest id, and the guest they are now. */
+  signedUp?: Map<string, string>
 }
 
 const spotsOf = (room: RoomRow) =>
@@ -230,6 +276,8 @@ export function starter(facts: Facts): RoomPlanLayout {
       x = 0
       y += h + 1
     }
+    // A house too big for one part leaves its last rooms under Rooms to place.
+    if (y + h + 1 > PLAN_MAX_ROWS) break
     tiles.push({
       id: `t-${room.id}`.slice(0, 40),
       sectionId: 'main',
@@ -246,7 +294,7 @@ export function starter(facts: Facts): RoomPlanLayout {
   const spots: PlanSpot[] = []
   for (const g of facts.guests.values()) {
     const room = facts.rooms.find((r) => r.id === g.roomId)
-    if (!room) continue
+    if (!room || !tiles.some((t) => t.roomId === room.id)) continue
     const taken = spots.filter((s) => s.roomId === room.id).length
     if (taken >= spotsOf(room).length) continue
     spots.push({
@@ -259,7 +307,13 @@ export function starter(facts: Facts): RoomPlanLayout {
   }
   return {
     sections: [
-      { id: 'main', name: 'Main floor', beside: false, cols: START_COLS, rows: Math.min(rows, 80) },
+      {
+        id: 'main',
+        name: 'Main floor',
+        beside: false,
+        cols: START_COLS,
+        rows: Math.min(rows, PLAN_MAX_ROWS),
+      },
     ],
     tiles,
     spots,
@@ -276,12 +330,19 @@ export function clean(layout: RoomPlanLayout, facts: Facts): RoomPlanLayout {
   const rooms = new Map(facts.rooms.map((r) => [r.id, r]))
   const waiting = [...(layout.waiting ?? [])]
   const spots: PlanSpot[] = []
+  const onPlan = new Set((layout.spots ?? []).flatMap((s) => (s.guestId ? [s.guestId] : [])))
   for (const s of layout.spots ?? []) {
     const room = rooms.get(s.roomId)
+    // An interested person who signed up since takes their bed as that guest, unless the guest has one already.
+    const now = s.interestId ? facts.signedUp?.get(s.interestId) : undefined
+    const became = now && !onPlan.has(now) && facts.guests.has(now) ? now : null
+    if (became) onPlan.add(became)
+    const guest = became ? facts.guests.get(became) : undefined
     const linked = {
       ...s,
-      guestId: s.guestId && facts.guests.has(s.guestId) ? s.guestId : null,
-      interestId: s.interestId && facts.interest.has(s.interestId) ? s.interestId : null,
+      name: guest ? shortName(guest.firstName, guest.lastName) : s.name,
+      guestId: became ?? (s.guestId && facts.guests.has(s.guestId) ? s.guestId : null),
+      interestId: !became && s.interestId && facts.interest.has(s.interestId) ? s.interestId : null,
     }
     if (room && s.index < spotsOf(room).length) spots.push(linked)
     else if (!linked.guestId && !linked.interestId) waiting.push(s.name)

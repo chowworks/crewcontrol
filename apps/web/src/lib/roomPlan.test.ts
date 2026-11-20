@@ -107,6 +107,22 @@ describe('tiles and parts of the house', () => {
     ).toEqual([['main'], ['loft'], ['up']])
   })
 
+  it('puts a part below a whole row, keeping the parts beside the target together', () => {
+    const up = { id: 'up', name: 'Upstairs', beside: true, cols: 20, rows: 10 }
+    const loft = { id: 'loft', name: 'Loft', beside: false, cols: 20, rows: 10 }
+    const layout = { ...base, sections: [main, up, loft] }
+    expect(
+      sectionRows(moveSection(layout, 'loft', 'main', 'below').sections).map((r) =>
+        r.map((s) => s.id)
+      )
+    ).toEqual([['main', 'up'], ['loft']])
+  })
+
+  it('never grows a part past the tallest plan the server takes', () => {
+    const out = setTile(base, { ...tile, y: 200 })
+    expect(out.sections[0].rows).toBe(80)
+  })
+
   it('removes a part of the house with its rooms, and the first part never sits beside', () => {
     const up = { id: 'up', name: 'Upstairs', beside: true, cols: 20, rows: 10 }
     const out = removeSection({ ...base, sections: [main, up] }, 'main')

@@ -100,6 +100,7 @@ export function parseRoomPlanLayout(raw: unknown): RoomPlanLayout {
 }
 
 export function parseApplyRoomPlan(raw: unknown): ApplyRoomPlanInput {
-  if (!raw || typeof raw !== 'object') fail('Expected { email }')
-  return { email: bool(raw as Body, 'email') }
+  if (!raw || typeof raw !== 'object') fail('Expected { email, draftAt }')
+  const body = raw as Body
+  return { email: bool(body, 'email'), draftAt: text(body, 'draftAt', 40) }
 }

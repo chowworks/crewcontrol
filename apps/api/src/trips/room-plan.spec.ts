@@ -76,8 +76,9 @@ describe('parseRoomPlanLayout', () => {
   })
 
   it('reads Apply’s email box', () => {
-    expect(parseApplyRoomPlan({ email: true })).toEqual({ email: true })
-    expect(() => parseApplyRoomPlan({})).toThrow(BadRequestException)
+    const draftAt = '2026-11-20T18:42:00.000Z'
+    expect(parseApplyRoomPlan({ email: true, draftAt })).toEqual({ email: true, draftAt })
+    expect(() => parseApplyRoomPlan({ email: true })).toThrow(BadRequestException)
   })
 })
 
@@ -106,6 +107,21 @@ describe('starter', () => {
   })
 })
 
+describe('starter, big houses', () => {
+  it('leaves rooms that don’t fit one part of the house under Rooms to place', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      id: `r${i}`,
+      name: `Room ${i}`,
+      capacity: 2,
+      bedTypes: ['queen', 'twin', 'twin', 'twin', 'twin', 'twin', 'twin'],
+    }))
+    const plan = starter({ rooms: many, guests: new Map(), interest: new Set() })
+    expect(plan.tiles.length).toBeLessThan(30)
+    expect(Math.max(...plan.tiles.map((t) => t.y + t.h))).toBeLessThanOrEqual(80)
+    expect(plan.sections[0].rows).toBeLessThanOrEqual(80)
+  })
+})
+
 describe('clean', () => {
   it('drops a removed room’s tile and gives typed names on it back to the waiting list', () => {
     const saved = {
@@ -125,6 +141,19 @@ describe('clean', () => {
   it('keeps the name of someone who left the trip, without the link', () => {
     const out = clean(layout, { rooms, guests: new Map(), interest: new Set() })
     expect(out.spots).toEqual([{ ...kendra, guestId: null }])
+  })
+
+  it('gives an interested person who signed up their bed as that guest', () => {
+    const out = clean(
+      {
+        ...layout,
+        spots: [{ roomId: 'r1', index: 0, name: 'Avery', guestId: null, interestId: 'i1' }],
+      },
+      { rooms, guests, interest: new Set(), signedUp: new Map([['i1', 'g3']]) }
+    )
+    expect(out.spots).toEqual([
+      { roomId: 'r1', index: 0, name: 'Avery L.', guestId: 'g3', interestId: null },
+    ])
   })
 
   it('gives back a place the room no longer has', () => {

@@ -9,9 +9,10 @@ import {
   type TripRoom,
 } from '@cc/types'
 import { ArrowLeft, Lock } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { Card, Field, Money, field } from '@/components/EditorParts'
 import { HelpButton } from '@/components/HelpButton'
@@ -50,7 +51,12 @@ export function RoomPlannerPage() {
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [moves, setMoves] = useState<RoomPlanMove[] | null>(null)
+  // The moves Apply shows, and when the draft they come from was saved (Apply refuses if it changed since).
+  const [moves, setMoves] = useState<{ list: RoomPlanMove[]; draftAt: string } | null>(null)
+  // Each change to the board counts up, so a save that answers after a newer change doesn't overwrite it.
+  const revision = useRef(0)
+  const [leaving, setLeaving] = useState<string | null>(null)
+  const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
 
   useEffect(() => {
@@ -71,32 +77,51 @@ export function RoomPlannerPage() {
       .catch(() => setError('The room planner could not be loaded.'))
   }, [id])
 
-  // Leaving with changes not saved asks first.
+  // Leaving with changes not saved asks first: closing the tab, and any link in the app (the way back, the account
+  // menu).
   useEffect(() => {
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    const click = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
+      const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+      if (!a || a.target === '_blank' || a.origin !== window.location.origin) return
+      e.preventDefault()
+      e.stopPropagation()
+      setLeaving(a.pathname + a.search + a.hash)
+    }
     window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
+    document.addEventListener('click', click, true)
+    return () => {
+      window.removeEventListener('beforeunload', warn)
+      document.removeEventListener('click', click, true)
+    }
   }, [dirty])
 
   const setLayout = useCallback((update: (l: RoomPlanLayout) => RoomPlanLayout) => {
+    revision.current++
     setLayoutState((l) => (l ? update(l) : l))
     setDirty(true)
   }, [])
 
-  async function save(): Promise<boolean> {
-    if (!layout) return false
+  /** When the draft was saved, or null when it didn't save (the reason shows at the top). */
+  async function save(): Promise<string | null> {
+    if (!layout) return null
+    const sent = revision.current
     setBusy(true)
     setSaveError(null)
     try {
       const plan = await api.saveRoomPlan(id, layout)
-      setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
-      setDirty(false)
-      return true
+      // A change made while saving stays on the board, still to be saved.
+      if (revision.current === sent) {
+        setLayoutState(plan.layout)
+        setDirty(false)
+      }
+      return plan.updatedAt
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'The draft did not save.')
-      return false
+      return null
     } finally {
       setBusy(false)
     }
@@ -107,21 +132,25 @@ export function RoomPlannerPage() {
   }
 
   async function openApply() {
-    if (dirty && !(await save())) return
+    const draftAt = dirty || !updatedAt ? await save() : updatedAt
+    if (!draftAt) return
     try {
-      setMoves(await api.getRoomPlanMoves(id))
+      setMoves({ list: await api.getRoomPlanMoves(id), draftAt })
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'The moves could not be worked out.')
     }
   }
 
   async function apply(email: boolean): Promise<string | null> {
+    if (!moves) return null
     try {
-      const done = await api.applyRoomPlan(id, email)
+      const done = await api.applyRoomPlan(id, email, moves.draftAt)
       const [t, plan] = await Promise.all([api.getTrip(id), api.getRoomPlan(id)])
       setTrip(t)
+      revision.current++
       setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
+      setDirty(false)
       setMoves(null)
       window.dispatchEvent(new Event('cc:actions-changed'))
       const who = done.moved === 1 ? '1 guest' : `${done.moved} guests`
@@ -130,6 +159,10 @@ export function RoomPlannerPage() {
           ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
           : `Rooms applied: ${who} moved.`,
       })
+      if (done.needsLook.length)
+        setSaveError(
+          `Rooms applied, but the room price change for ${done.needsLook.join(', ')} wasn’t added to their balance. Trip Control asks about it.`
+        )
       return null
     } catch (err) {
       return err instanceof Error ? err.message : 'The rooms were not applied.'
@@ -233,11 +266,26 @@ export function RoomPlannerPage() {
       </main>
       {moves && (
         <ApplyRoomsDialog
-          moves={moves}
+          moves={moves.list}
           plannerOnly={plannerOnly}
           onApply={apply}
           onClose={() => setMoves(null)}
         />
+      )}
+      {leaving && (
+        <ConfirmDialog
+          title="Leave without saving?"
+          confirmLabel="Leave without saving"
+          onCancel={() => setLeaving(null)}
+          onConfirm={() => {
+            const to = leaving
+            setDirty(false)
+            setLeaving(null)
+            navigate(to)
+          }}
+        >
+          Your changes to the draft since you last saved will be lost. Stay to press Save draft.
+        </ConfirmDialog>
       )}
       {adding && (
         <AddRoomDialog

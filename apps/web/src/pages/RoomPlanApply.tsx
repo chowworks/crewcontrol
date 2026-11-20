@@ -30,6 +30,8 @@ export function ApplyRoomsDialog({
   const [error, setError] = useState<string | null>(null)
   const picked = moves.filter((m) => m.replacesOwnPick)
   const count = moves.length
+  // Only someone moving into a room gets the email; leaving a room sends nothing.
+  const roomed = moves.filter((m) => m.toRoom).length
 
   async function apply() {
     setBusy(true)
@@ -73,14 +75,16 @@ export function ApplyRoomsDialog({
             {moves.map((m) => (
               <li key={m.guestId} className="flex flex-col gap-0.5 border-t border-rule py-3">
                 <strong>
-                  {m.name}: {m.fromRoom ?? 'no room yet'} → {m.toRoom}
+                  {m.name}: {m.fromRoom ?? 'no room yet'} → {m.toRoom ?? 'no room'}
                 </strong>
                 <span className="text-sm text-muted">
-                  {m.priceDiffCents > 0
-                    ? `Adds a ${money(m.priceDiffCents)} charge to their balance.`
-                    : m.priceDiffCents < 0
-                      ? `Adds a ${money(-m.priceDiffCents)} credit to their balance.`
-                      : 'Same price.'}
+                  {!m.toRoom
+                    ? 'They’re on no bed in your plan, so they leave their room.'
+                    : m.priceDiffCents > 0
+                      ? `Adds a ${money(m.priceDiffCents)} charge to their balance.`
+                      : m.priceDiffCents < 0
+                        ? `Adds a ${money(-m.priceDiffCents)} credit to their balance.`
+                        : 'Same price.'}
                 </span>
               </li>
             ))}
@@ -113,15 +117,17 @@ export function ApplyRoomsDialog({
             </p>
           </section>
         )}
-        <label className="flex min-h-[44px] items-center gap-3 border-t border-rule pt-3">
-          <input
-            type="checkbox"
-            checked={email}
-            onChange={(e) => setEmail(e.target.checked)}
-            className="h-5 w-5 accent-royal"
-          />
-          Email the {count === 1 ? 'guest their' : `${count} guests their`} new room
-        </label>
+        {roomed > 0 && (
+          <label className="flex min-h-[44px] items-center gap-3 border-t border-rule pt-3">
+            <input
+              type="checkbox"
+              checked={email}
+              onChange={(e) => setEmail(e.target.checked)}
+              className="h-5 w-5 accent-royal"
+            />
+            Email the {roomed === 1 ? 'guest their' : `${roomed} guests their`} new room
+          </label>
+        )}
         <div className="flex flex-wrap justify-end gap-3">
           <button
             type="button"
