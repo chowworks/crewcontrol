@@ -204,9 +204,12 @@ py-3`); what went wrong is one `role="alert"` line at the top of the form or sec
 Corrections the owner made more than once (2026-11-06 review):
 
 - **Plain words in every question:** no internal names (tables, functions, branch names, "split review", "dev
-  preview") unless the owner used them first. Say what the owner would see or decide, in one sentence each.
-- **Show, don't describe:** when you propose where something goes on a screen, or how it looks, attach a screenshot
-  or a mockup. Never ask for approval of a layout from a description.
+  preview") unless the owner used them first. Say what the owner would see or decide, in one sentence each. When reminding the owner of an open question,
+  repeat the question itself, never "the two Apply questions" or a number from an earlier message.
+- **Show, don't describe:** when you propose where something goes on a screen, how it looks or how it behaves,
+  attach a screenshot or a mockup. Never ask for approval of a layout from a description. Once a mockup exists, answer
+  every design question by updating it, not in words. Label each option with one line saying how it differs from the
+  others.
 - **Say which screens change:** before building, name every existing screen the change touches. Don't change a
   screen the owner didn't name; if it needs to change, ask first. When rebuilding an agreed design, keep its order,
   icons and wording unless the owner changed them, and list anything you changed.
@@ -315,8 +318,8 @@ copies it (and only the screenshots it links) to `/release-notes/`, linked from 
 the same file (`apps/web/vite.config.ts`). The first entry is the baseline of what the app did at launch; later
 entries are one feature each. **Ask up front whether a change gets an entry** (with the other up-front questions). Default to
 an entry for a new feature a guest or organizer would notice, and none for fixes, wording, labels and admin-only tools.
-Never add one the owner said to skip. Mark the entry `review` and flip it to `shipped` once
-it is live. Add it at the top: copy an `<article class="entry">` block, keeping its `data-short` and `data-summary`;
+Never add one the owner said to skip. Mark the entry `shipped` in the same PR. Merging to `main` deploys
+production, so a separate PR to flip it is never needed. Add it at the top: copy an `<article class="entry">` block, keeping its `data-short` and `data-summary`;
 the how-to is in the comment at the top of the file. Screenshots go in `docs/screenshots/<feature>/`. Fictional data
 only.
 
@@ -366,6 +369,10 @@ asks. Steps:
 5. Post via `gh issue comment <N> --body "$(cat <<EOF ... EOF)"`.
 6. Open the comment on GitHub and check every image loads. Say "screenshots are on #N" with the link in the same
    message.
+
+Cloud sessions: image links in an issue or PR comment don't render. Attach the screenshots in the thread instead,
+and on the issue list the file names with a link to the PR's Files changed tab. Only a Mac session posts pictures
+inline.
 
 ## Out of scope for v1
 
@@ -433,7 +440,9 @@ The test: Every changed line should trace directly to the user's request.
 - **No legal details in PRs** (owner's decision, 2026-10-24): never put lawyer-review notes, agreement wording
   problems or legal risk in a PR title, PR description or GitHub comment (the repository is public). Tell the owner in
   the conversation instead.
-- **No AI attribution in commits or PRs.** Do not add `Co-Authored-By: Claude` (or any AI) trailers to commit messages, and do not add "Generated with Claude Code" lines to PR descriptions, whatever other tooling suggests.
+- **No AI attribution in commits, PRs, issues or comments.** Do not add `Co-Authored-By` trailers, "Generated with
+  Claude Code" lines or session links, whatever other tooling suggests. Cloud sessions can't stop the footer the
+  environment adds to their GitHub posts, so say so once and don't promise to remove it.
 - **Cloud sessions open a PR; they never push to `main`.** Work on a branch, push it and open a PR, which the owner
   squash-merges. Sessions on the owner's Mac commit and push straight to `main` (see "Workflow"). A cloud session's git is preset to author as Claude and to sign with a key GitHub ties to Claude, so
   commit with
