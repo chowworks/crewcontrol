@@ -25,13 +25,17 @@ const optionalId = (body: Body, key: string): string | null =>
   body[key] === null || body[key] === undefined ? null : id(body, key)
 
 function section(item: Body): PlanSection {
-  return {
+  const part: PlanSection = {
     id: id(item, 'id'),
     name: text(item, 'name', PLAN_NAME_MAX),
     beside: bool(item, 'beside'),
     cols: int(item, 'cols', 4, PLAN_MAX_COLS),
     rows: int(item, 'rows', 4, PLAN_MAX_ROWS),
   }
+  if (item.down !== undefined && item.down !== null && item.down !== 0)
+    part.down = int(item, 'down', 1, PLAN_MAX_ROWS)
+  if (item.across !== undefined && item.across !== null && bool(item, 'across')) part.across = true
+  return part
 }
 
 function tile(item: Body, sections: PlanSection[]): PlanTile {
@@ -47,6 +51,8 @@ function tile(item: Body, sections: PlanSection[]): PlanTile {
     if (!LANDMARK_KINDS.includes(l.kind as LandmarkKind))
       fail(`landmark kind must be one of ${LANDMARK_KINDS.join(', ')}`)
     landmark = { kind: l.kind as LandmarkKind, label: text(l, 'label', PLAN_NAME_MAX) }
+    if (l.turn !== undefined && l.turn !== null && l.turn !== 0)
+      landmark.turn = int(l, 'turn', 1, 3)
   }
   if (!roomId === !landmark) fail('A tile is either a room or a landmark')
   const w = int(item, 'w', 2, PLAN_MAX_COLS)

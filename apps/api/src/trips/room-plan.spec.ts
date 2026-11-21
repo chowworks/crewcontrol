@@ -50,7 +50,34 @@ describe('parseRoomPlanLayout', () => {
     expect(parseRoomPlanLayout(layout)).toEqual(layout)
   })
 
+  it('keeps a landmark turned a quarter', () => {
+    const turned = { ...bath, landmark: { ...bath.landmark, turn: 1 } }
+    expect(parseRoomPlanLayout({ ...layout, tiles: [suite, turned] }).tiles[1]).toEqual(turned)
+  })
+
+  it('keeps a part of the house lowered, and drops a lowering of 0', () => {
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, down: 6 }] }).sections[0]
+    ).toEqual({
+      ...main,
+      down: 6,
+    })
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, down: 0 }] }).sections[0]
+    ).toEqual(main)
+  })
+
+  it('keeps a part of the house stretched across the plan', () => {
+    const across = { ...main, across: true }
+    expect(parseRoomPlanLayout({ ...layout, sections: [across] }).sections[0]).toEqual(across)
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, across: false }] }).sections[0]
+    ).toEqual(main)
+  })
+
   it.each([
+    [{ ...layout, sections: [{ ...main, across: 'yes' }] }, 'across must be true or false'],
+    [{ ...layout, sections: [{ ...main, down: 1.5 }] }, 'down must be a whole number from 1 to 80'],
     [{ ...layout, sections: [] }, 'A plan has at least one part of the house'],
     [
       { ...layout, sections: [{ ...main, beside: true }] },
@@ -63,6 +90,10 @@ describe('parseRoomPlanLayout', () => {
     ],
     [{ ...layout, tiles: [{ ...bath, roomId: 'r1' }] }, 'A tile is either a room or a landmark'],
     [{ ...layout, tiles: [suite, { ...bath, places: 3 }] }, 'Only a room has places'],
+    [
+      { ...layout, tiles: [suite, { ...bath, landmark: { ...bath.landmark, turn: 4 } }] },
+      'turn must be a whole number from 1 to 3',
+    ],
     [
       { ...layout, tiles: [{ ...suite, places: 21 }, bath] },
       'places must be a whole number from 1 to 20',

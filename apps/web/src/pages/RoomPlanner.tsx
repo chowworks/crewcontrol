@@ -44,15 +44,25 @@ import {
   Trash2,
   TreePalm,
   Users,
+  MoveHorizontal,
+  RotateCw,
   X,
 } from 'lucide-react'
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { money } from '@/lib/format'
 import {
   addTyped,
+  lowerSection,
   moveSection,
+  moveSectionAcross,
   notPlaced,
   place,
   removeSection,
@@ -60,7 +70,7 @@ import {
   removeTyped,
   resizeSection,
   setPlaces,
-  sectionColumns,
+  sectionBands,
   setTile,
   spotPerson,
   uid,
@@ -111,6 +121,7 @@ const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
       <path d="M4 20h4v-4h4v-4h4V8h4" />
     </svg>
   ),
+  hall: <MoveHorizontal className="h-5 w-5" aria-hidden="true" />,
   outdoor: <TreePalm className="h-5 w-5" aria-hidden="true" />,
   pool: <WavesLadder className="h-5 w-5" aria-hidden="true" />,
   other: <MapPin className="h-5 w-5" aria-hidden="true" />,
@@ -139,12 +150,12 @@ const btnOutline =
 
 /**
  * Each kind of drag sees only its own drop places: a room only the dots (where the pointer is, so a bed place under it
- * never takes the drop), a person only beds and the side panel, a part of the house only the below and beside zones.
+ * never takes the drop), a person only beds and the side panel, a part of the house only the below, beside and across zones.
  */
 const ACCEPTS: Record<DragData['type'], string[]> = {
   room: ['grid'],
-  person: ['spot', 'panel'],
-  section: ['zone'],
+  person: ['spot', 'roomTile', 'panel'],
+  section: ['zone', 'across'],
 }
 const collide: CollisionDetection = (args) => {
   const kind = (args.active.data.current as DragData | undefined)?.type
@@ -153,7 +164,16 @@ const collide: CollisionDetection = (args) => {
     ACCEPTS[kind].includes((c.data.current as { type?: string } | undefined)?.type ?? '')
   )
   const narrowed = { ...args, droppableContainers: containers }
-  return kind === 'person' ? rectIntersection(narrowed) : pointerWithin(narrowed)
+  // A person lands where the pointer is; only when it's between places does the chip's overlap decide, so a drop
+  // that the dragged chip only grazes still lands on the place under the pointer.
+  if (kind !== 'person') return pointerWithin(narrowed)
+  const under = pointerWithin(narrowed)
+  // Over a place inside a room, the place wins over the room around it.
+  const spot = under.find(
+    (c) => (c.data?.droppableContainer.data.current as { type?: string })?.type === 'spot'
+  )
+  if (spot) return [spot]
+  return under.length ? under : rectIntersection(narrowed)
 }
 
 export function PlannerBoard({
@@ -176,6 +196,21 @@ export function PlannerBoard({
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState<DragData | null>(null)
   const [menu, setMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // The landmark menu closes on a click anywhere else, or on Escape.
+  useEffect(() => {
+    if (!menu) return
+    const away = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenu(false)
+    }
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false)
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [menu])
   const [removing, setRemoving] = useState<PlanSection | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const sensors = useSensors(
@@ -208,9 +243,11 @@ export function PlannerBoard({
     const data = e.active.data.current as DragData | undefined
     const over = e.over?.data.current as
       | { type: 'spot'; roomId: string; index: number }
+      | { type: 'roomTile'; roomId: string }
       | { type: 'panel' }
       | { type: 'grid'; sectionId: string }
       | { type: 'zone'; sectionId: string; where: 'below' | 'beside' }
+      | { type: 'across' }
       | undefined
     if (!data || !over) return
     if (data.type === 'person') {
@@ -218,6 +255,24 @@ export function PlannerBoard({
         setLayout((l) =>
           place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
         )
+      } else if (over.type === 'roomTile') {
+        // Dropped on a room but not on a place: the first free bed, one person per bed before anyone shares.
+        const room = rooms.find((r) => r.id === over.roomId)
+        if (!room) return
+        setLayout((l) => {
+          const free = roomSpots({
+            ...room,
+            capacity: planPlaces(
+              room,
+              l.tiles.find((t) => t.roomId === room.id)
+            ),
+          })
+            .filter((p) => !l.spots.some((s) => s.roomId === room.id && s.index === p.index))
+            .sort((a, b) => a.slot - b.slot || a.index - b.index)[0]
+          return free
+            ? place(l, data.person, data.from, { roomId: room.id!, index: free.index })
+            : l
+        })
       } else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
         const from = data.from
         setLayout((l) => unplace(l, from.roomId, from.index))
@@ -241,6 +296,8 @@ export function PlannerBoard({
       )
     } else if (data.type === 'section' && over.type === 'zone')
       setLayout((l) => moveSection(l, data.sectionId, over.sectionId, over.where))
+    else if (data.type === 'section' && over.type === 'across')
+      setLayout((l) => moveSectionAcross(l, data.sectionId, planWidth(l.sections) / CELL))
   }
 
   function addLandmark(kind: LandmarkKind) {
@@ -258,8 +315,9 @@ export function PlannerBoard({
         landmark: { kind, label: kind === 'other' ? 'Landmark' : LANDMARK_LABELS[kind] },
         x: 0,
         y: bottom,
-        w: 6,
-        h: 4,
+        // A hallway starts long and narrow; the rest start square-ish.
+        w: kind === 'hall' ? 14 : 6,
+        h: kind === 'hall' ? 3 : 4,
       })
     })
   }
@@ -281,15 +339,29 @@ export function PlannerBoard({
   }
 
   function fit() {
-    const width = Math.max(
-      sectionColumns(layout.sections).reduce(
-        (w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL + 24,
-        0
-      )
-    )
+    const width = planWidth(layout.sections) + 4
     const room = (scroller.current?.clientWidth ?? width) - 8
     setZoom(Math.max(0.4, Math.min(1, room / width)))
   }
+
+  const renderSection = (s: PlanSection) => (
+    <Section
+      section={s}
+      layout={layout}
+      setLayout={setLayout}
+      rooms={rooms}
+      people={people}
+      tripPriceCents={tripPriceCents}
+      zoom={zoom}
+      draggingSection={dragging?.type === 'section' ? dragging.sectionId : null}
+      onRemove={() =>
+        layout.tiles.some((t) => t.sectionId === s.id)
+          ? setRemoving(s)
+          : setLayout((l) => removeSection(l, s.id))
+      }
+      canRemove={layout.sections.length > 1}
+    />
+  )
 
   const stepZoom = (dir: 1 | -1) =>
     setZoom((z) => {
@@ -302,6 +374,9 @@ export function PlannerBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={collide}
+      // The plan scrolls only when the pointer is right at its edge: by default a fifth of its width scrolls it, so a
+      // room near the edge slid away under the pointer and the drop missed it.
+      autoScroll={{ threshold: { x: 0.04, y: 0.06 }, acceleration: 6 }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={() => setDragging(null)}
@@ -323,7 +398,7 @@ export function PlannerBoard({
                 Room
               </button>
             )}
-            <div className="relative">
+            <div ref={menuRef} className="relative">
               <button
                 type="button"
                 aria-expanded={menu}
@@ -377,36 +452,26 @@ export function PlannerBoard({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max items-stretch gap-5">
-                {sectionColumns(layout.sections).map((column, c) => (
-                  <div key={column[0].id} className="flex items-stretch gap-5">
-                    {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
-                    <div className="flex flex-col items-start gap-4">
-                      {column.map((s) => (
-                        <div key={s.id}>
-                          <Section
-                            section={s}
-                            layout={layout}
-                            setLayout={setLayout}
-                            rooms={rooms}
-                            people={people}
-                            tripPriceCents={tripPriceCents}
-                            zoom={zoom}
-                            draggingSection={
-                              dragging?.type === 'section' ? dragging.sectionId : null
-                            }
-                            onRemove={() =>
-                              layout.tiles.some((t) => t.sectionId === s.id)
-                                ? setRemoving(s)
-                                : setLayout((l) => removeSection(l, s.id))
-                            }
-                            canRemove={layout.sections.length > 1}
-                          />
+              <div style={{ zoom }} className="flex w-max flex-col items-start gap-4 pt-3">
+                {sectionBands(layout.sections).map((band) =>
+                  'across' in band ? (
+                    <div key={band.across.id}>{renderSection(band.across)}</div>
+                  ) : (
+                    <div key={band.columns[0][0].id} className="flex items-stretch gap-5">
+                      {band.columns.map((column, c) => (
+                        <div key={column[0].id} className="flex items-stretch gap-5">
+                          {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
+                          <div className="flex flex-col items-start gap-4">
+                            {column.map((s) => (
+                              <div key={s.id}>{renderSection(s)}</div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
+                {dragging?.type === 'section' && <AcrossZone />}
               </div>
             </div>
             <button
@@ -420,7 +485,8 @@ export function PlannerBoard({
             <p className="text-sm text-muted">
               Drag a room by its name to move it, even to another part of the house, and its corner
               to resize it. Everything snaps to the dots. Drag a part of the house by its dots to
-              put it below or beside another, and by its right or bottom edge to resize it.
+              put it below or beside another, or across the bottom, and by its right or bottom edge
+              to resize it.
             </p>
           </div>
         </div>
@@ -687,19 +753,39 @@ function Section({
   })
   const tiles = layout.tiles.filter((t) => t.sectionId === section.id)
   // Dragging the right or bottom edge makes the part of the house wider or narrower, taller or shorter, by whole dots.
-  const edge = useRef<{ x: number; y: number; cols: number; rows: number; d: number } | null>(null)
+  // Dragging its top edge lowers or raises the whole part, so a wing can sit level with the middle of its neighbour.
+  const edge = useRef<{
+    x: number
+    y: number
+    cols: number
+    rows: number
+    down: number
+    d: number
+  } | null>(null)
   const edgeDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    edge.current = { x: e.clientX, y: e.clientY, cols: section.cols, rows: section.rows, d: 0 }
+    edge.current = {
+      x: e.clientX,
+      y: e.clientY,
+      cols: section.cols,
+      rows: section.rows,
+      down: section.down ?? 0,
+      d: 0,
+    }
   }
-  const edgeMove = (axis: 'x' | 'y') => (e: ReactPointerEvent) => {
+  const edgeMove = (axis: 'x' | 'y' | 'top') => (e: ReactPointerEvent) => {
     const s = edge.current
     if (!s) return
     const d = Math.round((axis === 'x' ? e.clientX - s.x : e.clientY - s.y) / (CELL * zoom))
     if (d === s.d) return
     s.d = d
+    if (axis === 'top') {
+      // Moving the part, not the pointer's offset: once the edge moves, the pointer's start moves with it.
+      setLayout((l) => lowerSection(l, section.id, s.down + d))
+      return
+    }
     setLayout((l) =>
       resizeSection(
         l,
@@ -712,11 +798,16 @@ function Section({
   const edgeUp = () => {
     edge.current = null
   }
-  const edgeHandle = (axis: 'x' | 'y') => (
+  const edgeHandle = (axis: 'x' | 'y' | 'top') => (
     <div
       role="separator"
       aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
-      aria-label={`Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`}
+      aria-label={
+        axis === 'top'
+          ? `Drag to move ${section.name} up or down`
+          : `Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`
+      }
+      title={axis === 'top' ? 'Drag to move this part up or down' : undefined}
       onPointerDown={edgeDown}
       onPointerMove={edgeMove(axis)}
       onPointerUp={edgeUp}
@@ -725,7 +816,9 @@ function Section({
       className={`group absolute z-10 flex touch-none items-center justify-center ${
         axis === 'x'
           ? '-right-2 top-0 h-full w-4 cursor-ew-resize'
-          : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
+          : axis === 'top'
+            ? '-top-3.5 left-0 h-3 w-full cursor-row-resize'
+            : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
       }`}
     >
       <span
@@ -746,7 +839,11 @@ function Section({
   }
 
   return (
-    <div className="flex flex-col gap-2.5" style={{ width: section.cols * CELL }}>
+    <div
+      className="relative flex flex-col gap-2.5"
+      style={{ width: section.cols * CELL, marginTop: (section.down ?? 0) * CELL }}
+    >
+      {edgeHandle('top')}
       <div className="flex items-center gap-2">
         <button
           ref={handle.setNodeRef}
@@ -839,6 +936,34 @@ function Section({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/** The plan's width in pixels at 100%: its widest row of columns, or part stretched across it. */
+function planWidth(sections: PlanSection[]): number {
+  return Math.max(
+    ...sectionBands(sections).map((band) =>
+      'across' in band
+        ? band.across.cols * CELL
+        : band.columns.reduce((w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL, 0) +
+          // Two gaps and the line between each pair of columns.
+          (band.columns.length - 1) * 41
+    )
+  )
+}
+
+/** Below the whole plan while a part of the house is dragged: drop it here to stretch it across the bottom. */
+function AcrossZone() {
+  const { setNodeRef, isOver } = useDroppable({ id: 'across', data: { type: 'across' } })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex h-14 w-full items-center justify-center rounded-xl border-2 border-dashed text-sm font-semibold ${
+        isOver ? 'border-royal bg-royal-pale text-royal' : 'border-line bg-white/80 text-muted'
+      }`}
+    >
+      Put across the bottom
     </div>
   )
 }
@@ -952,6 +1077,11 @@ function Tile({
   zoom: number
 }) {
   const drag = useTileDrag(tile, setLayout, zoom)
+  const drop = useDroppable({
+    id: `room:${tile.id}`,
+    data: { type: 'roomTile', roomId: tile.roomId },
+    disabled: !tile.roomId,
+  })
   const [renaming, setRenaming] = useState(false)
   const style = {
     left: (tile.x + (drag.shift?.dx ?? 0)) * CELL + 3,
@@ -976,6 +1106,16 @@ function Tile({
 
   if (tile.landmark) {
     const lm = tile.landmark
+    // A quarter turn swaps the tile's width and height, so turned stairs run the other way across the dots.
+    const turn = () =>
+      setLayout((l) =>
+        setTile(l, {
+          ...tile,
+          w: tile.h,
+          h: tile.w,
+          landmark: { ...lm, turn: ((lm.turn ?? 0) + 1) % 4 || undefined },
+        })
+      )
     return (
       <div
         className="group absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
@@ -992,6 +1132,7 @@ function Tile({
         />
         <LandmarkPicture
           kind={lm.kind}
+          turn={lm.turn}
           className="pointer-events-none relative min-h-0 w-full max-w-[110px] flex-1"
         />
         {renaming ? (
@@ -1018,14 +1159,25 @@ function Tile({
             {lm.label}
           </button>
         )}
-        <button
-          type="button"
-          onClick={remove}
-          aria-label={`Remove ${lm.label}`}
-          className="absolute right-1 top-1 hidden rounded-full p-1 text-muted hover:bg-white group-focus-within:block group-hover:block"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        <span className="absolute right-1 top-1 flex gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={turn}
+            aria-label={`Turn ${lm.label}`}
+            title="Turn a quarter"
+            className="rounded-full bg-white/80 p-1 text-muted hover:bg-white hover:text-royal"
+          >
+            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            aria-label={`Remove ${lm.label}`}
+            className="rounded-full bg-white/80 p-1 text-muted hover:bg-white hover:text-royal"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </span>
         {grip}
       </div>
     )
@@ -1048,7 +1200,8 @@ function Tile({
   const price = room.priceCents ?? tripPriceCents
   return (
     <div
-      className="group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
+      ref={drop.setNodeRef}
+      className={`group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] bg-white px-3 py-2.5 shadow-card ${drop.isOver ? 'border-royal' : 'border-line'}`}
       style={style}
     >
       <div

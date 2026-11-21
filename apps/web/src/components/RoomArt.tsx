@@ -199,6 +199,10 @@ export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
   },
   living: { backgroundColor: '#FFFFFF' },
   stairs: { backgroundColor: '#FFFFFF' },
+  hall: {
+    backgroundColor: '#F7EBD3',
+    backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 13px, #E9D6B0 13px 14px)',
+  },
   outdoor: {
     backgroundColor: '#F7EBD3',
     backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 13px, #E9D6B0 13px 14px)',
@@ -215,14 +219,24 @@ export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
 /** A small top-down picture of a landmark on the room planner, drawn like the beds (issue #93). */
 export function LandmarkPicture({
   kind,
+  turn = 0,
   className = '',
 }: {
   kind: LandmarkKind
+  /** Quarter turns clockwise: a turned picture is tall, so its box turns too. */
+  turn?: number
   className?: string
 }) {
+  const t = ((turn % 4) + 4) % 4
+  const turned = [
+    undefined,
+    'translate(56 0) rotate(90)',
+    'rotate(180 40 28)',
+    'translate(0 80) rotate(-90)',
+  ][t]
   return (
-    <svg viewBox="0 0 80 56" className={className} aria-hidden="true">
-      {LANDMARK_ART[kind]}
+    <svg viewBox={t % 2 ? '0 0 56 80' : '0 0 80 56'} className={className} aria-hidden="true">
+      <g transform={turned}>{LANDMARK_ART[kind]}</g>
     </svg>
   )
 }
@@ -342,6 +356,18 @@ const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
           strokeWidth="1.5"
         />
       ))}
+    </g>
+  ),
+  // A runner rug down a hallway, with a door at each end.
+  hall: (
+    <g>
+      <rect x="2" y="21" width="76" height="14" rx="3" fill={R} />
+      <rect x="6" y="24" width="68" height="8" rx="2" fill="none" stroke={GOLD} strokeWidth="1.5" />
+      {[18, 30, 42, 54, 66].map((x) => (
+        <circle key={x} cx={x - 4} cy="28" r="1.3" fill={GOLD} />
+      ))}
+      <rect x="0" y="8" width="3" height="40" rx="1.5" fill={RD} />
+      <rect x="77" y="8" width="3" height="40" rx="1.5" fill={RD} />
     </g>
   ),
   // A table with chairs and a lounger.

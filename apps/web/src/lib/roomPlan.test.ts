@@ -2,12 +2,14 @@ import type { BedType, RoomPlanLayout } from '@cc/types'
 import { describe, expect, it } from 'vitest'
 import {
   moveSection,
+  moveSectionAcross,
   notPlaced,
   place,
   removeSection,
   removeTile,
   resizeSection,
   setPlaces,
+  sectionBands,
   sectionColumns,
   setTile,
   unplace,
@@ -150,6 +152,23 @@ describe('tiles and parts of the house', () => {
     const step = moveSection(layout, 'f2', 'east', 'beside')
     expect(cols(step)).toEqual([['east'], ['f2'], ['g']])
     expect(cols(moveSection(step, 'g', 'f2', 'below'))).toEqual([['east'], ['f2', 'g']])
+  })
+
+  it('stretches a part across the bottom of the plan, and puts it back in a column when moved again', () => {
+    const left = { id: 'left', name: 'East wing', beside: false, cols: 20, rows: 10 }
+    const right = { id: 'right', name: 'Main floor', beside: true, cols: 30, rows: 10 }
+    const yard = { id: 'yard', name: 'Outside', beside: false, cols: 10, rows: 8 }
+    const layout = { ...base, tiles: [], sections: [left, right, yard] }
+    const out = moveSectionAcross(layout, 'yard', 52.5)
+    const bands = (l: RoomPlanLayout) =>
+      sectionBands(l.sections).map((b) =>
+        'across' in b ? b.across.id : b.columns.map((c) => c.map((s) => s.id))
+      )
+    expect(bands(out)).toEqual([[['left'], ['right']], 'yard'])
+    expect(out.sections[2]).toMatchObject({ across: true, cols: 53 })
+    const back = moveSection(out, 'yard', 'right', 'below')
+    expect(bands(back)).toEqual([[['left'], ['right', 'yard']]])
+    expect(back.sections.some((s) => s.across)).toBe(false)
   })
 
   it('shrinks a part of the house by its edge, but never into a room on it', () => {

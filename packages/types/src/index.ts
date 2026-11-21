@@ -1993,6 +1993,7 @@ export const LANDMARK_KINDS = [
   'kitchen',
   'living',
   'stairs',
+  'hall',
   'outdoor',
   'pool',
   'other',
@@ -2005,6 +2006,7 @@ export const LANDMARK_LABELS: Record<LandmarkKind, string> = {
   kitchen: 'Kitchen',
   living: 'Living room',
   stairs: 'Stairs',
+  hall: 'Hallway',
   outdoor: 'Deck, porch or balcony',
   pool: 'Pool or hot tub',
   other: 'Something else',
@@ -2018,6 +2020,10 @@ export interface PlanSection {
   /** Its size in dots. */
   cols: number
   rows: number
+  /** Space above it in dots, so a wing can sit level with the middle of the part beside it (absent: none). */
+  down?: number
+  /** Stretched across the whole plan below the parts before it, like an outside area (absent: in a column). */
+  across?: boolean
 }
 
 /** A room (one of the trip's rooms) or a landmark on a part of the house, in dots from its top left. */
@@ -2025,7 +2031,8 @@ export interface PlanTile {
   id: string
   sectionId: string
   roomId: string | null
-  landmark: { kind: LandmarkKind; label: string } | null
+  /** `turn` is how many quarter turns clockwise its picture has (1–3; absent: none). */
+  landmark: { kind: LandmarkKind; label: string; turn?: number } | null
   x: number
   y: number
   w: number
