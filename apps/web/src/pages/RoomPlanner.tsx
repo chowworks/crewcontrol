@@ -4,6 +4,8 @@ import {
   LANDMARK_LABELS,
   PLAN_CELL_PX,
   PLAN_MAX_SECTIONS,
+  ROOM_MAX_PLACES,
+  planPlaces,
   roomSpots,
   type LandmarkKind,
   type PlanSection,
@@ -54,6 +56,7 @@ import {
   removeTile,
   removeTyped,
   resizeSection,
+  setPlaces,
   sectionRows,
   setTile,
   spotPerson,
@@ -179,7 +182,15 @@ export function PlannerBoard({
   const toPlace = rooms.filter((r) => r.id && !onPlan.has(r.id))
   const places = rooms
     .filter((r) => r.id && onPlan.has(r.id))
-    .reduce((n, r) => n + roomSpots(r).length, 0)
+    .reduce(
+      (n, r) =>
+        n +
+        planPlaces(
+          r,
+          layout.tiles.find((t) => t.roomId === r.id)
+        ),
+      0
+    )
   const placed = layout.spots.filter((s) => onPlan.has(s.roomId)).length
 
   function onDragStart(e: DragStartEvent) {
@@ -1005,7 +1016,12 @@ function Tile({
   }
 
   if (!room) return null
-  const spots = roomSpots(room)
+  const places = planPlaces(room, tile)
+  const spots = roomSpots({ ...room, capacity: places })
+  // The last place can go back only when it's one the organizer added and nobody is on it.
+  const canTakeBack =
+    places > room.capacity &&
+    !layout.spots.some((s) => s.roomId === room.id && s.index === places - 1)
   const beds = room.bedTypes.map((type, bed) => ({
     type,
     spots: spots.filter((s) => s.bed === bed),
@@ -1037,7 +1053,34 @@ function Tile({
             <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
-        <div className="text-[11px] text-muted">{money(price)} each</div>
+        <div className="flex items-center gap-1 text-[11px] text-muted">
+          <span className="flex-1">
+            {money(price)} each · Sleeps {places}
+            {places > room.capacity && ` (was ${room.capacity})`}
+          </span>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setLayout((l) => setPlaces(l, room, places - 1))}
+            disabled={!canTakeBack}
+            aria-label={`Take a place back from ${room.name}`}
+            title="Take back a place you added"
+            className="hidden h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink hover:bg-ground disabled:opacity-40 group-focus-within:flex group-hover:flex"
+          >
+            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setLayout((l) => setPlaces(l, room, places + 1))}
+            disabled={places >= ROOM_MAX_PLACES}
+            aria-label={`Add a place to ${room.name}`}
+            title="Add a place: applying rooms makes the room sleep one more"
+            className="hidden h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal hover:bg-royal-pale disabled:opacity-40 group-focus-within:flex group-hover:flex"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
         {beds.map((b, i) =>

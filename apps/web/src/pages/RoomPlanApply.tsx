@@ -15,11 +15,14 @@ const chip: Record<'interested' | 'typed', string> = {
  */
 export function ApplyRoomsDialog({
   moves,
+  grown,
   plannerOnly,
   onApply,
   onClose,
 }: {
   moves: RoomPlanMove[]
+  /** Rooms the organizer gave more places on the plan: applying makes them sleep that many. */
+  grown: { name: string; from: number; to: number }[]
   /** People on beds who aren't guests on the trip: the Interested list and typed names. */
   plannerOnly: Person[]
   onApply: (email: boolean) => Promise<string | null>
@@ -39,7 +42,7 @@ export function ApplyRoomsDialog({
     setBusy(false)
   }
 
-  if (!count)
+  if (!count && !grown.length)
     return (
       <Dialog title="Everyone’s already in their room" onClose={onClose}>
         <p className="text-body">
@@ -66,30 +69,50 @@ export function ApplyRoomsDialog({
           </p>
         )}
         <p className="text-body text-muted">
-          This moves {count} {count === 1 ? 'guest' : 'guests'} on the trip. Everything else stays
-          in your draft.
+          {count
+            ? `This moves ${count} ${count === 1 ? 'guest' : 'guests'} on the trip.`
+            : 'Nobody changes room.'}{' '}
+          Everything else stays in your draft.
         </p>
-        <section>
-          <h3 className="pb-1 text-sm font-semibold text-muted">Moves ({count})</h3>
-          <ul>
-            {moves.map((m) => (
-              <li key={m.guestId} className="flex flex-col gap-0.5 border-t border-rule py-3">
-                <strong>
-                  {m.name}: {m.fromRoom ?? 'no room yet'} → {m.toRoom ?? 'no room'}
-                </strong>
-                <span className="text-sm text-muted">
-                  {!m.toRoom
-                    ? 'They’re on no bed in your plan, so they leave their room.'
-                    : m.priceDiffCents > 0
-                      ? `Adds a ${money(m.priceDiffCents)} charge to their balance.`
-                      : m.priceDiffCents < 0
-                        ? `Adds a ${money(-m.priceDiffCents)} credit to their balance.`
-                        : 'Same price.'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {grown.length > 0 && (
+          <section>
+            <h3 className="pb-1 text-sm font-semibold text-muted">
+              Rooms that sleep more ({grown.length})
+            </h3>
+            <ul>
+              {grown.map((g) => (
+                <li key={g.name} className="border-t border-rule py-3">
+                  <strong>
+                    {g.name}: sleeps {g.to} (was {g.from})
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {count > 0 && (
+          <section>
+            <h3 className="pb-1 text-sm font-semibold text-muted">Moves ({count})</h3>
+            <ul>
+              {moves.map((m) => (
+                <li key={m.guestId} className="flex flex-col gap-0.5 border-t border-rule py-3">
+                  <strong>
+                    {m.name}: {m.fromRoom ?? 'no room yet'} → {m.toRoom ?? 'no room'}
+                  </strong>
+                  <span className="text-sm text-muted">
+                    {!m.toRoom
+                      ? 'They’re on no bed in your plan, so they leave their room.'
+                      : m.priceDiffCents > 0
+                        ? `Adds a ${money(m.priceDiffCents)} charge to their balance.`
+                        : m.priceDiffCents < 0
+                          ? `Adds a ${money(-m.priceDiffCents)} credit to their balance.`
+                          : 'Same price.'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {picked.length > 0 && (
           <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm">
             {picked.map((m) => m.name).join(', ')}{' '}

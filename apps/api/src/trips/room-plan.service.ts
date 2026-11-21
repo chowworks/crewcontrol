@@ -15,6 +15,7 @@ import {
   PAID_FEATURES,
   PLAN_MAX_ROWS,
   roomPrice,
+  planPlaces,
   roomSpots,
   type BedType,
   type ApplyRoomPlanInput,
@@ -141,6 +142,20 @@ export class RoomPlanService {
         'The draft changed since you opened Apply rooms. Open it again to see the moves.'
       )
     const moves = await this.movesOf(tripId, draft.layout, caller)
+    // A room the organizer gave more places on the plan sleeps that many from now on.
+    const rooms = await this.prisma.room.findMany({
+      where: { tripId },
+      select: { id: true, capacity: true },
+    })
+    const grown = rooms.flatMap((r) => {
+      const places = planPlaces(
+        r,
+        draft.layout.tiles.find((t) => t.roomId === r.id)
+      )
+      return places > r.capacity ? [{ id: r.id, places }] : []
+    })
+    for (const g of grown)
+      await this.prisma.room.update({ where: { id: g.id }, data: { capacity: g.places } })
     if (!moves.length) return { moved: 0, emailed: 0, needsLook: [] }
     const { emailed, unsettled } = await this.trips.moveGuests(
       tripId,
@@ -259,8 +274,9 @@ interface Facts {
   signedUp?: Map<string, string>
 }
 
-const spotsOf = (room: RoomRow) =>
-  roomSpots({ bedTypes: room.bedTypes as BedType[], capacity: room.capacity })
+/** A room's places on the plan: what it sleeps, or more when the organizer added places on its tile. */
+const spotsOf = (room: RoomRow, tile?: PlanTile) =>
+  roomSpots({ bedTypes: room.bedTypes as BedType[], capacity: planPlaces(room, tile) })
 
 /**
  * A first draft: one part of the house with every room on it in rows, and each guest who already has a room on a place
@@ -344,7 +360,8 @@ export function clean(layout: RoomPlanLayout, facts: Facts): RoomPlanLayout {
       guestId: became ?? (s.guestId && facts.guests.has(s.guestId) ? s.guestId : null),
       interestId: !became && s.interestId && facts.interest.has(s.interestId) ? s.interestId : null,
     }
-    if (room && s.index < spotsOf(room).length) spots.push(linked)
+    const tile = (layout.tiles ?? []).find((t) => t.roomId === s.roomId)
+    if (room && s.index < spotsOf(room, tile).length) spots.push(linked)
     else if (!linked.guestId && !linked.interestId) waiting.push(s.name)
   }
   return {

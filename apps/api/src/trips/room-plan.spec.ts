@@ -61,6 +61,11 @@ describe('parseRoomPlanLayout', () => {
       'A tile is on a part of the house that isn’t there',
     ],
     [{ ...layout, tiles: [{ ...bath, roomId: 'r1' }] }, 'A tile is either a room or a landmark'],
+    [{ ...layout, tiles: [suite, { ...bath, places: 3 }] }, 'Only a room has places'],
+    [
+      { ...layout, tiles: [{ ...suite, places: 21 }, bath] },
+      'places must be a whole number from 1 to 20',
+    ],
     [{ ...layout, tiles: [suite, { ...suite, id: 't3' }] }, 'A room is on the plan twice'],
     [{ ...layout, spots: [kendra, { ...kendra, index: 1 }] }, 'Someone is on the plan twice'],
     [
@@ -154,6 +159,15 @@ describe('clean', () => {
     expect(out.spots).toEqual([
       { roomId: 'r1', index: 0, name: 'Avery L.', guestId: 'g3', interestId: null },
     ])
+  })
+
+  it('keeps a person on a place the organizer added to the room', () => {
+    const extra = { ...kendra, index: 2, guestId: null, name: 'Cousin Mo' }
+    const out = clean(
+      { ...layout, tiles: [{ ...suite, places: 3 }, bath], spots: [kendra, extra] },
+      { rooms, guests, interest: new Set() }
+    )
+    expect(out.spots).toEqual([kendra, extra])
   })
 
   it('gives back a place the room no longer has', () => {

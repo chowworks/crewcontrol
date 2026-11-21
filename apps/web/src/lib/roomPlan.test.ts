@@ -7,6 +7,7 @@ import {
   removeSection,
   removeTile,
   resizeSection,
+  setPlaces,
   sectionRows,
   setTile,
   unplace,
@@ -82,6 +83,26 @@ describe('the side panel', () => {
     const out = removeTile(base, 't1')
     expect(out.tiles).toEqual([])
     expect(out.spots).toEqual([])
+  })
+})
+
+describe('places added to a room', () => {
+  const room = { id: 'r1', capacity: 2 }
+
+  it('adds a place past what the room sleeps, and takes back only an empty last one', () => {
+    const three = setPlaces(base, room, 3)
+    expect(three.tiles[0].places).toBe(3)
+    const used = {
+      ...three,
+      spots: [...three.spots, { ...three.spots[0], index: 2, guestId: 'g2' }],
+    }
+    expect(setPlaces(used, room, 2)).toBe(used)
+    expect(setPlaces(three, room, 2).tiles[0]).toEqual(tile)
+  })
+
+  it('never goes under what the room sleeps or past 20', () => {
+    expect(setPlaces(base, room, 1).tiles[0]).toEqual(tile)
+    expect(setPlaces(base, room, 30).tiles[0].places).toBe(20)
   })
 })
 

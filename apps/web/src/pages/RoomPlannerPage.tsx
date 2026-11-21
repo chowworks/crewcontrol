@@ -1,7 +1,7 @@
 import {
   BED_LABELS,
   BED_TYPES,
-  roomSpots,
+  planPlaces,
   type InterestedPerson,
   type OrganizerTrip,
   type RoomPlanLayout,
@@ -154,8 +154,13 @@ export function RoomPlannerPage() {
     if (!moves) return null
     try {
       const done = await api.applyRoomPlan(id, email, moves.draftAt)
-      const [t, plan] = await Promise.all([api.getTrip(id), api.getRoomPlan(id)])
+      const [t, plan, r] = await Promise.all([
+        api.getTrip(id),
+        api.getRoomPlan(id),
+        api.getRooms(id),
+      ])
       setTrip(t)
+      setRooms(r)
       revision.current++
       setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
@@ -164,9 +169,11 @@ export function RoomPlannerPage() {
       window.dispatchEvent(new Event('cc:actions-changed'))
       const who = done.moved === 1 ? '1 guest' : `${done.moved} guests`
       toast({
-        text: done.emailed
-          ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
-          : `Rooms applied: ${who} moved.`,
+        text: !done.moved
+          ? 'Rooms applied.'
+          : done.emailed
+            ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
+            : `Rooms applied: ${who} moved.`,
       })
       if (done.needsLook.length)
         setSaveError(
@@ -220,6 +227,14 @@ export function RoomPlannerPage() {
     )
 
   const plannerOnly = layout.spots.map((s) => spotPerson(s, people)).filter((p) => !p.guestId)
+  // Rooms given more places on the plan: applying makes them sleep that many.
+  const grown = rooms.flatMap((r) => {
+    const places = planPlaces(
+      r,
+      layout.tiles.find((t) => t.roomId === r.id)
+    )
+    return places > r.capacity ? [{ name: r.name, from: r.capacity, to: places }] : []
+  })
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -282,6 +297,7 @@ export function RoomPlannerPage() {
       {moves && (
         <ApplyRoomsDialog
           moves={moves.list}
+          grown={grown}
           plannerOnly={plannerOnly}
           onApply={apply}
           onClose={() => setMoves(null)}
@@ -364,7 +380,11 @@ function PhonePlan({
             <h2 className="font-display text-lg font-bold">
               {room.name}{' '}
               <span className="text-sm font-normal text-muted">
-                {spots.length} of {roomSpots(room).length}
+                {spots.length} of{' '}
+                {planPlaces(
+                  room,
+                  layout.tiles.find((t) => t.roomId === room.id)
+                )}
               </span>
             </h2>
             <RoomArt beds={room.bedTypes} className="h-12 w-auto max-w-full self-start" />

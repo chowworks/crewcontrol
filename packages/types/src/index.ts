@@ -2016,7 +2016,19 @@ export interface PlanTile {
   y: number
   w: number
   h: number
+  /**
+   * A room's places on the plan when the organizer added some past what the room sleeps (owner's decision, 2026-11-21):
+   * applying the plan makes the room sleep this many. Absent: what the room sleeps.
+   */
+  places?: number
 }
+
+/** Most places a room can have, on the plan as in the trip editor. */
+export const ROOM_MAX_PLACES = 20
+
+/** How many places a room has on the plan: what it sleeps, or more when the organizer added places. */
+export const planPlaces = (room: { capacity: number }, tile?: { places?: number }): number =>
+  Math.max(room.capacity, Math.min(tile?.places ?? 0, ROOM_MAX_PLACES))
 
 /**
  * One person on one place in a room: `index` counts the room's places in bed order (see `roomSpots`). The name is what

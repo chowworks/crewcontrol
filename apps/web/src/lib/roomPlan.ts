@@ -1,6 +1,8 @@
 import {
   PLAN_MAX_COLS,
   PLAN_MAX_ROWS,
+  ROOM_MAX_PLACES,
+  planPlaces,
   type Guest,
   type InterestedPerson,
   type PlanSpot,
@@ -198,6 +200,30 @@ export function setTile(layout: RoomPlanLayout, tile: PlanTile): RoomPlanLayout 
     tiles: layout.tiles.some((t) => t.id === tile.id)
       ? layout.tiles.map((t) => (t.id === tile.id ? placed : t))
       : [...layout.tiles, placed],
+  }
+}
+
+/**
+ * A room given more places on the plan than it sleeps, or one taken back (only an empty last place goes). Applying the
+ * plan makes the room sleep that many.
+ */
+export function setPlaces(
+  layout: RoomPlanLayout,
+  room: { id?: string; capacity: number },
+  places: number
+): RoomPlanLayout {
+  const tile = layout.tiles.find((t) => t.roomId === room.id)
+  if (!tile) return layout
+  const now = planPlaces(room, tile)
+  const n = Math.max(room.capacity, Math.min(places, ROOM_MAX_PLACES))
+  if (n < now && layout.spots.some((s) => s.roomId === room.id && s.index >= n)) return layout
+  return {
+    ...layout,
+    tiles: layout.tiles.map((t) => {
+      if (t.id !== tile.id) return t
+      const { places: _, ...rest } = t
+      return n > room.capacity ? { ...rest, places: n } : rest
+    }),
   }
 }
 
