@@ -118,7 +118,7 @@ export function PaidFeaturesPage() {
 }
 
 /** Asking to try a feature early: why is optional; the end of the flow replaces the form. */
-function AskDialog({
+export function AskDialog({
   feature,
   onClose,
   onSent,

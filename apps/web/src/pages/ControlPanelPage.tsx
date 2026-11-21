@@ -41,9 +41,9 @@ import { useHasPlanner } from './RoomPlannerPage'
 import { ReviewSwitch } from '@/ReviewSwitch'
 import {
   PLACEMENTS,
-  PlannerCard,
-  PlannerHeadingButton,
-  PlannerRow,
+  PlannerRowBoth,
+  PlannerRowPitch,
+  PlannerRowStatus,
   placementOf,
 } from './PlannerPlacement'
 import { roomSpots } from '@cc/types'
@@ -345,7 +345,14 @@ export function ControlPanelPage() {
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
   const planner =
     rooms.length >= 2 && (admin || hasPlanner !== null)
-      ? { tripId: id, admin, locked: !admin && !hasPlanner }
+      ? {
+          tripId: id,
+          admin,
+          locked: !admin && !hasPlanner,
+          beds: rooms.reduce((n, r) => n + roomSpots(r).length, 0),
+          roomed: trip.guests.filter((g) => g.status !== 'declined' && g.roomId).length,
+          going: trip.guests.filter((g) => g.status !== 'declined').length,
+        }
       : null
 
   return (
@@ -437,19 +444,10 @@ export function ControlPanelPage() {
           </div>
         )}
         <MoneyCard trip={trip} />
-        {planner && placement === 'b' && <PlannerRow {...planner} />}
-        {planner && placement === 'c' && (
-          <PlannerCard
-            {...planner}
-            beds={rooms.reduce((n, r) => n + roomSpots(r).length, 0)}
-            roomed={trip.guests.filter((g) => g.status !== 'declined' && g.roomId).length}
-            going={trip.guests.filter((g) => g.status !== 'declined').length}
-          />
-        )}
+        {planner && placement === 'b1' && <PlannerRowPitch {...planner} />}
+        {planner && placement === 'b2' && <PlannerRowStatus {...planner} />}
+        {planner && placement === 'b3' && <PlannerRowBoth {...planner} />}
         <GuestsCard
-          headingAction={
-            planner && placement === 'a' ? <PlannerHeadingButton {...planner} /> : undefined
-          }
           trip={trip}
           rooms={rooms}
           {...handlers}
