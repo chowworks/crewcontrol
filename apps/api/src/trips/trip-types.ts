@@ -1319,10 +1319,11 @@ export const HELP_PAGES: { value: HelpPage; label: string }[] = [
 ]
 
 /** The sections of "All topics", in order. */
-export type HelpTopic = 'start' | 'signups' | 'payments' | 'tripPage' | 'questions'
+export type HelpTopic = 'start' | 'rooms' | 'signups' | 'payments' | 'tripPage' | 'questions'
 
 export const HELP_TOPICS: { value: HelpTopic; label: string }[] = [
   { value: 'start', label: 'Getting started' },
+  { value: 'rooms', label: 'Room planner' },
   { value: 'payments', label: 'Payments' },
   { value: 'tripPage', label: 'The trip page' },
   { value: 'questions', label: 'Guests’ questions' },

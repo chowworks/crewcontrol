@@ -8,7 +8,7 @@ import {
   type RoomPlanMove,
   type TripRoom,
 } from '@cc/types'
-import { ArrowLeft, Lock } from 'lucide-react'
+import { ArrowLeft, CloudAlert, CloudCheck, CloudUpload, LoaderCircle, Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -243,6 +243,7 @@ export function RoomPlannerPage() {
         <Logo />
         <div className="flex items-center gap-3">
           <span className={`${admin ? 'hidden' : 'hidden lg:flex'} items-center gap-3`}>
+            <SaveState busy={busy} dirty={dirty} failed={!!saveError} updatedAt={updatedAt} />
             <button type="button" disabled={busy} onClick={saveDraft} className={outlined}>
               Save draft
             </button>
@@ -269,11 +270,7 @@ export function RoomPlannerPage() {
             </p>
           )}
           <p className={`text-body text-muted ${admin ? 'hidden' : ''}`}>
-            {dirty
-              ? 'You have changes that aren’t saved yet. '
-              : updatedAt
-                ? `Draft saved ${savedAt(updatedAt)}. `
-                : 'This draft starts from the rooms guests have now. '}
+            {!updatedAt && 'This draft starts from the rooms guests have now. '}
             Nothing changes for guests until you apply rooms.
           </p>
         </div>
@@ -557,5 +554,39 @@ export function PlannerEntry({ tripId }: { tripId: string }) {
         Open the room planner
       </Link>
     </Card>
+  )
+}
+
+/** Where the draft stands, beside Save draft: saved and when, changes waiting, saving, or not saved. */
+function SaveState({
+  busy,
+  dirty,
+  failed,
+  updatedAt,
+}: {
+  busy: boolean
+  dirty: boolean
+  failed: boolean
+  updatedAt: string | null
+}) {
+  const state: [typeof CloudCheck, string, string] | null = busy
+    ? [LoaderCircle, 'Saving…', 'text-muted']
+    : failed && dirty
+      ? [CloudAlert, 'Not saved', 'text-[#B42318]']
+      : dirty
+        ? [CloudUpload, 'Unsaved changes', 'text-ink']
+        : updatedAt
+          ? [CloudCheck, `Saved ${savedAt(updatedAt)}`, 'text-royal']
+          : null
+  if (!state) return null
+  const [Icon, text, tone] = state
+  return (
+    <span role="status" className={`flex items-center gap-1.5 text-sm font-semibold ${tone}`}>
+      <Icon className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+      {text}
+      {dirty && !busy && !failed && (
+        <span className="h-2 w-2 rounded-full bg-marigold" aria-hidden="true" />
+      )}
+    </span>
   )
 }
