@@ -182,6 +182,12 @@ export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
       'linear-gradient(#E2E8EA 1px, transparent 1px), linear-gradient(90deg, #E2E8EA 1px, transparent 1px)',
     backgroundSize: '12px 12px',
   },
+  halfbath: {
+    backgroundColor: '#FAFBFC',
+    backgroundImage:
+      'linear-gradient(#E2E8EA 1px, transparent 1px), linear-gradient(90deg, #E2E8EA 1px, transparent 1px)',
+    backgroundSize: '12px 12px',
+  },
   kitchen: {
     backgroundColor: '#FFFFFF',
     backgroundImage: 'conic-gradient(#F3F6F5 25%, transparent 0 50%, #F3F6F5 0 75%, transparent 0)',
@@ -225,6 +231,16 @@ const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
       <rect x="49" y="38" width="26" height="15" rx="4" {...line} />
       <ellipse cx="62" cy="46" rx="7" ry="4" fill={PALE} />
       <circle cx="62" cy="40.5" r="1.8" fill={GOLD} />
+    </g>
+  ),
+  // A toilet and a sink, no tub.
+  halfbath: (
+    <g>
+      <rect x="10" y="4" width="22" height="7" rx="2" fill={R} />
+      <ellipse cx="21" cy="25" rx="9" ry="12" {...line} />
+      <rect x="44" y="8" width="28" height="18" rx="4" {...line} />
+      <ellipse cx="58" cy="18" rx="8" ry="5" fill={PALE} />
+      <circle cx="58" cy="11" r="1.8" fill={GOLD} />
     </g>
   ),
   // A counter with a stove and a sink, and an island with stools.

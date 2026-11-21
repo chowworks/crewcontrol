@@ -1985,10 +1985,19 @@ export const PLAN_MAX_SECTIONS = 12
 export const PLAN_MAX_TILES = 150
 export const PLAN_NAME_MAX = 60
 
-export const LANDMARK_KINDS = ['bath', 'kitchen', 'living', 'stairs', 'outdoor', 'other'] as const
+export const LANDMARK_KINDS = [
+  'bath',
+  'halfbath',
+  'kitchen',
+  'living',
+  'stairs',
+  'outdoor',
+  'other',
+] as const
 export type LandmarkKind = (typeof LANDMARK_KINDS)[number]
 export const LANDMARK_LABELS: Record<LandmarkKind, string> = {
-  bath: 'Bathroom',
+  bath: 'Full bath',
+  halfbath: 'Half bath',
   kitchen: 'Kitchen',
   living: 'Living room',
   stairs: 'Stairs',
