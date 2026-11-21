@@ -6,6 +6,7 @@ import {
   notPlaced,
   place,
   removeSection,
+  renameTyped,
   removeTile,
   resizeSection,
   setPlaces,
@@ -123,6 +124,21 @@ describe('places added to a room', () => {
     )
     expect(three.tiles[0].places).toBe(3)
     expect(setPlaces(three, daybeds, 2)).toBe(three)
+  })
+})
+
+describe('typed names', () => {
+  it('corrects a typed name waiting or on a bed, but never a guest’s, and ignores a blank one', () => {
+    const typed = { roomId: 'r1', index: 1, name: 'Cuz Mo', guestId: null, interestId: null }
+    const layout = { ...base, spots: [...base.spots, typed], waiting: ['Aunt De'] }
+    expect(renameTyped(layout, { waiting: 0 }, ' Aunt Dee ').waiting).toEqual(['Aunt Dee'])
+    expect(renameTyped(layout, { roomId: 'r1', index: 1 }, 'Cousin Mo').spots[1].name).toBe(
+      'Cousin Mo'
+    )
+    expect(renameTyped(layout, { roomId: 'r1', index: 0 }, 'Someone').spots[0].name).toBe(
+      'Kendra W.'
+    )
+    expect(renameTyped(layout, { waiting: 0 }, '   ')).toBe(layout)
   })
 })
 

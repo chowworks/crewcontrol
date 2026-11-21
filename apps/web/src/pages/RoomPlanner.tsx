@@ -69,6 +69,7 @@ import {
   removeSection,
   removeTile,
   removeTyped,
+  renameTyped,
   resizeSection,
   setPlaces,
   sectionBands,
@@ -610,6 +611,12 @@ function SidePanel({
                     ? () => setLayout((l) => removeTyped(l, Number(p.key.slice(2))))
                     : undefined
                 }
+                onRename={
+                  p.key.startsWith('w:')
+                    ? (name) =>
+                        setLayout((l) => renameTyped(l, { waiting: Number(p.key.slice(2)) }, name))
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -686,26 +693,45 @@ export function Chip({ person, lifted = false }: { person: Person; lifted?: bool
   )
 }
 
-function PanelChip({ person, onRemove }: { person: Person; onRemove?: () => void }) {
+function PanelChip({
+  person,
+  onRemove,
+  onRename,
+}: {
+  person: Person
+  onRemove?: () => void
+  onRename?: (name: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
   const from: From = person.key.startsWith('w:')
     ? { waiting: Number(person.key.slice(2)) }
     : 'panel'
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `p:${person.key}`,
     data: { type: 'person', person, from } satisfies DragData,
+    disabled: editing,
   })
   return (
     <span className={`inline-flex items-center gap-0.5 ${isDragging ? 'opacity-40' : ''}`}>
-      <button
-        ref={setNodeRef}
-        type="button"
-        aria-label={`Drag ${person.name} onto a bed`}
-        {...attributes}
-        {...listeners}
-        className="cursor-grab"
-      >
-        <Chip person={person} />
-      </button>
+      {editing && onRename ? (
+        <NameInput name={person.name} onDone={(n) => (n && onRename(n), setEditing(false))} />
+      ) : (
+        <button
+          ref={setNodeRef}
+          type="button"
+          aria-label={
+            onRename
+              ? `Drag ${person.name} onto a bed, or click to edit the name`
+              : `Drag ${person.name} onto a bed`
+          }
+          {...attributes}
+          {...listeners}
+          onClick={onRename ? () => setEditing(true) : undefined}
+          className="cursor-grab"
+        >
+          <Chip person={person} />
+        </button>
+      )}
       {onRemove && (
         <button
           type="button"
@@ -1270,6 +1296,7 @@ function Tile({
                     room={room}
                     spot={s}
                     layout={layout}
+                    setLayout={setLayout}
                     people={people}
                     full={full}
                   />
@@ -1288,6 +1315,7 @@ function Tile({
                   room={room}
                   spot={s}
                   layout={layout}
+                  setLayout={setLayout}
                   people={people}
                   full={full}
                 />
@@ -1306,6 +1334,7 @@ function Tile({
                 room={room}
                 spot={s}
                 layout={layout}
+                setLayout={setLayout}
                 people={people}
                 full={full}
               />
@@ -1322,12 +1351,14 @@ function Spot({
   room,
   spot,
   layout,
+  setLayout,
   people,
   full,
 }: {
   room: TripRoom
   spot: RoomSpot
   layout: RoomPlanLayout
+  setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
   people: Person[]
   /** The room has as many people as it sleeps: someone more on a free bed makes it sleep one more. */
   full: boolean
@@ -1345,6 +1376,7 @@ function Spot({
           person={spotPerson(taken, people)}
           from={{ roomId, index: spot.index }}
           hot={isOver}
+          onRename={(name) => setLayout((l) => renameTyped(l, { roomId, index: spot.index }, name))}
         />
       ) : (
         <span
@@ -1364,21 +1396,60 @@ function Spot({
   )
 }
 
-function PlacedChip({ person, from, hot }: { person: Person; from: From; hot: boolean }) {
+function PlacedChip({
+  person,
+  from,
+  hot,
+  onRename,
+}: {
+  person: Person
+  from: From
+  hot: boolean
+  onRename: (name: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `placed:${typeof from === 'object' && 'roomId' in from ? `${from.roomId}:${from.index}` : person.key}`,
     data: { type: 'person', person, from } satisfies DragData,
+    disabled: editing,
   })
+  if (editing)
+    return <NameInput name={person.name} onDone={(n) => (n && onRename(n), setEditing(false))} />
+  const typed = person.kind === 'typed'
   return (
     <button
       ref={setNodeRef}
       type="button"
-      aria-label={`Move ${person.name}`}
+      aria-label={typed ? `Move ${person.name}, or click to edit the name` : `Move ${person.name}`}
       {...attributes}
       {...listeners}
+      onClick={typed ? () => setEditing(true) : undefined}
       className={`cursor-grab rounded-full ${hot ? 'ring-2 ring-royal ring-offset-1' : ''} ${isDragging ? 'opacity-40' : ''}`}
     >
       <Chip person={person} />
     </button>
+  )
+}
+
+/** A typed name being corrected, in place of its chip: Enter or a click away keeps it, Escape leaves it as it was. */
+function NameInput({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
+  return (
+    <input
+      aria-label="Name"
+      autoFocus
+      defaultValue={name}
+      maxLength={60}
+      onFocus={(e) => e.target.select()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onBlur={(e) => onDone(e.target.value.trim() || null)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          e.currentTarget.value = name
+          e.currentTarget.blur()
+        }
+      }}
+      className="h-7 w-[120px] rounded-full border-2 border-royal bg-white px-2.5 text-xs font-semibold text-ink outline-none"
+    />
   )
 }

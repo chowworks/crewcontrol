@@ -94,6 +94,22 @@ export function notPlaced(layout: RoomPlanLayout, people: Person[]): Person[] {
   ]
 }
 
+/** A typed name corrected, where it waits in the side panel or on a bed. A blank name leaves it as it was. */
+export function renameTyped(layout: RoomPlanLayout, from: From, name: string): RoomPlanLayout {
+  const n = name.trim().slice(0, 60)
+  if (!n || from === 'panel') return layout
+  if ('waiting' in from)
+    return { ...layout, waiting: layout.waiting.map((w, i) => (i === from.waiting ? n : w)) }
+  return {
+    ...layout,
+    spots: layout.spots.map((s) =>
+      s.roomId === from.roomId && s.index === from.index && !s.guestId && !s.interestId
+        ? { ...s, name: n }
+        : s
+    ),
+  }
+}
+
 const toSpot = (p: Person, roomId: string, index: number): PlanSpot => ({
   roomId,
   index,
