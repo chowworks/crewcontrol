@@ -394,8 +394,9 @@ export function PlannerBoard({
               + Add a floor or part of the house
             </button>
             <p className="text-sm text-muted">
-              Drag a room by its name to move it, and its corner to resize it. Everything snaps to
-              the dots. Drag a part of the house by its dots to put it below or beside another.
+              Drag a room by its name to move it, even to another part of the house, and its corner
+              to resize it. Everything snaps to the dots. Drag a part of the house by its dots to
+              put it below or beside another, and by its right or bottom edge to resize it.
             </p>
           </div>
         </div>
@@ -781,6 +782,7 @@ function Section({
       <div className="relative">
         <div
           ref={grid.setNodeRef}
+          data-grid={section.id}
           className={`relative rounded-xl ${grid.isOver ? 'ring-2 ring-royal' : ''}`}
           style={{
             width: section.cols * CELL,
@@ -835,7 +837,10 @@ function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
   )
 }
 
-/** Dragging a tile by its name moves it; by its corner, resizes it. Both snap to the dots. */
+/**
+ * Dragging a tile by its name moves it; by its corner, resizes it. Both snap to the dots. A move shows as it goes and
+ * lands on the drop: over another part of the house, the room moves there, where the pointer let go.
+ */
 function useTileDrag(
   tile: PlanTile,
   setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void,
@@ -848,12 +853,16 @@ function useTileDrag(
     dy: number
     tile: PlanTile
     mode: 'move' | 'resize'
+    grid: DOMRect | null
   } | null>(null)
+  const [shift, setShift] = useState<{ dx: number; dy: number } | null>(null)
   const down = (mode: 'move' | 'resize') => (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    start.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, tile, mode }
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+    const grid = el.closest('[data-grid]')?.getBoundingClientRect() ?? null
+    start.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, tile, mode, grid }
   }
   const move = (e: ReactPointerEvent) => {
     const s = start.current
@@ -864,19 +873,41 @@ function useTileDrag(
     if (dx === s.dx && dy === s.dy) return
     s.dx = dx
     s.dy = dy
-    setLayout((l) =>
-      setTile(
-        l,
-        s.mode === 'move'
-          ? { ...s.tile, x: s.tile.x + dx, y: s.tile.y + dy }
-          : { ...s.tile, w: s.tile.w + dx, h: s.tile.h + dy }
-      )
-    )
+    if (s.mode === 'move') setShift({ dx, dy })
+    else setLayout((l) => setTile(l, { ...s.tile, w: s.tile.w + dx, h: s.tile.h + dy }))
   }
-  const up = () => {
+  const up = (e: ReactPointerEvent) => {
+    const s = start.current
     start.current = null
+    if (!s || s.mode !== 'move') return
+    setShift(null)
+    if (s.dx === 0 && s.dy === 0) return
+    const other = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((el) => el.closest<HTMLElement>('[data-grid]'))
+      .find((g) => g && g.dataset.grid !== s.tile.sectionId)
+    if (other?.dataset.grid && s.grid) {
+      const cell = CELL * zoom
+      const r = other.getBoundingClientRect()
+      // Where on the room the pointer held it, so the room lands under the pointer as it was carried.
+      const grabX = (s.x - s.grid.left) / cell - s.tile.x
+      const grabY = (s.y - s.grid.top) / cell - s.tile.y
+      const to = other.dataset.grid
+      setLayout((l) =>
+        setTile(l, {
+          ...s.tile,
+          sectionId: to,
+          x: Math.round((e.clientX - r.left) / cell - grabX),
+          y: Math.round((e.clientY - r.top) / cell - grabY),
+        })
+      )
+    } else setLayout((l) => setTile(l, { ...s.tile, x: s.tile.x + s.dx, y: s.tile.y + s.dy }))
   }
-  return { down, move, up }
+  const cancel = () => {
+    start.current = null
+    setShift(null)
+  }
+  return { down, move, up, cancel, shift }
 }
 
 function Tile({
@@ -899,10 +930,12 @@ function Tile({
   const drag = useTileDrag(tile, setLayout, zoom)
   const [renaming, setRenaming] = useState(false)
   const style = {
-    left: tile.x * CELL + 3,
-    top: tile.y * CELL + 3,
+    left: (tile.x + (drag.shift?.dx ?? 0)) * CELL + 3,
+    top: (tile.y + (drag.shift?.dy ?? 0)) * CELL + 3,
     width: tile.w * CELL - 6,
     height: tile.h * CELL - 6,
+    // Carried over the other parts of the house, the room stays on top.
+    ...(drag.shift ? { zIndex: 30 } : {}),
   }
   const remove = () => setLayout((l) => removeTile(l, tile.id))
   const grip = (
@@ -910,8 +943,8 @@ function Tile({
       onPointerDown={drag.down('resize')}
       onPointerMove={drag.move}
       onPointerUp={drag.up}
-      onPointerCancel={drag.up}
-      onLostPointerCapture={drag.up}
+      onPointerCancel={drag.cancel}
+      onLostPointerCapture={drag.cancel}
       aria-hidden="true"
       className="absolute bottom-1 right-1 h-3 w-3 cursor-nwse-resize rounded-br border-b-[3px] border-r-[3px] border-royal"
     />
@@ -928,8 +961,8 @@ function Tile({
           onPointerDown={drag.down('move')}
           onPointerMove={drag.move}
           onPointerUp={drag.up}
-          onPointerCancel={drag.up}
-          onLostPointerCapture={drag.up}
+          onPointerCancel={drag.cancel}
+          onLostPointerCapture={drag.cancel}
           className="absolute inset-0 cursor-move rounded-xl"
           aria-hidden="true"
         />
@@ -988,9 +1021,9 @@ function Tile({
         onPointerDown={drag.down('move')}
         onPointerMove={drag.move}
         onPointerUp={drag.up}
-        onPointerCancel={drag.up}
-        onLostPointerCapture={drag.up}
-        className="-mx-3 -mt-2.5 cursor-move px-3 pt-2.5"
+        onPointerCancel={drag.cancel}
+        onLostPointerCapture={drag.cancel}
+        className="-mx-3 -mt-2.5 cursor-move select-none px-3 pt-2.5"
       >
         <div className="flex items-start justify-between gap-2">
           <strong className="truncate font-display text-[15px]">{room.name}</strong>
