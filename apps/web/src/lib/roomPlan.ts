@@ -201,6 +201,33 @@ export function setTile(layout: RoomPlanLayout, tile: PlanTile): RoomPlanLayout 
   }
 }
 
+/**
+ * A part of the house made bigger or smaller by dragging its right or bottom edge, in dots. It never cuts into a room
+ * or landmark on it, and stays within what the server takes.
+ */
+export function resizeSection(
+  layout: RoomPlanLayout,
+  id: string,
+  cols: number,
+  rows: number
+): RoomPlanLayout {
+  const on = layout.tiles.filter((t) => t.sectionId === id)
+  const minCols = Math.max(4, ...on.map((t) => t.x + t.w))
+  const minRows = Math.max(4, ...on.map((t) => t.y + t.h))
+  return {
+    ...layout,
+    sections: layout.sections.map((s) =>
+      s.id === id
+        ? {
+            ...s,
+            cols: Math.max(minCols, Math.min(cols, PLAN_MAX_COLS)),
+            rows: Math.max(minRows, Math.min(rows, PLAN_MAX_ROWS)),
+          }
+        : s
+    ),
+  }
+}
+
 /** A part of the house moved below or beside another, by its handle. */
 export function moveSection(
   layout: RoomPlanLayout,

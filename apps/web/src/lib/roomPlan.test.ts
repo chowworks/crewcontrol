@@ -6,6 +6,7 @@ import {
   place,
   removeSection,
   removeTile,
+  resizeSection,
   sectionRows,
   setTile,
   unplace,
@@ -116,6 +117,13 @@ describe('tiles and parts of the house', () => {
         r.map((s) => s.id)
       )
     ).toEqual([['main', 'up'], ['loft']])
+  })
+
+  it('shrinks a part of the house by its edge, but never into a room on it', () => {
+    const out = resizeSection(base, 'main', 5, 3)
+    expect(out.sections[0]).toMatchObject({ cols: 12, rows: 12 })
+    const empty = resizeSection({ ...base, tiles: [] }, 'main', 1, 200)
+    expect(empty.sections[0]).toMatchObject({ cols: 4, rows: 80 })
   })
 
   it('never grows a part past the tallest plan the server takes', () => {

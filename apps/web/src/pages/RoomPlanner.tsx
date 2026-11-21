@@ -53,6 +53,7 @@ import {
   removeSection,
   removeTile,
   removeTyped,
+  resizeSection,
   sectionRows,
   setTile,
   spotPerson,
@@ -660,6 +661,53 @@ function Section({
     data: { type: 'section', sectionId: section.id } satisfies DragData,
   })
   const tiles = layout.tiles.filter((t) => t.sectionId === section.id)
+  // Dragging the right or bottom edge makes the part of the house wider or narrower, taller or shorter, by whole dots.
+  const edge = useRef<{ x: number; y: number; cols: number; rows: number; d: number } | null>(null)
+  const edgeDown = (e: ReactPointerEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    edge.current = { x: e.clientX, y: e.clientY, cols: section.cols, rows: section.rows, d: 0 }
+  }
+  const edgeMove = (axis: 'x' | 'y') => (e: ReactPointerEvent) => {
+    const s = edge.current
+    if (!s) return
+    const d = Math.round((axis === 'x' ? e.clientX - s.x : e.clientY - s.y) / (CELL * zoom))
+    if (d === s.d) return
+    s.d = d
+    setLayout((l) =>
+      resizeSection(
+        l,
+        section.id,
+        axis === 'x' ? s.cols + d : s.cols,
+        axis === 'y' ? s.rows + d : s.rows
+      )
+    )
+  }
+  const edgeUp = () => {
+    edge.current = null
+  }
+  const edgeHandle = (axis: 'x' | 'y') => (
+    <div
+      role="separator"
+      aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
+      aria-label={`Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`}
+      onPointerDown={edgeDown}
+      onPointerMove={edgeMove(axis)}
+      onPointerUp={edgeUp}
+      onPointerCancel={edgeUp}
+      onLostPointerCapture={edgeUp}
+      className={`group absolute z-10 flex touch-none items-center justify-center ${
+        axis === 'x'
+          ? '-right-2 top-0 h-full w-4 cursor-ew-resize'
+          : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
+      }`}
+    >
+      <span
+        className={`rounded-full bg-line group-hover:bg-royal ${axis === 'x' ? 'h-10 w-1' : 'h-1 w-10'}`}
+      />
+    </div>
+  )
 
   function rename() {
     const n = name.trim().slice(0, 60)
@@ -755,6 +803,8 @@ function Section({
               zoom={zoom}
             />
           ))}
+          {edgeHandle('x')}
+          {edgeHandle('y')}
         </div>
         {draggingSection && draggingSection !== section.id && (
           <>
