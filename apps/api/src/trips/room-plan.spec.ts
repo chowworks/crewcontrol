@@ -55,7 +55,20 @@ describe('parseRoomPlanLayout', () => {
     expect(parseRoomPlanLayout({ ...layout, tiles: [suite, turned] }).tiles[1]).toEqual(turned)
   })
 
+  it('keeps a part of the house lowered, and drops a lowering of 0', () => {
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, down: 6 }] }).sections[0]
+    ).toEqual({
+      ...main,
+      down: 6,
+    })
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, down: 0 }] }).sections[0]
+    ).toEqual(main)
+  })
+
   it.each([
+    [{ ...layout, sections: [{ ...main, down: 1.5 }] }, 'down must be a whole number from 1 to 80'],
     [{ ...layout, sections: [] }, 'A plan has at least one part of the house'],
     [
       { ...layout, sections: [{ ...main, beside: true }] },

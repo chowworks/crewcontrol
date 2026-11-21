@@ -259,6 +259,19 @@ export function resizeSection(
   }
 }
 
+/** Space above a part of the house, in dots: dragging its top edge down lowers it beside the part next to it. */
+export function lowerSection(layout: RoomPlanLayout, id: string, down: number): RoomPlanLayout {
+  const d = Math.max(0, Math.min(Math.round(down), PLAN_MAX_ROWS))
+  return {
+    ...layout,
+    sections: layout.sections.map((s) => {
+      if (s.id !== id) return s
+      const { down: _, ...rest } = s
+      return d ? { ...rest, down: d } : rest
+    }),
+  }
+}
+
 /**
  * A part of the house moved below or beside another, by its handle. The parts sit in columns (see `sectionColumns`):
  * below puts it right under the target in the target's column; beside starts a new column just right of the

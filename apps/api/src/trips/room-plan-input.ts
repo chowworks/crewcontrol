@@ -25,13 +25,16 @@ const optionalId = (body: Body, key: string): string | null =>
   body[key] === null || body[key] === undefined ? null : id(body, key)
 
 function section(item: Body): PlanSection {
-  return {
+  const part: PlanSection = {
     id: id(item, 'id'),
     name: text(item, 'name', PLAN_NAME_MAX),
     beside: bool(item, 'beside'),
     cols: int(item, 'cols', 4, PLAN_MAX_COLS),
     rows: int(item, 'rows', 4, PLAN_MAX_ROWS),
   }
+  if (item.down !== undefined && item.down !== null && item.down !== 0)
+    part.down = int(item, 'down', 1, PLAN_MAX_ROWS)
+  return part
 }
 
 function tile(item: Body, sections: PlanSection[]): PlanTile {

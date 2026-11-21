@@ -60,6 +60,7 @@ import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomAr
 import { money } from '@/lib/format'
 import {
   addTyped,
+  lowerSection,
   moveSection,
   notPlaced,
   place,
@@ -433,7 +434,7 @@ export function PlannerBoard({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max items-stretch gap-5">
+              <div style={{ zoom }} className="flex w-max items-stretch gap-5 pt-3">
                 {sectionColumns(layout.sections).map((column, c) => (
                   <div key={column[0].id} className="flex items-stretch gap-5">
                     {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
@@ -743,19 +744,39 @@ function Section({
   })
   const tiles = layout.tiles.filter((t) => t.sectionId === section.id)
   // Dragging the right or bottom edge makes the part of the house wider or narrower, taller or shorter, by whole dots.
-  const edge = useRef<{ x: number; y: number; cols: number; rows: number; d: number } | null>(null)
+  // Dragging its top edge lowers or raises the whole part, so a wing can sit level with the middle of its neighbour.
+  const edge = useRef<{
+    x: number
+    y: number
+    cols: number
+    rows: number
+    down: number
+    d: number
+  } | null>(null)
   const edgeDown = (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    edge.current = { x: e.clientX, y: e.clientY, cols: section.cols, rows: section.rows, d: 0 }
+    edge.current = {
+      x: e.clientX,
+      y: e.clientY,
+      cols: section.cols,
+      rows: section.rows,
+      down: section.down ?? 0,
+      d: 0,
+    }
   }
-  const edgeMove = (axis: 'x' | 'y') => (e: ReactPointerEvent) => {
+  const edgeMove = (axis: 'x' | 'y' | 'top') => (e: ReactPointerEvent) => {
     const s = edge.current
     if (!s) return
     const d = Math.round((axis === 'x' ? e.clientX - s.x : e.clientY - s.y) / (CELL * zoom))
     if (d === s.d) return
     s.d = d
+    if (axis === 'top') {
+      // Moving the part, not the pointer's offset: once the edge moves, the pointer's start moves with it.
+      setLayout((l) => lowerSection(l, section.id, s.down + d))
+      return
+    }
     setLayout((l) =>
       resizeSection(
         l,
@@ -768,11 +789,16 @@ function Section({
   const edgeUp = () => {
     edge.current = null
   }
-  const edgeHandle = (axis: 'x' | 'y') => (
+  const edgeHandle = (axis: 'x' | 'y' | 'top') => (
     <div
       role="separator"
       aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
-      aria-label={`Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`}
+      aria-label={
+        axis === 'top'
+          ? `Drag to move ${section.name} up or down`
+          : `Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`
+      }
+      title={axis === 'top' ? 'Drag to move this part up or down' : undefined}
       onPointerDown={edgeDown}
       onPointerMove={edgeMove(axis)}
       onPointerUp={edgeUp}
@@ -781,7 +807,9 @@ function Section({
       className={`group absolute z-10 flex touch-none items-center justify-center ${
         axis === 'x'
           ? '-right-2 top-0 h-full w-4 cursor-ew-resize'
-          : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
+          : axis === 'top'
+            ? '-top-3.5 left-0 h-3 w-full cursor-row-resize'
+            : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
       }`}
     >
       <span
@@ -802,7 +830,11 @@ function Section({
   }
 
   return (
-    <div className="flex flex-col gap-2.5" style={{ width: section.cols * CELL }}>
+    <div
+      className="relative flex flex-col gap-2.5"
+      style={{ width: section.cols * CELL, marginTop: (section.down ?? 0) * CELL }}
+    >
+      {edgeHandle('top')}
       <div className="flex items-center gap-2">
         <button
           ref={handle.setNodeRef}

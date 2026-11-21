@@ -2022,6 +2022,8 @@ export interface PlanSection {
   /** Its size in dots. */
   cols: number
   rows: number
+  /** Space above it in dots, so a wing can sit level with the middle of the part beside it (absent: none). */
+  down?: number
 }
 
 /** A room (one of the trip's rooms) or a landmark on a part of the house, in dots from its top left. */
