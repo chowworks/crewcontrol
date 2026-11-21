@@ -5,6 +5,7 @@ import {
   PLAN_MAX_SECTIONS,
   PLAN_MAX_TILES,
   PLAN_NAME_MAX,
+  ROOM_MAX_PLACES,
   type ApplyRoomPlanInput,
   type LandmarkKind,
   type PlanSection,
@@ -53,6 +54,21 @@ function tile(item: Body, sections: PlanSection[]): PlanTile {
   // Kept inside its part of the house: the part grows when a tile is dragged past its edge.
   const x = int(item, 'x', 0, where.cols - w)
   const y = int(item, 'y', 0, where.rows - h)
+  // A room's places, when the organizer added some on the plan.
+  if (item.places !== undefined && item.places !== null) {
+    if (!roomId) fail('Only a room has places')
+    return {
+      id: id(item, 'id'),
+      sectionId,
+      roomId,
+      landmark,
+      x,
+      y,
+      w,
+      h,
+      places: int(item, 'places', 1, ROOM_MAX_PLACES),
+    }
+  }
   return { id: id(item, 'id'), sectionId, roomId, landmark, x, y, w, h }
 }
 

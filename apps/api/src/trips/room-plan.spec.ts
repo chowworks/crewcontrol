@@ -28,11 +28,12 @@ const kendra = { roomId: 'r1', index: 0, name: 'Kendra W.', guestId: 'g1', inter
 const layout = { sections: [main], tiles: [suite, bath], spots: [kendra], waiting: ['Kendra’s +1'] }
 
 describe('roomSpots', () => {
-  it('gives each bed its places, a bunk top first, and never more than the room sleeps', () => {
+  it('gives every bed its places, a bunk top first, even past what the room sleeps', () => {
     expect(roomSpots({ bedTypes: ['king', 'bunk'], capacity: 3 })).toEqual([
       { index: 0, bed: 0, slot: 0 },
       { index: 1, bed: 0, slot: 1 },
       { index: 2, bed: 1, slot: 0 },
+      { index: 3, bed: 1, slot: 1 },
     ])
   })
 
@@ -61,6 +62,11 @@ describe('parseRoomPlanLayout', () => {
       'A tile is on a part of the house that isn’t there',
     ],
     [{ ...layout, tiles: [{ ...bath, roomId: 'r1' }] }, 'A tile is either a room or a landmark'],
+    [{ ...layout, tiles: [suite, { ...bath, places: 3 }] }, 'Only a room has places'],
+    [
+      { ...layout, tiles: [{ ...suite, places: 21 }, bath] },
+      'places must be a whole number from 1 to 20',
+    ],
     [{ ...layout, tiles: [suite, { ...suite, id: 't3' }] }, 'A room is on the plan twice'],
     [{ ...layout, spots: [kendra, { ...kendra, index: 1 }] }, 'Someone is on the plan twice'],
     [
@@ -104,6 +110,18 @@ describe('starter', () => {
       { roomId: 'r1', index: 0, name: 'Kendra W.', guestId: 'g1', interestId: null },
       { roomId: 'r2', index: 0, name: 'Jordan P.', guestId: 'g2', interestId: null },
     ])
+  })
+})
+
+describe('starter, shared rooms', () => {
+  it('gives each guest their own bed before anyone shares', () => {
+    const twoQueens = [{ id: 'r1', name: 'Twin queens', capacity: 2, bedTypes: ['queen', 'queen'] }]
+    const pair = new Map([
+      ['g1', { id: 'g1', firstName: 'Kendra', lastName: 'Wells', roomId: 'r1' }],
+      ['g2', { id: 'g2', firstName: 'Jordan', lastName: 'Price', roomId: 'r1' }],
+    ])
+    const plan = starter({ rooms: twoQueens, guests: pair, interest: new Set() })
+    expect(plan.spots.map((s) => s.index)).toEqual([0, 2])
   })
 })
 
@@ -154,6 +172,15 @@ describe('clean', () => {
     expect(out.spots).toEqual([
       { roomId: 'r1', index: 0, name: 'Avery L.', guestId: 'g3', interestId: null },
     ])
+  })
+
+  it('keeps a person on a place the organizer added to the room', () => {
+    const extra = { ...kendra, index: 2, guestId: null, name: 'Cousin Mo' }
+    const out = clean(
+      { ...layout, tiles: [{ ...suite, places: 3 }, bath], spots: [kendra, extra] },
+      { rooms, guests, interest: new Set() }
+    )
+    expect(out.spots).toEqual([kendra, extra])
   })
 
   it('gives back a place the room no longer has', () => {

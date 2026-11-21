@@ -15,6 +15,7 @@ import {
   PAID_FEATURES,
   PLAN_MAX_ROWS,
   roomPrice,
+  planPlaces,
   roomSpots,
   type BedType,
   type ApplyRoomPlanInput,
@@ -97,7 +98,13 @@ export class RoomPlanService {
     for (const s of layout.spots) {
       const room = rooms.get(s.roomId)
       if (!room) throw new BadRequestException('That room is not on this trip')
-      if (s.index >= spotsOf(room).length)
+      if (
+        s.index >=
+        spotsOf(
+          room,
+          layout.tiles.find((t) => t.roomId === room.id)
+        ).length
+      )
         throw new BadRequestException(`${room.name} doesn’t have that many places`)
       if (s.guestId && !facts.guests.has(s.guestId))
         throw new BadRequestException('Someone on the plan isn’t a guest on this trip')
@@ -141,17 +148,58 @@ export class RoomPlanService {
         'The draft changed since you opened Apply rooms. Open it again to see the moves.'
       )
     const moves = await this.movesOf(tripId, draft.layout, caller)
-    if (!moves.length) return { moved: 0, emailed: 0, needsLook: [] }
-    const { emailed, unsettled } = await this.trips.moveGuests(
-      tripId,
-      moves.map((m) => ({ guestId: m.guestId, roomId: m.toRoomId })),
-      email,
-      caller
-    )
-    await recordChange(this.prisma, tripId, caller, {
-      what: 'rooms_applied',
-      moved: moves.map((m) => m.name),
+    // A room the organizer gave more places, or put more people in, sleeps that many from now on. It grows before the
+    // moves, so the guests moving into it fit.
+    const rooms = await this.prisma.room.findMany({
+      where: { tripId },
+      select: { id: true, name: true, capacity: true },
     })
+    const grown = rooms.flatMap((r) => {
+      const places = Math.max(
+        planPlaces(
+          r,
+          draft.layout.tiles.find((t) => t.roomId === r.id)
+        ),
+        draft.layout.spots.filter((s) => s.roomId === r.id).length
+      )
+      return places > r.capacity ? [{ id: r.id, room: r.name, from: r.capacity, to: places }] : []
+    })
+    for (const g of grown)
+      await this.prisma.room.update({ where: { id: g.id }, data: { capacity: g.to } })
+    // The places are the room's own now: dropping them from the draft keeps a later change in the editor from being
+    // undone by the next Apply.
+    if (draft.layout.tiles.some((t) => t.places !== undefined))
+      await this.prisma.roomPlan.update({
+        where: { tripId },
+        data: {
+          layout: {
+            ...draft.layout,
+            tiles: draft.layout.tiles.map((t) => {
+              const tile = { ...t }
+              delete tile.places
+              return tile
+            }),
+          } as unknown as Prisma.InputJsonValue,
+        },
+      })
+    const result = { moved: 0, emailed: 0, unsettled: [] as string[] }
+    if (moves.length)
+      Object.assign(
+        result,
+        await this.trips.moveGuests(
+          tripId,
+          moves.map((m) => ({ guestId: m.guestId, roomId: m.toRoomId })),
+          email,
+          caller
+        )
+      )
+    if (moves.length || grown.length)
+      await recordChange(this.prisma, tripId, caller, {
+        what: 'rooms_applied',
+        moved: moves.map((m) => m.name),
+        ...(grown.length ? { grown: grown.map(({ room, from, to }) => ({ room, from, to })) } : {}),
+      })
+    const { emailed, unsettled } = result
     return {
       moved: moves.length,
       emailed,
@@ -259,8 +307,9 @@ interface Facts {
   signedUp?: Map<string, string>
 }
 
-const spotsOf = (room: RoomRow) =>
-  roomSpots({ bedTypes: room.bedTypes as BedType[], capacity: room.capacity })
+/** A room's places on the plan: what it sleeps, or more when the organizer added places on its tile. */
+const spotsOf = (room: RoomRow, tile?: PlanTile) =>
+  roomSpots({ bedTypes: room.bedTypes as BedType[], capacity: planPlaces(room, tile) })
 
 /**
  * A first draft: one part of the house with every room on it in rows, and each guest who already has a room on a place
@@ -295,11 +344,14 @@ export function starter(facts: Facts): RoomPlanLayout {
   for (const g of facts.guests.values()) {
     const room = facts.rooms.find((r) => r.id === g.roomId)
     if (!room || !tiles.some((t) => t.roomId === room.id)) continue
-    const taken = spots.filter((s) => s.roomId === room.id).length
-    if (taken >= spotsOf(room).length) continue
+    // One guest on each bed before anyone shares, so two guests in a room with two queens get a queen each.
+    const free = spotsOf(room)
+      .filter((p) => !spots.some((s) => s.roomId === room.id && s.index === p.index))
+      .sort((a, b) => a.slot - b.slot || a.index - b.index)[0]
+    if (!free) continue
     spots.push({
       roomId: room.id,
-      index: taken,
+      index: free.index,
       name: shortName(g.firstName, g.lastName),
       guestId: g.id,
       interestId: null,
@@ -344,7 +396,8 @@ export function clean(layout: RoomPlanLayout, facts: Facts): RoomPlanLayout {
       guestId: became ?? (s.guestId && facts.guests.has(s.guestId) ? s.guestId : null),
       interestId: !became && s.interestId && facts.interest.has(s.interestId) ? s.interestId : null,
     }
-    if (room && s.index < spotsOf(room).length) spots.push(linked)
+    const tile = (layout.tiles ?? []).find((t) => t.roomId === s.roomId)
+    if (room && s.index < spotsOf(room, tile).length) spots.push(linked)
     else if (!linked.guestId && !linked.interestId) waiting.push(s.name)
   }
   return {

@@ -1,14 +1,14 @@
 import {
   BED_LABELS,
   BED_TYPES,
-  roomSpots,
+  planPlaces,
   type InterestedPerson,
   type OrganizerTrip,
   type RoomPlanLayout,
   type RoomPlanMove,
   type TripRoom,
 } from '@cc/types'
-import { ArrowLeft, Lock } from 'lucide-react'
+import { ArrowLeft, CloudAlert, CloudCheck, CloudUpload, LoaderCircle, Lock } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -54,6 +54,7 @@ export function RoomPlannerPage() {
   const [locked, setLocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveFailed, setSaveFailed] = useState(false)
   const [busy, setBusy] = useState(false)
   // The moves Apply shows, and when the draft they come from was saved (Apply refuses if it changed since).
   const [moves, setMoves] = useState<{ list: RoomPlanMove[]; draftAt: string } | null>(null)
@@ -119,6 +120,7 @@ export function RoomPlannerPage() {
     const sent = revision.current
     setBusy(true)
     setSaveError(null)
+    setSaveFailed(false)
     try {
       const plan = await api.saveRoomPlan(id, layout)
       setUpdatedAt(plan.updatedAt)
@@ -130,6 +132,7 @@ export function RoomPlannerPage() {
       return plan.updatedAt
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'The draft did not save.')
+      setSaveFailed(true)
       return null
     } finally {
       setBusy(false)
@@ -154,8 +157,13 @@ export function RoomPlannerPage() {
     if (!moves) return null
     try {
       const done = await api.applyRoomPlan(id, email, moves.draftAt)
-      const [t, plan] = await Promise.all([api.getTrip(id), api.getRoomPlan(id)])
+      const [t, plan, r] = await Promise.all([
+        api.getTrip(id),
+        api.getRoomPlan(id),
+        api.getRooms(id),
+      ])
       setTrip(t)
+      setRooms(r)
       revision.current++
       setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
@@ -164,9 +172,11 @@ export function RoomPlannerPage() {
       window.dispatchEvent(new Event('cc:actions-changed'))
       const who = done.moved === 1 ? '1 guest' : `${done.moved} guests`
       toast({
-        text: done.emailed
-          ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
-          : `Rooms applied: ${who} moved.`,
+        text: !done.moved
+          ? 'Rooms applied.'
+          : done.emailed
+            ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
+            : `Rooms applied: ${who} moved.`,
       })
       if (done.needsLook.length)
         setSaveError(
@@ -220,6 +230,17 @@ export function RoomPlannerPage() {
     )
 
   const plannerOnly = layout.spots.map((s) => spotPerson(s, people)).filter((p) => !p.guestId)
+  // Rooms given more places on the plan, or more people than they sleep: applying makes them sleep that many.
+  const grown = rooms.flatMap((r) => {
+    const places = Math.max(
+      planPlaces(
+        r,
+        layout.tiles.find((t) => t.roomId === r.id)
+      ),
+      layout.spots.filter((s) => s.roomId === r.id).length
+    )
+    return places > r.capacity ? [{ name: r.name, from: r.capacity, to: places }] : []
+  })
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -228,6 +249,7 @@ export function RoomPlannerPage() {
         <Logo />
         <div className="flex items-center gap-3">
           <span className={`${admin ? 'hidden' : 'hidden lg:flex'} items-center gap-3`}>
+            <SaveState busy={busy} dirty={dirty} failed={saveFailed} updatedAt={updatedAt} />
             <button type="button" disabled={busy} onClick={saveDraft} className={outlined}>
               Save draft
             </button>
@@ -254,11 +276,7 @@ export function RoomPlannerPage() {
             </p>
           )}
           <p className={`text-body text-muted ${admin ? 'hidden' : ''}`}>
-            {dirty
-              ? 'You have changes that aren’t saved yet. '
-              : updatedAt
-                ? `Draft saved ${savedAt(updatedAt)}. `
-                : 'This draft starts from the rooms guests have now. '}
+            {!updatedAt && 'This draft starts from the rooms guests have now. '}
             Nothing changes for guests until you apply rooms.
           </p>
         </div>
@@ -282,6 +300,7 @@ export function RoomPlannerPage() {
       {moves && (
         <ApplyRoomsDialog
           moves={moves.list}
+          grown={grown}
           plannerOnly={plannerOnly}
           onApply={apply}
           onClose={() => setMoves(null)}
@@ -364,7 +383,11 @@ function PhonePlan({
             <h2 className="font-display text-lg font-bold">
               {room.name}{' '}
               <span className="text-sm font-normal text-muted">
-                {spots.length} of {roomSpots(room).length}
+                {spots.length} of{' '}
+                {planPlaces(
+                  room,
+                  layout.tiles.find((t) => t.roomId === room.id)
+                )}
               </span>
             </h2>
             <RoomArt beds={room.bedTypes} className="h-12 w-auto max-w-full self-start" />
@@ -537,5 +560,39 @@ export function PlannerEntry({ tripId }: { tripId: string }) {
         Open the room planner
       </Link>
     </Card>
+  )
+}
+
+/** Where the draft stands, beside Save draft: saved and when, changes waiting, saving, or not saved. */
+function SaveState({
+  busy,
+  dirty,
+  failed,
+  updatedAt,
+}: {
+  busy: boolean
+  dirty: boolean
+  failed: boolean
+  updatedAt: string | null
+}) {
+  const state: [typeof CloudCheck, string, string] | null = busy
+    ? [LoaderCircle, 'Saving…', 'text-muted']
+    : failed && dirty
+      ? [CloudAlert, 'Not saved', 'text-[#B42318]']
+      : dirty
+        ? [CloudUpload, 'Unsaved changes', 'text-ink']
+        : updatedAt
+          ? [CloudCheck, `Saved ${savedAt(updatedAt)}`, 'text-royal']
+          : null
+  if (!state) return null
+  const [Icon, text, tone] = state
+  return (
+    <span role="status" className={`flex items-center gap-1.5 text-sm font-semibold ${tone}`}>
+      <Icon className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+      {text}
+      {dirty && !busy && !failed && (
+        <span className="h-2 w-2 rounded-full bg-marigold" aria-hidden="true" />
+      )}
+    </span>
   )
 }

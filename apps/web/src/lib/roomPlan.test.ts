@@ -1,4 +1,4 @@
-import type { RoomPlanLayout } from '@cc/types'
+import type { BedType, RoomPlanLayout } from '@cc/types'
 import { describe, expect, it } from 'vitest'
 import {
   moveSection,
@@ -6,7 +6,9 @@ import {
   place,
   removeSection,
   removeTile,
-  sectionRows,
+  resizeSection,
+  setPlaces,
+  sectionColumns,
   setTile,
   unplace,
   type Person,
@@ -84,6 +86,44 @@ describe('the side panel', () => {
   })
 })
 
+describe('places added to a room', () => {
+  const room = { id: 'r1', capacity: 2, bedTypes: [] }
+
+  it('adds a place past what the room sleeps, and takes back only an empty last one', () => {
+    const three = setPlaces(base, room, 3)
+    expect(three.tiles[0].places).toBe(3)
+    const used = {
+      ...three,
+      spots: [...three.spots, { ...three.spots[0], index: 2, guestId: 'g2' }],
+    }
+    expect(setPlaces(used, room, 2)).toBe(used)
+    expect(setPlaces(three, room, 2).tiles[0]).toEqual(tile)
+  })
+
+  it('never goes under what the room sleeps or past 20', () => {
+    expect(setPlaces(base, room, 1).tiles[0]).toEqual(tile)
+    expect(setPlaces(base, room, 30).tiles[0].places).toBe(20)
+  })
+
+  it('takes back an added place only when nobody would be left without one', () => {
+    const daybeds = { id: 'r1', capacity: 2, bedTypes: ['queen', 'daybed', 'daybed'] as BedType[] }
+    const spot = (index: number, guestId: string) => ({
+      roomId: 'r1',
+      index,
+      name: guestId,
+      guestId,
+      interestId: null,
+    })
+    const three = setPlaces(
+      { ...base, spots: [spot(0, 'a'), spot(1, 'b'), spot(3, 'c')] },
+      daybeds,
+      3
+    )
+    expect(three.tiles[0].places).toBe(3)
+    expect(setPlaces(three, daybeds, 2)).toBe(three)
+  })
+})
+
 describe('tiles and parts of the house', () => {
   it('keeps a tile inside the plan and grows its part of the house', () => {
     const out = setTile(base, { ...tile, x: -3, y: 30 })
@@ -91,31 +131,32 @@ describe('tiles and parts of the house', () => {
     expect(out.sections[0].rows).toBe(43)
   })
 
-  it('puts a part of the house beside another, and the next one starts the row when it moves', () => {
+  const cols = (l: RoomPlanLayout) => sectionColumns(l.sections).map((c) => c.map((s) => s.id))
+
+  it('puts a part of the house beside another, and the one under it leads its column when it moves', () => {
     const up = { id: 'up', name: 'Upstairs', beside: false, cols: 20, rows: 10 }
     const loft = { id: 'loft', name: 'Loft', beside: true, cols: 20, rows: 10 }
     const layout = { ...base, sections: [main, up, loft] }
-    expect(
-      sectionRows(moveSection(layout, 'up', 'main', 'beside').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main', 'up'], ['loft']])
-    expect(
-      sectionRows(moveSection(layout, 'up', 'loft', 'below').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main'], ['loft'], ['up']])
+    expect(cols(layout)).toEqual([['main', 'up'], ['loft']])
+    expect(cols(moveSection(layout, 'up', 'loft', 'below'))).toEqual([['main'], ['loft', 'up']])
+    expect(cols(moveSection(layout, 'main', 'loft', 'below'))).toEqual([['up'], ['loft', 'main']])
   })
 
-  it('puts a part below a whole row, keeping the parts beside the target together', () => {
-    const up = { id: 'up', name: 'Upstairs', beside: true, cols: 20, rows: 10 }
-    const loft = { id: 'loft', name: 'Loft', beside: false, cols: 20, rows: 10 }
-    const layout = { ...base, sections: [main, up, loft] }
-    expect(
-      sectionRows(moveSection(layout, 'loft', 'main', 'below').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main', 'up'], ['loft']])
+  it('lays out one part on the left and two stacked on the right', () => {
+    const east = { ...main, id: 'east' }
+    const floor2 = { id: 'f2', name: '2nd floor', beside: false, cols: 20, rows: 10 }
+    const ground = { id: 'g', name: 'Main floor', beside: true, cols: 20, rows: 10 }
+    const layout = { ...base, sections: [east, ground, floor2] }
+    const step = moveSection(layout, 'f2', 'east', 'beside')
+    expect(cols(step)).toEqual([['east'], ['f2'], ['g']])
+    expect(cols(moveSection(step, 'g', 'f2', 'below'))).toEqual([['east'], ['f2', 'g']])
+  })
+
+  it('shrinks a part of the house by its edge, but never into a room on it', () => {
+    const out = resizeSection(base, 'main', 5, 3)
+    expect(out.sections[0]).toMatchObject({ cols: 12, rows: 12 })
+    const empty = resizeSection({ ...base, tiles: [] }, 'main', 1, 200)
+    expect(empty.sections[0]).toMatchObject({ cols: 4, rows: 80 })
   })
 
   it('never grows a part past the tallest plan the server takes', () => {

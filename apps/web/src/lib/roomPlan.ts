@@ -1,8 +1,13 @@
 import {
   PLAN_MAX_COLS,
   PLAN_MAX_ROWS,
+  ROOM_MAX_PLACES,
+  planPlaces,
+  roomSpots,
+  type BedType,
   type Guest,
   type InterestedPerson,
+  type PlanSection,
   type PlanSpot,
   type PlanTile,
   type RoomPlanLayout,
@@ -201,7 +206,64 @@ export function setTile(layout: RoomPlanLayout, tile: PlanTile): RoomPlanLayout 
   }
 }
 
-/** A part of the house moved below or beside another, by its handle. */
+/**
+ * A room given more places on the plan than it sleeps, or one taken back (only an empty last place goes). Applying the
+ * plan makes the room sleep that many.
+ */
+export function setPlaces(
+  layout: RoomPlanLayout,
+  room: { id?: string; capacity: number; bedTypes: BedType[] },
+  places: number
+): RoomPlanLayout {
+  const tile = layout.tiles.find((t) => t.roomId === room.id)
+  if (!tile) return layout
+  const now = planPlaces(room, tile)
+  const n = Math.max(room.capacity, Math.min(places, ROOM_MAX_PLACES))
+  const inRoom = layout.spots.filter((s) => s.roomId === room.id)
+  const last = roomSpots({ ...room, capacity: n }).length
+  if (n < now && (inRoom.length > n || inRoom.some((s) => s.index >= last))) return layout
+  return {
+    ...layout,
+    tiles: layout.tiles.map((t) => {
+      if (t.id !== tile.id) return t
+      const { places: _, ...rest } = t
+      return n > room.capacity ? { ...rest, places: n } : rest
+    }),
+  }
+}
+
+/**
+ * A part of the house made bigger or smaller by dragging its right or bottom edge, in dots. It never cuts into a room
+ * or landmark on it, and stays within what the server takes.
+ */
+export function resizeSection(
+  layout: RoomPlanLayout,
+  id: string,
+  cols: number,
+  rows: number
+): RoomPlanLayout {
+  const on = layout.tiles.filter((t) => t.sectionId === id)
+  const minCols = Math.max(4, ...on.map((t) => t.x + t.w))
+  const minRows = Math.max(4, ...on.map((t) => t.y + t.h))
+  return {
+    ...layout,
+    sections: layout.sections.map((s) =>
+      s.id === id
+        ? {
+            ...s,
+            cols: Math.max(minCols, Math.min(cols, PLAN_MAX_COLS)),
+            rows: Math.max(minRows, Math.min(rows, PLAN_MAX_ROWS)),
+          }
+        : s
+    ),
+  }
+}
+
+/**
+ * A part of the house moved below or beside another, by its handle. The parts sit in columns (see `sectionColumns`):
+ * below puts it right under the target in the target's column; beside starts a new column just right of the
+ * target's.
+ */
 export function moveSection(
   layout: RoomPlanLayout,
   id: string,
@@ -211,53 +273,49 @@ export function moveSection(
   if (id === targetId) return layout
   const moving = layout.sections.find((s) => s.id === id)
   if (!moving) return layout
-  const rest = layout.sections.filter((s) => s.id !== id)
+  const rest = lift(layout.sections, id)
   let i = rest.findIndex((s) => s.id === targetId)
   if (i < 0) return layout
-  // Below a part goes under its whole row, past the parts beside it, so that row stays together.
-  if (where === 'below') while (rest[i + 1]?.beside) i++
-  // Moving a row's first part: the one beside it starts the row now.
-  const sections = [
-    ...rest.slice(0, i + 1),
-    { ...moving, beside: where === 'beside' },
-    ...rest.slice(i + 1),
-  ].map((s, j) => (j === 0 ? { ...s, beside: false } : s))
-  const at = layout.sections.findIndex((s) => s.id === id)
-  const after = layout.sections[at + 1]
+  // Beside goes after the target's whole column, so that column stays together.
+  if (where === 'beside') while (rest[i + 1] && !rest[i + 1].beside) i++
   return {
     ...layout,
-    sections:
-      !moving.beside && after?.beside
-        ? sections.map((s) => (s.id === after.id ? { ...s, beside: false } : s))
-        : sections,
+    sections: [
+      ...rest.slice(0, i + 1),
+      { ...moving, beside: where === 'beside' },
+      ...rest.slice(i + 1),
+    ].map((s, j) => (j === 0 ? { ...s, beside: false } : s)),
   }
+}
+
+/** The parts without one of them: when it led a column, the part under it leads that column now. */
+function lift(sections: PlanSection[], id: string): PlanSection[] {
+  const i = sections.findIndex((s) => s.id === id)
+  if (i < 0) return sections
+  const gone = sections[i]
+  const under = sections[i + 1]
+  const head = i === 0 || gone.beside
+  return sections
+    .filter((s) => s.id !== id)
+    .map((s) =>
+      head && under && s.id === under.id && !under.beside ? { ...s, beside: gone.beside } : s
+    )
+    .map((s, j) => (j === 0 ? { ...s, beside: false } : s))
 }
 
 /** A part of the house taken away: its rooms go back to Rooms to place and their people to the side panel. */
 export function removeSection(layout: RoomPlanLayout, id: string): RoomPlanLayout {
   let next = layout
   for (const t of layout.tiles.filter((t) => t.sectionId === id)) next = removeTile(next, t.id)
-  const i = next.sections.findIndex((s) => s.id === id)
-  if (i < 0) return next
-  const removed = next.sections[i]
-  const after = next.sections[i + 1]
-  return {
-    ...next,
-    sections: next.sections
-      .filter((s) => s.id !== id)
-      // The part beside a removed row start starts the row now.
-      .map((s, j) =>
-        j === 0 || (after && s.id === after.id && !removed.beside) ? { ...s, beside: false } : s
-      ),
-  }
+  return { ...next, sections: lift(next.sections, id) }
 }
 
-/** The parts of the house in rows: each row starts with a part not beside the one before it. */
-export function sectionRows<T extends { beside: boolean }>(sections: T[]): T[][] {
-  const rows: T[][] = []
+/** The parts of the house in columns, left to right: a part marked beside starts a new column; the rest stack under. */
+export function sectionColumns<T extends { beside: boolean }>(sections: T[]): T[][] {
+  const columns: T[][] = []
   for (const s of sections) {
-    if (s.beside && rows.length) rows[rows.length - 1].push(s)
-    else rows.push([s])
+    if (!s.beside && columns.length) columns[columns.length - 1].push(s)
+    else columns.push([s])
   }
-  return rows
+  return columns
 }

@@ -615,7 +615,7 @@ export type TripChange =
   | { what: 'trip_deleted' }
   | { what: 'trip_restored' }
   /** The room planner applied (issue #93): who moved, by name. */
-  | { what: 'rooms_applied'; moved: string[] }
+  | { what: 'rooms_applied'; moved: string[]; grown?: { room: string; from: number; to: number }[] }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**
@@ -1319,10 +1319,11 @@ export const HELP_PAGES: { value: HelpPage; label: string }[] = [
 ]
 
 /** The sections of "All topics", in order. */
-export type HelpTopic = 'start' | 'signups' | 'payments' | 'tripPage' | 'questions'
+export type HelpTopic = 'start' | 'rooms' | 'signups' | 'payments' | 'tripPage' | 'questions'
 
 export const HELP_TOPICS: { value: HelpTopic; label: string }[] = [
   { value: 'start', label: 'Getting started' },
+  { value: 'rooms', label: 'Room planner' },
   { value: 'payments', label: 'Payments' },
   { value: 'tripPage', label: 'The trip page' },
   { value: 'questions', label: 'Guests’ questions' },
@@ -1987,18 +1988,31 @@ export const PLAN_MAX_SECTIONS = 12
 export const PLAN_MAX_TILES = 150
 export const PLAN_NAME_MAX = 60
 
-export const LANDMARK_KINDS = ['bath', 'kitchen', 'living', 'stairs', 'outdoor', 'other'] as const
+export const LANDMARK_KINDS = [
+  'entry',
+  'bath',
+  'halfbath',
+  'kitchen',
+  'living',
+  'stairs',
+  'outdoor',
+  'pool',
+  'other',
+] as const
 export type LandmarkKind = (typeof LANDMARK_KINDS)[number]
 export const LANDMARK_LABELS: Record<LandmarkKind, string> = {
-  bath: 'Bathroom',
+  entry: 'Front door',
+  bath: 'Full bath',
+  halfbath: 'Half bath',
   kitchen: 'Kitchen',
   living: 'Living room',
   stairs: 'Stairs',
-  outdoor: 'Deck or balcony',
+  outdoor: 'Deck, porch or balcony',
+  pool: 'Pool or hot tub',
   other: 'Something else',
 }
 
-/** A floor or part of the house. `beside` puts it to the right of the part before it instead of below. */
+/** A floor or part of the house. `beside` starts a new column to the right; otherwise it sits under the part before it. */
 export interface PlanSection {
   id: string
   name: string
@@ -2018,7 +2032,19 @@ export interface PlanTile {
   y: number
   w: number
   h: number
+  /**
+   * A room's places on the plan when the organizer added some past what the room sleeps (owner's decision, 2026-11-21):
+   * applying the plan makes the room sleep this many. Absent: what the room sleeps.
+   */
+  places?: number
 }
+
+/** Most places a room can have, on the plan as in the trip editor. */
+export const ROOM_MAX_PLACES = 20
+
+/** How many places a room has on the plan: what it sleeps, or more when the organizer added places. */
+export const planPlaces = (room: { capacity: number }, tile?: { places?: number }): number =>
+  Math.max(room.capacity, Math.min(tile?.places ?? 0, ROOM_MAX_PLACES))
 
 /**
  * One person on one place in a room: `index` counts the room's places in bed order (see `roomSpots`). The name is what
@@ -2056,14 +2082,15 @@ export interface RoomSpot {
 }
 
 /**
- * The places a room has, in bed order: two on a bed that sleeps two, never more than the room sleeps, and plain places
- * for what the beds don't cover.
+ * The places a room has, in bed order: every place on every bed (two on a bed that sleeps two), so the organizer can
+ * put someone on the bed they mean, then plain places for what the beds don't cover. A room may have more bed places
+ * than it sleeps; the planner counts the people in it against what it sleeps.
  */
 export function roomSpots(room: { bedTypes: BedType[]; capacity: number }): RoomSpot[] {
   const spots: RoomSpot[] = []
   room.bedTypes.forEach((b, bed) => {
     for (let slot = 0; slot < BED_LABELS[b].sleeps; slot++)
-      if (spots.length < room.capacity) spots.push({ index: spots.length, bed, slot })
+      spots.push({ index: spots.length, bed, slot })
   })
   while (spots.length < room.capacity) spots.push({ index: spots.length, bed: null, slot: 0 })
   return spots

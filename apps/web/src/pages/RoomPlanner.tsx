@@ -4,6 +4,8 @@ import {
   LANDMARK_LABELS,
   PLAN_CELL_PX,
   PLAN_MAX_SECTIONS,
+  ROOM_MAX_PLACES,
+  planPlaces,
   roomSpots,
   type LandmarkKind,
   type PlanSection,
@@ -29,6 +31,9 @@ import {
 } from '@dnd-kit/core'
 import {
   Bath,
+  DoorOpen,
+  WavesLadder,
+  Toilet,
   CookingPot,
   GripVertical,
   MapPin,
@@ -43,7 +48,7 @@ import {
 } from 'lucide-react'
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { BedPicture } from '@/components/RoomArt'
+import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { money } from '@/lib/format'
 import {
   addTyped,
@@ -53,7 +58,9 @@ import {
   removeSection,
   removeTile,
   removeTyped,
-  sectionRows,
+  resizeSection,
+  setPlaces,
+  sectionColumns,
   setTile,
   spotPerson,
   uid,
@@ -87,7 +94,9 @@ const KIND_LABEL: Record<PersonKind, string> = {
 }
 
 const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
+  entry: <DoorOpen className="h-5 w-5" aria-hidden="true" />,
   bath: <Bath className="h-5 w-5" aria-hidden="true" />,
+  halfbath: <Toilet className="h-5 w-5" aria-hidden="true" />,
   kitchen: <CookingPot className="h-5 w-5" aria-hidden="true" />,
   living: <Sofa className="h-5 w-5" aria-hidden="true" />,
   stairs: (
@@ -103,6 +112,7 @@ const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
     </svg>
   ),
   outdoor: <TreePalm className="h-5 w-5" aria-hidden="true" />,
+  pool: <WavesLadder className="h-5 w-5" aria-hidden="true" />,
   other: <MapPin className="h-5 w-5" aria-hidden="true" />,
 }
 
@@ -178,7 +188,15 @@ export function PlannerBoard({
   const toPlace = rooms.filter((r) => r.id && !onPlan.has(r.id))
   const places = rooms
     .filter((r) => r.id && onPlan.has(r.id))
-    .reduce((n, r) => n + roomSpots(r).length, 0)
+    .reduce(
+      (n, r) =>
+        n +
+        planPlaces(
+          r,
+          layout.tiles.find((t) => t.roomId === r.id)
+        ),
+      0
+    )
   const placed = layout.spots.filter((s) => onPlan.has(s.roomId)).length
 
   function onDragStart(e: DragStartEvent) {
@@ -196,11 +214,11 @@ export function PlannerBoard({
       | undefined
     if (!data || !over) return
     if (data.type === 'person') {
-      if (over.type === 'spot')
+      if (over.type === 'spot') {
         setLayout((l) =>
           place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
         )
-      else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
+      } else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
         const from = data.from
         setLayout((l) => unplace(l, from.roomId, from.index))
       }
@@ -264,7 +282,10 @@ export function PlannerBoard({
 
   function fit() {
     const width = Math.max(
-      ...sectionRows(layout.sections).map((row) => row.reduce((w, s) => w + s.cols * CELL + 24, 0))
+      sectionColumns(layout.sections).reduce(
+        (w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL + 24,
+        0
+      )
     )
     const room = (scroller.current?.clientWidth ?? width) - 8
     setZoom(Math.max(0.4, Math.min(1, room / width)))
@@ -310,7 +331,7 @@ export function PlannerBoard({
                 className={btnOutline}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                Bathroom or landmark
+                Bathroom, Stairs, or other landmarks
               </button>
               {menu && (
                 <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-rule bg-white shadow-[0_8px_24px_rgba(15,28,46,0.12)]">
@@ -356,30 +377,34 @@ export function PlannerBoard({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max flex-col gap-4">
-                {sectionRows(layout.sections).map((row) => (
-                  <div key={row[0].id} className="flex items-start gap-5">
-                    {row.map((s, i) => (
-                      <div key={s.id} className="flex items-start gap-5">
-                        {i > 0 && <span aria-hidden="true" className="w-px self-stretch bg-line" />}
-                        <Section
-                          section={s}
-                          layout={layout}
-                          setLayout={setLayout}
-                          rooms={rooms}
-                          people={people}
-                          tripPriceCents={tripPriceCents}
-                          zoom={zoom}
-                          draggingSection={dragging?.type === 'section' ? dragging.sectionId : null}
-                          onRemove={() =>
-                            layout.tiles.some((t) => t.sectionId === s.id)
-                              ? setRemoving(s)
-                              : setLayout((l) => removeSection(l, s.id))
-                          }
-                          canRemove={layout.sections.length > 1}
-                        />
-                      </div>
-                    ))}
+              <div style={{ zoom }} className="flex w-max items-stretch gap-5">
+                {sectionColumns(layout.sections).map((column, c) => (
+                  <div key={column[0].id} className="flex items-stretch gap-5">
+                    {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
+                    <div className="flex flex-col items-start gap-4">
+                      {column.map((s) => (
+                        <div key={s.id}>
+                          <Section
+                            section={s}
+                            layout={layout}
+                            setLayout={setLayout}
+                            rooms={rooms}
+                            people={people}
+                            tripPriceCents={tripPriceCents}
+                            zoom={zoom}
+                            draggingSection={
+                              dragging?.type === 'section' ? dragging.sectionId : null
+                            }
+                            onRemove={() =>
+                              layout.tiles.some((t) => t.sectionId === s.id)
+                                ? setRemoving(s)
+                                : setLayout((l) => removeSection(l, s.id))
+                            }
+                            canRemove={layout.sections.length > 1}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -393,8 +418,9 @@ export function PlannerBoard({
               + Add a floor or part of the house
             </button>
             <p className="text-sm text-muted">
-              Drag a room by its name to move it, and its corner to resize it. Everything snaps to
-              the dots. Drag a part of the house by its dots to put it below or beside another.
+              Drag a room by its name to move it, even to another part of the house, and its corner
+              to resize it. Everything snaps to the dots. Drag a part of the house by its dots to
+              put it below or beside another, and by its right or bottom edge to resize it.
             </p>
           </div>
         </div>
@@ -407,7 +433,7 @@ export function PlannerBoard({
           </div>
         )}
         {dragging?.type === 'section' && (
-          <div className="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">
+          <div className="w-max whitespace-nowrap rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(15,28,46,0.25)]">
             {layout.sections.find((s) => s.id === dragging.sectionId)?.name}
           </div>
         )}
@@ -660,6 +686,53 @@ function Section({
     data: { type: 'section', sectionId: section.id } satisfies DragData,
   })
   const tiles = layout.tiles.filter((t) => t.sectionId === section.id)
+  // Dragging the right or bottom edge makes the part of the house wider or narrower, taller or shorter, by whole dots.
+  const edge = useRef<{ x: number; y: number; cols: number; rows: number; d: number } | null>(null)
+  const edgeDown = (e: ReactPointerEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    edge.current = { x: e.clientX, y: e.clientY, cols: section.cols, rows: section.rows, d: 0 }
+  }
+  const edgeMove = (axis: 'x' | 'y') => (e: ReactPointerEvent) => {
+    const s = edge.current
+    if (!s) return
+    const d = Math.round((axis === 'x' ? e.clientX - s.x : e.clientY - s.y) / (CELL * zoom))
+    if (d === s.d) return
+    s.d = d
+    setLayout((l) =>
+      resizeSection(
+        l,
+        section.id,
+        axis === 'x' ? s.cols + d : s.cols,
+        axis === 'y' ? s.rows + d : s.rows
+      )
+    )
+  }
+  const edgeUp = () => {
+    edge.current = null
+  }
+  const edgeHandle = (axis: 'x' | 'y') => (
+    <div
+      role="separator"
+      aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
+      aria-label={`Drag to make ${section.name} ${axis === 'x' ? 'wider or narrower' : 'taller or shorter'}`}
+      onPointerDown={edgeDown}
+      onPointerMove={edgeMove(axis)}
+      onPointerUp={edgeUp}
+      onPointerCancel={edgeUp}
+      onLostPointerCapture={edgeUp}
+      className={`group absolute z-10 flex touch-none items-center justify-center ${
+        axis === 'x'
+          ? '-right-2 top-0 h-full w-4 cursor-ew-resize'
+          : '-bottom-2 left-0 h-4 w-full cursor-ns-resize'
+      }`}
+    >
+      <span
+        className={`rounded-full bg-line group-hover:bg-royal ${axis === 'x' ? 'h-10 w-1' : 'h-1 w-10'}`}
+      />
+    </div>
+  )
 
   function rename() {
     const n = name.trim().slice(0, 60)
@@ -733,6 +806,7 @@ function Section({
       <div className="relative">
         <div
           ref={grid.setNodeRef}
+          data-grid={section.id}
           className={`relative rounded-xl ${grid.isOver ? 'ring-2 ring-royal' : ''}`}
           style={{
             width: section.cols * CELL,
@@ -755,6 +829,8 @@ function Section({
               zoom={zoom}
             />
           ))}
+          {edgeHandle('x')}
+          {edgeHandle('y')}
         </div>
         {draggingSection && draggingSection !== section.id && (
           <>
@@ -767,6 +843,7 @@ function Section({
   )
 }
 
+/** Placed by offsets, never a CSS transform: the drop finds boxes by where they sit without one. */
 function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${where}:${id}`,
@@ -777,14 +854,17 @@ function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
       ref={setNodeRef}
       className={`absolute z-10 flex items-center justify-center rounded-xl border-2 border-dashed text-sm font-semibold ${
         isOver ? 'border-royal bg-royal-pale text-royal' : 'border-line bg-white/80 text-muted'
-      } ${where === 'beside' ? '-right-3 top-0 h-full w-24 translate-x-full' : '-bottom-3 left-0 h-14 w-full translate-y-full'}`}
+      } ${where === 'beside' ? 'left-full top-0 ml-3 h-full w-24' : 'left-0 top-full mt-3 h-14 w-full'}`}
     >
       {where === 'beside' ? 'Put beside' : 'Put below'}
     </div>
   )
 }
 
-/** Dragging a tile by its name moves it; by its corner, resizes it. Both snap to the dots. */
+/**
+ * Dragging a tile by its name moves it; by its corner, resizes it. Both snap to the dots. A move shows as it goes and
+ * lands on the drop: over another part of the house, the room moves there, where the pointer let go.
+ */
 function useTileDrag(
   tile: PlanTile,
   setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void,
@@ -797,12 +877,16 @@ function useTileDrag(
     dy: number
     tile: PlanTile
     mode: 'move' | 'resize'
+    grid: DOMRect | null
   } | null>(null)
+  const [shift, setShift] = useState<{ dx: number; dy: number } | null>(null)
   const down = (mode: 'move' | 'resize') => (e: ReactPointerEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    start.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, tile, mode }
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+    const grid = el.closest('[data-grid]')?.getBoundingClientRect() ?? null
+    start.current = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, tile, mode, grid }
   }
   const move = (e: ReactPointerEvent) => {
     const s = start.current
@@ -813,19 +897,41 @@ function useTileDrag(
     if (dx === s.dx && dy === s.dy) return
     s.dx = dx
     s.dy = dy
-    setLayout((l) =>
-      setTile(
-        l,
-        s.mode === 'move'
-          ? { ...s.tile, x: s.tile.x + dx, y: s.tile.y + dy }
-          : { ...s.tile, w: s.tile.w + dx, h: s.tile.h + dy }
-      )
-    )
+    if (s.mode === 'move') setShift({ dx, dy })
+    else setLayout((l) => setTile(l, { ...s.tile, w: s.tile.w + dx, h: s.tile.h + dy }))
   }
-  const up = () => {
+  const up = (e: ReactPointerEvent) => {
+    const s = start.current
     start.current = null
+    if (!s || s.mode !== 'move') return
+    setShift(null)
+    if (s.dx === 0 && s.dy === 0) return
+    const other = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((el) => el.closest<HTMLElement>('[data-grid]'))
+      .find((g) => g && g.dataset.grid !== s.tile.sectionId)
+    if (other?.dataset.grid && s.grid) {
+      const cell = CELL * zoom
+      const r = other.getBoundingClientRect()
+      // Where on the room the pointer held it, so the room lands under the pointer as it was carried.
+      const grabX = (s.x - s.grid.left) / cell - s.tile.x
+      const grabY = (s.y - s.grid.top) / cell - s.tile.y
+      const to = other.dataset.grid
+      setLayout((l) =>
+        setTile(l, {
+          ...s.tile,
+          sectionId: to,
+          x: Math.round((e.clientX - r.left) / cell - grabX),
+          y: Math.round((e.clientY - r.top) / cell - grabY),
+        })
+      )
+    } else setLayout((l) => setTile(l, { ...s.tile, x: s.tile.x + s.dx, y: s.tile.y + s.dy }))
   }
-  return { down, move, up }
+  const cancel = () => {
+    start.current = null
+    setShift(null)
+  }
+  return { down, move, up, cancel, shift }
 }
 
 function Tile({
@@ -848,10 +954,12 @@ function Tile({
   const drag = useTileDrag(tile, setLayout, zoom)
   const [renaming, setRenaming] = useState(false)
   const style = {
-    left: tile.x * CELL + 3,
-    top: tile.y * CELL + 3,
+    left: (tile.x + (drag.shift?.dx ?? 0)) * CELL + 3,
+    top: (tile.y + (drag.shift?.dy ?? 0)) * CELL + 3,
     width: tile.w * CELL - 6,
     height: tile.h * CELL - 6,
+    // Carried over the other parts of the house, the room stays on top.
+    ...(drag.shift ? { zIndex: 30 } : {}),
   }
   const remove = () => setLayout((l) => removeTile(l, tile.id))
   const grip = (
@@ -859,8 +967,8 @@ function Tile({
       onPointerDown={drag.down('resize')}
       onPointerMove={drag.move}
       onPointerUp={drag.up}
-      onPointerCancel={drag.up}
-      onLostPointerCapture={drag.up}
+      onPointerCancel={drag.cancel}
+      onLostPointerCapture={drag.cancel}
       aria-hidden="true"
       className="absolute bottom-1 right-1 h-3 w-3 cursor-nwse-resize rounded-br border-b-[3px] border-r-[3px] border-royal"
     />
@@ -870,19 +978,22 @@ function Tile({
     const lm = tile.landmark
     return (
       <div
-        className={`group absolute flex flex-col items-center justify-center gap-1 rounded-xl px-2 text-center text-[13px] font-semibold ${lm.kind === 'outdoor' ? 'border-2 border-dashed border-line bg-white' : 'bg-rule'}`}
-        style={style}
+        className="group absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
+        style={{ ...style, ...LANDMARK_FLOOR[lm.kind] }}
       >
         <div
           onPointerDown={drag.down('move')}
           onPointerMove={drag.move}
           onPointerUp={drag.up}
-          onPointerCancel={drag.up}
-          onLostPointerCapture={drag.up}
+          onPointerCancel={drag.cancel}
+          onLostPointerCapture={drag.cancel}
           className="absolute inset-0 cursor-move rounded-xl"
           aria-hidden="true"
         />
-        <span className="pointer-events-none relative">{LANDMARK_ICON[lm.kind]}</span>
+        <LandmarkPicture
+          kind={lm.kind}
+          className="pointer-events-none relative min-h-0 w-full max-w-[110px] flex-1"
+        />
         {renaming ? (
           <input
             aria-label="Landmark name"
@@ -901,7 +1012,7 @@ function Tile({
           <button
             type="button"
             onClick={() => setRenaming(true)}
-            className="relative truncate hover:underline"
+            className="relative max-w-full shrink-0 truncate rounded-full bg-white/90 px-2 text-[12px] hover:underline"
             title="Rename"
           >
             {lm.label}
@@ -921,7 +1032,14 @@ function Tile({
   }
 
   if (!room) return null
-  const spots = roomSpots(room)
+  const added = planPlaces(room, tile)
+  const inRoom = layout.spots.filter((s) => s.roomId === room.id)
+  // What the room sleeps on the plan: places added with +, or everyone on it, as Apply counts it.
+  const places = Math.max(added, inRoom.length)
+  const spots = roomSpots({ ...room, capacity: added })
+  const full = inRoom.length >= places
+  // A place added with + goes back unless that would leave someone without one.
+  const canTakeBack = added > room.capacity && setPlaces(layout, room, added - 1) !== layout
   const beds = room.bedTypes.map((type, bed) => ({
     type,
     spots: spots.filter((s) => s.bed === bed),
@@ -937,9 +1055,9 @@ function Tile({
         onPointerDown={drag.down('move')}
         onPointerMove={drag.move}
         onPointerUp={drag.up}
-        onPointerCancel={drag.up}
-        onLostPointerCapture={drag.up}
-        className="-mx-3 -mt-2.5 cursor-move px-3 pt-2.5"
+        onPointerCancel={drag.cancel}
+        onLostPointerCapture={drag.cancel}
+        className="-mx-3 -mt-2.5 cursor-move select-none px-3 pt-2.5"
       >
         <div className="flex items-start justify-between gap-2">
           <strong className="truncate font-display text-[15px]">{room.name}</strong>
@@ -953,7 +1071,34 @@ function Tile({
             <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
-        <div className="text-[11px] text-muted">{money(price)} each</div>
+        <div className="flex items-center gap-1 text-[11px] text-muted">
+          <span className="flex-1">
+            {money(price)} each · Sleeps {places}
+            {places > room.capacity && ` (was ${room.capacity})`}
+          </span>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setLayout((l) => setPlaces(l, room, added - 1))}
+            disabled={!canTakeBack}
+            aria-label={`Take a place back from ${room.name}`}
+            title="Take back a place you added"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink opacity-0 hover:bg-ground focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
+          >
+            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setLayout((l) => setPlaces(l, room, places + 1))}
+            disabled={places >= ROOM_MAX_PLACES}
+            aria-label={`Add a place to ${room.name}`}
+            title="Add a place: applying rooms makes the room sleep one more"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal opacity-0 hover:bg-royal-pale focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
         {beds.map((b, i) =>
@@ -965,7 +1110,14 @@ function Tile({
               </div>
               <div className="flex flex-col gap-3 pt-1.5">
                 {b.spots.map((s) => (
-                  <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+                  <Spot
+                    key={s.index}
+                    room={room}
+                    spot={s}
+                    layout={layout}
+                    people={people}
+                    full={full}
+                  />
                 ))}
               </div>
             </div>
@@ -976,7 +1128,14 @@ function Tile({
                 {BED_LABELS[b.type].label}
               </span>
               {b.spots.map((s) => (
-                <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+                <Spot
+                  key={s.index}
+                  room={room}
+                  spot={s}
+                  layout={layout}
+                  people={people}
+                  full={full}
+                />
               ))}
             </div>
           )
@@ -987,7 +1146,14 @@ function Tile({
               {room.bedTypes.length ? 'Extra places' : 'Places'}
             </span>
             {extra.map((s) => (
-              <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+              <Spot
+                key={s.index}
+                room={room}
+                spot={s}
+                layout={layout}
+                people={people}
+                full={full}
+              />
             ))}
           </div>
         )}
@@ -1002,11 +1168,14 @@ function Spot({
   spot,
   layout,
   people,
+  full,
 }: {
   room: TripRoom
   spot: RoomSpot
   layout: RoomPlanLayout
   people: Person[]
+  /** The room has as many people as it sleeps: someone more on a free bed makes it sleep one more. */
+  full: boolean
 }) {
   const roomId = room.id!
   const { setNodeRef, isOver } = useDroppable({
@@ -1024,13 +1193,16 @@ function Spot({
         />
       ) : (
         <span
+          title={full ? 'Putting someone here makes the room sleep one more' : undefined}
           className={`inline-flex h-7 items-center rounded-full border-2 px-2.5 text-[11px] font-medium ${
             isOver
               ? 'border-solid border-royal bg-royal-pale text-royal'
-              : 'border-dashed border-line bg-white text-muted'
+              : full
+                ? 'border-dashed border-line/60 bg-transparent text-muted/70'
+                : 'border-dashed border-line bg-white text-muted'
           }`}
         >
-          {isOver ? 'Drop here' : 'Empty'}
+          {isOver ? 'Drop here' : full ? 'Spare' : 'Empty'}
         </span>
       )}
     </div>
