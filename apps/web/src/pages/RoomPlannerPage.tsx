@@ -293,6 +293,7 @@ export function RoomPlannerPage() {
             people={people}
             tripPriceCents={trip.costPerPersonCents}
             onAddRoom={admin ? undefined : () => setAdding(true)}
+            fileName={`${trip.slug}-floor-plan`}
           />
         </div>
         <PhonePlan layout={layout} rooms={rooms} people={people} />
