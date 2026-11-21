@@ -35,6 +35,7 @@ import {
   WavesLadder,
   Toilet,
   CookingPot,
+  UtensilsCrossed,
   GripVertical,
   MapPin,
   Minus,
@@ -108,6 +109,7 @@ const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
   bath: <Bath className="h-5 w-5" aria-hidden="true" />,
   halfbath: <Toilet className="h-5 w-5" aria-hidden="true" />,
   kitchen: <CookingPot className="h-5 w-5" aria-hidden="true" />,
+  dining: <UtensilsCrossed className="h-5 w-5" aria-hidden="true" />,
   living: <Sofa className="h-5 w-5" aria-hidden="true" />,
   stairs: (
     <svg

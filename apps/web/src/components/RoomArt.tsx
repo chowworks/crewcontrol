@@ -197,6 +197,10 @@ export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
     backgroundImage: 'conic-gradient(#F3F6F5 25%, transparent 0 50%, #F3F6F5 0 75%, transparent 0)',
     backgroundSize: '20px 20px',
   },
+  dining: {
+    backgroundColor: '#F7EBD3',
+    backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 13px, #E9D6B0 13px 14px)',
+  },
   living: { backgroundColor: '#FFFFFF' },
   stairs: { backgroundColor: '#FFFFFF' },
   hall: {
@@ -294,6 +298,21 @@ const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
     </g>
   ),
   // A counter with a stove and a sink, and an island with stools.
+  // A table seen from above, with a chair at each place and one at each end.
+  dining: (
+    <g>
+      {[22, 40, 58].map((x) => (
+        <g key={x}>
+          <rect x={x - 6} y="4" width="12" height="9" rx="3" fill={GOLD} />
+          <rect x={x - 6} y="43" width="12" height="9" rx="3" fill={GOLD} />
+        </g>
+      ))}
+      <rect x="2" y="22" width="9" height="12" rx="3" fill={GOLD} />
+      <rect x="69" y="22" width="9" height="12" rx="3" fill={GOLD} />
+      <rect x="13" y="15" width="54" height="26" rx="5" fill={R} />
+      <circle cx="40" cy="28" r="5" fill={PALE} />
+    </g>
+  ),
   kitchen: (
     <g>
       <rect x="2" y="3" width="76" height="17" rx="3" {...line} />
