@@ -62,6 +62,7 @@ import {
   addTyped,
   lowerSection,
   moveSection,
+  moveSectionAcross,
   notPlaced,
   place,
   removeSection,
@@ -69,7 +70,7 @@ import {
   removeTyped,
   resizeSection,
   setPlaces,
-  sectionColumns,
+  sectionBands,
   setTile,
   spotPerson,
   uid,
@@ -149,12 +150,12 @@ const btnOutline =
 
 /**
  * Each kind of drag sees only its own drop places: a room only the dots (where the pointer is, so a bed place under it
- * never takes the drop), a person only beds and the side panel, a part of the house only the below and beside zones.
+ * never takes the drop), a person only beds and the side panel, a part of the house only the below, beside and across zones.
  */
 const ACCEPTS: Record<DragData['type'], string[]> = {
   room: ['grid'],
   person: ['spot', 'roomTile', 'panel'],
-  section: ['zone'],
+  section: ['zone', 'across'],
 }
 const collide: CollisionDetection = (args) => {
   const kind = (args.active.data.current as DragData | undefined)?.type
@@ -246,6 +247,7 @@ export function PlannerBoard({
       | { type: 'panel' }
       | { type: 'grid'; sectionId: string }
       | { type: 'zone'; sectionId: string; where: 'below' | 'beside' }
+      | { type: 'across' }
       | undefined
     if (!data || !over) return
     if (data.type === 'person') {
@@ -294,6 +296,8 @@ export function PlannerBoard({
       )
     } else if (data.type === 'section' && over.type === 'zone')
       setLayout((l) => moveSection(l, data.sectionId, over.sectionId, over.where))
+    else if (data.type === 'section' && over.type === 'across')
+      setLayout((l) => moveSectionAcross(l, data.sectionId, planWidth(l.sections) / CELL))
   }
 
   function addLandmark(kind: LandmarkKind) {
@@ -335,15 +339,29 @@ export function PlannerBoard({
   }
 
   function fit() {
-    const width = Math.max(
-      sectionColumns(layout.sections).reduce(
-        (w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL + 24,
-        0
-      )
-    )
+    const width = planWidth(layout.sections) + 4
     const room = (scroller.current?.clientWidth ?? width) - 8
     setZoom(Math.max(0.4, Math.min(1, room / width)))
   }
+
+  const renderSection = (s: PlanSection) => (
+    <Section
+      section={s}
+      layout={layout}
+      setLayout={setLayout}
+      rooms={rooms}
+      people={people}
+      tripPriceCents={tripPriceCents}
+      zoom={zoom}
+      draggingSection={dragging?.type === 'section' ? dragging.sectionId : null}
+      onRemove={() =>
+        layout.tiles.some((t) => t.sectionId === s.id)
+          ? setRemoving(s)
+          : setLayout((l) => removeSection(l, s.id))
+      }
+      canRemove={layout.sections.length > 1}
+    />
+  )
 
   const stepZoom = (dir: 1 | -1) =>
     setZoom((z) => {
@@ -434,36 +452,26 @@ export function PlannerBoard({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max items-stretch gap-5 pt-3">
-                {sectionColumns(layout.sections).map((column, c) => (
-                  <div key={column[0].id} className="flex items-stretch gap-5">
-                    {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
-                    <div className="flex flex-col items-start gap-4">
-                      {column.map((s) => (
-                        <div key={s.id}>
-                          <Section
-                            section={s}
-                            layout={layout}
-                            setLayout={setLayout}
-                            rooms={rooms}
-                            people={people}
-                            tripPriceCents={tripPriceCents}
-                            zoom={zoom}
-                            draggingSection={
-                              dragging?.type === 'section' ? dragging.sectionId : null
-                            }
-                            onRemove={() =>
-                              layout.tiles.some((t) => t.sectionId === s.id)
-                                ? setRemoving(s)
-                                : setLayout((l) => removeSection(l, s.id))
-                            }
-                            canRemove={layout.sections.length > 1}
-                          />
+              <div style={{ zoom }} className="flex w-max flex-col items-start gap-4 pt-3">
+                {sectionBands(layout.sections).map((band) =>
+                  'across' in band ? (
+                    <div key={band.across.id}>{renderSection(band.across)}</div>
+                  ) : (
+                    <div key={band.columns[0][0].id} className="flex items-stretch gap-5">
+                      {band.columns.map((column, c) => (
+                        <div key={column[0].id} className="flex items-stretch gap-5">
+                          {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
+                          <div className="flex flex-col items-start gap-4">
+                            {column.map((s) => (
+                              <div key={s.id}>{renderSection(s)}</div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
+                {dragging?.type === 'section' && <AcrossZone />}
               </div>
             </div>
             <button
@@ -477,7 +485,8 @@ export function PlannerBoard({
             <p className="text-sm text-muted">
               Drag a room by its name to move it, even to another part of the house, and its corner
               to resize it. Everything snaps to the dots. Drag a part of the house by its dots to
-              put it below or beside another, and by its right or bottom edge to resize it.
+              put it below or beside another, or across the bottom, and by its right or bottom edge
+              to resize it.
             </p>
           </div>
         </div>
@@ -927,6 +936,34 @@ function Section({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/** The plan's width in pixels at 100%: its widest row of columns, or part stretched across it. */
+function planWidth(sections: PlanSection[]): number {
+  return Math.max(
+    ...sectionBands(sections).map((band) =>
+      'across' in band
+        ? band.across.cols * CELL
+        : band.columns.reduce((w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL, 0) +
+          // Two gaps and the line between each pair of columns.
+          (band.columns.length - 1) * 41
+    )
+  )
+}
+
+/** Below the whole plan while a part of the house is dragged: drop it here to stretch it across the bottom. */
+function AcrossZone() {
+  const { setNodeRef, isOver } = useDroppable({ id: 'across', data: { type: 'across' } })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex h-14 w-full items-center justify-center rounded-xl border-2 border-dashed text-sm font-semibold ${
+        isOver ? 'border-royal bg-royal-pale text-royal' : 'border-line bg-white/80 text-muted'
+      }`}
+    >
+      Put across the bottom
     </div>
   )
 }

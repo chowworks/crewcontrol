@@ -45,7 +45,7 @@ To try one early, open "Your Membership" from the menu under your name at the to
     question: 'How do I work out who sleeps where?',
     answer: `Use the room planner, a paid feature: click "Open room planner" on Trip Control (in the row above Manage Guests), or "Open the room planner" in the editor's Rooms step. It works on a computer; on a phone you can see your latest plan but not change it.
 
-Lay out the house: drag each room into place on the dots, even onto another floor, and drag its corner to make it bigger. Add bathrooms, the kitchen, stairs, hallways and other landmarks with "+ Bathroom, Stairs, or other landmarks" (the arrow on one turns it), and floors or other parts of the house with "+ Add a floor or part of the house". Drag a part by its dots to put it below or beside another, by its right or bottom edge to make it bigger or smaller, and by its top edge to move it up or down next to the part beside it.
+Lay out the house: drag each room into place on the dots, even onto another floor, and drag its corner to make it bigger. Add bathrooms, the kitchen, stairs, hallways and other landmarks with "+ Bathroom, Stairs, or other landmarks" (the arrow on one turns it), and floors or other parts of the house with "+ Add a floor or part of the house". Drag a part by its dots to put it below or beside another, or across the bottom of the plan for outside areas, by its right or bottom edge to make it bigger or smaller, and by its top edge to move it up or down next to the part beside it.
 
 Then drag people onto beds, or onto a room to take its first free bed. Rooms you add in the editor wait under "Rooms to place" until you drag them onto the plan, and "+ Room" adds a room to the trip.`,
     pages: ['planner', 'control', 'editor:rooms'],

@@ -284,19 +284,46 @@ export function moveSection(
   where: 'below' | 'beside'
 ): RoomPlanLayout {
   if (id === targetId) return layout
-  const moving = layout.sections.find((s) => s.id === id)
-  if (!moving) return layout
+  const found = layout.sections.find((s) => s.id === id)
+  if (!found) return layout
+  const { across: _, ...moving } = found
   const rest = lift(layout.sections, id)
   let i = rest.findIndex((s) => s.id === targetId)
   if (i < 0) return layout
   // Beside goes after the target's whole column, so that column stays together.
-  if (where === 'beside') while (rest[i + 1] && !rest[i + 1].beside) i++
+  if (where === 'beside') while (rest[i + 1] && !rest[i + 1].beside && !rest[i + 1].across) i++
   return {
     ...layout,
     sections: [
       ...rest.slice(0, i + 1),
       { ...moving, beside: where === 'beside' },
       ...rest.slice(i + 1),
+    ].map((s, j) => (j === 0 ? { ...s, beside: false } : s)),
+  }
+}
+
+/**
+ * A part of the house moved to the bottom of the plan and stretched across it, like the yard or a pool deck under all
+ * the floors. It grows to the plan's width, never shrinks; `width` is that width in dots.
+ */
+export function moveSectionAcross(
+  layout: RoomPlanLayout,
+  id: string,
+  width: number
+): RoomPlanLayout {
+  const moving = layout.sections.find((s) => s.id === id)
+  if (!moving) return layout
+  const { down: _, ...rest } = moving
+  return {
+    ...layout,
+    sections: [
+      ...lift(layout.sections, id),
+      {
+        ...rest,
+        beside: false,
+        across: true,
+        cols: Math.min(PLAN_MAX_COLS, Math.max(moving.cols, Math.ceil(width))),
+      },
     ].map((s, j) => (j === 0 ? { ...s, beside: false } : s)),
   }
 }
@@ -331,4 +358,30 @@ export function sectionColumns<T extends { beside: boolean }>(sections: T[]): T[
     else columns.push([s])
   }
   return columns
+}
+
+/**
+ * The plan from top to bottom: rows of columns, broken by each part stretched across the plan. The part after one
+ * stretched across starts a new row of columns.
+ */
+export function sectionBands<T extends { beside: boolean; across?: boolean }>(
+  sections: T[]
+): ({ across: T } | { columns: T[][] })[] {
+  const bands: ({ across: T } | { columns: T[][] })[] = []
+  let run: T[] = []
+  const flush = () => {
+    if (run.length)
+      bands.push({
+        columns: sectionColumns(run.map((s, j) => (j === 0 ? { ...s, beside: false } : s))),
+      })
+    run = []
+  }
+  for (const s of sections) {
+    if (s.across) {
+      flush()
+      bands.push({ across: s })
+    } else run.push(s)
+  }
+  flush()
+  return bands
 }

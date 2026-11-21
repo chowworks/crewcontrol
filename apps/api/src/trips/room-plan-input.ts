@@ -34,6 +34,7 @@ function section(item: Body): PlanSection {
   }
   if (item.down !== undefined && item.down !== null && item.down !== 0)
     part.down = int(item, 'down', 1, PLAN_MAX_ROWS)
+  if (item.across !== undefined && item.across !== null && bool(item, 'across')) part.across = true
   return part
 }
 

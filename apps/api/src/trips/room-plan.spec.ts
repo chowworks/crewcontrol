@@ -67,7 +67,16 @@ describe('parseRoomPlanLayout', () => {
     ).toEqual(main)
   })
 
+  it('keeps a part of the house stretched across the plan', () => {
+    const across = { ...main, across: true }
+    expect(parseRoomPlanLayout({ ...layout, sections: [across] }).sections[0]).toEqual(across)
+    expect(
+      parseRoomPlanLayout({ ...layout, sections: [{ ...main, across: false }] }).sections[0]
+    ).toEqual(main)
+  })
+
   it.each([
+    [{ ...layout, sections: [{ ...main, across: 'yes' }] }, 'across must be true or false'],
     [{ ...layout, sections: [{ ...main, down: 1.5 }] }, 'down must be a whole number from 1 to 80'],
     [{ ...layout, sections: [] }, 'A plan has at least one part of the house'],
     [
