@@ -582,7 +582,9 @@ function RoomToPlace({ room }: { room: TripRoom }) {
 
 export function Chip({ person, lifted = false }: { person: Person; lifted?: boolean }) {
   return (
+    // A long name is cut off; hovering shows it whole.
     <span
+      title={person.name}
       className={`inline-flex h-7 max-w-[120px] items-center truncate whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${KIND_CHIP[person.kind]} ${lifted ? '-rotate-3 shadow-[0_8px_20px_rgba(15,28,46,0.25)]' : ''}`}
     >
       <span className="truncate">{person.name}</span>
