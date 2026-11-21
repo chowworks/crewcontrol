@@ -9,7 +9,7 @@ import { authConfigured, useIsAdmin } from '@/lib/auth'
 /**
  * The account control at the far right of the header, in the shape of Audit Differently's: an avatar and first
  * name that open a short menu. Page actions (New trip, Add trip) sit to its left as buttons; the menu holds who
- * you are, Your Membership, Your trips, the Admin toolbox for admins, and Sign out. Nothing shows when signed out.
+ * you are, Your trips, the Admin toolbox for admins, then Your Membership and Sign out. Nothing shows when signed out.
  *
  * A red count on the pill says how many things need you across the app (owner's decision, 2026-10-24): on the trips
  * you run, what each one's Actions lists; on trips you joined, a payment that's due. The menu lists each with its
@@ -187,9 +187,6 @@ function SignedInMenu() {
                 ))}
               </div>
             )}
-            <Link to="/organize/features" className={item}>
-              Your Membership
-            </Link>
             <Link to="/organize" className={item}>
               Your trips
             </Link>
@@ -200,6 +197,9 @@ function SignedInMenu() {
             )}
           </div>
           <div className="mt-1.5 border-t border-rule pt-1.5">
+            <Link to="/organize/features" className={item}>
+              Your Membership
+            </Link>
             <button type="button" onClick={() => void signOut()} className={item}>
               Sign out
             </button>
