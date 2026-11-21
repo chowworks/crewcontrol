@@ -37,6 +37,8 @@ import { useTripChangeRequests } from './TripChangeRequests'
 import { useTripQuestions } from './TripQuestions'
 import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
+import { useHasPlanner } from './RoomPlannerPage'
+import { PlannerRow } from './PlannerRow'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
 // trip editor (steps 3 and 4).
@@ -51,6 +53,8 @@ export function ControlPanelPage() {
   const admin = useAdminView()
   const [flyer, setFlyer] = useState(false)
   const toAdminView = useAdminFallback(id, 'control')
+  // The room planner (issue #93) is a paid feature, for an organizer's own trips.
+  const hasPlanner = useHasPlanner(id, admin)
   // A payment that looks like one already confirmed waits for the organizer's answer here.
   const [same, setSame] = useState<{
     name: string
@@ -329,6 +333,14 @@ export function ControlPanelPage() {
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
+  const planner =
+    rooms.length >= 2 && (admin || hasPlanner !== null)
+      ? {
+          tripId: id,
+          admin,
+          locked: !admin && !hasPlanner,
+        }
+      : null
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
@@ -404,6 +416,7 @@ export function ControlPanelPage() {
           </div>
         )}
         <MoneyCard trip={trip} />
+        {planner && <PlannerRow {...planner} />}
         <GuestsCard
           trip={trip}
           rooms={rooms}

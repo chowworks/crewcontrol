@@ -37,8 +37,8 @@ export class InterestService {
   ) {}
 
   /** Trip Control's Interested list, oldest first, each marked once they've signed up themselves. */
-  async forTrip(id: string, caller: Caller): Promise<InterestedPerson[]> {
-    const trip = await this.trips.get(id, caller)
+  async forTrip(id: string, caller: Caller, admin = false): Promise<InterestedPerson[]> {
+    const trip = await this.trips.get(id, caller, admin)
     const rows = await this.prisma.tripInterest.findMany({
       where: { tripId: id },
       orderBy: { createdAt: 'asc' },

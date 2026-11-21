@@ -42,6 +42,7 @@ import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/Admi
 import { Dialog } from '@/components/Dialog'
 import { Lightbox } from '@/components/PhotoGallery'
 import { HelpButton } from '@/components/HelpButton'
+import { PlannerEntry } from './RoomPlannerPage'
 import { GoingQuestion } from './OrganizerGoing'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import {
@@ -1052,6 +1053,7 @@ export function EditTripPage() {
                 ) : (
                   <NeedsTrip />
                 )}
+                {id && rooms.filter((r) => r.id).length >= 2 && <PlannerEntry tripId={id} />}
               </>
             )}
 

@@ -45,13 +45,13 @@ import {
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-type Body = Record<string, unknown>
+export type Body = Record<string, unknown>
 
-function fail(message: string): never {
+export function fail(message: string): never {
   throw new BadRequestException(message)
 }
 
-function text(body: Body, key: string, max: number, required = true): string {
+export function text(body: Body, key: string, max: number, required = true): string {
   const value = body[key]
   if (typeof value !== 'string') fail(`${key} must be text`)
   const trimmed = value.trim()
@@ -67,20 +67,20 @@ function date(body: Body, key: string): string {
   return value
 }
 
-function int(body: Body, key: string, min: number, max: number): number {
+export function int(body: Body, key: string, min: number, max: number): number {
   const value = body[key]
   if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
     fail(`${key} must be a whole number from ${min} to ${max}`)
   return value
 }
 
-function bool(body: Body, key: string): boolean {
+export function bool(body: Body, key: string): boolean {
   const value = body[key]
   if (typeof value !== 'boolean') fail(`${key} must be true or false`)
   return value
 }
 
-function list(body: Body, key: string, max: number): Body[] {
+export function list(body: Body, key: string, max: number): Body[] {
   const value = body[key]
   if (!Array.isArray(value)) fail(`${key} must be a list`)
   if (value.length > max) fail(`A trip can have at most ${max} ${key}`)

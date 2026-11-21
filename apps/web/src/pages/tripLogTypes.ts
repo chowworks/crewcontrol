@@ -43,6 +43,7 @@ export function logType(e: TripLogEntry): LogType {
         case 'expense':
           return 'payments'
         case 'interest_removed':
+        case 'rooms_applied':
           return 'guests'
         case 'announcement':
         case 'question':

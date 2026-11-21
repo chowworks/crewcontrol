@@ -38,6 +38,8 @@ import { parseEarlyAccess } from '../contact/early-access-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
 import { ExpensesService } from './expenses.service'
+import { parseApplyRoomPlan, parseRoomPlanLayout } from './room-plan-input'
+import { RoomPlanService } from './room-plan.service'
 import { PeopleService } from './people.service'
 import { TripDeletionService } from './trip-deletion.service'
 import { TripExportService } from './trip-export.service'
@@ -52,6 +54,7 @@ export class TripsController {
     private readonly trips: TripsService,
     private readonly people: PeopleService,
     private readonly expenses: ExpensesService,
+    private readonly roomPlans: RoomPlanService,
     private readonly clerk: ClerkService,
     private readonly deletion: TripDeletionService,
     private readonly exports: TripExportService
@@ -241,6 +244,34 @@ export class TripsController {
     return this.expenses.remove(id, expenseId, caller)
   }
 
+  // The paid features the trip has (issue #90): those of any of its owners.
+  @Get(':id/features')
+  features(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.features(id, caller)
+  }
+
+  // The room planner's draft (issue #93, paid): read, save, see what applying would do, and apply it.
+  @Get(':id/room-plan')
+  roomPlan(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.get(id, caller)
+  }
+
+  @Put(':id/room-plan')
+  saveRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.save(id, parseRoomPlanLayout(body), caller)
+  }
+
+  @Get(':id/room-plan/moves')
+  roomPlanMoves(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.preview(id, caller)
+  }
+
+  @Post(':id/room-plan/apply')
+  @HttpCode(200)
+  applyRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.apply(id, parseApplyRoomPlan(body), caller)
+  }
+
   @Put(':id')
   update(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     return this.trips.update(id, parseTripInput(body), caller, parseSlug(body))
@@ -353,6 +384,7 @@ export class AdminController {
     private readonly trips: TripsService,
     private readonly people: PeopleService,
     private readonly expenses: ExpensesService,
+    private readonly roomPlans: RoomPlanService,
     private readonly clerk: ClerkService
   ) {}
 
@@ -377,6 +409,16 @@ export class AdminController {
   @Get('trips/:id/expenses')
   tripExpenses(@Param('id') id: string, @CurrentCaller() caller: Caller) {
     return this.expenses.list(id, caller, true)
+  }
+
+  @Get('trips/:id/room-plan')
+  tripRoomPlan(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.get(id, caller, true)
+  }
+
+  @Get('trips/:id/features')
+  tripFeatures(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.features(id, caller, true)
   }
 
   @Get('trips/:id/rooms')

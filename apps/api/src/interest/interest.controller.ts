@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import type { Caller } from '../auth/caller'
-import { CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
+import { AdminOnly, CurrentCaller, SignedInGuard } from '../auth/signed-in.guard'
 import { RateLimiter } from '../core/rate-limit'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { InterestInput } from '../trips/trip-types'
@@ -84,5 +84,18 @@ export class MyInterestController {
   leave(@Param('slug') slug: string, @CurrentCaller() caller: Caller) {
     this.limit.hit(`${slug}|${caller.userId}`)
     return this.interest.leave(slug, caller)
+  }
+}
+
+/** The admin reads a trip's Interested list, as it reads the rest of the trip (the room planner shows it). */
+@Controller('admin')
+@UseGuards(SignedInGuard)
+@AdminOnly()
+export class AdminInterestController {
+  constructor(private readonly interest: InterestService) {}
+
+  @Get('trips/:id/interest')
+  list(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.interest.forTrip(id, caller, true)
   }
 }
