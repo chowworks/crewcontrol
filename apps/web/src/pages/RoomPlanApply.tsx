@@ -17,7 +17,9 @@ export function ApplyRoomsDialog({
   moves,
   grown,
   plannerOnly,
+  shared,
   onApply,
+  onShare,
   onClose,
 }: {
   moves: RoomPlanMove[]
@@ -25,10 +27,15 @@ export function ApplyRoomsDialog({
   grown: { name: string; from: number; to: number }[]
   /** People on beds who aren't guests on the trip: the Interested list and typed names. */
   plannerOnly: Person[]
-  onApply: (email: boolean) => Promise<string | null>
+  /** Whether accepted guests can see the floor plan now: the share box starts that way. */
+  shared: boolean
+  onApply: (email: boolean, share: boolean) => Promise<string | null>
+  /** Shares the plan as it is, when there's nothing to apply. */
+  onShare: () => Promise<string | null>
   onClose: () => void
 }) {
   const [email, setEmail] = useState(false)
+  const [share, setShare] = useState(shared)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const picked = moves.filter((m) => m.replacesOwnPick)
@@ -38,17 +45,44 @@ export function ApplyRoomsDialog({
 
   async function apply() {
     setBusy(true)
-    setError(await onApply(email))
+    setError(await onApply(email, share))
+    setBusy(false)
+  }
+
+  async function shareNow() {
+    setBusy(true)
+    setError(await onShare())
     setBusy(false)
   }
 
   if (!count && !grown.length)
     return (
       <Dialog title="Everyone’s already in their room" onClose={onClose}>
+        {error && (
+          <p role="alert" className="mb-3 font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
         <p className="text-body">
           Every guest on your plan is in that room on the trip already, so there’s nothing to apply.
         </p>
-        <div className="mt-5 flex justify-end">
+        {!shared && (
+          <p className="mt-2 text-body text-muted">
+            You can still show this floor plan to accepted guests on the trip page. Only accepted
+            guests’ names show; anyone else is “Taken”.
+          </p>
+        )}
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          {!shared && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={shareNow}
+              className="min-h-[44px] rounded-xl border-2 border-royal bg-white px-5 font-semibold text-royal hover:bg-royal-pale disabled:opacity-60"
+            >
+              Show the floor plan to guests
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -151,6 +185,24 @@ export function ApplyRoomsDialog({
             Email the {roomed === 1 ? 'guest their' : `${roomed} guests their`} new room
           </label>
         )}
+        <div className={`flex flex-col gap-1 ${roomed > 0 ? '' : 'border-t border-rule pt-3'}`}>
+          <label className="flex min-h-[44px] items-center gap-3">
+            <input
+              type="checkbox"
+              checked={share}
+              onChange={(e) => setShare(e.target.checked)}
+              className="h-5 w-5 accent-royal"
+            />
+            Show the floor plan to accepted guests
+          </label>
+          <span className="pl-8 text-sm text-muted">
+            {share
+              ? 'On the trip page, as you apply it now. Only accepted guests’ names show; anyone else is “Taken”.'
+              : shared
+                ? 'Unticked, guests stop seeing the floor plan when you apply.'
+                : 'Guests don’t see the floor plan. You can share it the next time you apply.'}
+          </span>
+        </div>
         <div className="flex flex-wrap justify-end gap-3">
           <button
             type="button"

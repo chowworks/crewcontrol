@@ -802,10 +802,13 @@ model TripInterest {
 /// JSON (sections, room and landmark tiles, bed spots). Only the trip's members read or write it; nothing in it reaches
 /// a guest until the organizer applies it.
 model RoomPlan {
-  id              String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  tripId          String   @unique
-  layout          Json     @default("{}")
-  updatedAt       DateTime @default(now())
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  tripId          String    @unique
+  layout          Json      @default("{}")
+  updatedAt       DateTime  @default(now())
   updatedByUserId String?
-  trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  /// The plan as applied and shared with accepted guests (SharedPlanCopy in room-plan.service.ts); null: not shared.
+  shared          Json?
+  sharedAt        DateTime?
+  trip            Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }

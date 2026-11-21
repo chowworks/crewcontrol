@@ -1013,6 +1013,8 @@ export interface JoinView {
    * after) is accepted; null otherwise, and the page shows the trip's public sections (issue #85).
    */
   sections: TripSection[] | null
+  /** The floor plan the organizer shared, when the caller (or a traveler they look after) is accepted; else null. */
+  floorPlan: SharedRoomPlan | null
 }
 
 /** The organizer's changes to one guest from the Trip Control panel. */
@@ -2078,6 +2080,41 @@ export interface RoomPlanLayout {
 export interface RoomPlan {
   layout: RoomPlanLayout
   updatedAt: string | null
+  /** When the organizer last shared the plan with accepted guests (by applying rooms); null while it isn't shared. */
+  sharedAt: string | null
+}
+
+/**
+ * The floor plan an organizer shared with accepted guests, as they applied it (never the draft). Accepted guests on a
+ * bed show as "First L."; anyone else on one (pending, the Interested list, a typed name) is taken, with no name. No
+ * prices. Only on the join page, for an accepted guest, when the organizer shares it.
+ */
+export interface SharedRoomPlan {
+  sharedAt: string
+  sections: PlanSection[]
+  tiles: SharedPlanTile[]
+}
+
+export interface SharedPlanTile {
+  id: string
+  sectionId: string
+  x: number
+  y: number
+  w: number
+  h: number
+  landmark: PlanTile['landmark']
+  /** A room's name, beds and each place on them; null for a landmark. */
+  room: {
+    name: string
+    bedTypes: BedType[]
+    places: (RoomSpot & {
+      /** "First L." for an accepted guest; null for a free place or a taken one. */
+      name: string | null
+      taken: boolean
+      /** The guest reading it, or a traveler they look after. */
+      you: boolean
+    })[]
+  } | null
 }
 
 /** One place to sleep in a room: which bed (null: a place the beds don't cover, like a floor mattress) and where on it. */
@@ -2108,6 +2145,8 @@ export interface ApplyRoomPlanInput {
   email: boolean
   /** When the draft the organizer looked at was saved: Apply refuses if it has changed since. */
   draftAt: string
+  /** Show the plan, as applied now, to accepted guests; false stops showing it. */
+  share: boolean
 }
 
 /** What applying the plan would do, or did: each guest who changes room and what their room price does. */

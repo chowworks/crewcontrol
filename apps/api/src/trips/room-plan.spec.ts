@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common'
-import { parseApplyRoomPlan, parseRoomPlanLayout } from './room-plan-input'
+import { parseApplyRoomPlan, parseRoomPlanLayout, parseShareRoomPlan } from './room-plan-input'
 import { clean, starter } from './room-plan.service'
 import { roomSpots } from './trip-types'
 
@@ -114,8 +114,26 @@ describe('parseRoomPlanLayout', () => {
 
   it('reads Apply’s email box', () => {
     const draftAt = '2026-11-20T18:42:00.000Z'
-    expect(parseApplyRoomPlan({ email: true, draftAt })).toEqual({ email: true, draftAt })
+    expect(parseApplyRoomPlan({ email: true, draftAt })).toEqual({
+      email: true,
+      draftAt,
+      share: false,
+    })
+    expect(parseApplyRoomPlan({ email: false, draftAt, share: true })).toEqual({
+      email: false,
+      draftAt,
+      share: true,
+    })
     expect(() => parseApplyRoomPlan({ email: true })).toThrow(BadRequestException)
+    expect(() => parseApplyRoomPlan({ email: true, draftAt, share: 'yes' })).toThrow(
+      BadRequestException
+    )
+  })
+
+  it('reads a share without moves', () => {
+    const draftAt = '2026-11-20T18:42:00.000Z'
+    expect(parseShareRoomPlan({ draftAt })).toEqual({ draftAt })
+    expect(() => parseShareRoomPlan({})).toThrow(BadRequestException)
   })
 })
 

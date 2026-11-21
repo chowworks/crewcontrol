@@ -2,6 +2,7 @@ import { useUser } from '@clerk/clerk-react'
 import type { JoinView, PublicTrip } from '@cc/types'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { GuestFloorPlan } from '@/components/SharedFloorPlan'
 import { TripView } from '@/components/TripView'
 import { ApiError, api } from '@/lib/api'
 import { AnnouncementsSection } from './GuestAnnouncements'
@@ -60,6 +61,7 @@ export function GuestTripPage() {
   return (
     <TripView
       trip={trip}
+      floorPlan={mine && view.floorPlan ? <GuestFloorPlan plan={view.floorPlan} /> : undefined}
       mine={
         mine
           ? {

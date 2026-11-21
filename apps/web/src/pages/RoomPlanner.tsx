@@ -48,6 +48,7 @@ import {
   MoveHorizontal,
   RotateCw,
   X,
+  Download,
 } from 'lucide-react'
 import {
   useEffect,
@@ -56,7 +57,9 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { toPng } from 'html-to-image'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { money } from '@/lib/format'
 import {
@@ -186,6 +189,7 @@ export function PlannerBoard({
   people,
   tripPriceCents,
   onAddRoom,
+  fileName = 'floor-plan',
 }: {
   layout: RoomPlanLayout
   setLayout: (update: (l: RoomPlanLayout) => RoomPlanLayout) => void
@@ -195,6 +199,8 @@ export function PlannerBoard({
   /** Opens "+ Room": adds a room to the trip itself. */
   /** Left out for the admin, who can't change the trip. */
   onAddRoom?: () => void
+  /** The downloaded picture's name, without .png. */
+  fileName?: string
 }) {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState<DragData | null>(null)
@@ -216,6 +222,34 @@ export function PlannerBoard({
   }, [menu])
   const [removing, setRemoving] = useState<PlanSection | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
+  const plan = useRef<HTMLDivElement>(null)
+  const toast = useToast()
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  // The whole plan at full size, whatever the zoom, without the handles for moving and resizing parts.
+  async function downloadPicture() {
+    if (!plan.current) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const url = await toPng(plan.current, {
+        pixelRatio: 2,
+        backgroundColor: '#FFFFFF',
+        style: { zoom: '1' },
+        filter: (n) => !(n instanceof HTMLElement && 'noExport' in n.dataset),
+      })
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${fileName}.png`
+      a.click()
+      toast({ text: 'Downloaded the floor plan' })
+    } catch {
+      setExportError('The picture couldn’t be made. Try again, or take a screenshot instead.')
+    } finally {
+      setExporting(false)
+    }
+  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor)
@@ -450,12 +484,30 @@ export function PlannerBoard({
               <button type="button" onClick={fit} className={`${btnOutline} ml-1`}>
                 Fit to screen
               </button>
+              <button
+                type="button"
+                onClick={downloadPicture}
+                disabled={exporting}
+                className={`${btnOutline} inline-flex items-center gap-1.5`}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {exporting ? 'Downloading…' : 'Download picture'}
+              </button>
             </div>
           </div>
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
+            {exportError && (
+              <p role="alert" className="font-semibold text-[#B42318]">
+                {exportError}
+              </p>
+            )}
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max flex-col items-start gap-4 pt-3">
+              <div
+                ref={plan}
+                style={{ zoom }}
+                className="flex w-max flex-col items-start gap-4 bg-white pt-3"
+              >
                 {sectionBands(layout.sections).map((band) =>
                   'across' in band ? (
                     <div key={band.across.id}>{renderSection(band.across)}</div>
@@ -828,6 +880,7 @@ function Section({
   }
   const edgeHandle = (axis: 'x' | 'y' | 'top') => (
     <div
+      data-no-export
       role="separator"
       aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
       aria-label={
@@ -876,6 +929,7 @@ function Section({
         <button
           ref={handle.setNodeRef}
           type="button"
+          data-no-export
           aria-label={`Move ${section.name}`}
           {...handle.attributes}
           {...handle.listeners}
@@ -905,6 +959,7 @@ function Section({
             <span className="text-sm font-semibold text-muted">{section.name}</span>
             <button
               type="button"
+              data-no-export
               aria-label={`Rename ${section.name}`}
               onClick={() => {
                 setName(section.name)
@@ -920,6 +975,7 @@ function Section({
         {canRemove && (
           <button
             type="button"
+            data-no-export
             aria-label={`Remove ${section.name}`}
             onClick={onRemove}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white hover:bg-ground"
@@ -1122,6 +1178,7 @@ function Tile({
   const remove = () => setLayout((l) => removeTile(l, tile.id))
   const grip = (
     <span
+      data-no-export
       onPointerDown={drag.down('resize')}
       onPointerMove={drag.move}
       onPointerUp={drag.up}
