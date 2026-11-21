@@ -615,7 +615,7 @@ export type TripChange =
   | { what: 'trip_deleted' }
   | { what: 'trip_restored' }
   /** The room planner applied (issue #93): who moved, by name. */
-  | { what: 'rooms_applied'; moved: string[] }
+  | { what: 'rooms_applied'; moved: string[]; grown?: { room: string; from: number; to: number }[] }
 
 /** The editable fields of a trip. Saving replaces the photo, highlight and key date lists whole. */
 /**

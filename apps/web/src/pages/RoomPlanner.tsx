@@ -60,7 +60,6 @@ import {
   removeTyped,
   resizeSection,
   setPlaces,
-  fitPlaces,
   sectionColumns,
   setTile,
   spotPerson,
@@ -216,11 +215,9 @@ export function PlannerBoard({
     if (!data || !over) return
     if (data.type === 'person') {
       if (over.type === 'spot') {
-        const room = rooms.find((r) => r.id === over.roomId)
-        setLayout((l) => {
-          const next = place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
-          return room ? fitPlaces(next, room) : next
-        })
+        setLayout((l) =>
+          place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
+        )
       } else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
         const from = data.from
         setLayout((l) => unplace(l, from.roomId, from.index))
@@ -1035,12 +1032,14 @@ function Tile({
   }
 
   if (!room) return null
-  const places = planPlaces(room, tile)
-  const spots = roomSpots({ ...room, capacity: places })
+  const added = planPlaces(room, tile)
   const inRoom = layout.spots.filter((s) => s.roomId === room.id)
+  // What the room sleeps on the plan: places added with +, or everyone on it, as Apply counts it.
+  const places = Math.max(added, inRoom.length)
+  const spots = roomSpots({ ...room, capacity: added })
   const full = inRoom.length >= places
-  // A place the organizer added goes back only when fewer people are in the room than that.
-  const canTakeBack = places > room.capacity && setPlaces(layout, room, places - 1) !== layout
+  // A place added with + goes back unless that would leave someone without one.
+  const canTakeBack = added > room.capacity && setPlaces(layout, room, added - 1) !== layout
   const beds = room.bedTypes.map((type, bed) => ({
     type,
     spots: spots.filter((s) => s.bed === bed),
@@ -1080,11 +1079,11 @@ function Tile({
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setLayout((l) => setPlaces(l, room, places - 1))}
+            onClick={() => setLayout((l) => setPlaces(l, room, added - 1))}
             disabled={!canTakeBack}
             aria-label={`Take a place back from ${room.name}`}
             title="Take back a place you added"
-            className="hidden h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink hover:bg-ground disabled:opacity-40 group-focus-within:flex group-hover:flex"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink opacity-0 hover:bg-ground focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
           >
             <Minus className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -1095,7 +1094,7 @@ function Tile({
             disabled={places >= ROOM_MAX_PLACES}
             aria-label={`Add a place to ${room.name}`}
             title="Add a place: applying rooms makes the room sleep one more"
-            className="hidden h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal hover:bg-royal-pale disabled:opacity-40 group-focus-within:flex group-hover:flex"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal opacity-0 hover:bg-royal-pale focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
           </button>

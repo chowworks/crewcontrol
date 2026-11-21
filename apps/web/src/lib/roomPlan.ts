@@ -232,16 +232,6 @@ export function setPlaces(
   }
 }
 
-/** After someone lands in a room: a room with more people than it sleeps gets the places they need. */
-export function fitPlaces(
-  layout: RoomPlanLayout,
-  room: { id?: string; capacity: number; bedTypes: BedType[] }
-): RoomPlanLayout {
-  const tile = layout.tiles.find((t) => t.roomId === room.id)
-  const count = layout.spots.filter((s) => s.roomId === room.id).length
-  return count > planPlaces(room, tile) ? setPlaces(layout, room, count) : layout
-}
-
 /**
  * A part of the house made bigger or smaller by dragging its right or bottom edge, in dots. It never cuts into a room
  * or landmark on it, and stays within what the server takes.

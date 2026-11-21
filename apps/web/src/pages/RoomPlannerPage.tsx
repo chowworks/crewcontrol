@@ -54,6 +54,7 @@ export function RoomPlannerPage() {
   const [locked, setLocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveFailed, setSaveFailed] = useState(false)
   const [busy, setBusy] = useState(false)
   // The moves Apply shows, and when the draft they come from was saved (Apply refuses if it changed since).
   const [moves, setMoves] = useState<{ list: RoomPlanMove[]; draftAt: string } | null>(null)
@@ -119,6 +120,7 @@ export function RoomPlannerPage() {
     const sent = revision.current
     setBusy(true)
     setSaveError(null)
+    setSaveFailed(false)
     try {
       const plan = await api.saveRoomPlan(id, layout)
       setUpdatedAt(plan.updatedAt)
@@ -130,6 +132,7 @@ export function RoomPlannerPage() {
       return plan.updatedAt
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'The draft did not save.')
+      setSaveFailed(true)
       return null
     } finally {
       setBusy(false)
@@ -227,11 +230,14 @@ export function RoomPlannerPage() {
     )
 
   const plannerOnly = layout.spots.map((s) => spotPerson(s, people)).filter((p) => !p.guestId)
-  // Rooms given more places on the plan: applying makes them sleep that many.
+  // Rooms given more places on the plan, or more people than they sleep: applying makes them sleep that many.
   const grown = rooms.flatMap((r) => {
-    const places = planPlaces(
-      r,
-      layout.tiles.find((t) => t.roomId === r.id)
+    const places = Math.max(
+      planPlaces(
+        r,
+        layout.tiles.find((t) => t.roomId === r.id)
+      ),
+      layout.spots.filter((s) => s.roomId === r.id).length
     )
     return places > r.capacity ? [{ name: r.name, from: r.capacity, to: places }] : []
   })
@@ -243,7 +249,7 @@ export function RoomPlannerPage() {
         <Logo />
         <div className="flex items-center gap-3">
           <span className={`${admin ? 'hidden' : 'hidden lg:flex'} items-center gap-3`}>
-            <SaveState busy={busy} dirty={dirty} failed={!!saveError} updatedAt={updatedAt} />
+            <SaveState busy={busy} dirty={dirty} failed={saveFailed} updatedAt={updatedAt} />
             <button type="button" disabled={busy} onClick={saveDraft} className={outlined}>
               Save draft
             </button>

@@ -113,6 +113,18 @@ describe('starter', () => {
   })
 })
 
+describe('starter, shared rooms', () => {
+  it('gives each guest their own bed before anyone shares', () => {
+    const twoQueens = [{ id: 'r1', name: 'Twin queens', capacity: 2, bedTypes: ['queen', 'queen'] }]
+    const pair = new Map([
+      ['g1', { id: 'g1', firstName: 'Kendra', lastName: 'Wells', roomId: 'r1' }],
+      ['g2', { id: 'g2', firstName: 'Jordan', lastName: 'Price', roomId: 'r1' }],
+    ])
+    const plan = starter({ rooms: twoQueens, guests: pair, interest: new Set() })
+    expect(plan.spots.map((s) => s.index)).toEqual([0, 2])
+  })
+})
+
 describe('starter, big houses', () => {
   it('leaves rooms that don’t fit one part of the house under Rooms to place', () => {
     const many = Array.from({ length: 30 }, (_, i) => ({

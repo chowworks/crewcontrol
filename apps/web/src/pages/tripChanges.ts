@@ -187,8 +187,13 @@ export function changeText(c: TripChange): string {
       return 'deleted the trip'
     case 'trip_restored':
       return 'restored the trip'
-    case 'rooms_applied':
-      return `applied the room plan and moved ${c.moved.join(', ')}`
+    case 'rooms_applied': {
+      const parts = [
+        ...(c.moved.length ? [`moved ${c.moved.join(', ')}`] : []),
+        ...(c.grown ?? []).map((g) => `made ${g.room} sleep ${g.to} (was ${g.from})`),
+      ]
+      return `applied the room plan${parts.length ? ` and ${parts.join('; ')}` : ''}`
+    }
   }
 }
 

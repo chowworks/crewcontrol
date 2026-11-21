@@ -80,8 +80,8 @@ export function ApplyRoomsDialog({
               Rooms that sleep more ({grown.length})
             </h3>
             <ul>
-              {grown.map((g) => (
-                <li key={g.name} className="border-t border-rule py-3">
+              {grown.map((g, i) => (
+                <li key={i} className="border-t border-rule py-3">
                   <strong>
                     {g.name}: sleeps {g.to} (was {g.from})
                   </strong>

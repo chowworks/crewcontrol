@@ -1,4 +1,4 @@
-import type { BedType, PlanSpot, RoomPlanLayout } from '@cc/types'
+import type { BedType, RoomPlanLayout } from '@cc/types'
 import { describe, expect, it } from 'vitest'
 import {
   moveSection,
@@ -8,7 +8,6 @@ import {
   removeTile,
   resizeSection,
   setPlaces,
-  fitPlaces,
   sectionColumns,
   setTile,
   unplace,
@@ -106,9 +105,8 @@ describe('places added to a room', () => {
     expect(setPlaces(base, room, 30).tiles[0].places).toBe(20)
   })
 
-  it('makes a room sleep one more when someone more is put on a free bed', () => {
+  it('takes back an added place only when nobody would be left without one', () => {
     const daybeds = { id: 'r1', capacity: 2, bedTypes: ['queen', 'daybed', 'daybed'] as BedType[] }
-    const two = { ...base, spots: [] as PlanSpot[] }
     const spot = (index: number, guestId: string) => ({
       roomId: 'r1',
       index,
@@ -116,9 +114,11 @@ describe('places added to a room', () => {
       guestId,
       interestId: null,
     })
-    const one = fitPlaces({ ...two, spots: [spot(0, 'a'), spot(2, 'b')] }, daybeds)
-    expect(one.tiles[0].places).toBeUndefined()
-    const three = fitPlaces({ ...two, spots: [spot(0, 'a'), spot(1, 'b'), spot(3, 'c')] }, daybeds)
+    const three = setPlaces(
+      { ...base, spots: [spot(0, 'a'), spot(1, 'b'), spot(3, 'c')] },
+      daybeds,
+      3
+    )
     expect(three.tiles[0].places).toBe(3)
     expect(setPlaces(three, daybeds, 2)).toBe(three)
   })
