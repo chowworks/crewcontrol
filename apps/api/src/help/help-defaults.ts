@@ -54,7 +54,7 @@ Then drag people onto beds, or onto a room to take its first free bed. Rooms you
     key: 'room-planner-people',
     topic: 'rooms',
     question: 'Who can I put in the room planner?',
-    answer: `Anyone. Everyone from the trip (guests who signed up and people on the Interested list) waits under "Not placed yet", ready to drag onto a bed. For anyone else, type a name under "Add someone who hasn't signed up", like "Kendra's +1". Typed names and people from the Interested list stay in the planner: they're never emailed and never shown on the trip page.
+    answer: `Anyone. Everyone from the trip (guests who signed up and people on the Interested list) waits under "Not placed yet", ready to drag onto a bed. For anyone else, type a name under "Add someone who hasn't signed up", like "Kendra's +1", and click a typed name to fix it. Typed names and people from the Interested list stay in the planner: they're never emailed and never shown on the trip page.
 
 The colours show who's who: filled purple for accepted guests, a purple outline for guests waiting to be accepted, a dashed outline for the Interested list, and grey for names you typed.`,
     pages: ['planner'],
