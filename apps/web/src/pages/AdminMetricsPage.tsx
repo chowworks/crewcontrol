@@ -1,5 +1,5 @@
 import type { AdminMetric, AdminMetrics } from '@cc/types'
-import { HandCoins, Luggage, Users, type LucideIcon } from 'lucide-react'
+import { Bot, HandCoins, Luggage, Users, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
 import { money } from '@/lib/format'
@@ -62,6 +62,39 @@ function LoggedBy({ by }: { by: AdminMetrics['loggedBy'] }) {
   )
 }
 
+/** Requests turned away before any route (scanners): the last 24 hours, the last 7 days and what they asked for. */
+function BotRequests({ bots }: { bots: AdminMetrics['botRequests'] }) {
+  return (
+    <section className="flex flex-col gap-2 rounded-2xl bg-white p-5 shadow-card sm:p-6">
+      <h2 className="flex items-center gap-3 text-lg font-bold">
+        <IconCircle icon={Bot} />
+        Bot requests
+      </h2>
+      <p className="text-4xl font-extrabold">{count(bots.day)}</p>
+      <p className="text-body">
+        <span className="font-semibold">in the last 24 hours</span>, {count(bots.week)} in the last
+        7 days
+      </p>
+      {bots.topPaths.length > 0 && (
+        <div className="mt-2 border-t border-rule pt-3 text-sm text-body">
+          <p className="font-semibold">Most asked for (7 days)</p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {bots.topPaths.map((p) => (
+              <li key={p.path} className="flex justify-between gap-3">
+                <span className="min-w-0 break-all font-mono text-xs leading-5">{p.path}</span>
+                <span className="shrink-0">
+                  {count(p.count)}
+                  <span className="sr-only"> requests</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
 /**
  * Admin toolbox → Metrics: how many people use Travel HQ, the trips they made and the payments they tracked, all time
  * and the last 30 days. Sample trips are left out (admin_metrics).
@@ -105,6 +138,7 @@ export function AdminMetricsPage() {
             </p>
             <LoggedBy by={metrics.loggedBy} />
           </Stat>
+          {metrics.botRequests && <BotRequests bots={metrics.botRequests} />}
         </div>
       )}
       <AdminHow to="/admin/metrics" />

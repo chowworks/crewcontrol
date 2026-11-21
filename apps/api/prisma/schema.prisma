@@ -765,6 +765,17 @@ model ServiceFailure {
   @@index([kind, at])
 }
 
+// Requests turned away before any route (scanners), counted in memory and written every 15 minutes
+// (src/core/bot-request-log.ts, migration 20261121010000). No trip or person: not a tenant table.
+model BotRequestTally {
+  id    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  at    DateTime @default(now())
+  count Int
+  paths Json     @default("[]") // [{ path: 'GET /.env', count: 3 }], top 20, most first
+
+  @@index([at])
+}
+
 // "I'm interested" on a save the date (issue #47, migration 20261031080000_trip_interest): a signed-in person, once a
 // trip. Apart from Guest on purpose, so interest is never a signature, a balance or a spot. Organizers only see it.
 model TripInterest {
