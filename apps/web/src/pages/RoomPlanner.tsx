@@ -45,7 +45,7 @@ import {
 } from 'lucide-react'
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { BedPicture } from '@/components/RoomArt'
+import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { money } from '@/lib/format'
 import {
   addTyped,
@@ -325,7 +325,7 @@ export function PlannerBoard({
                 className={btnOutline}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                Bathroom or landmark
+                Bathroom, Stairs, or other landmarks
               </button>
               {menu && (
                 <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-rule bg-white shadow-[0_8px_24px_rgba(15,28,46,0.12)]">
@@ -968,8 +968,8 @@ function Tile({
     const lm = tile.landmark
     return (
       <div
-        className={`group absolute flex flex-col items-center justify-center gap-1 rounded-xl px-2 text-center text-[13px] font-semibold ${lm.kind === 'outdoor' ? 'border-2 border-dashed border-line bg-white' : 'bg-rule'}`}
-        style={style}
+        className="group absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
+        style={{ ...style, ...LANDMARK_FLOOR[lm.kind] }}
       >
         <div
           onPointerDown={drag.down('move')}
@@ -980,7 +980,10 @@ function Tile({
           className="absolute inset-0 cursor-move rounded-xl"
           aria-hidden="true"
         />
-        <span className="pointer-events-none relative">{LANDMARK_ICON[lm.kind]}</span>
+        <LandmarkPicture
+          kind={lm.kind}
+          className="pointer-events-none relative min-h-0 w-full max-w-[110px] flex-1"
+        />
         {renaming ? (
           <input
             aria-label="Landmark name"
@@ -999,7 +1002,7 @@ function Tile({
           <button
             type="button"
             onClick={() => setRenaming(true)}
-            className="relative truncate hover:underline"
+            className="relative max-w-full shrink-0 truncate rounded-full bg-white/90 px-2 text-[12px] hover:underline"
             title="Rename"
           >
             {lm.label}

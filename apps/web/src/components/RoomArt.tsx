@@ -1,4 +1,5 @@
-import { BED_LABELS, type BedType } from '@cc/types'
+import type { CSSProperties, ReactNode } from 'react'
+import { BED_LABELS, type BedType, type LandmarkKind } from '@cc/types'
 
 // Bed sizes seen from above, in the picture's units: a twin is narrow, a king nearly twice as wide.
 const BED_WIDTH: Record<BedType, number> = {
@@ -166,4 +167,159 @@ export function sharingLine(room: {
       } too.`
     )
   return parts.join(' ')
+}
+
+const R = '#5A2D91'
+const RD = '#3F1E66'
+const PALE = '#F1ECF8'
+const GOLD = '#F2B33D'
+
+/** What each landmark's floor looks like behind its picture on the room planner. */
+export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
+  bath: {
+    backgroundColor: '#FAFBFC',
+    backgroundImage:
+      'linear-gradient(#E2E8EA 1px, transparent 1px), linear-gradient(90deg, #E2E8EA 1px, transparent 1px)',
+    backgroundSize: '12px 12px',
+  },
+  kitchen: {
+    backgroundColor: '#FFFFFF',
+    backgroundImage: 'conic-gradient(#F3F6F5 25%, transparent 0 50%, #F3F6F5 0 75%, transparent 0)',
+    backgroundSize: '20px 20px',
+  },
+  living: { backgroundColor: '#FFFFFF' },
+  stairs: { backgroundColor: '#FFFFFF' },
+  outdoor: {
+    backgroundColor: '#F7EBD3',
+    backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 13px, #E9D6B0 13px 14px)',
+  },
+  other: { backgroundColor: '#F3F6F5' },
+}
+
+/** A small top-down picture of a landmark on the room planner, drawn like the beds (issue #93). */
+export function LandmarkPicture({
+  kind,
+  className = '',
+}: {
+  kind: LandmarkKind
+  className?: string
+}) {
+  return (
+    <svg viewBox="0 0 80 56" className={className} aria-hidden="true">
+      {LANDMARK_ART[kind]}
+    </svg>
+  )
+}
+
+const line = { fill: '#fff', stroke: R, strokeWidth: 2 }
+
+const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
+  // A tub, a toilet and a sink.
+  bath: (
+    <g>
+      <rect x="3" y="4" width="34" height="48" rx="9" {...line} />
+      <rect x="8" y="9" width="24" height="38" rx="10" fill={PALE} />
+      <circle cx="20" cy="12" r="2.5" fill={GOLD} />
+      <rect x="51" y="4" width="22" height="7" rx="2" fill={R} />
+      <ellipse cx="62" cy="22" rx="8" ry="10" {...line} />
+      <rect x="49" y="38" width="26" height="15" rx="4" {...line} />
+      <ellipse cx="62" cy="46" rx="7" ry="4" fill={PALE} />
+      <circle cx="62" cy="40.5" r="1.8" fill={GOLD} />
+    </g>
+  ),
+  // A counter with a stove and a sink, and an island with stools.
+  kitchen: (
+    <g>
+      <rect x="2" y="3" width="76" height="17" rx="3" {...line} />
+      {[9, 23].map((x) =>
+        [8, 15].map((y) => (
+          <circle
+            key={`${x}${y}`}
+            cx={x}
+            cy={y}
+            r="2.6"
+            fill="none"
+            stroke={GOLD}
+            strokeWidth="2"
+          />
+        ))
+      )}
+      <rect x="44" y="6" width="20" height="11" rx="3" fill={PALE} stroke={R} strokeWidth="1.5" />
+      <circle cx="54" cy="6" r="1.6" fill={GOLD} />
+      <rect x="18" y="28" width="44" height="13" rx="4" fill={R} />
+      {[26, 40, 54].map((x) => (
+        <circle key={x} cx={x} cy="49" r="4" fill={GOLD} />
+      ))}
+    </g>
+  ),
+  // A sofa on a rug, a coffee table and a chair.
+  living: (
+    <g>
+      <rect x="6" y="16" width="62" height="36" rx="5" fill="#FBEBC8" />
+      <rect x="4" y="3" width="56" height="15" rx="5" fill={R} />
+      <rect x="9" y="8" width="22" height="9" rx="3" fill="#7B4FB5" />
+      <rect x="33" y="8" width="22" height="9" rx="3" fill="#7B4FB5" />
+      <rect x="20" y="27" width="30" height="13" rx="3" {...line} />
+      <circle cx="35" cy="33.5" r="2.5" fill={GOLD} />
+      <rect x="60" y="24" width="16" height="18" rx="5" fill={RD} />
+      <rect x="63" y="28" width="10" height="10" rx="3" fill="#7B4FB5" />
+    </g>
+  ),
+  // A staircase from the side: steps going up, with a rail.
+  stairs: (
+    <g>
+      <path
+        d="M6 52 V44 H18 V36 H30 V28 H42 V20 H54 V12 H66 V4 H74 V52 Z"
+        fill={R}
+        stroke={RD}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {[44, 36, 28, 20, 12, 4].map((y, i) => (
+        <rect key={y} x={6 + i * 12} y={y} width={i === 5 ? 8 : 12} height="2.5" fill="#7B4FB5" />
+      ))}
+      <path d="M10 34 L70 -6" stroke={GOLD} strokeWidth="3" strokeLinecap="round" fill="none" />
+      {[12, 24, 36, 48, 60].map((x, i) => (
+        <line
+          key={x}
+          x1={x}
+          y1={44 - i * 8}
+          x2={x}
+          y2={34 - (x - 10) * (40 / 60)}
+          stroke={GOLD}
+          strokeWidth="1.5"
+        />
+      ))}
+    </g>
+  ),
+  // A table with chairs and a lounger.
+  outdoor: (
+    <g>
+      <circle cx="28" cy="28" r="11" {...line} />
+      <circle cx="28" cy="28" r="3" fill={GOLD} />
+      {[
+        [28, 10],
+        [28, 46],
+        [10, 28],
+        [46, 28],
+      ].map(([x, y]) => (
+        <rect key={`${x}${y}`} x={x - 5} y={y - 5} width="10" height="10" rx="3" fill={R} />
+      ))}
+      <rect x="58" y="6" width="16" height="44" rx="5" fill={RD} />
+      <rect x="61" y="9" width="10" height="10" rx="3" fill={GOLD} />
+    </g>
+  ),
+  // A door and a shelf: a closet, a laundry, a garage.
+  other: (
+    <g>
+      <rect x="10" y="6" width="26" height="46" rx="2" {...line} />
+      <circle cx="31" cy="30" r="2" fill={GOLD} />
+      <rect x="46" y="6" width="26" height="46" rx="3" fill={PALE} stroke={R} strokeWidth="2" />
+      {[18, 30, 42].map((y) => (
+        <line key={y} x1="46" y1={y} x2="72" y2={y} stroke={R} strokeWidth="2" />
+      ))}
+      <rect x="50" y="11" width="7" height="7" rx="1.5" fill={GOLD} />
+      <rect x="60" y="24" width="8" height="6" rx="1.5" fill={R} />
+    </g>
+  ),
 }
