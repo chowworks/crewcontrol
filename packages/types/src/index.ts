@@ -2066,14 +2066,15 @@ export interface RoomSpot {
 }
 
 /**
- * The places a room has, in bed order: two on a bed that sleeps two, never more than the room sleeps, and plain places
- * for what the beds don't cover.
+ * The places a room has, in bed order: every place on every bed (two on a bed that sleeps two), so the organizer can
+ * put someone on the bed they mean, then plain places for what the beds don't cover. A room may have more bed places
+ * than it sleeps; the planner counts the people in it against what it sleeps.
  */
 export function roomSpots(room: { bedTypes: BedType[]; capacity: number }): RoomSpot[] {
   const spots: RoomSpot[] = []
   room.bedTypes.forEach((b, bed) => {
     for (let slot = 0; slot < BED_LABELS[b].sleeps; slot++)
-      if (spots.length < room.capacity) spots.push({ index: spots.length, bed, slot })
+      spots.push({ index: spots.length, bed, slot })
   })
   while (spots.length < room.capacity) spots.push({ index: spots.length, bed: null, slot: 0 })
   return spots

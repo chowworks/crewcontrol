@@ -98,7 +98,13 @@ export class RoomPlanService {
     for (const s of layout.spots) {
       const room = rooms.get(s.roomId)
       if (!room) throw new BadRequestException('That room is not on this trip')
-      if (s.index >= spotsOf(room).length)
+      if (
+        s.index >=
+        spotsOf(
+          room,
+          layout.tiles.find((t) => t.roomId === room.id)
+        ).length
+      )
         throw new BadRequestException(`${room.name} doesn’t have that many places`)
       if (s.guestId && !facts.guests.has(s.guestId))
         throw new BadRequestException('Someone on the plan isn’t a guest on this trip')
@@ -142,15 +148,18 @@ export class RoomPlanService {
         'The draft changed since you opened Apply rooms. Open it again to see the moves.'
       )
     const moves = await this.movesOf(tripId, draft.layout, caller)
-    // A room the organizer gave more places on the plan sleeps that many from now on.
+    // A room the organizer gave more places, or put more people in, sleeps that many from now on.
     const rooms = await this.prisma.room.findMany({
       where: { tripId },
       select: { id: true, capacity: true },
     })
     const grown = rooms.flatMap((r) => {
-      const places = planPlaces(
-        r,
-        draft.layout.tiles.find((t) => t.roomId === r.id)
+      const places = Math.max(
+        planPlaces(
+          r,
+          draft.layout.tiles.find((t) => t.roomId === r.id)
+        ),
+        draft.layout.spots.filter((s) => s.roomId === r.id).length
       )
       return places > r.capacity ? [{ id: r.id, places }] : []
     })

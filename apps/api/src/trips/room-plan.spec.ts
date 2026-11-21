@@ -28,11 +28,12 @@ const kendra = { roomId: 'r1', index: 0, name: 'Kendra W.', guestId: 'g1', inter
 const layout = { sections: [main], tiles: [suite, bath], spots: [kendra], waiting: ['Kendra’s +1'] }
 
 describe('roomSpots', () => {
-  it('gives each bed its places, a bunk top first, and never more than the room sleeps', () => {
+  it('gives every bed its places, a bunk top first, even past what the room sleeps', () => {
     expect(roomSpots({ bedTypes: ['king', 'bunk'], capacity: 3 })).toEqual([
       { index: 0, bed: 0, slot: 0 },
       { index: 1, bed: 0, slot: 1 },
       { index: 2, bed: 1, slot: 0 },
+      { index: 3, bed: 1, slot: 1 },
     ])
   })
 

@@ -57,6 +57,7 @@ import {
   removeTyped,
   resizeSection,
   setPlaces,
+  fitPlaces,
   sectionRows,
   setTile,
   spotPerson,
@@ -208,11 +209,13 @@ export function PlannerBoard({
       | undefined
     if (!data || !over) return
     if (data.type === 'person') {
-      if (over.type === 'spot')
-        setLayout((l) =>
-          place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
-        )
-      else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
+      if (over.type === 'spot') {
+        const room = rooms.find((r) => r.id === over.roomId)
+        setLayout((l) => {
+          const next = place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
+          return room ? fitPlaces(next, room) : next
+        })
+      } else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
         const from = data.from
         setLayout((l) => unplace(l, from.roomId, from.index))
       }
@@ -1018,10 +1021,10 @@ function Tile({
   if (!room) return null
   const places = planPlaces(room, tile)
   const spots = roomSpots({ ...room, capacity: places })
-  // The last place can go back only when it's one the organizer added and nobody is on it.
-  const canTakeBack =
-    places > room.capacity &&
-    !layout.spots.some((s) => s.roomId === room.id && s.index === places - 1)
+  const inRoom = layout.spots.filter((s) => s.roomId === room.id)
+  const full = inRoom.length >= places
+  // A place the organizer added goes back only when fewer people are in the room than that.
+  const canTakeBack = places > room.capacity && setPlaces(layout, room, places - 1) !== layout
   const beds = room.bedTypes.map((type, bed) => ({
     type,
     spots: spots.filter((s) => s.bed === bed),
@@ -1092,7 +1095,14 @@ function Tile({
               </div>
               <div className="flex flex-col gap-3 pt-1.5">
                 {b.spots.map((s) => (
-                  <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+                  <Spot
+                    key={s.index}
+                    room={room}
+                    spot={s}
+                    layout={layout}
+                    people={people}
+                    full={full}
+                  />
                 ))}
               </div>
             </div>
@@ -1103,7 +1113,14 @@ function Tile({
                 {BED_LABELS[b.type].label}
               </span>
               {b.spots.map((s) => (
-                <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+                <Spot
+                  key={s.index}
+                  room={room}
+                  spot={s}
+                  layout={layout}
+                  people={people}
+                  full={full}
+                />
               ))}
             </div>
           )
@@ -1114,7 +1131,14 @@ function Tile({
               {room.bedTypes.length ? 'Extra places' : 'Places'}
             </span>
             {extra.map((s) => (
-              <Spot key={s.index} room={room} spot={s} layout={layout} people={people} />
+              <Spot
+                key={s.index}
+                room={room}
+                spot={s}
+                layout={layout}
+                people={people}
+                full={full}
+              />
             ))}
           </div>
         )}
@@ -1129,11 +1153,14 @@ function Spot({
   spot,
   layout,
   people,
+  full,
 }: {
   room: TripRoom
   spot: RoomSpot
   layout: RoomPlanLayout
   people: Person[]
+  /** The room has as many people as it sleeps: someone more on a free bed makes it sleep one more. */
+  full: boolean
 }) {
   const roomId = room.id!
   const { setNodeRef, isOver } = useDroppable({
@@ -1151,13 +1178,16 @@ function Spot({
         />
       ) : (
         <span
+          title={full ? 'Putting someone here makes the room sleep one more' : undefined}
           className={`inline-flex h-7 items-center rounded-full border-2 px-2.5 text-[11px] font-medium ${
             isOver
               ? 'border-solid border-royal bg-royal-pale text-royal'
-              : 'border-dashed border-line bg-white text-muted'
+              : full
+                ? 'border-dashed border-line/60 bg-transparent text-muted/70'
+                : 'border-dashed border-line bg-white text-muted'
           }`}
         >
-          {isOver ? 'Drop here' : 'Empty'}
+          {isOver ? 'Drop here' : full ? 'Spare' : 'Empty'}
         </span>
       )}
     </div>

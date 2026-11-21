@@ -3,6 +3,8 @@ import {
   PLAN_MAX_ROWS,
   ROOM_MAX_PLACES,
   planPlaces,
+  roomSpots,
+  type BedType,
   type Guest,
   type InterestedPerson,
   type PlanSpot,
@@ -209,14 +211,16 @@ export function setTile(layout: RoomPlanLayout, tile: PlanTile): RoomPlanLayout 
  */
 export function setPlaces(
   layout: RoomPlanLayout,
-  room: { id?: string; capacity: number },
+  room: { id?: string; capacity: number; bedTypes: BedType[] },
   places: number
 ): RoomPlanLayout {
   const tile = layout.tiles.find((t) => t.roomId === room.id)
   if (!tile) return layout
   const now = planPlaces(room, tile)
   const n = Math.max(room.capacity, Math.min(places, ROOM_MAX_PLACES))
-  if (n < now && layout.spots.some((s) => s.roomId === room.id && s.index >= n)) return layout
+  const inRoom = layout.spots.filter((s) => s.roomId === room.id)
+  const last = roomSpots({ ...room, capacity: n }).length
+  if (n < now && (inRoom.length > n || inRoom.some((s) => s.index >= last))) return layout
   return {
     ...layout,
     tiles: layout.tiles.map((t) => {
@@ -225,6 +229,16 @@ export function setPlaces(
       return n > room.capacity ? { ...rest, places: n } : rest
     }),
   }
+}
+
+/** After someone lands in a room: a room with more people than it sleeps gets the places they need. */
+export function fitPlaces(
+  layout: RoomPlanLayout,
+  room: { id?: string; capacity: number; bedTypes: BedType[] }
+): RoomPlanLayout {
+  const tile = layout.tiles.find((t) => t.roomId === room.id)
+  const count = layout.spots.filter((s) => s.roomId === room.id).length
+  return count > planPlaces(room, tile) ? setPlaces(layout, room, count) : layout
 }
 
 /**
