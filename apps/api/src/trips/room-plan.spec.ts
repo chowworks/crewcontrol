@@ -50,6 +50,11 @@ describe('parseRoomPlanLayout', () => {
     expect(parseRoomPlanLayout(layout)).toEqual(layout)
   })
 
+  it('keeps a landmark turned a quarter', () => {
+    const turned = { ...bath, landmark: { ...bath.landmark, turn: 1 } }
+    expect(parseRoomPlanLayout({ ...layout, tiles: [suite, turned] }).tiles[1]).toEqual(turned)
+  })
+
   it.each([
     [{ ...layout, sections: [] }, 'A plan has at least one part of the house'],
     [
@@ -63,6 +68,10 @@ describe('parseRoomPlanLayout', () => {
     ],
     [{ ...layout, tiles: [{ ...bath, roomId: 'r1' }] }, 'A tile is either a room or a landmark'],
     [{ ...layout, tiles: [suite, { ...bath, places: 3 }] }, 'Only a room has places'],
+    [
+      { ...layout, tiles: [suite, { ...bath, landmark: { ...bath.landmark, turn: 4 } }] },
+      'turn must be a whole number from 1 to 3',
+    ],
     [
       { ...layout, tiles: [{ ...suite, places: 21 }, bath] },
       'places must be a whole number from 1 to 20',

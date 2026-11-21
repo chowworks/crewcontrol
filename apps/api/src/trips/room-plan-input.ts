@@ -47,6 +47,8 @@ function tile(item: Body, sections: PlanSection[]): PlanTile {
     if (!LANDMARK_KINDS.includes(l.kind as LandmarkKind))
       fail(`landmark kind must be one of ${LANDMARK_KINDS.join(', ')}`)
     landmark = { kind: l.kind as LandmarkKind, label: text(l, 'label', PLAN_NAME_MAX) }
+    if (l.turn !== undefined && l.turn !== null && l.turn !== 0)
+      landmark.turn = int(l, 'turn', 1, 3)
   }
   if (!roomId === !landmark) fail('A tile is either a room or a landmark')
   const w = int(item, 'w', 2, PLAN_MAX_COLS)

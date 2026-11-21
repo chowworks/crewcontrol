@@ -44,6 +44,8 @@ import {
   Trash2,
   TreePalm,
   Users,
+  MoveHorizontal,
+  RotateCw,
   X,
 } from 'lucide-react'
 import {
@@ -117,6 +119,7 @@ const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
       <path d="M4 20h4v-4h4v-4h4V8h4" />
     </svg>
   ),
+  hall: <MoveHorizontal className="h-5 w-5" aria-hidden="true" />,
   outdoor: <TreePalm className="h-5 w-5" aria-hidden="true" />,
   pool: <WavesLadder className="h-5 w-5" aria-hidden="true" />,
   other: <MapPin className="h-5 w-5" aria-hidden="true" />,
@@ -149,7 +152,7 @@ const btnOutline =
  */
 const ACCEPTS: Record<DragData['type'], string[]> = {
   room: ['grid'],
-  person: ['spot', 'panel'],
+  person: ['spot', 'roomTile', 'panel'],
   section: ['zone'],
 }
 const collide: CollisionDetection = (args) => {
@@ -159,7 +162,16 @@ const collide: CollisionDetection = (args) => {
     ACCEPTS[kind].includes((c.data.current as { type?: string } | undefined)?.type ?? '')
   )
   const narrowed = { ...args, droppableContainers: containers }
-  return kind === 'person' ? rectIntersection(narrowed) : pointerWithin(narrowed)
+  // A person lands where the pointer is; only when it's between places does the chip's overlap decide, so a drop
+  // that the dragged chip only grazes still lands on the place under the pointer.
+  if (kind !== 'person') return pointerWithin(narrowed)
+  const under = pointerWithin(narrowed)
+  // Over a place inside a room, the place wins over the room around it.
+  const spot = under.find(
+    (c) => (c.data?.droppableContainer.data.current as { type?: string })?.type === 'spot'
+  )
+  if (spot) return [spot]
+  return under.length ? under : rectIntersection(narrowed)
 }
 
 export function PlannerBoard({
@@ -229,6 +241,7 @@ export function PlannerBoard({
     const data = e.active.data.current as DragData | undefined
     const over = e.over?.data.current as
       | { type: 'spot'; roomId: string; index: number }
+      | { type: 'roomTile'; roomId: string }
       | { type: 'panel' }
       | { type: 'grid'; sectionId: string }
       | { type: 'zone'; sectionId: string; where: 'below' | 'beside' }
@@ -239,6 +252,24 @@ export function PlannerBoard({
         setLayout((l) =>
           place(l, data.person, data.from, { roomId: over.roomId, index: over.index })
         )
+      } else if (over.type === 'roomTile') {
+        // Dropped on a room but not on a place: the first free bed, one person per bed before anyone shares.
+        const room = rooms.find((r) => r.id === over.roomId)
+        if (!room) return
+        setLayout((l) => {
+          const free = roomSpots({
+            ...room,
+            capacity: planPlaces(
+              room,
+              l.tiles.find((t) => t.roomId === room.id)
+            ),
+          })
+            .filter((p) => !l.spots.some((s) => s.roomId === room.id && s.index === p.index))
+            .sort((a, b) => a.slot - b.slot || a.index - b.index)[0]
+          return free
+            ? place(l, data.person, data.from, { roomId: room.id!, index: free.index })
+            : l
+        })
       } else if (over.type === 'panel' && typeof data.from === 'object' && 'roomId' in data.from) {
         const from = data.from
         setLayout((l) => unplace(l, from.roomId, from.index))
@@ -279,8 +310,9 @@ export function PlannerBoard({
         landmark: { kind, label: kind === 'other' ? 'Landmark' : LANDMARK_LABELS[kind] },
         x: 0,
         y: bottom,
-        w: 6,
-        h: 4,
+        // A hallway starts long and narrow; the rest start square-ish.
+        w: kind === 'hall' ? 14 : 6,
+        h: kind === 'hall' ? 3 : 4,
       })
     })
   }
@@ -323,6 +355,9 @@ export function PlannerBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={collide}
+      // The plan scrolls only when the pointer is right at its edge: by default a fifth of its width scrolls it, so a
+      // room near the edge slid away under the pointer and the drop missed it.
+      autoScroll={{ threshold: { x: 0.04, y: 0.06 }, acceleration: 6 }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={() => setDragging(null)}
@@ -973,6 +1008,11 @@ function Tile({
   zoom: number
 }) {
   const drag = useTileDrag(tile, setLayout, zoom)
+  const drop = useDroppable({
+    id: `room:${tile.id}`,
+    data: { type: 'roomTile', roomId: tile.roomId },
+    disabled: !tile.roomId,
+  })
   const [renaming, setRenaming] = useState(false)
   const style = {
     left: (tile.x + (drag.shift?.dx ?? 0)) * CELL + 3,
@@ -997,6 +1037,16 @@ function Tile({
 
   if (tile.landmark) {
     const lm = tile.landmark
+    // A quarter turn swaps the tile's width and height, so turned stairs run the other way across the dots.
+    const turn = () =>
+      setLayout((l) =>
+        setTile(l, {
+          ...tile,
+          w: tile.h,
+          h: tile.w,
+          landmark: { ...lm, turn: ((lm.turn ?? 0) + 1) % 4 || undefined },
+        })
+      )
     return (
       <div
         className="group absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
@@ -1013,6 +1063,7 @@ function Tile({
         />
         <LandmarkPicture
           kind={lm.kind}
+          turn={lm.turn}
           className="pointer-events-none relative min-h-0 w-full max-w-[110px] flex-1"
         />
         {renaming ? (
@@ -1039,14 +1090,25 @@ function Tile({
             {lm.label}
           </button>
         )}
-        <button
-          type="button"
-          onClick={remove}
-          aria-label={`Remove ${lm.label}`}
-          className="absolute right-1 top-1 hidden rounded-full p-1 text-muted hover:bg-white group-focus-within:block group-hover:block"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        <span className="absolute right-1 top-1 flex gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={turn}
+            aria-label={`Turn ${lm.label}`}
+            title="Turn a quarter"
+            className="rounded-full bg-white/80 p-1 text-muted hover:bg-white hover:text-royal"
+          >
+            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            aria-label={`Remove ${lm.label}`}
+            className="rounded-full bg-white/80 p-1 text-muted hover:bg-white hover:text-royal"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </span>
         {grip}
       </div>
     )
@@ -1069,7 +1131,8 @@ function Tile({
   const price = room.priceCents ?? tripPriceCents
   return (
     <div
-      className="group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
+      ref={drop.setNodeRef}
+      className={`group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] bg-white px-3 py-2.5 shadow-card ${drop.isOver ? 'border-royal' : 'border-line'}`}
       style={style}
     >
       <div
