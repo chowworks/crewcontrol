@@ -407,7 +407,7 @@ export function PlannerBoard({
           </div>
         )}
         {dragging?.type === 'section' && (
-          <div className="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white">
+          <div className="w-max whitespace-nowrap rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(15,28,46,0.25)]">
             {layout.sections.find((s) => s.id === dragging.sectionId)?.name}
           </div>
         )}
@@ -767,6 +767,7 @@ function Section({
   )
 }
 
+/** Placed by offsets, never a CSS transform: the drop finds boxes by where they sit without one. */
 function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${where}:${id}`,
@@ -777,7 +778,7 @@ function Zone({ id, where }: { id: string; where: 'below' | 'beside' }) {
       ref={setNodeRef}
       className={`absolute z-10 flex items-center justify-center rounded-xl border-2 border-dashed text-sm font-semibold ${
         isOver ? 'border-royal bg-royal-pale text-royal' : 'border-line bg-white/80 text-muted'
-      } ${where === 'beside' ? '-right-3 top-0 h-full w-24 translate-x-full' : '-bottom-3 left-0 h-14 w-full translate-y-full'}`}
+      } ${where === 'beside' ? 'left-full top-0 ml-3 h-full w-24' : 'left-0 top-full mt-3 h-14 w-full'}`}
     >
       {where === 'beside' ? 'Put beside' : 'Put below'}
     </div>
