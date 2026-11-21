@@ -14,7 +14,7 @@ import type {
 } from '@cc/types'
 import { ArrowLeft, BedDouble, Lightbulb, Lock, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AdminViewNote, useAdminFallback, useAdminView } from '@/components/AdminView'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -38,6 +38,15 @@ import { useTripQuestions } from './TripQuestions'
 import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
 import { useHasPlanner } from './RoomPlannerPage'
+import { ReviewSwitch } from '@/ReviewSwitch'
+import {
+  PLACEMENTS,
+  PlannerCard,
+  PlannerHeadingButton,
+  PlannerRow,
+  placementOf,
+} from './PlannerPlacement'
+import { roomSpots } from '@cc/types'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
 // trip editor (steps 3 and 4).
@@ -54,6 +63,8 @@ export function ControlPanelPage() {
   const toAdminView = useAdminFallback(id, 'control')
   // The room planner (issue #93) is a paid feature, for an organizer's own trips.
   const hasPlanner = useHasPlanner(id, admin)
+  // Design experiment: where the planner opens from (PlannerPlacement.tsx). No parameter: the header button.
+  const placement = placementOf(useLocation().search)
   // A payment that looks like one already confirmed waits for the organizer's answer here.
   const [same, setSame] = useState<{
     name: string
@@ -332,10 +343,15 @@ export function ControlPanelPage() {
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
+  const planner =
+    rooms.length >= 2 && (admin || hasPlanner !== null)
+      ? { tripId: id, admin, locked: !admin && !hasPlanner }
+      : null
 
   return (
     <div className="min-h-screen bg-ground pb-16 text-ink">
       <HelpButton page="control" tripId={id} />
+      {placement && <ReviewSwitch param="placement" options={PLACEMENTS} />}
       <header className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-3 px-5 py-4">
         <Logo />
         <div className="flex items-center gap-3">
@@ -349,7 +365,7 @@ export function ControlPanelPage() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
           </Link>
-          {rooms.length >= 2 && (admin || hasPlanner !== null) && (
+          {!placement && rooms.length >= 2 && (admin || hasPlanner !== null) && (
             <Link
               to={admin ? `/admin/trips/${id}/planner` : `/organize/${id}/planner`}
               aria-label="Room planner"
@@ -421,7 +437,19 @@ export function ControlPanelPage() {
           </div>
         )}
         <MoneyCard trip={trip} />
+        {planner && placement === 'b' && <PlannerRow {...planner} />}
+        {planner && placement === 'c' && (
+          <PlannerCard
+            {...planner}
+            beds={rooms.reduce((n, r) => n + roomSpots(r).length, 0)}
+            roomed={trip.guests.filter((g) => g.status !== 'declined' && g.roomId).length}
+            going={trip.guests.filter((g) => g.status !== 'declined').length}
+          />
+        )}
         <GuestsCard
+          headingAction={
+            planner && placement === 'a' ? <PlannerHeadingButton {...planner} /> : undefined
+          }
           trip={trip}
           rooms={rooms}
           {...handlers}

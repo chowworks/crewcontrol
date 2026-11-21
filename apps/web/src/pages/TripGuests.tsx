@@ -74,6 +74,8 @@ export const names = (people: { firstName: string; lastName: string }[]): string
 
 interface Props {
   trip: OrganizerTrip
+  /** Design experiment (PlannerPlacement.tsx): a button at the right of the Manage Guests heading. */
+  headingAction?: ReactNode
   rooms: TripRoom[]
   onUpdate: (guest: Guest, update: GuestUpdate) => unknown
   /** The organizer's decision on a reported payment; true when it saved. */
@@ -1512,6 +1514,7 @@ export function GuestsCard(props: Props) {
       <h2 className="flex items-center gap-3 text-xl font-extrabold">
         <IconCircle icon={Users} />
         Manage Guests
+        {props.headingAction}
       </h2>
       <p className="text-body">
         {trip.joinMode === 'first_come'
