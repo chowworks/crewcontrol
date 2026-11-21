@@ -1133,7 +1133,7 @@ function Tile({
         <LandmarkPicture
           kind={lm.kind}
           turn={lm.turn}
-          className="pointer-events-none relative min-h-0 w-full max-w-[110px] flex-1"
+          className="pointer-events-none relative min-h-0 w-full flex-1"
         />
         {renaming ? (
           <input
