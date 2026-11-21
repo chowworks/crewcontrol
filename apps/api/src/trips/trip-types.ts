@@ -1508,6 +1508,8 @@ export interface AdminMetrics {
   paymentsWaiting: number
   /** Every payment by who put it in: the guest, the organizer, or a forwarded receipt. */
   loggedBy: { guest: number; organizer: number; email: number }
+  /** Requests turned away before any route (scanners): the last 24 hours, 7 days, and the 7 days' top 5 paths. */
+  botRequests: { day: number; week: number; topPaths: { path: string; count: number }[] }
 }
 
 /** A reminder still to go out, for Trip Control's Reminders section. */

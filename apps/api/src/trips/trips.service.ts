@@ -10,6 +10,7 @@ import {
 import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { ClerkService } from '../auth/clerk.service'
+import { botRequestSummary } from '../core/bot-request-log'
 import { runAsSystem } from '../core/tenant-context'
 import {
   isPhotoRef,
@@ -1427,6 +1428,7 @@ export class TripsService {
       : await countMetrics(this.prisma)
     if (!row) throw new ForbiddenException('Admins only')
     const n = (v: number | bigint) => Number(v)
+    const botRequests = await botRequestSummary(this.prisma)
     return {
       users: { total: n(row.users), recent: n(row.usersRecent) },
       trips: { total: n(row.trips), recent: n(row.tripsRecent) },
@@ -1439,6 +1441,7 @@ export class TripsService {
         organizer: n(row.loggedByOrganizer),
         email: n(row.loggedByEmail),
       },
+      botRequests,
     }
   }
 
