@@ -31,6 +31,8 @@ import {
 } from '@dnd-kit/core'
 import {
   Bath,
+  DoorOpen,
+  WavesLadder,
   Toilet,
   CookingPot,
   GripVertical,
@@ -59,7 +61,7 @@ import {
   resizeSection,
   setPlaces,
   fitPlaces,
-  sectionRows,
+  sectionColumns,
   setTile,
   spotPerson,
   uid,
@@ -93,6 +95,7 @@ const KIND_LABEL: Record<PersonKind, string> = {
 }
 
 const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
+  entry: <DoorOpen className="h-5 w-5" aria-hidden="true" />,
   bath: <Bath className="h-5 w-5" aria-hidden="true" />,
   halfbath: <Toilet className="h-5 w-5" aria-hidden="true" />,
   kitchen: <CookingPot className="h-5 w-5" aria-hidden="true" />,
@@ -110,6 +113,7 @@ const LANDMARK_ICON: Record<LandmarkKind, ReactNode> = {
     </svg>
   ),
   outdoor: <TreePalm className="h-5 w-5" aria-hidden="true" />,
+  pool: <WavesLadder className="h-5 w-5" aria-hidden="true" />,
   other: <MapPin className="h-5 w-5" aria-hidden="true" />,
 }
 
@@ -281,7 +285,10 @@ export function PlannerBoard({
 
   function fit() {
     const width = Math.max(
-      ...sectionRows(layout.sections).map((row) => row.reduce((w, s) => w + s.cols * CELL + 24, 0))
+      sectionColumns(layout.sections).reduce(
+        (w, col) => w + Math.max(...col.map((s) => s.cols)) * CELL + 24,
+        0
+      )
     )
     const room = (scroller.current?.clientWidth ?? width) - 8
     setZoom(Math.max(0.4, Math.min(1, room / width)))
@@ -373,30 +380,34 @@ export function PlannerBoard({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-rule bg-white p-4 shadow-card">
             <div ref={scroller} className="overflow-x-auto pb-2">
-              <div style={{ zoom }} className="flex w-max flex-col gap-4">
-                {sectionRows(layout.sections).map((row) => (
-                  <div key={row[0].id} className="flex items-start gap-5">
-                    {row.map((s, i) => (
-                      <div key={s.id} className="flex items-start gap-5">
-                        {i > 0 && <span aria-hidden="true" className="w-px self-stretch bg-line" />}
-                        <Section
-                          section={s}
-                          layout={layout}
-                          setLayout={setLayout}
-                          rooms={rooms}
-                          people={people}
-                          tripPriceCents={tripPriceCents}
-                          zoom={zoom}
-                          draggingSection={dragging?.type === 'section' ? dragging.sectionId : null}
-                          onRemove={() =>
-                            layout.tiles.some((t) => t.sectionId === s.id)
-                              ? setRemoving(s)
-                              : setLayout((l) => removeSection(l, s.id))
-                          }
-                          canRemove={layout.sections.length > 1}
-                        />
-                      </div>
-                    ))}
+              <div style={{ zoom }} className="flex w-max items-stretch gap-5">
+                {sectionColumns(layout.sections).map((column, c) => (
+                  <div key={column[0].id} className="flex items-stretch gap-5">
+                    {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
+                    <div className="flex flex-col items-start gap-4">
+                      {column.map((s) => (
+                        <div key={s.id}>
+                          <Section
+                            section={s}
+                            layout={layout}
+                            setLayout={setLayout}
+                            rooms={rooms}
+                            people={people}
+                            tripPriceCents={tripPriceCents}
+                            zoom={zoom}
+                            draggingSection={
+                              dragging?.type === 'section' ? dragging.sectionId : null
+                            }
+                            onRemove={() =>
+                              layout.tiles.some((t) => t.sectionId === s.id)
+                                ? setRemoving(s)
+                                : setLayout((l) => removeSection(l, s.id))
+                            }
+                            canRemove={layout.sections.length > 1}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

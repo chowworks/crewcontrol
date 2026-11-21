@@ -176,6 +176,10 @@ const GOLD = '#F2B33D'
 
 /** What each landmark's floor looks like behind its picture on the room planner. */
 export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
+  entry: {
+    backgroundColor: '#FFFFFF',
+    backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 9px, #F3F6F5 9px 18px)',
+  },
   bath: {
     backgroundColor: '#FAFBFC',
     backgroundImage:
@@ -199,6 +203,12 @@ export const LANDMARK_FLOOR: Record<LandmarkKind, CSSProperties> = {
     backgroundColor: '#F7EBD3',
     backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 13px, #E9D6B0 13px 14px)',
   },
+  pool: {
+    backgroundColor: '#F7EBD3',
+    backgroundImage:
+      'linear-gradient(#E9D6B0 1px, transparent 1px), linear-gradient(90deg, #E9D6B0 1px, transparent 1px)',
+    backgroundSize: '16px 16px',
+  },
   other: { backgroundColor: '#F3F6F5' },
 }
 
@@ -220,6 +230,32 @@ export function LandmarkPicture({
 const line = { fill: '#fff', stroke: R, strokeWidth: 2 }
 
 const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
+  // The front door swinging open onto a welcome mat.
+  entry: (
+    <g>
+      <rect x="8" y="4" width="64" height="5" rx="2" fill={RD} />
+      <path
+        d="M22 9 A30 30 0 0 1 52 39"
+        fill="none"
+        stroke={R}
+        strokeWidth="1.5"
+        strokeDasharray="3 3"
+      />
+      <rect x="20" y="9" width="5" height="32" rx="2" fill={R} />
+      <circle cx="22.5" cy="36" r="1.8" fill={GOLD} />
+      <rect x="28" y="42" width="30" height="11" rx="3" fill={GOLD} />
+      <rect
+        x="31"
+        y="45"
+        width="24"
+        height="5"
+        rx="2"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.2"
+      />
+    </g>
+  ),
   // A tub, a toilet and a sink.
   bath: (
     <g>
@@ -323,6 +359,25 @@ const LANDMARK_ART: Record<LandmarkKind, ReactNode> = {
       ))}
       <rect x="58" y="6" width="16" height="44" rx="5" fill={RD} />
       <rect x="61" y="9" width="10" height="10" rx="3" fill={GOLD} />
+    </g>
+  ),
+  // A pool with its ladder and a hot tub.
+  pool: (
+    <g>
+      <rect x="3" y="5" width="52" height="46" rx="8" fill={PALE} stroke={R} strokeWidth="2.5" />
+      {[17, 28, 39].map((y) => (
+        <path
+          key={y}
+          d={`M10 ${y} q5 -4 10 0 t10 0 t10 0 t10 0`}
+          fill="none"
+          stroke="#B79BDB"
+          strokeWidth="1.8"
+        />
+      ))}
+      <line x1="44" y1="5" x2="44" y2="13" stroke={GOLD} strokeWidth="2" />
+      <line x1="50" y1="5" x2="50" y2="13" stroke={GOLD} strokeWidth="2" />
+      <circle cx="68" cy="40" r="10" fill={PALE} stroke={R} strokeWidth="2.5" />
+      <circle cx="68" cy="40" r="3" fill={GOLD} />
     </g>
   ),
   // A door and a shelf: a closet, a laundry, a garage.

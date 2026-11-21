@@ -9,7 +9,7 @@ import {
   resizeSection,
   setPlaces,
   fitPlaces,
-  sectionRows,
+  sectionColumns,
   setTile,
   unplace,
   type Person,
@@ -131,31 +131,25 @@ describe('tiles and parts of the house', () => {
     expect(out.sections[0].rows).toBe(43)
   })
 
-  it('puts a part of the house beside another, and the next one starts the row when it moves', () => {
+  const cols = (l: RoomPlanLayout) => sectionColumns(l.sections).map((c) => c.map((s) => s.id))
+
+  it('puts a part of the house beside another, and the one under it leads its column when it moves', () => {
     const up = { id: 'up', name: 'Upstairs', beside: false, cols: 20, rows: 10 }
     const loft = { id: 'loft', name: 'Loft', beside: true, cols: 20, rows: 10 }
     const layout = { ...base, sections: [main, up, loft] }
-    expect(
-      sectionRows(moveSection(layout, 'up', 'main', 'beside').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main', 'up'], ['loft']])
-    expect(
-      sectionRows(moveSection(layout, 'up', 'loft', 'below').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main'], ['loft'], ['up']])
+    expect(cols(layout)).toEqual([['main', 'up'], ['loft']])
+    expect(cols(moveSection(layout, 'up', 'loft', 'below'))).toEqual([['main'], ['loft', 'up']])
+    expect(cols(moveSection(layout, 'main', 'loft', 'below'))).toEqual([['up'], ['loft', 'main']])
   })
 
-  it('puts a part below a whole row, keeping the parts beside the target together', () => {
-    const up = { id: 'up', name: 'Upstairs', beside: true, cols: 20, rows: 10 }
-    const loft = { id: 'loft', name: 'Loft', beside: false, cols: 20, rows: 10 }
-    const layout = { ...base, sections: [main, up, loft] }
-    expect(
-      sectionRows(moveSection(layout, 'loft', 'main', 'below').sections).map((r) =>
-        r.map((s) => s.id)
-      )
-    ).toEqual([['main', 'up'], ['loft']])
+  it('lays out one part on the left and two stacked on the right', () => {
+    const east = { ...main, id: 'east' }
+    const floor2 = { id: 'f2', name: '2nd floor', beside: false, cols: 20, rows: 10 }
+    const ground = { id: 'g', name: 'Main floor', beside: true, cols: 20, rows: 10 }
+    const layout = { ...base, sections: [east, ground, floor2] }
+    const step = moveSection(layout, 'f2', 'east', 'beside')
+    expect(cols(step)).toEqual([['east'], ['f2'], ['g']])
+    expect(cols(moveSection(step, 'g', 'f2', 'below'))).toEqual([['east'], ['f2', 'g']])
   })
 
   it('shrinks a part of the house by its edge, but never into a room on it', () => {

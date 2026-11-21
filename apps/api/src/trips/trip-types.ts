@@ -1989,26 +1989,30 @@ export const PLAN_MAX_TILES = 150
 export const PLAN_NAME_MAX = 60
 
 export const LANDMARK_KINDS = [
+  'entry',
   'bath',
   'halfbath',
   'kitchen',
   'living',
   'stairs',
   'outdoor',
+  'pool',
   'other',
 ] as const
 export type LandmarkKind = (typeof LANDMARK_KINDS)[number]
 export const LANDMARK_LABELS: Record<LandmarkKind, string> = {
+  entry: 'Front door',
   bath: 'Full bath',
   halfbath: 'Half bath',
   kitchen: 'Kitchen',
   living: 'Living room',
   stairs: 'Stairs',
-  outdoor: 'Deck or balcony',
+  outdoor: 'Deck, porch or balcony',
+  pool: 'Pool or hot tub',
   other: 'Something else',
 }
 
-/** A floor or part of the house. `beside` puts it to the right of the part before it instead of below. */
+/** A floor or part of the house. `beside` starts a new column to the right; otherwise it sits under the part before it. */
 export interface PlanSection {
   id: string
   name: string
