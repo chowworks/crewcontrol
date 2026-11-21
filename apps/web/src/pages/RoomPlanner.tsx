@@ -46,7 +46,13 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { money } from '@/lib/format'
@@ -176,6 +182,21 @@ export function PlannerBoard({
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState<DragData | null>(null)
   const [menu, setMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // The landmark menu closes on a click anywhere else, or on Escape.
+  useEffect(() => {
+    if (!menu) return
+    const away = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenu(false)
+    }
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false)
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [menu])
   const [removing, setRemoving] = useState<PlanSection | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const sensors = useSensors(
@@ -323,7 +344,7 @@ export function PlannerBoard({
                 Room
               </button>
             )}
-            <div className="relative">
+            <div ref={menuRef} className="relative">
               <button
                 type="button"
                 aria-expanded={menu}
