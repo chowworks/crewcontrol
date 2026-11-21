@@ -28,6 +28,7 @@ export function TripView({
   questions,
   interest,
   sections = trip.sections,
+  floorPlan,
 }: {
   trip: PublicTrip
   preview?: boolean
@@ -41,6 +42,8 @@ export function TripView({
    * every section, those for accepted guests only included (JoinView.sections).
    */
   sections?: TripSection[]
+  /** Where everyone sleeps, when the organizer shared the floor plan with accepted guests. */
+  floorPlan?: ReactNode
 }) {
   const cover = trip.photos[0]
   // Once sign-ups close, nobody is still joining (issue #88).
@@ -192,6 +195,8 @@ export function TripView({
           {sections.map((s, i) => (
             <TripSectionView key={i} section={s} />
           ))}
+
+          {floorPlan}
 
           {trip.options.roomChoice && trip.rooms.length > 0 && (
             <section className="flex flex-col gap-3.5">

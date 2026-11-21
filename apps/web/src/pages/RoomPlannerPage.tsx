@@ -8,7 +8,15 @@ import {
   type RoomPlanMove,
   type TripRoom,
 } from '@cc/types'
-import { ArrowLeft, CloudAlert, CloudCheck, CloudUpload, LoaderCircle, Lock } from 'lucide-react'
+import {
+  ArrowLeft,
+  CloudAlert,
+  CloudCheck,
+  CloudUpload,
+  LoaderCircle,
+  Lock,
+  Share2,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -31,6 +39,9 @@ const filled =
 const outlined =
   'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border-2 border-royal bg-white px-4 font-semibold text-royal hover:bg-royal-pale disabled:opacity-60'
 
+const sharedDay = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
 const savedAt = (iso: string) =>
   new Date(iso).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 
@@ -50,6 +61,9 @@ export function RoomPlannerPage() {
   const [interest, setInterest] = useState<InterestedPerson[]>([])
   const [layout, setLayoutState] = useState<RoomPlanLayout | null>(null)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  // When accepted guests were last shown the floor plan, or null while they can't see it.
+  const [sharedAt, setSharedAt] = useState<string | null>(null)
+  const [stopping, setStopping] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [locked, setLocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +92,7 @@ export function RoomPlannerPage() {
           const plan = await api.getRoomPlan(id, admin)
           setLayoutState(plan.layout)
           setUpdatedAt(plan.updatedAt)
+          setSharedAt(plan.sharedAt)
         } catch (err) {
           if (err instanceof ApiError && err.status === 403) setLocked(true)
           else throw err
@@ -153,10 +168,10 @@ export function RoomPlannerPage() {
     }
   }
 
-  async function apply(email: boolean): Promise<string | null> {
+  async function apply(email: boolean, share: boolean): Promise<string | null> {
     if (!moves) return null
     try {
-      const done = await api.applyRoomPlan(id, email, moves.draftAt)
+      const done = await api.applyRoomPlan(id, email, moves.draftAt, share)
       const [t, plan, r] = await Promise.all([
         api.getTrip(id),
         api.getRoomPlan(id),
@@ -167,16 +182,23 @@ export function RoomPlannerPage() {
       revision.current++
       setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
+      setSharedAt(plan.sharedAt)
       setDirty(false)
       setMoves(null)
       window.dispatchEvent(new Event('cc:actions-changed'))
       const who = done.moved === 1 ? '1 guest' : `${done.moved} guests`
+      const shareNote = plan.sharedAt
+        ? ' Accepted guests can see the floor plan.'
+        : sharedAt
+          ? ' Guests no longer see the floor plan.'
+          : ''
       toast({
-        text: !done.moved
-          ? 'Rooms applied.'
-          : done.emailed
-            ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
-            : `Rooms applied: ${who} moved.`,
+        text:
+          (!done.moved
+            ? 'Rooms applied.'
+            : done.emailed
+              ? `Rooms applied: ${who} moved, and we emailed ${done.emailed === 1 ? 'them' : `all ${done.emailed}`}.`
+              : `Rooms applied: ${who} moved.`) + shareNote,
       })
       if (done.needsLook.length)
         setSaveError(
@@ -185,6 +207,32 @@ export function RoomPlannerPage() {
       return null
     } catch (err) {
       return err instanceof Error ? err.message : 'The rooms were not applied.'
+    }
+  }
+
+  /** Shares the plan as it is, from Apply when nobody moves. */
+  async function share(): Promise<string | null> {
+    if (!moves) return null
+    try {
+      const plan = await api.shareRoomPlan(id, moves.draftAt)
+      setSharedAt(plan.sharedAt)
+      setMoves(null)
+      toast({ text: 'Accepted guests can see the floor plan.' })
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : 'The floor plan was not shared.'
+    }
+  }
+
+  async function stopSharing() {
+    try {
+      const plan = await api.unshareRoomPlan(id)
+      setSharedAt(plan.sharedAt)
+      toast({ text: 'Guests no longer see the floor plan.' })
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Sharing did not stop.')
+    } finally {
+      setStopping(false)
     }
   }
 
@@ -285,6 +333,25 @@ export function RoomPlannerPage() {
             {saveError}
           </p>
         )}
+        {sharedAt && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-royal-pale px-4 py-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-royal">
+              <Share2 className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <p className="min-w-[200px] flex-1">
+              <strong>Accepted guests can see the floor plan</strong>{' '}
+              <span className="text-muted">
+                as you applied it on {sharedDay(sharedAt)}.
+                {!admin && ' Keep drafting: they see your changes only when you apply rooms again.'}
+              </span>
+            </p>
+            {!admin && (
+              <button type="button" onClick={() => setStopping(true)} className={outlined}>
+                Stop sharing
+              </button>
+            )}
+          </div>
+        )}
         <div className="hidden lg:block">
           <PlannerBoard
             layout={layout}
@@ -303,7 +370,9 @@ export function RoomPlannerPage() {
           moves={moves.list}
           grown={grown}
           plannerOnly={plannerOnly}
+          shared={!!sharedAt}
           onApply={apply}
+          onShare={share}
           onClose={() => setMoves(null)}
         />
       )}
@@ -320,6 +389,17 @@ export function RoomPlannerPage() {
           }}
         >
           Your changes to the draft since you last saved will be lost. Stay to press Save draft.
+        </ConfirmDialog>
+      )}
+      {stopping && (
+        <ConfirmDialog
+          title="Stop sharing the floor plan?"
+          confirmLabel="Stop sharing"
+          onCancel={() => setStopping(false)}
+          onConfirm={stopSharing}
+        >
+          Accepted guests stop seeing who sleeps where on the trip page right away. You can share it
+          again the next time you apply rooms.
         </ConfirmDialog>
       )}
       {adding && (

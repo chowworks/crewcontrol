@@ -122,7 +122,16 @@ export function parseRoomPlanLayout(raw: unknown): RoomPlanLayout {
 }
 
 export function parseApplyRoomPlan(raw: unknown): ApplyRoomPlanInput {
-  if (!raw || typeof raw !== 'object') fail('Expected { email, draftAt }')
+  if (!raw || typeof raw !== 'object') fail('Expected { email, draftAt, share }')
   const body = raw as Body
-  return { email: bool(body, 'email'), draftAt: text(body, 'draftAt', 40) }
+  return {
+    email: bool(body, 'email'),
+    draftAt: text(body, 'draftAt', 40),
+    share: body.share === undefined ? false : bool(body, 'share'),
+  }
+}
+
+export function parseShareRoomPlan(raw: unknown): { draftAt: string } {
+  if (!raw || typeof raw !== 'object') fail('Expected { draftAt }')
+  return { draftAt: text(raw as Body, 'draftAt', 40) }
 }

@@ -69,6 +69,15 @@ The colours show who's who: filled purple for accepted guests, a purple outline 
     pages: ['planner'],
   },
   {
+    key: 'room-planner-share',
+    topic: 'rooms',
+    question: 'Can guests see the floor plan?',
+    answer: `Only if you choose to. When you apply rooms, tick "Show the floor plan to accepted guests" and it appears on the trip page for guests you've accepted, under "Where everyone sleeps". They see the plan as you applied it: accepted guests by first name and last initial, anyone else on a bed as "Taken", and no prices. If nobody needs to move, Apply rooms offers "Show the floor plan to guests" instead.
+
+Keep drafting afterwards: guests only see your changes when you apply rooms again. "Stop sharing" on the room planner hides it from guests right away.`,
+    pages: ['planner'],
+  },
+  {
     key: 'yahoo-email',
     topic: 'signups',
     question: 'What if a guest only has a Yahoo email?',

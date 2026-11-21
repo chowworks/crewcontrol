@@ -38,7 +38,7 @@ import { parseEarlyAccess } from '../contact/early-access-input'
 import { OrganizerTermsGuard } from '../terms/organizer-terms.guard'
 import type { OrganizerRequest } from './trip-types'
 import { ExpensesService } from './expenses.service'
-import { parseApplyRoomPlan, parseRoomPlanLayout } from './room-plan-input'
+import { parseApplyRoomPlan, parseRoomPlanLayout, parseShareRoomPlan } from './room-plan-input'
 import { RoomPlanService } from './room-plan.service'
 import { PeopleService } from './people.service'
 import { TripDeletionService } from './trip-deletion.service'
@@ -270,6 +270,18 @@ export class TripsController {
   @HttpCode(200)
   applyRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
     return this.roomPlans.apply(id, parseApplyRoomPlan(body), caller)
+  }
+
+  // Sharing the plan with accepted guests: when there's nothing to apply, and stopping.
+  @Post(':id/room-plan/share')
+  @HttpCode(200)
+  shareRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.share(id, parseShareRoomPlan(body).draftAt, caller)
+  }
+
+  @Delete(':id/room-plan/share')
+  unshareRoomPlan(@Param('id') id: string, @CurrentCaller() caller: Caller) {
+    return this.roomPlans.unshare(id, caller)
   }
 
   @Put(':id')

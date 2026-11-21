@@ -23,6 +23,7 @@ import {
   sectionsOf,
   toSignedAgreement,
 } from '../trips/trip-mapper'
+import { guestPlan, type SharedPlanCopy } from '../trips/shared-plan'
 import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
@@ -32,6 +33,7 @@ import {
   type ClaimInput,
   type JoinInput,
   type JoinView,
+  type SharedRoomPlan,
   type MyActions,
   type MyGuest,
   type PaymentMethod,
@@ -172,7 +174,28 @@ export class JoinService {
       sections: accepted
         ? (await withPhotoLinks({ photos: [], sections: sectionsOf(accepted.trip) })).sections
         : null,
+      floorPlan: accepted
+        ? await this.floorPlan(
+            tripId,
+            rows.map((r) => r.id)
+          )
+        : null,
     }
+  }
+
+  /**
+   * The floor plan the organizer shared, if they did. The database gives it only to an accepted guest of the trip (or
+   * someone who looks after one), with the accepted guests' names to put on it.
+   */
+  private async floorPlan(tripId: string, yours: string[]): Promise<SharedRoomPlan | null> {
+    const [row] = await this.prisma.$queryRaw<
+      {
+        shared: SharedPlanCopy
+        sharedAt: Date
+        accepted: { id: string; firstName: string; lastName: string }[]
+      }[]
+    >`SELECT * FROM "guest_room_plan"(${tripId})`
+    return row ? guestPlan(row.shared, row.sharedAt, row.accepted, yours) : null
   }
 
   private async tripId(slug: string): Promise<string> {

@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { MembershipsService } from '../memberships/memberships.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { sharedCopy } from './shared-plan'
 import { recordChange } from './trip-changes'
 import { shortName } from './trip-mapper'
 import {
@@ -85,7 +86,11 @@ export class RoomPlanService {
       this.facts(tripId),
     ])
     const layout = row ? clean(row.layout as unknown as RoomPlanLayout, facts) : starter(facts)
-    return { layout, updatedAt: row?.updatedAt.toISOString() ?? null }
+    return {
+      layout,
+      updatedAt: row?.updatedAt.toISOString() ?? null,
+      sharedAt: row?.sharedAt?.toISOString() ?? null,
+    }
   }
 
   async save(tripId: string, layout: RoomPlanLayout, caller: Caller): Promise<RoomPlan> {
@@ -137,7 +142,7 @@ export class RoomPlanService {
    */
   async apply(
     tripId: string,
-    { email, draftAt }: ApplyRoomPlanInput,
+    { email, draftAt, share }: ApplyRoomPlanInput,
     caller: Caller
   ): Promise<RoomPlanApplyResult> {
     await this.requireFeature(tripId, caller)
@@ -199,12 +204,55 @@ export class RoomPlanService {
         moved: moves.map((m) => m.name),
         ...(grown.length ? { grown: grown.map(({ room, from, to }) => ({ room, from, to })) } : {}),
       })
+    // Guests see the plan as applied now, or no plan when the organizer stopped sharing it.
+    if (share) await this.keepShared(tripId, draft.layout)
+    else if (draft.sharedAt) await this.unshare(tripId, caller)
     const { emailed, unsettled } = result
     return {
       moved: moves.length,
       emailed,
       needsLook: moves.filter((m) => unsettled.includes(m.guestId)).map((m) => m.name),
     }
+  }
+
+  /**
+   * Shares the plan with accepted guests when applying has nothing to do: everyone on it is in their room already, so
+   * the saved draft is the trip as it stands. With moves waiting, the organizer applies them to share (never a draft).
+   */
+  async share(tripId: string, draftAt: string, caller: Caller): Promise<RoomPlan> {
+    await this.requireFeature(tripId, caller)
+    const draft = await this.draft(tripId)
+    if (!draft.updatedAt) throw new BadRequestException('Save the draft before sharing it')
+    if (draft.updatedAt !== draftAt)
+      throw new ConflictException('The draft changed since you looked. Open Apply rooms again.')
+    if ((await this.movesOf(tripId, draft.layout, caller)).length)
+      throw new BadRequestException('Apply rooms to share the plan: some guests are in other rooms')
+    await this.keepShared(tripId, draft.layout)
+    return this.draft(tripId)
+  }
+
+  /** Stops showing the plan to guests, at once. */
+  async unshare(tripId: string, caller: Caller): Promise<RoomPlan> {
+    await this.requireFeature(tripId, caller)
+    await this.prisma.roomPlan.updateMany({
+      where: { tripId },
+      data: { shared: Prisma.DbNull, sharedAt: null },
+    })
+    return this.draft(tripId)
+  }
+
+  private async keepShared(tripId: string, layout: RoomPlanLayout): Promise<void> {
+    const rooms = await this.prisma.room.findMany({
+      where: { tripId },
+      select: { id: true, name: true, capacity: true, bedTypes: true },
+    })
+    await this.prisma.roomPlan.update({
+      where: { tripId },
+      data: {
+        shared: sharedCopy(layout, rooms) as unknown as Prisma.InputJsonValue,
+        sharedAt: new Date(),
+      },
+    })
   }
 
   /**
