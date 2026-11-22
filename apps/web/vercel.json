@@ -2,5 +2,5 @@
   "buildCommand": "cd ../.. && npx turbo run build --filter=@cc/web",
   "outputDirectory": "dist",
   "framework": "vite",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

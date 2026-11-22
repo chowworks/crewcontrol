@@ -20,6 +20,13 @@ import {
   withPhotoLinks,
 } from '../photos/photo-bucket'
 import { PrismaService, rlsActive } from '../prisma/prisma.service'
+import {
+  drawPreview,
+  photoData,
+  previewIsCurrent,
+  previewName,
+  type PreviewFacts,
+} from './trip-preview'
 import { forwardTo } from '../receipts/receipts-config'
 import { reportedTwin } from '../receipts/place-receipt'
 import { agreementPreview, money } from '../join/agreement'
@@ -379,11 +386,12 @@ export class TripsService {
       throw new ForbiddenException(
         'Travel HQ is in a limited preview: only our team starts trips for now.'
       )
+    const previewImage = await this.preview(input, null)
     const row = await uniqueSlug(() =>
       runAsSystem(() =>
         this.prisma.$transaction(async (tx) => {
           const trip = await tx.trip.create({
-            data: { ...data(input), slug: slug ?? makeSlug(input.name) },
+            data: { ...data(input), previewImage, slug: slug ?? makeSlug(input.name) },
             include: withGuests,
           })
           await tx.tripMember.create({
@@ -421,18 +429,57 @@ export class TripsService {
       throw new BadRequestException(ROOMS_PRICED_APART)
     // As stored, photos as references: what the trip log compares (owner's decision, 2026-11-01).
     const before = await this.prisma.trip.findUnique({ where: { id } })
+    const previewImage = await this.preview(input, before?.previewImage ?? null)
     const row = await uniqueSlug(() =>
       this.prisma.trip.update({
         where: { id },
-        data: slug ? { ...data(input), slug } : data(input),
+        data: { ...data(input), previewImage, ...(slug && { slug }) },
         include: withGuests,
       })
     )
+    if (before?.previewImage && before.previewImage !== previewImage)
+      await this.removePreview(before.previewImage)
     await recordChange(this.prisma, id, caller, () => {
       const fields = before ? tripChanges(before, row) : []
       return fields.length ? { what: 'trip', fields } : null
     })
     return withPhotoLinks(toOrganizerTrip(row, await this.waitlistBufferPercent()))
+  }
+
+  /**
+   * The trip's link preview picture for a save (trip-preview.ts): the one it has while what it shows is unchanged,
+   * else a new one drawn and stored now. Null when photo storage is off or drawing fails, so the trip page's preview
+   * falls back to the cover photo rather than showing an old name or dates; a save never fails over it.
+   */
+  private async preview(trip: PreviewFacts, current: string | null): Promise<string | null> {
+    if (previewIsCurrent(current, trip)) return current
+    const bucket = photoBucket()
+    if (!bucket) return null
+    try {
+      const url = trip.photos[0]?.url
+      let cover: string | null = null
+      if (url && (isPhotoRef(url) || /^https:\/\//.test(url))) {
+        const res = await fetch(await photoUrl(url), { signal: AbortSignal.timeout(5000) })
+        if (res.ok)
+          cover = photoData(
+            Buffer.from(await res.arrayBuffer()),
+            res.headers.get('content-type') ?? ''
+          )
+      }
+      return await bucket.put(previewName(trip), await drawPreview(trip, cover), 'image/jpeg')
+    } catch (err) {
+      this.logger.error(`A trip's link preview picture could not be drawn: ${err}`)
+      return null
+    }
+  }
+
+  /** Erases a link preview picture a save replaced. Logged, never thrown. */
+  private async removePreview(ref: string): Promise<void> {
+    const bucket = photoBucket()
+    if (!bucket || !isPhotoRef(ref)) return
+    await bucket
+      .remove(ref)
+      .catch((err) => this.logger.error(`An old link preview picture stayed: ${ref}: ${err}`))
   }
 
   /** The seed's demo trips, for the homepage. Real organizers' trips are never listed publicly. */
@@ -469,7 +516,7 @@ export class TripsService {
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, question: true, answer: true },
     })
-    return withPhotoLinks(
+    const trip = await withPhotoLinks(
       toPublicTrip({
         ...row,
         guests,
@@ -479,6 +526,7 @@ export class TripsService {
         waitlisting,
       })
     )
+    return { ...trip, previewImage: trip.previewImage && (await photoUrl(trip.previewImage)) }
   }
 
   /** Accepted guests' names in each room of a published trip, for the signed-in join page's room picker. */

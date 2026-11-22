@@ -85,6 +85,11 @@ export interface PublicTrip {
   installmentCount: number
   /** The first photo is the cover; the rest fill the gallery. */
   photos: TripPhoto[]
+  /**
+   * The picture chat apps show when the trip page's link is shared, drawn when the trip is saved: a signed link, the
+   * seed's /seed/ path, or null until the trip is next saved (the cover photo stands in).
+   */
+  previewImage: string | null
   galleryTitle: string
   highlights: TripHighlight[]
   keyDates: TripKeyDate[]

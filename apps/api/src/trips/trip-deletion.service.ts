@@ -132,16 +132,16 @@ export class TripDeletionService implements OnApplicationBootstrap, OnModuleDest
     const due = await runAsSystem(() =>
       this.prisma.trip.findMany({
         where: { deletedAt: { lte: new Date(now.getTime() - DELETED_KEPT_DAYS * DAY) } },
-        select: { id: true, photos: true, sections: true },
+        select: { id: true, photos: true, sections: true, previewImage: true },
       })
     )
     for (const trip of due) {
       // Everything on the trip goes with it (each table's foreign key cascades).
       await runAsSystem(() => this.prisma.trip.delete({ where: { id: trip.id } }))
       const bucket = photoBucket()
-      const refs = allPhotosOf(trip)
-        .map((p) => p.url)
-        .filter(isPhotoRef)
+      const refs = [...allPhotosOf(trip).map((p) => p.url), trip.previewImage ?? ''].filter(
+        isPhotoRef
+      )
       for (const ref of bucket ? refs : []) {
         // A photo another trip still shows stays: a signed link pasted from one trip's page saves as the same reference.
         const [{ used }] = await runAsSystem(

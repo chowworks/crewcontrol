@@ -159,6 +159,8 @@ export function toPublicTrip(
     installmentCount: row.installmentCount,
     paymentPlan: planOf(row),
     photos: photos(row),
+    // The link preview picture shows only what this page already does (name, dates, destination, host, cover).
+    previewImage: row.previewImage ?? null,
     galleryTitle: row.galleryTitle,
     highlights: row.highlights as unknown as TripHighlight[],
     // The organizer's reminder settings stay off the guest's page.
