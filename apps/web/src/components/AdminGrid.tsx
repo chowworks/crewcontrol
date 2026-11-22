@@ -111,8 +111,9 @@ export function AdminGrid<T extends { id: string }>({
       <p className="text-sm text-muted">
         {shown.length} of {total}
       </p>
-      {/* Scrolls sideways inside its box on a phone, never the page. */}
-      <div className="-mx-4 overflow-x-auto sm:mx-0">
+      {/* Scrolls sideways inside its box on a phone, never the page. `relative` keeps the hidden column labels
+          (positioned, for screen readers) inside the box too: without it they widened the page to 646 px. */}
+      <div className="relative -mx-4 overflow-x-auto sm:mx-0">
         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b-2 border-rule">

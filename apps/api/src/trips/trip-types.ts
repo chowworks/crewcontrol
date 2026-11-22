@@ -2003,6 +2003,23 @@ export interface Membership {
   updatedBy: string
 }
 
+/** Someone who has signed in, found by name or email in Manage Memberships' Add a member search. */
+export interface MemberCandidate {
+  name: string
+  /** The email they sign in with, the one a membership is added under. */
+  email: string
+  /** A short line about them: "Already a member", "Asked for Custom domains", "Runs 2 trips" or "Signed in". */
+  hint: string
+  /** Already has paid features: shown, but changed in the list instead. */
+  isMember: boolean
+}
+
+/** The Add a member search's answer: `failed` when the sign-in service couldn't be searched just now. */
+export interface MemberSearch {
+  people: MemberCandidate[]
+  failed: boolean
+}
+
 export interface MembershipInput {
   features: PaidFeature[]
   endsOn: string | null

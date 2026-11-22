@@ -2,6 +2,7 @@ import { UserPlus } from 'lucide-react'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Dialog } from '@/components/Dialog'
 import { field } from '@/components/EditorParts'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 
@@ -113,6 +114,7 @@ function ReferDialog({ onClose }: { onClose: () => void }) {
           />
           {fieldError(problems.email)}
         </label>
+        <EmailTypoHint email={form.email} onUse={(email) => setForm((f) => ({ ...f, email }))} />
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           What trip would they run? (optional)
           <textarea

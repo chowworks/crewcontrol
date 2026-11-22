@@ -3,6 +3,7 @@ import { UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 
 /** An organizer going on their own trip (issue #53): their details as a guest's, from sign-in. */
 export interface OrganizerGoingInput {
@@ -108,6 +109,7 @@ function GoingDialog({
         {field('name', 'Your name', 'text')}
         {field('phone', 'Phone', 'tel')}
         {field('email', 'Email', 'email')}
+        <EmailTypoHint email={draft.email} onUse={(email) => setDraft((d) => ({ ...d, email }))} />
         <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={busy || !ok} className={`${filled} disabled:opacity-60`}>
             Take my spot

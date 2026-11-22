@@ -109,6 +109,38 @@ export class ClerkService {
     return out
   }
 
+  /**
+   * Everyone who has signed in whose name or email matches, most recently signed in first, for the admin's Add a
+   * member search, each with all their verified emails (a membership may be under any of them). Null when Clerk
+   * can't be reached, so the admin is told the search failed rather than that nobody matches. Only the admin's
+   * routes call it: organizers never search people beyond their own trips.
+   */
+  async search(
+    query: string,
+    limit = 8
+  ): Promise<{ id: string; name: string; email: string; emails: string[] }[] | null> {
+    if (!this.client) return null
+    try {
+      const { data } = await this.client.users.getUserList({
+        query,
+        limit,
+        orderBy: '-last_sign_in_at',
+      })
+      return data.flatMap((u) => {
+        const email = u.primaryEmailAddress?.emailAddress?.toLowerCase() ?? ''
+        if (!email) return []
+        const emails = u.emailAddresses
+          .filter((e) => e.verification?.status === 'verified')
+          .map((e) => e.emailAddress.toLowerCase())
+        const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || email
+        return [{ id: u.id, name, email, emails: [...new Set([email, ...emails])] }]
+      })
+    } catch (err) {
+      this.logger.warn(`Could not search Clerk users: ${err instanceof Error ? err.message : err}`)
+      return null
+    }
+  }
+
   /** Display names for user ids, for the Admin toolbox. Unknown ids are left out. */
   async names(userIds: string[]): Promise<Map<string, string>> {
     const out = new Map<string, string>()
