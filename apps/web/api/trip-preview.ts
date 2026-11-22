@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { initWasm, Resvg } from '@resvg/resvg-wasm'
 import jpeg from 'jpeg-js'
 import satori from 'satori'
@@ -27,8 +26,10 @@ const FONTS = [
   { name: TEXT, data: font('InstrumentSans-SemiBold.ttf'), weight: 600 as const },
 ]
 
+// A literal path from this file, so Vercel's file tracing ships the drawing engine with the function (it misses a
+// resolved one). The workspace's node_modules sits at the repository root, here and on Vercel.
 const wasm = initWasm(
-  readFileSync(createRequire(import.meta.url).resolve('@resvg/resvg-wasm/index_bg.wasm'))
+  readFileSync(new URL('../../../node_modules/@resvg/resvg-wasm/index_bg.wasm', import.meta.url))
 )
 
 // The picture's photo formats it can draw. A WebP cover gets the royal wash, as a missing one does.
