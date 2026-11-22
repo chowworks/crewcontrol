@@ -1,5 +1,6 @@
 import type { PublicTrip } from '@cc/types'
 import { dateRange } from './format.js'
+import { previewVersion } from './trip-preview-image.js'
 
 /**
  * A trip page's own link preview: its name, dates and cover photo in place of Travel HQ's (index.html). The Vercel
@@ -22,22 +23,20 @@ function escape(text: string): string {
     .replace(/>/g, '&gt;')
 }
 
-/** index.html with the trip's title, description, address and cover photo in its preview tags. */
+/** index.html with the trip's title, description, address and its own preview picture (api/trip-preview.ts). */
 export function tripSharePage(html: string, trip: PublicTrip, pageUrl: string): string {
   const title = trip.name
   const description = `${dateRange(trip.startDate, trip.endDate)} · ${trip.destination}. Hosted by ${trip.organizerName}.`
-  const cover = trip.photos[0]
+  const image = `${new URL(pageUrl).origin}/api/trip-preview?slug=${encodeURIComponent(trip.slug)}&v=${previewVersion(trip)}`
   const tags: Record<string, string> = {
     'og:title': title,
     'og:description': description,
     'og:url': pageUrl,
     'twitter:title': title,
     'twitter:description': description,
-    ...(cover && {
-      'og:image': cover.url,
-      'og:image:alt': cover.caption || title,
-      'twitter:image': cover.url,
-    }),
+    'og:image': image,
+    'og:image:alt': `${title}. ${description}`,
+    'twitter:image': image,
   }
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${escape(title)} · Travel HQ</title>`)
   for (const [name, value] of Object.entries(tags)) {
@@ -47,7 +46,5 @@ export function tripSharePage(html: string, trip: PublicTrip, pageUrl: string): 
       `$1${escape(value)}$2`
     )
   }
-  // The share image's size, when the cover photo stands in for it, is the photo's own.
-  if (cover) out = out.replace(/\s*<meta property="og:image:(width|height)"[^>]*>/g, '')
   return out
 }
