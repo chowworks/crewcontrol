@@ -404,6 +404,8 @@ async function main() {
       data: {
         ...trip,
         receiptsAddress: held ? null : trip.slug,
+        // Each sample trip's link preview picture, made by scripts/sample-previews.ts and served by the web app.
+        previewImage: `/seed/${trip.slug}-preview.jpg`,
         photos: photos as unknown as Prisma.InputJsonValue,
         highlights: highlights as unknown as Prisma.InputJsonValue,
         keyDates: keyDates as unknown as Prisma.InputJsonValue,

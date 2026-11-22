@@ -27,6 +27,7 @@ const trip: Trip = {
   joinMode: 'pay_first',
   refundPolicy: 'spot_filled',
   photos: [{ url: '/seed/mv-1.svg', caption: 'Front' }],
+  previewImage: null,
   highlights: [],
   keyDates: [],
   sections: [],

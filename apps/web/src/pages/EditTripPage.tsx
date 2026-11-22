@@ -144,6 +144,8 @@ function previewOf(
     isSample: false,
     // The trip's questions live in Trip Control; the editor's preview leaves them out.
     faq: [],
+    // Drawn when the trip is saved; the page itself never shows it.
+    previewImage: null,
     keyDates: trip.keyDates.map(({ date, label }) => ({ date, label })),
     paymentPlan: paymentPlan(
       trip.costPerPersonCents,

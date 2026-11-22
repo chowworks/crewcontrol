@@ -54,6 +54,9 @@ model Trip {
   // fixed once a guest has signed (migration 20261026040000_refund_policy).
   refundPolicy        String               @default("spot_filled")
   photos              Json                 @default("[]") // TripPhoto[]; the first is the cover
+  // The link preview picture chat apps show for the trip page, drawn on save (trip-preview.ts): a photo reference,
+  // or the seed's /seed/ path. Null until the trip is next saved with photo storage on.
+  previewImage        String?
   highlights          Json                 @default("[]") // TripHighlight[]
   keyDates            Json                 @default("[]") // TripKeyDate[]
   // TripSection[]: the organizer's own parts of the trip page, in order (issue #85, migration 20261115020000_trip_sections).

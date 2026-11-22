@@ -11,6 +11,7 @@ const trip = {
   endDate: '2028-03-06',
   organizerName: 'Maya',
   photos: [{ url: 'https://photos.example.com/cover.jpg', caption: 'The pool' }],
+  previewImage: null,
 } as PublicTrip
 const meta = (out: string, name: string) =>
   out.match(new RegExp(`(?:property|name)="${name}"\\s+content="([^"]*)"`))?.[1]
@@ -36,6 +37,21 @@ describe('trip share preview', () => {
     expect(meta(out, 'og:image:alt')).toBe('The pool')
     expect(out).not.toContain('og:image:width')
     expect(out).toContain('<title>Beach &quot;Week&quot; &amp; Friends · Travel HQ</title>')
+  })
+
+  it("uses the trip's own preview picture once it has one, in full", () => {
+    const signed = { ...trip, previewImage: 'https://photos.example.com/preview-abc.jpg?sig=1' }
+    const out = tripSharePage(html, signed, 'https://travel-hq.app/t/aruba')
+    expect(meta(out, 'og:image')).toBe('https://photos.example.com/preview-abc.jpg?sig=1')
+    expect(meta(out, 'twitter:image')).toBe('https://photos.example.com/preview-abc.jpg?sig=1')
+    expect(meta(out, 'og:image:width')).toBe('1200')
+    expect(meta(out, 'og:image:alt')).toBe(
+      'Beach &quot;Week&quot; &amp; Friends. March 2–6, 2028 · Aruba. Hosted by Maya.'
+    )
+    const sample = { ...trip, previewImage: '/seed/aruba-preview.jpg' }
+    expect(meta(tripSharePage(html, sample, 'https://travel-hq.app/t/aruba'), 'og:image')).toBe(
+      'https://travel-hq.app/seed/aruba-preview.jpg'
+    )
   })
 
   it("keeps Travel HQ's share image for a trip without photos", () => {

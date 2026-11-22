@@ -22,21 +22,27 @@ function escape(text: string): string {
     .replace(/>/g, '&gt;')
 }
 
-/** index.html with the trip's title, description, address and cover photo in its preview tags. */
+/**
+ * index.html with the trip's title, description, address and picture in its preview tags: the trip's own preview
+ * picture (drawn when it was saved, 1200 × 630), or its cover photo until it has one.
+ */
 export function tripSharePage(html: string, trip: PublicTrip, pageUrl: string): string {
   const title = trip.name
   const description = `${dateRange(trip.startDate, trip.endDate)} · ${trip.destination}. Hosted by ${trip.organizerName}.`
   const cover = trip.photos[0]
+  // The picture's address may be the seed's own path, which preview apps need in full.
+  const preview = trip.previewImage && new URL(trip.previewImage, pageUrl).href
+  const image = preview || cover?.url
   const tags: Record<string, string> = {
     'og:title': title,
     'og:description': description,
     'og:url': pageUrl,
     'twitter:title': title,
     'twitter:description': description,
-    ...(cover && {
-      'og:image': cover.url,
-      'og:image:alt': cover.caption || title,
-      'twitter:image': cover.url,
+    ...(image && {
+      'og:image': image,
+      'og:image:alt': preview ? `${title}. ${description}` : cover?.caption || title,
+      'twitter:image': image,
     }),
   }
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${escape(title)} · Travel HQ</title>`)
@@ -48,6 +54,6 @@ export function tripSharePage(html: string, trip: PublicTrip, pageUrl: string): 
     )
   }
   // The share image's size, when the cover photo stands in for it, is the photo's own.
-  if (cover) out = out.replace(/\s*<meta property="og:image:(width|height)"[^>]*>/g, '')
+  if (!preview && cover) out = out.replace(/\s*<meta property="og:image:(width|height)"[^>]*>/g, '')
   return out
 }
