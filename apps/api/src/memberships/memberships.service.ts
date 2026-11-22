@@ -6,6 +6,7 @@ import { runAsSystem } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   PAID_FEATURES,
+  type MemberCandidate,
   type Membership,
   type MembershipInput,
   type MyFeatures,
@@ -102,6 +103,50 @@ export class MembershipsService {
         })
       )
     )
+  }
+
+  /**
+   * Add a member's search: everyone who has signed in whose name or email matches, each with a hint (already a
+   * member, the paid feature they asked for, how many trips they run). Admin only. Trusted work, because the hints
+   * read other people's requests and trips.
+   */
+  async findPeople(query: string): Promise<MemberCandidate[]> {
+    const q = query.trim().slice(0, 100)
+    if (q.length < 2) return []
+    const users = await this.clerk.search(q)
+    if (!users.length) return []
+    const ids = users.map((u) => u.id)
+    const [members, asked, seats] = await runAsSystem(() =>
+      Promise.all([
+        this.prisma.membership.findMany({
+          where: { email: { in: users.map((u) => u.email) }, NOT: { features: { isEmpty: true } } },
+          select: { email: true },
+        }),
+        this.prisma.organizerRequest.findMany({
+          where: { kind: 'feature_access', userId: { in: ids } },
+          orderBy: { createdAt: 'desc' },
+          select: { userId: true, feature: true },
+        }),
+        this.prisma.tripMember.findMany({
+          where: { userId: { in: ids }, trip: { deletedAt: null, isSample: false } },
+          select: { userId: true },
+        }),
+      ])
+    )
+    const isMember = new Set(members.map((m) => m.email))
+    const title = (k: string | null) => PAID_FEATURES.find((f) => f.key === k)?.title
+    return users.map((u) => {
+      const feature = title(asked.find((r) => r.userId === u.id)?.feature ?? null)
+      const trips = seats.filter((s) => s.userId === u.id).length
+      const hint = isMember.has(u.email)
+        ? 'Already a member'
+        : feature
+          ? `Asked for ${feature}`
+          : trips
+            ? `Runs ${trips} ${trips === 1 ? 'trip' : 'trips'}`
+            : 'Signed in'
+      return { name: u.name, email: u.email, hint, isMember: isMember.has(u.email) }
+    })
   }
 
   /** Every membership with features, for the Admin toolbox, with who last changed each by name. */

@@ -1,17 +1,19 @@
 import {
   MEMBERSHIP_NOTE_MAX,
   PAID_FEATURES,
+  type MemberCandidate,
   type Membership,
   type MembershipInput,
   type PaidFeature,
 } from '@cc/types'
 import { BedDouble, Gem, Globe, Link2, Plus, Search, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { AdminGrid, type GridColumn } from '@/components/AdminGrid'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
+import { suggestEmail } from '@/lib/emailTypo'
 import { AdminHow, AdminSection, AdminShell, AdminToolHead } from './AdminPage'
 
 // Manage Memberships (issue #90): who has which paid features, by the email they sign in with. Travel HQ takes no
@@ -186,7 +188,7 @@ export function AdminMembershipsPage() {
           icon={Gem}
           title="Members"
           steps={[
-            'Add the email someone signs in with and tick their paid features. They needn’t have signed in yet.',
+            'Find someone by name or email and tick their paid features. Someone who hasn’t signed in yet, add by their whole email.',
             'Each feature you give them is introduced in a popup the next time they open Travel HQ.',
             'After the last day their features switch off on their own. Nothing of theirs breaks: links fall back to the free ones.',
           ]}
@@ -265,7 +267,7 @@ function MemberDialog({
   const typed = email.trim().toLowerCase()
   // Every problem at once, beside its field (the forms rule).
   const emailProblem = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typed)
-    ? 'Enter an email like name@example.com.'
+    ? 'Pick someone from the list, or type their whole email, like name@example.com.'
     : !member && taken.includes(typed)
       ? 'This person is already a member. Change them in the list instead.'
       : null
@@ -307,19 +309,19 @@ function MemberDialog({
             {error}
           </p>
         )}
-        <label className="flex flex-col gap-1.5 font-semibold text-ink">
-          The email they sign in with
-          <input
-            type="email"
-            value={email}
-            disabled={Boolean(member)}
-            onChange={(e) => setEmail(e.target.value)}
+        {member ? (
+          <label className="flex flex-col gap-1.5 font-semibold text-ink">
+            The email they sign in with
+            <input type="email" value={email} disabled className={field} />
+          </label>
+        ) : (
+          <PersonSearch
+            email={email}
+            onEmail={setEmail}
             onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-            placeholder="name@example.com"
-            className={field}
+            problem={touched.email ? emailProblem : null}
           />
-          {touched.email && emailProblem && <span className={problemText}>{emailProblem}</span>}
-        </label>
+        )}
 
         <FeaturePicker
           features={features}
@@ -367,6 +369,205 @@ function MemberDialog({
         </div>
       </form>
     </Dialog>
+  )
+}
+
+/**
+ * Finding the person to add (owner's ask, 2026-11-22): type part of a name or email and pick from everyone who has
+ * signed in, or type the whole email of someone who hasn't. Admin only: organizers never search people this way.
+ */
+function PersonSearch({
+  email,
+  onEmail,
+  onBlur,
+  problem,
+}: {
+  email: string
+  onEmail: (email: string) => void
+  onBlur: () => void
+  problem: string | null
+}) {
+  const uid = useId()
+  const [found, setFound] = useState<MemberCandidate[]>([])
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const [searching, setSearching] = useState(false)
+  const [picked, setPicked] = useState<string | null>(null)
+  const query = email.trim()
+
+  useEffect(() => {
+    if (!open || query.length < 2 || query.toLowerCase() === picked) {
+      setFound([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    let stale = false
+    const timer = setTimeout(() => {
+      api
+        .findMemberPeople(query)
+        .then((list) => {
+          if (stale) return
+          setFound(list)
+          setActive(list.findIndex((p) => !p.isMember))
+        })
+        .catch(() => !stale && setFound([]))
+        .finally(() => !stale && setSearching(false))
+    }, 250)
+    return () => {
+      stale = true
+      clearTimeout(timer)
+    }
+  }, [query, open, picked])
+
+  const pick = (p: MemberCandidate) => {
+    if (p.isMember) return
+    setPicked(p.email)
+    onEmail(p.email)
+    setOpen(false)
+  }
+
+  const step = (from: number, by: number) => {
+    for (let i = from + by; i >= 0 && i < found.length; i += by) if (!found[i].isMember) return i
+    return from
+  }
+
+  function onKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (!open || found.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((a) => step(a, 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((a) => step(a, -1))
+    } else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault()
+      pick(found[active])
+    } else if (e.key === 'Escape') {
+      // Closes the list only, not the whole dialog.
+      e.stopPropagation()
+      setOpen(false)
+    }
+  }
+
+  const listOpen = open && query.length >= 2 && query.toLowerCase() !== picked
+  const typo = !problem && !listOpen && picked !== query.toLowerCase() ? suggestEmail(query) : null
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join('')
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={`${uid}-find`} className="font-semibold text-ink">
+        Find them by name or email
+      </label>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3.5 top-[14px] h-5 w-5 text-muted"
+          aria-hidden="true"
+        />
+        <input
+          id={`${uid}-find`}
+          type="text"
+          role="combobox"
+          aria-expanded={listOpen}
+          aria-controls={`${uid}-list`}
+          aria-autocomplete="list"
+          aria-activedescendant={listOpen && active >= 0 ? `${uid}-opt-${active}` : undefined}
+          aria-describedby={`${uid}-how`}
+          autoComplete="off"
+          value={email}
+          placeholder="Name or email"
+          onChange={(e) => {
+            onEmail(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => {
+            setOpen(false)
+            onBlur()
+          }}
+          onKeyDown={onKey}
+          className={`${field} pl-11`}
+        />
+      </div>
+      <span id={`${uid}-how`} className="text-sm font-normal text-body">
+        Searches everyone who has signed in to Travel HQ. Someone who hasn’t yet, type their whole
+        email.
+      </span>
+      {listOpen && (
+        <ul
+          id={`${uid}-list`}
+          role="listbox"
+          aria-label="People who have signed in"
+          className="overflow-hidden rounded-2xl border border-rule bg-white"
+        >
+          {found.map((p, i) => (
+            <li
+              key={p.email}
+              id={`${uid}-opt-${i}`}
+              role="option"
+              aria-selected={i === active}
+              aria-disabled={p.isMember}
+              // Picked on mouse down, before the box loses focus and closes the list.
+              onMouseDown={(e) => {
+                e.preventDefault()
+                pick(p)
+              }}
+              onMouseEnter={() => !p.isMember && setActive(i)}
+              className={`flex min-h-[56px] items-center gap-3 border-b border-rule px-3.5 py-2 last:border-b-0 ${
+                p.isMember
+                  ? 'cursor-not-allowed opacity-55'
+                  : i === active
+                    ? 'cursor-pointer bg-royal-pale'
+                    : 'cursor-pointer'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-royal-pale text-sm font-semibold text-royal"
+              >
+                {initials(p.name)}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="break-words font-semibold text-ink">{p.name}</span>
+                <span className="break-all text-sm font-normal text-body">{p.email}</span>
+              </span>
+              <span className="max-w-[35%] text-right text-xs font-normal text-muted">
+                {p.hint}
+              </span>
+            </li>
+          ))}
+          {found.length === 0 && (
+            <li className="px-3.5 py-3 text-sm font-normal text-body" aria-live="polite">
+              {searching
+                ? 'Searching…'
+                : 'Nobody who has signed in matches. To add someone who hasn’t, type their whole email.'}
+            </li>
+          )}
+        </ul>
+      )}
+      {/* Not while they're still picking from the list. */}
+      {problem && !listOpen && <span className={problemText}>{problem}</span>}
+      {typo && (
+        <p className="flex flex-wrap items-center gap-2 text-sm font-normal text-body">
+          <span>
+            Did you mean <span className="font-semibold text-ink">{typo}</span>?
+          </span>
+          <button
+            type="button"
+            onClick={() => onEmail(typo)}
+            className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-royal px-3 font-semibold text-royal hover:bg-royal-pale"
+          >
+            Use {typo}
+          </button>
+        </p>
+      )}
+    </div>
   )
 }
 

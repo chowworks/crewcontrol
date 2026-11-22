@@ -109,6 +109,31 @@ export class ClerkService {
     return out
   }
 
+  /**
+   * Everyone who has signed in whose name or email matches, most recently signed in first, for the admin's Add a
+   * member search. Only the admin's routes call it: organizers never search people beyond their own trips.
+   */
+  async search(query: string, limit = 8): Promise<{ id: string; name: string; email: string }[]> {
+    if (!this.client) return []
+    try {
+      const { data } = await this.client.users.getUserList({
+        query,
+        limit,
+        orderBy: '-last_sign_in_at',
+      })
+      return data.flatMap((u) => {
+        const email = u.primaryEmailAddress?.emailAddress?.toLowerCase() ?? ''
+        if (!email) return []
+        return [
+          { id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || email, email },
+        ]
+      })
+    } catch (err) {
+      this.logger.warn(`Could not search Clerk users: ${err instanceof Error ? err.message : err}`)
+      return []
+    }
+  }
+
   /** Display names for user ids, for the Admin toolbox. Unknown ids are left out. */
   async names(userIds: string[]): Promise<Map<string, string>> {
     const out = new Map<string, string>()

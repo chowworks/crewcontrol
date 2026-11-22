@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common'
 import { BadRequestException } from '@nestjs/common'
@@ -47,6 +48,12 @@ export class AdminMembershipsController {
   @Get()
   list() {
     return this.memberships.list()
+  }
+
+  /** Add a member's search: people who have signed in, by name or email. */
+  @Get('people')
+  people(@Query('q') q: unknown) {
+    return this.memberships.findPeople(typeof q === 'string' ? q : '')
   }
 
   @Put(':email')

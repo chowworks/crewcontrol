@@ -1,7 +1,9 @@
 import { BadRequestException } from '@nestjs/common'
 import { parseOrganizerRequest } from '../trips/trip-input'
 import { parseMemberEmail, parseMembership } from './membership-input'
-import { activeFeatures, hasEnded, today } from './memberships.service'
+import type { ClerkService } from '../auth/clerk.service'
+import type { PrismaService } from '../prisma/prisma.service'
+import { activeFeatures, hasEnded, MembershipsService, today } from './memberships.service'
 
 const at = (iso: string) => new Date(iso)
 
@@ -63,5 +65,49 @@ describe('paid features', () => {
     expect(() => parseOrganizerRequest({ kind: 'feature_access', feature: 'x' })).toThrow(
       BadRequestException
     )
+  })
+})
+
+describe('Add a member search', () => {
+  const users = [
+    { id: 'u1', name: 'Tasha Mayfield', email: 'tasha.m@example.com' },
+    { id: 'u2', name: 'Maya Kelley', email: 'maya@example.com' },
+    { id: 'u3', name: 'Marcus Reed', email: 'marcus.reed@example.com' },
+    { id: 'u4', name: 'Mara Lin', email: 'mara@example.com' },
+  ]
+  const prisma = {
+    membership: { findMany: async () => [{ email: 'tasha.m@example.com' }] },
+    organizerRequest: { findMany: async () => [{ userId: 'u2', feature: 'custom_domain' }] },
+    tripMember: { findMany: async () => [{ userId: 'u3' }, { userId: 'u3' }, { userId: 'u1' }] },
+  } as unknown as PrismaService
+  const clerk = { search: async () => users } as unknown as ClerkService
+  const service = new MembershipsService(prisma, clerk)
+
+  it('gives each person a hint: member first, then what they asked for, then their trips', async () => {
+    expect(await service.findPeople('ma')).toEqual([
+      {
+        name: 'Tasha Mayfield',
+        email: 'tasha.m@example.com',
+        hint: 'Already a member',
+        isMember: true,
+      },
+      {
+        name: 'Maya Kelley',
+        email: 'maya@example.com',
+        hint: 'Asked for Custom domains',
+        isMember: false,
+      },
+      {
+        name: 'Marcus Reed',
+        email: 'marcus.reed@example.com',
+        hint: 'Runs 2 trips',
+        isMember: false,
+      },
+      { name: 'Mara Lin', email: 'mara@example.com', hint: 'Signed in', isMember: false },
+    ])
+  })
+
+  it('waits for two letters before searching', async () => {
+    expect(await service.findPeople(' m ')).toEqual([])
   })
 })

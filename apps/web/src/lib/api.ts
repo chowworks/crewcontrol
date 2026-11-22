@@ -34,6 +34,7 @@ import {
   type JoinView,
   type MyActions,
   type MyTerms,
+  type MemberCandidate,
   type Membership,
   type MembershipInput,
   type MyFeatures,
@@ -298,6 +299,9 @@ export const api = {
   markFeaturesSeen: (features: PaidFeature[]) =>
     request<void>('/me/features/seen', json('POST', { features })),
   adminMemberships: () => request<Membership[]>('/admin/memberships'),
+  // Add a member's search: people who have signed in, by name or email.
+  findMemberPeople: (q: string) =>
+    request<MemberCandidate[]>(`/admin/memberships/people?q=${encodeURIComponent(q)}`),
   // isNew: adding someone, refused if they're already a member.
   setMembership: (email: string, input: MembershipInput, isNew: boolean) =>
     request<Membership[]>(
