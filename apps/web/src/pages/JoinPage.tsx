@@ -140,6 +140,8 @@ interface Draft {
   phone: string
   email: string
   roomId: string
+  /** "Room to myself": nobody else is put in the room they picked. */
+  wholeRoom: boolean
   roomNote: string
   typedName: string
   agreed: boolean
@@ -333,6 +335,7 @@ function JoinForm({
   const [draft, setDraft] = useState<Draft>(() => ({
     ...(behalf ? theirs : mine()),
     roomId: '',
+    wholeRoom: false,
     roomNote: '',
     typedName: '',
     agreed: false,
@@ -354,11 +357,14 @@ function JoinForm({
     }
   }, [trip.slug, behalf])
   // The room they pick sets the price they sign, when it's priced apart from the trip (issue #30).
-  const agreementFor = (v: JoinView, roomId: string) => {
-    const priced = v.roomAgreements.find((r) => r.roomId === roomId) ?? v
+  // Taking the room to themselves is its own price, and its own agreement.
+  const agreementFor = (v: JoinView, roomId: string, whole = false) => {
+    const priced = v.roomAgreements.find((r) => r.roomId === roomId && !r.wholeRoom === !whole) ?? v
     return behalf ? priced.agreementOnBehalf : priced.agreement
   }
-  const agreement = agreementFor(view, draft.roomId)
+  const wholeRoom =
+    draft.wholeRoom && Boolean(trip.rooms.find((r) => r.id === draft.roomId)?.wholeRoom)
+  const agreement = agreementFor(view, draft.roomId, wholeRoom)
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -391,6 +397,7 @@ function JoinForm({
       ...d,
       ...(next === 'behalf' ? theirs : mine()),
       roomId: '',
+      wholeRoom: false,
       roomNote: '',
       typedName: '',
       agreed: false,
@@ -429,6 +436,7 @@ function JoinForm({
       phone: draft.phone,
       email: draft.email,
       roomId: draft.roomId || null,
+      ...(wholeRoom ? { wholeRoom: true } : {}),
       roomNote: draft.roomNote,
       typedName: draft.typedName,
       agreed: draft.agreed,
@@ -449,7 +457,8 @@ function JoinForm({
           .then((v) => {
             setDraft((d) => ({
               ...d,
-              agreed: agreementFor(v, d.roomId).textHash === agreement.textHash && d.agreed,
+              agreed:
+                agreementFor(v, d.roomId, d.wholeRoom).textHash === agreement.textHash && d.agreed,
               termsAccepted:
                 v.termsOfUse.version === termsOfUse.version && termsAsked && d.termsAccepted,
             }))
@@ -615,8 +624,25 @@ function JoinForm({
                   setDraft((d) => ({
                     ...d,
                     roomId: r.id,
+                    wholeRoom: false,
                     agreed: d.agreed && agreementFor(view, r.id).textHash === agreement.textHash,
                   }))
+                }
+                wholeRoom={
+                  draft.roomId === r.id && r.wholeRoom
+                    ? {
+                        checked: wholeRoom,
+                        behalf,
+                        onChange: (on) =>
+                          setDraft((d) => ({
+                            ...d,
+                            wholeRoom: on,
+                            agreed:
+                              d.agreed &&
+                              agreementFor(view, r.id, on).textHash === agreement.textHash,
+                          })),
+                      }
+                    : undefined
                 }
               />
             ))}
@@ -630,7 +656,7 @@ function JoinForm({
                   type="radio"
                   name="room"
                   checked={draft.roomId === ''}
-                  onChange={() => set('roomId', '')}
+                  onChange={() => setDraft((d) => ({ ...d, roomId: '', wholeRoom: false }))}
                   className="h-4 w-4 accent-royal"
                 />
                 <span>

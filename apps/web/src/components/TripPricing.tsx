@@ -417,7 +417,8 @@ export function PricingStep({
       setRooms((rs) => rs.map((r) => ({ ...r, priceCents: r.priceCents ?? start })))
       setOptions({ costSplit: next, roomChoice: true, roomRequired: true })
     } else {
-      if (way === 'room') setRooms((rs) => rs.map((r) => ({ ...r, priceCents: null })))
+      if (way === 'room')
+        setRooms((rs) => rs.map((r) => ({ ...r, priceCents: null, wholeRoomExtraCents: null })))
       setOptions({ costSplit: next })
     }
   }
@@ -483,6 +484,10 @@ export function PricingStep({
   const setRoomPrice = (i: number, price: number) =>
     setRooms((rs) =>
       rs.map((r, j) => (j === i ? { ...r, priceCents: price > 0 ? price : null } : r))
+    )
+  const setWholeRoom = (i: number, extra: number) =>
+    setRooms((rs) =>
+      rs.map((r, j) => (j === i ? { ...r, wholeRoomExtraCents: extra > 0 ? extra : null } : r))
     )
   // Price by room: the rooms full plus the organizer's own part, against what the trip costs.
   const collected = fullRooms(rooms) + options.ownPartCents
@@ -719,6 +724,29 @@ export function PricingStep({
                         />
                       </span>
                     </Stepper>
+                    {r.capacity === 2 && (
+                      <label className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span className="flex-1 font-semibold">
+                          Room to myself (optional)
+                          <span className="block font-normal text-muted">
+                            {r.wholeRoomExtraCents
+                              ? r.priceCents && r.wholeRoomExtraCents < r.priceCents
+                                ? `Less than a second place: you collect ${money(r.priceCents - r.wholeRoomExtraCents)} less if someone takes it.`
+                                : `One guest pays ${money((r.priceCents ?? 0) + r.wholeRoomExtraCents)} for the whole room.`
+                              : 'Leave it empty and nobody can take this room alone.'}
+                          </span>
+                        </span>
+                        <span className="flex w-36 items-center gap-1">
+                          <span className="font-semibold text-muted">+</span>
+                          <Money
+                            value={dollars(r.wholeRoomExtraCents ?? 0)}
+                            onChange={(v) => setWholeRoom(i, cents(v))}
+                            placeholder="None"
+                            label={`${r.name || 'Room'}, room to myself, extra`}
+                          />
+                        </span>
+                      </label>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -734,8 +762,9 @@ export function PricingStep({
                 Start from an even split
               </button>
               <p className="text-sm text-muted">
-                Per person. The buttons move a price by $25, $50 above $500 and $100 above $1,000.
-                Guests pick a room when they join, and the trip page shows “From {money(fromPrice)}
+                Per person. The buttons move a price by $25, $50 above $500 and $100 above $1,000. A
+                room that sleeps 2 can let one guest take it alone, for the extra you set. Guests
+                pick a room when they join, and the trip page shows “From {money(fromPrice)}
                 ”.
               </p>
             </>

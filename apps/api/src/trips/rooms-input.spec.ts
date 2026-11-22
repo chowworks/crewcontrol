@@ -12,8 +12,8 @@ const suite = {
 describe('parseRooms', () => {
   it('accepts a room list in order', () => {
     expect(parseRooms({ rooms: [suite, { ...suite, name: 'Bonus room', capacity: 6 }] })).toEqual([
-      { ...suite, priceCents: null },
-      { ...suite, name: 'Bonus room', capacity: 6, priceCents: null },
+      { ...suite, priceCents: null, wholeRoomExtraCents: null },
+      { ...suite, name: 'Bonus room', capacity: 6, priceCents: null, wholeRoomExtraCents: null },
     ])
   })
 
@@ -23,6 +23,16 @@ describe('parseRooms', () => {
 
   it('keeps a room’s own price', () => {
     expect(parseRooms({ rooms: [{ ...suite, priceCents: 90000 }] })[0].priceCents).toBe(90000)
+  })
+
+  it('keeps a “room to myself” price only on a room that sleeps 2', () => {
+    const [two, six] = parseRooms({
+      rooms: [
+        { ...suite, wholeRoomExtraCents: 80000 },
+        { ...suite, capacity: 6, wholeRoomExtraCents: 80000 },
+      ],
+    })
+    expect([two.wholeRoomExtraCents, six.wholeRoomExtraCents]).toEqual([80000, null])
   })
 
   it.each([

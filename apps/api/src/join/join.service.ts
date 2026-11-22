@@ -167,7 +167,26 @@ export class JoinService {
             agreement: agreementPreview(room),
             agreementOnBehalf: agreementPreview(room, true),
           }
-        }),
+        })
+        .concat(
+          // A room one guest can take alone has an agreement at that price too.
+          trip.rooms.flatMap((r) => {
+            if (!r.wholeRoom) return []
+            const room = {
+              ...facts,
+              costPerPersonCents: r.priceCents + r.wholeRoom.extraCents,
+              paymentPlan: r.wholeRoom.paymentPlan,
+            }
+            return [
+              {
+                roomId: r.id,
+                wholeRoom: true,
+                agreement: agreementPreview(room),
+                agreementOnBehalf: agreementPreview(room, true),
+              },
+            ]
+          })
+        ),
       // Who's in each room, so guests picking one see who they'd share with. Never on the public page.
       roomGuests:
         trip.rooms.length > 0 ? await runAsPublic(() => this.trips.roomGuests(tripId)) : [],
@@ -254,9 +273,17 @@ export class JoinService {
     const onBehalf = Boolean(input.onBehalf)
     // The room they pick sets their price and plan, when it's priced apart from the trip (issue #30).
     const room = trip.rooms.find((r) => r.id === input.roomId)
-    const priced = view.roomAgreements.find((r) => r.roomId === input.roomId) ?? view
-    const priceCents = room?.priceCents ?? trip.costPerPersonCents
-    const plan = room?.paymentPlan ?? trip.paymentPlan
+    // "Room to myself": only while the room offers it and every place in it is free.
+    const whole = input.wholeRoom ? room?.wholeRoom : null
+    if (input.wholeRoom && room && !whole)
+      throw new ConflictException(
+        'Someone already took a place in that room, so you can’t have it to yourself. Pick again.'
+      )
+    const priced =
+      view.roomAgreements.find((r) => r.roomId === input.roomId && !r.wholeRoom === !whole) ?? view
+    const roomPriceCents = room?.priceCents ?? trip.costPerPersonCents
+    const priceCents = roomPriceCents + (whole?.extraCents ?? 0)
+    const plan = whole?.paymentPlan ?? room?.paymentPlan ?? trip.paymentPlan
     // Someone signing up a traveler they look after signs the agreement on that traveler's behalf.
     const agreement = onBehalf ? priced.agreementOnBehalf : priced.agreement
     if (me && !onBehalf) throw new ConflictException('You’ve already joined this trip')
@@ -314,6 +341,10 @@ export class JoinService {
               phone: input.phone,
               roomId: input.roomId ?? null,
               roomNote: trip.options.roomChoice ? (input.roomNote ?? '') : '',
+              // The upgrade is in their signed price; the room's own price is what moves compare to.
+              ...(whole
+                ? { wholeRoomId: input.roomId, roomPriceSettledCents: roomPriceCents }
+                : {}),
             },
           })
           await tx.agreementSignature.create({

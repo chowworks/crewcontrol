@@ -40,6 +40,17 @@ To try one early, open "Your Membership" from the menu under your name at the to
     pages: ['control', 'features'],
   },
   {
+    key: 'room-to-myself',
+    topic: 'rooms',
+    question: 'Can a guest have a room to themselves?',
+    answer: `Yes, for a room that sleeps 2, when you price by room. In the editor's Pricing step, fill in "Room to myself" next to the room with what it costs extra. Leave it empty and nobody can take that room alone.
+
+Guests who pick the room while both places are free see "Upgrade: room to myself" and the price they'd pay. The extra is spread across their payments, and their agreement quotes the higher price. Once someone takes it, the room shows as full to everyone else, and Trip Control and the room planner show them with "(whole room)". They still count as one guest toward your guest limit.
+
+If the extra is less than a second guest would pay for that place, you collect less for that room; the Pricing step says how much less under the box.`,
+    pages: ['editor:pricing', 'editor:rooms'],
+  },
+  {
     key: 'room-planner',
     topic: 'rooms',
     question: 'How do I work out who sleeps where?',

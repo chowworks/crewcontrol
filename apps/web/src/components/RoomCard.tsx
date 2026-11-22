@@ -9,6 +9,7 @@ export function RoomCard({
   onChange,
   price,
   guests,
+  wholeRoom,
 }: {
   room: PublicRoom
   /** Left out on the trip page, where the room is only shown, not picked. */
@@ -18,10 +19,14 @@ export function RoomCard({
   price?: number
   /** Accepted guests already in it, on the join page only (never the public trip page). */
   guests?: string[]
+  /** "Room to myself", under the picked room when the organizer priced it and every place is free. */
+  wholeRoom?: { checked: boolean; behalf: boolean; onChange: (on: boolean) => void }
 }) {
   const full = room.spotsLeft === 0
   // On the trip page the card only shows the room; on the join page it's a choice.
-  const Tag = onChange ? 'label' : 'div'
+  // With the upgrade showing, the room and the upgrade are each their own label.
+  const Tag = onChange && !wholeRoom ? 'label' : 'div'
+  const Pick = wholeRoom ? 'label' : 'span'
   return (
     <Tag
       className={`flex flex-col gap-2 rounded-xl border-2 p-3 text-sm ${
@@ -35,7 +40,7 @@ export function RoomCard({
       }`}
     >
       <RoomArt beds={room.bedTypes} className="h-16 w-full" />
-      <span className="flex items-start gap-2.5">
+      <Pick className="flex items-start gap-2.5">
         {onChange && (
           <input
             type="radio"
@@ -61,7 +66,28 @@ export function RoomCard({
               : `${room.spotsLeft} of ${room.capacity} ${room.capacity === 1 ? 'place' : 'places'} left`}
           </span>
         </span>
-      </span>
+      </Pick>
+      {wholeRoom && room.wholeRoom && (
+        <label className="flex flex-col gap-1 border-t border-royal/20 pt-2">
+          <span className="flex min-h-[44px] items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={wholeRoom.checked}
+              onChange={(e) => wholeRoom.onChange(e.target.checked)}
+              className="h-5 w-5 accent-royal"
+            />
+            <strong>
+              Upgrade: room to {wholeRoom.behalf ? 'themselves' : 'myself'} · +
+              {money(room.wholeRoom.extraCents)}
+            </strong>
+          </span>
+          <span className="pl-[30px] text-ink">
+            Nobody else is put in this room. {wholeRoom.behalf ? 'They pay' : 'You pay'}{' '}
+            <strong>{money(room.priceCents + room.wholeRoom.extraCents)}</strong> instead of{' '}
+            {money(room.priceCents)}, spread across the payments.
+          </span>
+        </label>
+      )}
     </Tag>
   )
 }

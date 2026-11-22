@@ -162,7 +162,9 @@ function previewOf(
             bedTypes: r.bedTypes,
             capacity: r.capacity,
             minPeople: r.minPeople,
-            spotsLeft: Math.max(0, r.capacity - guests.filter((g) => g.roomId === r.id).length),
+            spotsLeft: guests.some((g) => g.roomId === r.id && g.wholeRoom)
+              ? 0
+              : Math.max(0, r.capacity - guests.filter((g) => g.roomId === r.id).length),
             priceCents: roomPrice(r, trip.costPerPersonCents),
             paymentPlan: paymentPlan(
               roomPrice(r, trip.costPerPersonCents),
@@ -171,6 +173,8 @@ function previewOf(
               trip.paymentDueDates,
               trip.paymentShares
             ),
+            // The trip page never offers the upgrade; only the join page does.
+            wholeRoom: null,
           }))
       : [],
     goingCount: approved.length,

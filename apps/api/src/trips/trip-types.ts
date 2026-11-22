@@ -178,6 +178,8 @@ export interface Guest {
   /** The credits and charges the organizer put on their balance, removed ones too, oldest first. */
   adjustments: BalanceAdjustment[]
   roomId: string | null
+  /** They have their room to themselves: they paid the upgrade, and nobody else goes in it. */
+  wholeRoom: boolean
   /** Who they'd like to share with, in their words. */
   roomNote: string
   /** When they signed the trip agreement, or null if they haven't (guests from before signing). */
@@ -842,7 +844,16 @@ export interface TripRoom {
   minPeople: number
   /** What a guest in this room pays, per person (issue #30); null or left out: the trip's price. */
   priceCents?: number | null
+  /**
+   * What a guest pays on top of the room's price to have it to themselves (owner's decision, 2026-11-21). Only a room
+   * that sleeps 2 offers it; null or left out: not offered.
+   */
+  wholeRoomExtraCents?: number | null
 }
+
+/** Whether a room offers "room to myself": it sleeps 2 and the organizer priced the upgrade. */
+export const offersWholeRoom = (room: { capacity: number; wholeRoomExtraCents?: number | null }) =>
+  room.capacity === 2 && (room.wholeRoomExtraCents ?? 0) > 0
 
 /** What a guest in a room pays: its own price, or the trip's when it has none. */
 export const roomPrice = (room: { priceCents?: number | null } | undefined, tripCents: number) =>
@@ -883,6 +894,11 @@ export interface PublicRoom {
   /** What a guest who picks it pays, per person, and the trip's payment plan at that price (issue #30). */
   priceCents: number
   paymentPlan: PlannedPayment[]
+  /**
+   * "Room to myself" (owner's decision, 2026-11-21): what it adds to the price, and the plan at that price, while the
+   * room offers it and nobody is in it yet; null otherwise.
+   */
+  wholeRoom: { extraCents: number; paymentPlan: PlannedPayment[] } | null
 }
 
 /** What a signed-in guest sends from the join page: their details, and their signature on the agreement. */
@@ -893,6 +909,8 @@ export interface JoinInput {
   /** Optional: the room they'd like, and who they'd share with. */
   roomId?: string | null
   roomNote?: string
+  /** They take the room to themselves, at its upgraded price. */
+  wholeRoom?: boolean
   /** Their full name, typed as their signature. */
   typedName: string
   /** The "I agree" box, unticked until they tick it. */
@@ -1002,6 +1020,8 @@ export interface JoinView {
    */
   roomAgreements: {
     roomId: string
+    /** The agreement at the room's "room to myself" price. */
+    wholeRoom?: boolean
     agreement: AgreementPreview
     agreementOnBehalf: AgreementPreview
   }[]

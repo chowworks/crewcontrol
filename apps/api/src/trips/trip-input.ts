@@ -332,6 +332,11 @@ export function parseRooms(raw: unknown): TripRoom[] {
       item.priceCents === undefined || item.priceCents === null
         ? null
         : int(item, 'priceCents', 1, 10_000_000)
+    // "Room to myself" (owner's decision, 2026-11-21): only a room that sleeps 2 offers it; elsewhere it's dropped.
+    const wholeRoomExtraCents =
+      capacity !== 2 || item.wholeRoomExtraCents === undefined || item.wholeRoomExtraCents === null
+        ? null
+        : int(item, 'wholeRoomExtraCents', 1, 10_000_000)
     return {
       ...(id ? { id } : {}),
       name: text(item, 'name', 60),
@@ -340,6 +345,7 @@ export function parseRooms(raw: unknown): TripRoom[] {
       bedTypes: bedTypes as BedType[],
       minPeople,
       priceCents,
+      wholeRoomExtraCents,
     }
   })
 }
@@ -393,6 +399,7 @@ export function parseJoin(raw: unknown): JoinInput {
     email: email.toLowerCase(),
     roomId,
     roomNote,
+    ...(roomId && body.wholeRoom === true ? { wholeRoom: true } : {}),
     typedName: typedName.replace(/\s+/g, ' '),
     agreed: true,
     agreementHash,

@@ -41,6 +41,7 @@ const pay = (id: string, status: Payment['status'], amount = 500): Payment => ({
 const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   id,
   roomPriceDiffCents: 0,
+  wholeRoom: false,
   organizer: false,
   firstName: id,
   lastName: 'X',

@@ -498,15 +498,18 @@ export class TripsService {
       where: { tripId: id },
       orderBy: { position: 'asc' },
     })
-    return rows.map(({ id, name, beds, capacity, bedTypes, minPeople, priceCents }) => ({
-      id,
-      name,
-      beds,
-      capacity,
-      bedTypes: bedTypes as BedType[],
-      minPeople,
-      priceCents,
-    }))
+    return rows.map(
+      ({ id, name, beds, capacity, bedTypes, minPeople, priceCents, wholeRoomExtraCents }) => ({
+        id,
+        name,
+        beds,
+        capacity,
+        bedTypes: bedTypes as BedType[],
+        minPeople,
+        priceCents,
+        wholeRoomExtraCents,
+      })
+    )
   }
 
   /**
