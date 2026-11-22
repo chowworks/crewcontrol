@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { initWasm, Resvg } from '@resvg/resvg-wasm'
@@ -45,12 +45,7 @@ export function previewVersion(trip: PreviewFacts): string {
     trip.organizerName,
     cover,
   ].join('\n')
-  let hash = 0x811c9dc5
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return (hash >>> 0).toString(36)
+  return createHash('sha256').update(text).digest('base64url').slice(0, 10).replace(/[^\w]/g, '0')
 }
 
 /** The picture's file name in the bucket: its fingerprint, and a random part so a name is never reused. */
