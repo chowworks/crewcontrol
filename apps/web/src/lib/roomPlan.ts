@@ -45,7 +45,8 @@ export function tripPeople(guests: Guest[], interest: InterestedPerson[]): Perso
       .filter((g) => g.status !== 'declined')
       .map((g) => ({
         key: `g:${g.id}`,
-        name: shortName(g.firstName, g.lastName),
+        // A guest who took the upgrade has the room to themselves.
+        name: `${shortName(g.firstName, g.lastName)}${g.wholeRoom ? ' (whole room)' : ''}`,
         kind: (g.status === 'approved' ? 'accepted' : 'pending') as PersonKind,
         guestId: g.id,
         interestId: null,

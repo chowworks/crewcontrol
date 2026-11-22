@@ -121,10 +121,17 @@ function useParts(props: DetailsProps) {
             .filter((r: TripRoom) => r.id)
             .map((r: TripRoom) => (
               <option key={r.id} value={r.id}>
-                {r.name} ({trip.guests.filter((x) => x.roomId === r.id).length}/{r.capacity})
+                {r.name} (
+                {trip.guests.some((x) => x.roomId === r.id && x.wholeRoom)
+                  ? 'one guest’s alone'
+                  : `${trip.guests.filter((x) => x.roomId === r.id).length}/${r.capacity}`}
+                )
               </option>
             ))}
         </select>
+        {g.wholeRoom && (
+          <span className="mt-1 block text-sm font-semibold text-royal">Room to themselves</span>
+        )}
         {g.roomNote && (
           <span className="mt-1 block text-sm text-muted">Share with: {g.roomNote}</span>
         )}

@@ -50,6 +50,7 @@ const g = (
   managedBy: null,
   emailProblem: null,
   roomPriceDiffCents: 0,
+  wholeRoom: false,
 })
 
 describe('signupOrder', () => {

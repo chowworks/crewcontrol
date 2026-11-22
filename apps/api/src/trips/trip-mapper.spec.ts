@@ -61,6 +61,7 @@ const guest = (id: string, status: string, firstName: string, lastName: string):
   updatesStoppedAt: null,
   updatesToken: `token-${id}`,
   roomPriceSettledCents: null,
+  wholeRoomId: null,
   organizerGoingAt: null,
 })
 
@@ -176,6 +177,7 @@ describe('toPublicTrip', () => {
         bedTypes: ['king'],
         minPeople: 2,
         priceCents: null,
+        wholeRoomExtraCents: null,
       },
     ]
     const view = toPublicTrip({ ...trip, guests, rooms, roomTaken: new Map([['r1', 1]]) })
@@ -190,6 +192,7 @@ describe('toPublicTrip', () => {
         spotsLeft: 1,
         priceCents: 120000,
         paymentPlan: [300, 300, 300, 300].map((d) => ({ dueOn: null, amountCents: d * 100 })),
+        wholeRoom: null,
       },
     ])
   })
@@ -207,6 +210,7 @@ describe('toPublicTrip', () => {
         bedTypes: [],
         minPeople: 1,
         priceCents: 80000,
+        wholeRoomExtraCents: null,
       },
     ]
     const view = toPublicTrip({ ...trip, guests, rooms })
@@ -214,6 +218,38 @@ describe('toPublicTrip', () => {
       priceCents: 80000,
       paymentPlan: [200, 200, 200, 200].map((d) => ({ dueOn: null, amountCents: d * 100 })),
     })
+  })
+
+  it('offers a room to one guest only while it sleeps 2, has an extra price and is empty', () => {
+    const room = (id: string, capacity: number, extra: number | null) => ({
+      id,
+      tripId: 't1',
+      position: 0,
+      name: id,
+      beds: '',
+      capacity,
+      weight: 1,
+      bedTypes: [],
+      minPeople: 1,
+      priceCents: 80000,
+      wholeRoomExtraCents: extra,
+    })
+    const rooms = [
+      room('two', 2, 40000),
+      room('taken', 2, 40000),
+      room('three', 3, 40000),
+      room('none', 2, null),
+    ]
+    const view = toPublicTrip({ ...trip, guests, rooms, roomTaken: new Map([['taken', 1]]) })
+    expect(view.rooms.map((r) => r.wholeRoom?.extraCents ?? null)).toEqual([
+      40000,
+      null,
+      null,
+      null,
+    ])
+    expect(view.rooms[0].wholeRoom!.paymentPlan).toEqual(
+      [300, 300, 300, 300].map((d) => ({ dueOn: null, amountCents: d * 100 }))
+    )
   })
 
   it('reads a trip saved before the cost split by how its rooms were priced', () => {
@@ -247,6 +283,7 @@ describe('toPublicTrip', () => {
         bedTypes: [],
         minPeople: 1,
         priceCents: null,
+        wholeRoomExtraCents: null,
       },
     ]
     const view = toPublicTrip({

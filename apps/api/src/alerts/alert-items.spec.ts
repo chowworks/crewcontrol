@@ -35,6 +35,7 @@ const pay = (id: string, transferId: string | null = null): Payment => ({
 const guest = (id: string, extra: Partial<Guest> = {}): Guest => ({
   id,
   roomPriceDiffCents: 0,
+  wholeRoom: false,
   organizer: false,
   firstName: id,
   lastName: 'X',

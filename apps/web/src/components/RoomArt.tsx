@@ -149,23 +149,13 @@ function Bed({ type, x, w }: { type: BedType; x: number; w: number }) {
 }
 
 /** Plain words for who shares what in a room, for the picker and the editor. */
-export function sharingLine(room: {
-  bedTypes: BedType[]
-  capacity: number
-  minPeople: number
-}): string {
+export function sharingLine(room: { bedTypes: BedType[]; capacity: number }): string {
   const parts: string[] = []
   const onlyBed = room.bedTypes.length === 1 ? room.bedTypes[0] : null
   if (onlyBed && BED_LABELS[onlyBed].sleeps >= 2 && room.capacity >= 2 && onlyBed !== 'bunk')
     parts.push(`One ${BED_LABELS[onlyBed].label.toLowerCase()} bed, shared by ${room.capacity}.`)
   else if (room.capacity > 1) parts.push(`Shared room for up to ${room.capacity}.`)
   else parts.push('A room for one.')
-  if (room.minPeople > 1)
-    parts.push(
-      `Priced for ${room.minPeople}: book it with fewer and you pay for the empty ${
-        room.minPeople === 2 ? 'place' : 'places'
-      } too.`
-    )
   return parts.join(' ')
 }
 

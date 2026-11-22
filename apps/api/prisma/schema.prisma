@@ -148,6 +148,8 @@ model Guest {
   // The room the guest asked for (the organizer can change it), and who they'd like to share with.
   roomId                String?
   roomNote              String                  @default("")
+  // The room they have to themselves ("room to myself"); counts only while roomId is the same room.
+  wholeRoomId           String?
   // When the guest pressed "Stop updates for this trip" in a reminder email (migration 20261029060000_reminders):
   // reminders skip them. Trip business emails (signing, being accepted) still go.
   updatesStoppedAt      DateTime?
@@ -389,20 +391,22 @@ model Payment {
 
 // A room or sleeping space on a trip, in the organizer's order. Edited in place so guests' room choices stick.
 model Room {
-  id         String   @id @default(cuid())
-  tripId     String
-  position   Int
-  name       String
-  beds       String   @default("")
-  capacity   Int
-  weight     Float    @default(1)
+  id                  String   @id @default(cuid())
+  tripId              String
+  position            Int
+  name                String
+  beds                String   @default("")
+  capacity            Int
+  weight              Float    @default(1)
   // The beds in it, in order (BED_TYPES), for the room pictures guests choose from.
-  bedTypes   String[] @default([])
+  bedTypes            String[] @default([])
   // The fewest people the room is priced for. Fewer than this and they pay for the empty places too.
-  minPeople  Int      @default(1)
+  minPeople           Int      @default(1)
   // What a guest in this room pays, per person; null: the trip's price (migration 20261029070000_room_prices).
-  priceCents Int?
-  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  priceCents          Int?
+  // What "room to myself" adds to the price; null: not offered (migration 20261122010000_whole_room).
+  wholeRoomExtraCents Int?
+  trip                Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   guests Guest[]
 

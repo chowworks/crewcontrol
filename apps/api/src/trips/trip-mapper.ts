@@ -38,6 +38,7 @@ import {
   type TripSection,
   type TripReceipts,
   type TripSummary,
+  offersWholeRoom,
 } from './trip-types'
 
 type GuestWithAgreement = GuestRow & {
@@ -199,6 +200,17 @@ export function toPublicTrip(
       spotsLeft: Math.max(0, r.capacity - (row.roomTaken?.get(r.id) ?? 0)),
       priceCents: roomPrice(r, row.costPerPersonCents),
       paymentPlan: planOf({ ...row, costPerPersonCents: roomPrice(r, row.costPerPersonCents) }),
+      // "Room to myself" is offered while nobody is in the room yet.
+      wholeRoom:
+        offersWholeRoom(r) && !row.roomTaken?.get(r.id)
+          ? {
+              extraCents: r.wholeRoomExtraCents!,
+              paymentPlan: planOf({
+                ...row,
+                costPerPersonCents: roomPrice(r, row.costPerPersonCents) + r.wholeRoomExtraCents!,
+              }),
+            }
+          : null,
     })),
     // The question and its answer only: never who asked (issue #13).
     faq: (row.faq ?? []).map((f) => ({ id: f.id, question: f.question, answer: f.answer ?? '' })),
@@ -305,6 +317,7 @@ function toGuest(
     payments,
     adjustments,
     roomId: row.roomId,
+    wholeRoom: row.roomId !== null && row.wholeRoomId === row.roomId,
     roomNote: row.roomNote,
     signedAt: row.agreement?.signedAt.toISOString() ?? null,
     terms: row.agreement
