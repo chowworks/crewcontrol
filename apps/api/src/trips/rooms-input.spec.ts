@@ -6,7 +6,7 @@ const suite = {
   beds: 'King, private bath',
   capacity: 2,
   bedTypes: ['king'],
-  minPeople: 2,
+  minPeople: 1,
 }
 
 describe('parseRooms', () => {
@@ -17,6 +17,10 @@ describe('parseRooms', () => {
     ])
   })
 
+  it('ignores the old “Priced for”: a room is priced for the people it sleeps', () => {
+    expect(parseRooms({ rooms: [{ ...suite, minPeople: 2 }] })[0].minPeople).toBe(1)
+  })
+
   it('keeps a room’s own price', () => {
     expect(parseRooms({ rooms: [{ ...suite, priceCents: 90000 }] })[0].priceCents).toBe(90000)
   })
@@ -24,7 +28,6 @@ describe('parseRooms', () => {
   it.each([
     [{ ...suite, name: '' }, 'name is required'],
     [{ ...suite, capacity: 0 }, 'capacity must be a whole number from 1 to 20'],
-    [{ ...suite, minPeople: 3 }, 'A room can’t need more people than it sleeps'],
     [{ ...suite, priceCents: 0 }, 'priceCents must be a whole number from 1 to 10000000'],
     [
       { ...suite, bedTypes: ['hammock'] },

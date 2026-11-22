@@ -1047,7 +1047,6 @@ export function EditTripPage() {
                   <RoomsEditor
                     rooms={rooms}
                     setRooms={setRooms}
-                    pricedByRoom={trip.options.costSplit === 'room'}
                     guestsPick={trip.options.roomChoice}
                   />
                 ) : (

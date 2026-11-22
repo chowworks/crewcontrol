@@ -10,13 +10,10 @@ import { Card, Field, field } from '@/components/EditorParts'
 export function RoomsEditor({
   rooms,
   setRooms,
-  pricedByRoom,
   guestsPick,
 }: {
   rooms: TripRoom[]
   setRooms: (update: (rooms: TripRoom[]) => TripRoom[]) => void
-  /** The trip prices by room (step 4), so each room says how many people it's priced for. */
-  pricedByRoom: boolean
   /** Guests pick their room (step 3's switch). Off: the organizer places them. */
   guestsPick: boolean
 }) {
@@ -33,20 +30,12 @@ export function RoomsEditor({
           Guests don’t choose a room: you place them in these from Trip Control.
         </p>
       )}
-      <p className="text-body">
-        {pricedByRoom &&
-          '“Priced for” is the fewest people the room is sold to: fewer than that and they pay for the empty places too. '}
-        Guests see the beds as a picture.
-      </p>
+      <p className="text-body">Guests see the beds as a picture.</p>
       <div className="flex flex-col gap-3">
         {rooms.map((r, i) => (
           <div
             key={i}
-            className={`grid grid-cols-2 gap-2 rounded-xl border border-rule p-3 sm:items-end ${
-              pricedByRoom
-                ? 'sm:grid-cols-[3fr_2fr_1fr_1fr_auto]'
-                : 'sm:grid-cols-[3fr_2fr_1fr_auto]'
-            }`}
+            className="grid grid-cols-2 gap-2 rounded-xl border border-rule p-3 sm:grid-cols-[3fr_2fr_1fr_auto] sm:items-end"
           >
             <Field label="Room">
               <input
@@ -73,19 +62,6 @@ export function RoomsEditor({
                 onChange={(e) => setRoom(i, { capacity: Number(e.target.value) })}
               />
             </Field>
-            {pricedByRoom && (
-              <Field label="Priced for">
-                <input
-                  className={field}
-                  type="number"
-                  onFocus={(e) => e.target.select()}
-                  min={1}
-                  max={r.capacity}
-                  value={r.minPeople}
-                  onChange={(e) => setRoom(i, { minPeople: Number(e.target.value) })}
-                />
-              </Field>
-            )}
             <button
               type="button"
               onClick={() => setRooms((rs) => rs.filter((_, j) => j !== i))}
@@ -161,7 +137,5 @@ export function roomProblem(r: TripRoom, needsPrice = false): string | null {
   if (!r.name.trim()) return 'Give this room a name.'
   if (!(r.capacity >= 1)) return 'A room sleeps at least 1.'
   if (needsPrice && !(r.priceCents && r.priceCents > 0)) return 'Give this room a price per person.'
-  if (!(r.minPeople >= 1)) return '“Priced for” is at least 1.'
-  if (r.minPeople > r.capacity) return '“Priced for” can’t be more than the room sleeps.'
   return null
 }

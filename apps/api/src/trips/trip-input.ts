@@ -324,8 +324,9 @@ export function parseRooms(raw: unknown): TripRoom[] {
       bedTypes.some((b) => !BED_TYPES.includes(b as BedType))
     )
       fail(`bedTypes must be a list of up to 8 of ${BED_TYPES.join(', ')}`)
-    const minPeople = item.minPeople === undefined ? 1 : int(item, 'minPeople', 1, 20)
-    if (minPeople > capacity) fail('A room can’t need more people than it sleeps')
+    // A room is priced and planned for the people it sleeps (owner's decision, 2026-11-21): "Priced for" is gone, and
+    // whatever is sent for it is ignored.
+    const minPeople = 1
     // A room's own price (issue #30); none, or null, and it costs the trip's price.
     const priceCents =
       item.priceCents === undefined || item.priceCents === null
