@@ -1,8 +1,9 @@
 import { paymentPlan, roomPrice, roomsPricedApart, type TripRoom } from '@cc/types'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { CalendarDays } from 'lucide-react'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { Card, Field, field, Money } from '@/components/EditorParts'
-import { money } from '@/lib/format'
+import { money, shortDate } from '@/lib/format'
 import { spreadDates } from '@/lib/pricing'
 
 // The payment plan (step 5 of the trip editor): how many payments guests make, by when, and the reminders. It is the
@@ -312,7 +313,7 @@ export function PaymentPlanCard({
           <p className="rounded-xl bg-ground p-4 text-body">
             Set the price guests see in step 4, Pricing, to see the plan.
           </p>
-        ) : (
+        ) : roomTable ? null : (
           <ol className="flex flex-col">
             <li className="hidden grid-cols-2 gap-3 pb-2 text-sm font-semibold text-muted sm:grid">
               <span>Due by</span>
@@ -402,6 +403,9 @@ export function PaymentPlanCard({
         {costCents > 0 && roomTable && (
           <div className="flex flex-col gap-2">
             <h3 className="font-semibold">What each room pays</h3>
+            {dueDates.length === plan.length && (
+              <p className="text-sm text-muted">Tap a date to move just that payment.</p>
+            )}
             <ul className="flex flex-col gap-0.5 text-sm">
               {prices.map((g) => (
                 <li key={g.price}>
@@ -413,7 +417,7 @@ export function PaymentPlanCard({
             <table className="w-full text-sm">
               <thead>
                 <tr className="align-bottom text-xs text-muted">
-                  <th className="py-1.5 pr-2 text-left font-semibold">Payment</th>
+                  <th className="py-1.5 pr-2 text-left font-semibold">Due</th>
                   {prices.map((g) => (
                     <th key={g.price} className="px-1 py-1.5 text-right font-semibold">
                       {money(g.price)} room
@@ -424,13 +428,16 @@ export function PaymentPlanCard({
               <tbody>
                 {plan.map((_, k) => (
                   <tr key={k} className="border-t border-rule">
-                    <td className="whitespace-nowrap py-2 pr-2">
-                      {k + 1}
-                      {dueDates[k] && (
-                        <span className="text-muted">
-                          {' '}
-                          · {dueDates[k].slice(5).replace('-', '/')}
-                        </span>
+                    <td className="whitespace-nowrap py-1.5 pr-2">
+                      {dueDates.length === plan.length ? (
+                        <DueChip
+                          n={k + 1}
+                          value={dueDates[k]}
+                          early={k > 0 && dueDates[k] < dueDates[k - 1]}
+                          onChange={(v) => onDueDates(dueDates.map((d, j) => (j === k ? v : d)))}
+                        />
+                      ) : (
+                        <span className="text-muted">{k + 1} · No date yet</span>
                       )}
                     </td>
                     {prices.map((g) => (
@@ -494,5 +501,59 @@ export function PaymentPlanCard({
         )}
       </Card>
     </>
+  )
+}
+
+/** A payment's due date as a small button in the plan's table; tapping it opens the date picker. */
+function DueChip({
+  n,
+  value,
+  early,
+  onChange,
+}: {
+  n: number
+  value: string
+  /** Before the payment above it. */
+  early: boolean
+  onChange: (date: string) => void
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <span className="relative inline-flex flex-col items-start">
+      <button
+        type="button"
+        onClick={() => {
+          const el = input.current
+          if (!el) return
+          try {
+            el.showPicker()
+          } catch {
+            el.focus()
+          }
+        }}
+        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 font-semibold hover:bg-royal-pale ${
+          early ? 'border-[#B42318] text-[#B42318]' : 'border-royal text-royal'
+        }`}
+        aria-label={`Payment ${n} due ${shortDate(value)}. Change the date`}
+      >
+        <span className="text-xs font-normal text-muted">{n}</span>
+        {shortDate(value)}
+        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <input
+        ref={input}
+        type="date"
+        tabIndex={-1}
+        aria-hidden="true"
+        value={value}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="pointer-events-none absolute bottom-0 left-0 h-px w-px opacity-0"
+      />
+      {early && (
+        <span role="alert" className="text-xs font-semibold text-[#B42318]">
+          Before payment {n - 1}
+        </span>
+      )}
+    </span>
   )
 }
