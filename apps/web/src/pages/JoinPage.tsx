@@ -15,6 +15,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CopyText } from '@/components/CopyText'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { PaymentMethodIcon } from '@/components/PaymentMethodIcon'
 import { Dialog } from '@/components/Dialog'
 import { Logo } from '@/components/Logo'
@@ -598,6 +599,11 @@ function JoinForm({
           />
           {shown.email && <Problem>{shown.email}</Problem>}
         </label>
+        <EmailTypoHint
+          email={draft.email}
+          onUse={(email) => set('email', email)}
+          className="sm:col-span-2"
+        />
         {behalf && (
           <p className="-mt-2 text-sm text-muted sm:col-span-2">
             Theirs, or yours if they don&apos;t have one. With their own email they can sign in and

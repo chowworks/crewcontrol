@@ -47,6 +47,7 @@ function TokenBridge() {
 
 /** Organizer screens and the join page: signed-out visitors go to sign-in first, then come back. */
 export function RequireSignIn({ children }: { children: ReactNode }) {
+  if (!authConfigured) return <>{children}</>
   if (!authConfigured)
     return (
       <p className="mx-auto max-w-md p-8 text-body">

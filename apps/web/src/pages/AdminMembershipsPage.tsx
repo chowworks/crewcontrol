@@ -11,9 +11,9 @@ import { useEffect, useId, useState, type FormEvent, type KeyboardEvent } from '
 import { AdminGrid, type GridColumn } from '@/components/AdminGrid'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
-import { suggestEmail } from '@/lib/emailTypo'
 import { AdminHow, AdminSection, AdminShell, AdminToolHead } from './AdminPage'
 
 // Manage Memberships (issue #90): who has which paid features, by the email they sign in with. Travel HQ takes no
@@ -451,7 +451,6 @@ function PersonSearch({
   }
 
   const listOpen = open && query.length >= 2 && query.toLowerCase() !== picked
-  const typo = !problem && !listOpen && picked !== query.toLowerCase() ? suggestEmail(query) : null
   const initials = (name: string) =>
     name
       .split(/\s+/)
@@ -553,19 +552,9 @@ function PersonSearch({
       )}
       {/* Not while they're still picking from the list. */}
       {problem && !listOpen && <span className={problemText}>{problem}</span>}
-      {typo && (
-        <p className="flex flex-wrap items-center gap-2 text-sm font-normal text-body">
-          <span>
-            Did you mean <span className="font-semibold text-ink">{typo}</span>?
-          </span>
-          <button
-            type="button"
-            onClick={() => onEmail(typo)}
-            className="inline-flex min-h-[44px] items-center rounded-xl border-2 border-royal px-3 font-semibold text-royal hover:bg-royal-pale"
-          >
-            Use {typo}
-          </button>
-        </p>
+      {/* Not while they're still picking from the list, nor for someone picked from it. */}
+      {!listOpen && picked !== query.toLowerCase() && (
+        <EmailTypoHint email={email} onUse={onEmail} />
       )}
     </div>
   )

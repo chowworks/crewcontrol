@@ -33,6 +33,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { useAdminView } from '@/components/AdminView'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, dueWhenSent, paymentStatus, today } from '@/lib/payments'
@@ -1708,6 +1709,7 @@ function FixEmailDialog({
           />
           {problem && <span className="font-semibold text-[#B42318]">{problem}</span>}
         </label>
+        <EmailTypoHint email={email} onUse={setEmail} />
         <div className="flex flex-wrap gap-3">
           <button
             type="submit"

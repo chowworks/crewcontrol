@@ -3,6 +3,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { field } from '@/components/EditorParts'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { Logo } from '@/components/Logo'
 import { SampleTripCards } from '@/components/SampleTripCards'
 import { api } from '@/lib/api'
@@ -119,6 +120,10 @@ export function LimitedPreviewPage() {
                   />
                   {fieldError(problems.email)}
                 </label>
+                <EmailTypoHint
+                  email={form.email}
+                  onUse={(email) => setForm((f) => ({ ...f, email }))}
+                />
                 <label className="flex flex-col gap-1.5 text-sm font-semibold">
                   What trip do you want to run? (optional)
                   <textarea

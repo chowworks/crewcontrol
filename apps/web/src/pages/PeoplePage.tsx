@@ -6,6 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { Logo } from '@/components/Logo'
 import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
@@ -462,6 +463,7 @@ function AddPerson({
           />
           {touched && problem && <span className="font-semibold text-[#B42318]">{problem}</span>}
         </label>
+        <EmailTypoHint email={email} onUse={setEmail} />
         {!isSample && (
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1.5 text-sm font-semibold">Role</legend>

@@ -2,6 +2,7 @@ import { CONTACT_TOPICS, CONTACT_TOPIC_LABELS, type ContactTopic } from '@cc/typ
 import { CircleCheck } from 'lucide-react'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { EmailTypoHint } from '@/components/EmailTypoHint'
 import { Logo } from '@/components/Logo'
 import { ApiError, api } from '@/lib/api'
 
@@ -131,6 +132,10 @@ export function ContactPage() {
                 required
               />
             </label>
+            <EmailTypoHint
+              email={form.email}
+              onUse={(email) => setForm((f) => ({ ...f, email }))}
+            />
             <label className="flex flex-col gap-1.5 font-semibold">
               Topic
               <select className={input} value={form.topic} onChange={set('topic')} required>
