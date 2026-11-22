@@ -45,7 +45,7 @@ ${plan('Your')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
 {{else}}
 <p>{{trip.organizerName}} will look at your spot next. Once you're accepted, your trip page shows how to pay.</p>
 {{/if}}{{/if}}
@@ -70,7 +70,7 @@ ${plan('Your')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
 {{/if}}{{/if}}
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>
 <p>Your payment plan, your payments and your copy of the agreement are there.</p>`,
@@ -104,7 +104,7 @@ ${plan('Your')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
 {{/if}}
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
@@ -138,7 +138,7 @@ ${plan('{{guest.firstName}}’s')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on the trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on the trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on the trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on the trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
 {{else}}
 <p>{{trip.organizerName}} will look at {{guest.firstName}}’s spot next. Once they’re accepted, the trip page shows how to pay.</p>
 {{/if}}{{/if}}
@@ -190,7 +190,7 @@ ${plan('{{guest.firstName}}’s')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{else}}<p>Then press "I've paid" on your trip page so {{trip.organizerName}} knows to look for it.</p>{{/if}}
 {{/if}}
 <p>So far you've paid {{paymentDetails.paid}} of {{paymentDetails.total}}.</p>
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
@@ -209,7 +209,7 @@ ${plan('{{guest.firstName}}’s')}
 {{#each paymentDetails.methods}}<li>{{name}}: {{handle}}</li>
 {{/each}}</ul>
 {{#if paymentDetails.instructions}}<p>{{paymentDetails.instructions}}</p>{{/if}}
-{{#if paymentDetails.receiptsEmail}}<p>Then forward the Zelle, Cash App or bank email to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page.</p>{{else}}<p>Then press "I've paid" on your trip page.</p>{{/if}}{{else}}, then press "I've paid" on your trip page.</p>{{/if}}
+{{#if paymentDetails.receiptsEmail}}<p>Then forward the {{paymentDetails.receiptToForward}} to <strong>{{paymentDetails.receiptsEmail}}</strong> from the email you sign in with, and it’s recorded for you. Or press "I've paid" on your trip page.</p>{{else}}<p>Then press "I've paid" on your trip page.</p>{{/if}}{{else}}, then press "I've paid" on your trip page.</p>{{/if}}
 <p>Think it did arrive? Reply to this email and it goes to {{trip.organizerName}}.</p>
 <p><a href="{{trip.pageLink}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open your trip page</a></p>`,
   },
@@ -532,6 +532,7 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       oneMethod: false,
       instructions: 'Put "Aruba" and your name in the note.',
       receiptsEmail: 'aruba-2028@receipts.travel-hq.app',
+      receiptToForward: 'Zelle or Cash App email',
       price: '$1,200',
       adjustments: '',
       total: '$1,200',

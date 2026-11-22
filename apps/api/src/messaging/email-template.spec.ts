@@ -40,6 +40,7 @@ const context: GuestEmailContext = {
     oneMethod: true,
     instructions: 'Put your name in the memo.',
     receiptsEmail: '',
+    receiptToForward: 'Zelle email from your bank',
     price: '$1,200',
     adjustments: '',
     total: '$1,200',
@@ -248,7 +249,7 @@ describe('render', () => {
       'payment_not_received',
     ]) {
       expect(render(emailKind(kind)!, withAddress).text).toContain(
-        'aruba-2028@receipts.travel-hq.app'
+        'forward the Zelle email from your bank to aruba-2028@receipts.travel-hq.app'
       )
       expect(render(emailKind(kind)!, context).text).not.toContain('forward the Zelle')
     }

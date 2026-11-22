@@ -67,7 +67,7 @@ function HowToPay({ g, organizer }: { g: MyGuest; organizer: string }) {
       )}
       {g.receiptsEmail && (
         <div className="mt-3">
-          <ReceiptsAddress email={g.receiptsEmail} />
+          <ReceiptsAddress email={g.receiptsEmail} methods={g.paymentMethods} />
         </div>
       )}
     </div>
