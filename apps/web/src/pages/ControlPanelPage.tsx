@@ -12,7 +12,7 @@ import type {
   SignedAgreement,
   TripRoom,
 } from '@cc/types'
-import { ArrowLeft, Lightbulb, Users } from 'lucide-react'
+import { ArrowLeft, Lightbulb, Pencil, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AccountMenu } from '@/components/AccountMenu'
@@ -357,6 +357,15 @@ export function ControlPanelPage() {
                 back is in the account menu there. The flyer is in Advertise your trip, above Actions. */}
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{admin ? 'Manage Trips' : 'Your trips'}</span>
+          </Link>
+          {/* Straight to the trip editor, without going back to Your trips (owner's decision, 2026-11-21). */}
+          <Link
+            to={admin ? `/admin/trips/${id}/edit` : `/organize/${id}`}
+            aria-label={admin ? 'View trip' : 'Edit trip'}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl border border-royal px-2.5 font-semibold text-royal hover:bg-royal-pale sm:px-4"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">{admin ? 'View trip' : 'Edit trip'}</span>
           </Link>
           {/* An organizer's owners and organizers are in the Danger zone; an admin seats itself here. */}
           {admin && (

@@ -381,6 +381,12 @@ export function PlannerBoard({
     setZoom(Math.max(0.4, Math.min(1, room / width)))
   }
 
+  // The planner opens fitted to the screen (owner's decision, 2026-11-21). Hidden on a phone, the board has no width.
+  useEffect(() => {
+    if (scroller.current?.clientWidth) fit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const renderSection = (s: PlanSection) => (
     <Section
       section={s}
