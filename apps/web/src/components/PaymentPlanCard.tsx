@@ -154,6 +154,11 @@ export function PaymentPlanCard({
       plan: planAt(price),
       rooms: rooms.filter((r) => roomPrice(r, costCents) === price).map((r) => r.name || 'Room'),
     }))
+  // Rooms at different prices, without custom amounts: up to 4 prices, the dates then one table of what each room
+  // pays; more, the dates with one room's dollars, picked from a list (owner's decision, 2026-11-21).
+  const byRoom = apart && !shares && prices.length > 1
+  const roomTable = byRoom && prices.length <= 4
+  const pickRoom = byRoom && prices.length > 4
   const lowest = Math.min(costCents, ...rooms.map((r) => roomPrice(r, costCents)))
 
   // The first and last due dates; until both are set (with more than one payment), they wait here unsaved.
@@ -281,11 +286,15 @@ export function PaymentPlanCard({
           </div>
         )}
 
-        {way === 'custom' && apart && rooms.length > 0 && (
+        {((way === 'custom' && apart) || pickRoom) && rooms.length > 0 && (
           <Field
             as="div"
             label="Show dollars for"
-            hint="Payments are a percentage of each room’s price"
+            hint={
+              pickRoom
+                ? 'Each room pays its own price, on these dates'
+                : 'Payments are a percentage of each room’s price'
+            }
           >
             <Dropdown
               label="Show dollars for"
@@ -307,7 +316,7 @@ export function PaymentPlanCard({
           <ol className="flex flex-col">
             <li className="hidden grid-cols-2 gap-3 pb-2 text-sm font-semibold text-muted sm:grid">
               <span>Due by</span>
-              <span className="text-right">Each guest pays</span>
+              {!roomTable && <span className="text-right">Each guest pays</span>}
             </li>
             {plan.map((c, k) => (
               <li
@@ -338,7 +347,7 @@ export function PaymentPlanCard({
                     </span>
                   )}
                 </span>
-                <span className="font-semibold sm:text-right">
+                <span className={`font-semibold sm:text-right ${roomTable ? 'hidden' : ''}`}>
                   <span className="block text-sm font-normal text-muted sm:hidden">
                     Each guest pays
                   </span>
@@ -380,13 +389,8 @@ export function PaymentPlanCard({
                         </span>
                       )}
                     </span>
-                  ) : apart ? (
-                    prices.map((g) => (
-                      <span key={g.price} className="block">
-                        {money(g.plan[k].amountCents)}{' '}
-                        <span className="text-sm font-normal text-muted">{g.rooms.join(', ')}</span>
-                      </span>
-                    ))
+                  ) : pickRoom ? (
+                    money(samplePlan[k].amountCents)
                   ) : (
                     money(c.amountCents)
                   )}
@@ -394,6 +398,51 @@ export function PaymentPlanCard({
               </li>
             ))}
           </ol>
+        )}
+        {costCents > 0 && roomTable && (
+          <div className="flex flex-col gap-2">
+            <h3 className="font-semibold">What each room pays</h3>
+            <ul className="flex flex-col gap-0.5 text-sm">
+              {prices.map((g) => (
+                <li key={g.price}>
+                  <strong>{money(g.price)}</strong>{' '}
+                  <span className="text-muted">{g.rooms.join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="align-bottom text-xs text-muted">
+                  <th className="py-1.5 pr-2 text-left font-semibold">Payment</th>
+                  {prices.map((g) => (
+                    <th key={g.price} className="px-1 py-1.5 text-right font-semibold">
+                      {money(g.price)} room
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {plan.map((_, k) => (
+                  <tr key={k} className="border-t border-rule">
+                    <td className="whitespace-nowrap py-2 pr-2">
+                      {k + 1}
+                      {dueDates[k] && (
+                        <span className="text-muted">
+                          {' '}
+                          · {dueDates[k].slice(5).replace('-', '/')}
+                        </span>
+                      )}
+                    </td>
+                    {prices.map((g) => (
+                      <td key={g.price} className="px-1 py-2 text-right font-semibold">
+                        {money(g.plan[k].amountCents)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         {shares && (
           <div className="flex flex-wrap items-center gap-3">
