@@ -70,10 +70,21 @@ describe('paid features', () => {
 
 describe('Add a member search', () => {
   const users = [
-    { id: 'u1', name: 'Tasha Mayfield', email: 'tasha.m@example.com' },
-    { id: 'u2', name: 'Maya Kelley', email: 'maya@example.com' },
-    { id: 'u3', name: 'Marcus Reed', email: 'marcus.reed@example.com' },
-    { id: 'u4', name: 'Mara Lin', email: 'mara@example.com' },
+    // Tasha's membership is under her second email.
+    {
+      id: 'u1',
+      name: 'Tasha Mayfield',
+      email: 'tasha@example.org',
+      emails: ['tasha@example.org', 'tasha.m@example.com'],
+    },
+    { id: 'u2', name: 'Maya Kelley', email: 'maya@example.com', emails: ['maya@example.com'] },
+    {
+      id: 'u3',
+      name: 'Marcus Reed',
+      email: 'marcus.reed@example.com',
+      emails: ['marcus.reed@example.com'],
+    },
+    { id: 'u4', name: 'Mara Lin', email: 'mara@example.com', emails: ['mara@example.com'] },
   ]
   const prisma = {
     membership: { findMany: async () => [{ email: 'tasha.m@example.com' }] },
@@ -84,7 +95,7 @@ describe('Add a member search', () => {
   const service = new MembershipsService(prisma, clerk)
 
   it('gives each person a hint: member first, then what they asked for, then their trips', async () => {
-    expect(await service.findPeople('ma')).toEqual([
+    expect((await service.findPeople('ma')).people).toEqual([
       {
         name: 'Tasha Mayfield',
         email: 'tasha.m@example.com',
@@ -108,6 +119,13 @@ describe('Add a member search', () => {
   })
 
   it('waits for two letters before searching', async () => {
-    expect(await service.findPeople(' m ')).toEqual([])
+    expect(await service.findPeople(' m ')).toEqual({ people: [], failed: false })
+  })
+
+  it('says so when the sign-in service could not be searched', async () => {
+    const down = new MembershipsService(prisma, {
+      search: async () => null,
+    } as unknown as ClerkService)
+    expect(await down.findPeople('ma')).toEqual({ people: [], failed: true })
   })
 })

@@ -2012,6 +2012,12 @@ export interface MemberCandidate {
   isMember: boolean
 }
 
+/** The Add a member search's answer: `failed` when the sign-in service couldn't be searched just now. */
+export interface MemberSearch {
+  people: MemberCandidate[]
+  failed: boolean
+}
+
 export interface MembershipInput {
   features: PaidFeature[]
   endsOn: string | null

@@ -6,7 +6,7 @@ import { runAsSystem } from '../core/tenant-context'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   PAID_FEATURES,
-  type MemberCandidate,
+  type MemberSearch,
   type Membership,
   type MembershipInput,
   type MyFeatures,
@@ -110,16 +110,20 @@ export class MembershipsService {
    * member, the paid feature they asked for, how many trips they run). Admin only. Trusted work, because the hints
    * read other people's requests and trips.
    */
-  async findPeople(query: string): Promise<MemberCandidate[]> {
+  async findPeople(query: string): Promise<MemberSearch> {
     const q = query.trim().slice(0, 100)
-    if (q.length < 2) return []
+    if (q.length < 2) return { people: [], failed: false }
     const users = await this.clerk.search(q)
-    if (!users.length) return []
+    if (!users) return { people: [], failed: true }
+    if (!users.length) return { people: [], failed: false }
     const ids = users.map((u) => u.id)
     const [members, asked, seats] = await runAsSystem(() =>
       Promise.all([
         this.prisma.membership.findMany({
-          where: { email: { in: users.map((u) => u.email) }, NOT: { features: { isEmpty: true } } },
+          where: {
+            email: { in: users.flatMap((u) => u.emails) },
+            NOT: { features: { isEmpty: true } },
+          },
           select: { email: true },
         }),
         this.prisma.organizerRequest.findMany({
@@ -133,20 +137,23 @@ export class MembershipsService {
         }),
       ])
     )
-    const isMember = new Set(members.map((m) => m.email))
+    const memberEmails = new Set(members.map((m) => m.email))
     const title = (k: string | null) => PAID_FEATURES.find((f) => f.key === k)?.title
-    return users.map((u) => {
+    const people = users.map((u) => {
+      // A membership may be under any of their verified emails: that one is the email to show and change.
+      const memberEmail = u.emails.find((e) => memberEmails.has(e))
       const feature = title(asked.find((r) => r.userId === u.id)?.feature ?? null)
       const trips = seats.filter((s) => s.userId === u.id).length
-      const hint = isMember.has(u.email)
+      const hint = memberEmail
         ? 'Already a member'
         : feature
           ? `Asked for ${feature}`
           : trips
             ? `Runs ${trips} ${trips === 1 ? 'trip' : 'trips'}`
             : 'Signed in'
-      return { name: u.name, email: u.email, hint, isMember: isMember.has(u.email) }
+      return { name: u.name, email: memberEmail ?? u.email, hint, isMember: Boolean(memberEmail) }
     })
+    return { people, failed: false }
   }
 
   /** Every membership with features, for the Admin toolbox, with who last changed each by name. */

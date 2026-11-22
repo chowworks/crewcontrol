@@ -16,4 +16,24 @@ describe('suggestEmail', () => {
     expect(suggestEmail('maya')).toBeNull()
     expect(suggestEmail('maya@')).toBeNull()
   })
+
+  it('leaves real domains a letter away from a common one alone', () => {
+    for (const d of [
+      'ymail.com',
+      'mail.com',
+      'email.com',
+      'aim.com',
+      'mac.com',
+      'yahoo.ca',
+      'live.ca',
+      'ge.com',
+      'ibm.com',
+    ])
+      expect(suggestEmail(`maya@${d}`)).toBeNull()
+  })
+
+  it('fixes a wrong ending on a common domain', () => {
+    expect(suggestEmail('maya@aol.cm')).toBe('maya@aol.com')
+    expect(suggestEmail('maya@comcast.nte')).toBe('maya@comcast.net')
+  })
 })

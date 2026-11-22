@@ -392,10 +392,14 @@ function PersonSearch({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [searching, setSearching] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
   const query = email.trim()
+  // Only while there is someone to show: when nobody matches, the line under the box already says what to do.
+  const listOpen = open && found.length > 0 && query.toLowerCase() !== picked
 
   useEffect(() => {
+    setFailed(false)
     if (!open || query.length < 2 || query.toLowerCase() === picked) {
       setFound([])
       setSearching(false)
@@ -406,12 +410,13 @@ function PersonSearch({
     const timer = setTimeout(() => {
       api
         .findMemberPeople(query)
-        .then((list) => {
+        .then(({ people, failed }) => {
           if (stale) return
-          setFound(list)
-          setActive(list.findIndex((p) => !p.isMember))
+          setFound(people)
+          setFailed(failed)
+          setActive(people.findIndex((p) => !p.isMember))
         })
-        .catch(() => !stale && setFound([]))
+        .catch(() => !stale && setFailed(true))
         .finally(() => !stale && setSearching(false))
     }, 250)
     return () => {
@@ -433,7 +438,15 @@ function PersonSearch({
   }
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (!open || found.length === 0) return
+    if (e.key === 'Escape' && listOpen) {
+      // Closes the list only, not the whole dialog.
+      e.stopPropagation()
+      setOpen(false)
+      return
+    }
+    // The last results stay on screen while the next search runs, but Enter waits for it: it never picks someone
+    // from an older search.
+    if (!listOpen || searching) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActive((a) => step(a, 1))
@@ -443,14 +456,8 @@ function PersonSearch({
     } else if (e.key === 'Enter' && active >= 0) {
       e.preventDefault()
       pick(found[active])
-    } else if (e.key === 'Escape') {
-      // Closes the list only, not the whole dialog.
-      e.stopPropagation()
-      setOpen(false)
     }
   }
-
-  const listOpen = open && query.length >= 2 && query.toLowerCase() !== picked
   const initials = (name: string) =>
     name
       .split(/\s+/)
@@ -474,7 +481,7 @@ function PersonSearch({
           type="text"
           role="combobox"
           aria-expanded={listOpen}
-          aria-controls={`${uid}-list`}
+          aria-controls={listOpen ? `${uid}-list` : undefined}
           aria-autocomplete="list"
           aria-activedescendant={listOpen && active >= 0 ? `${uid}-opt-${active}` : undefined}
           aria-describedby={`${uid}-how`}
@@ -541,14 +548,12 @@ function PersonSearch({
               </span>
             </li>
           ))}
-          {found.length === 0 && (
-            <li className="px-3.5 py-3 text-sm font-normal text-body" aria-live="polite">
-              {searching
-                ? 'Searching…'
-                : 'Nobody who has signed in matches. To add someone who hasn’t, type their whole email.'}
-            </li>
-          )}
         </ul>
+      )}
+      {failed && open && (
+        <p role="alert" className={problemText}>
+          Couldn’t search just now. Try again in a moment, or type their whole email.
+        </p>
       )}
       {/* Not while they're still picking from the list. */}
       {problem && !listOpen && <span className={problemText}>{problem}</span>}

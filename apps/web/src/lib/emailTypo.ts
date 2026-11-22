@@ -31,20 +31,43 @@ function distance(a: string, b: string): number {
   return d[a.length][b.length]
 }
 
-/** The email with its domain corrected, when the domain is one or two letters off a common one; otherwise null. */
+// Real domains that sit one letter from a common one: never "corrected".
+const VALID = new Set([
+  'ymail.com',
+  'mail.com',
+  'email.com',
+  'gmx.com',
+  'aim.com',
+  'mac.com',
+  'yahoo.ca',
+  'yahoo.co.uk',
+  'live.ca',
+  'att.com',
+  'outlook.ca',
+])
+
+// The part before the first dot ("gmail") and the rest ("com").
+const split = (domain: string) => {
+  const dot = domain.indexOf('.')
+  return dot < 0 ? [domain, ''] : [domain.slice(0, dot), domain.slice(dot + 1)]
+}
+
+/**
+ * The email with its domain corrected, or null. Only one slip is caught, so a real domain is rarely mistaken for a
+ * typo: the name of a common domain with a wrong ending ("gmail.con"), or a name of four letters or more that is one
+ * letter or one swap off a common one, with the same ending ("gmial.com", "yaho.com").
+ */
 export function suggestEmail(email: string): string | null {
   const at = email.lastIndexOf('@')
   if (at < 1) return null
   const domain = email.slice(at + 1).toLowerCase()
-  if (!domain || COMMON.includes(domain)) return null
-  let best: string | null = null
-  let bestDistance = 3
-  for (const c of COMMON) {
-    const n = distance(domain, c)
-    if (n < bestDistance) {
-      best = c
-      bestDistance = n
-    }
-  }
-  return best ? `${email.slice(0, at)}@${best}` : null
+  if (!domain || COMMON.includes(domain) || VALID.has(domain)) return null
+  const [name, end] = split(domain)
+  if (!end) return null
+  const fix = COMMON.find((c) => {
+    const [cName, cEnd] = split(c)
+    if (name === cName) return distance(end, cEnd) === 1
+    return end === cEnd && name.length >= 4 && cName.length >= 4 && distance(name, cName) === 1
+  })
+  return fix ? `${email.slice(0, at)}@${fix}` : null
 }
