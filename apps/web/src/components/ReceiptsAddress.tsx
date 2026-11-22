@@ -1,24 +1,27 @@
 import { useUser } from '@clerk/clerk-react'
+import { receiptToForward, type PaymentMethod } from '@cc/types'
 import { CopyText } from './CopyText'
 
 /**
  * The trip's receipts address, wherever a guest pays or reports a payment (issue #12), with a button that copies it:
  * forwarding the Zelle or Cash App email from a phone means pasting the address. No email link (owner's decision,
- * 2026-11-05): a new email isn't a forward.
+ * 2026-11-05): a new email isn't a forward. It names the trip's own ways to pay ("Forward the Cash App email").
  */
 export function ReceiptsAddress({
   email,
+  methods,
   inReport = false,
 }: {
   email: string
+  methods: PaymentMethod[]
   inReport?: boolean
 }) {
   const signInEmail = useUser().user?.primaryEmailAddress?.emailAddress
   return (
     <div className="text-sm">
       <p>
-        {inReport ? 'Or skip this form: forward' : 'Paid? Forward'} the Zelle, Cash App or bank
-        email to
+        {inReport ? 'Or skip this form: forward' : 'Paid? Forward'} the {receiptToForward(methods)}{' '}
+        to
       </p>
       <CopyText value={email} label="Receipts address">
         <span className="font-semibold">{email}</span>

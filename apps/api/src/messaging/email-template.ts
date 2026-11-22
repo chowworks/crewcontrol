@@ -57,6 +57,8 @@ export interface EmailContext {
     instructions: string
     /** Where to forward a payment receipt (the trip's receipts address), or "" when the trip has none. */
     receiptsEmail: string
+    /** Which email to forward there, from the trip's ways to pay ("Cash App email", "payment email"). */
+    receiptToForward: string
     price: string
     adjustments: string
     total: string
@@ -398,6 +400,10 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     { path: 'paymentDetails.oneMethod', label: 'Only one way to pay (yes or no)' },
     { path: 'paymentDetails.instructions', label: 'Payment note' },
     { path: 'paymentDetails.receiptsEmail', label: 'Address to forward payment receipts to' },
+    {
+      path: 'paymentDetails.receiptToForward',
+      label: 'Which email to forward (like "Cash App email")',
+    },
     { path: 'paymentDetails.price', label: 'Their price' },
     {
       path: 'paymentDetails.adjustments',

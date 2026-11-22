@@ -347,7 +347,7 @@ export function ReportPayment({ view, people, onDone, onClose }: PayProps) {
         {/* Forwarding the receipt records it without this form, so the address is offered first. */}
         {receiptsEmail && (
           <div className="rounded-xl bg-royal-pale px-4 py-3 text-ink">
-            <ReceiptsAddress email={receiptsEmail} inReport />
+            <ReceiptsAddress email={receiptsEmail} methods={methods} inReport />
           </div>
         )}
         {totalField}

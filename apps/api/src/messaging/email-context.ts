@@ -3,6 +3,7 @@ import { canPay, owed } from '../join/guest-pay'
 import {
   PAYMENT_METHOD_KINDS,
   datedSchedule,
+  receiptToForward,
   totalDueCents,
   type JoinView,
   type MyGuest,
@@ -141,6 +142,7 @@ export function guestEmailContext(
             oneMethod: facts.paymentMethods.length === 1,
             instructions: facts.paymentInstructions,
             receiptsEmail: facts.receiptsEmail ?? '',
+            receiptToForward: receiptToForward(facts.paymentMethods),
             price: money(terms.priceCents),
             // The organizer's credits and charges (issue #17), signed, and the price with them.
             adjustments:

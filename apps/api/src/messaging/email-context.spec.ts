@@ -1,4 +1,10 @@
-import type { JoinView, MyGuest, PublicTrip } from '../trips/trip-types'
+import {
+  receiptToForward,
+  type JoinView,
+  type MyGuest,
+  type PaymentMethod,
+  type PublicTrip,
+} from '../trips/trip-types'
 import { dateRange, day, guestEmailContext } from './email-context'
 import { EMAIL_KINDS, sampleContext, sampleFor } from './email-defaults'
 import { checkTemplate, render } from './email-template'
@@ -229,5 +235,27 @@ describe('the default emails', () => {
     expect(owner.text).toContain('as an owner of')
     expect(owner.text).toContain(`Open the trip (${link})`)
     expect(owner.text).not.toContain('Make your account')
+  })
+})
+
+describe('receiptToForward', () => {
+  const m = (kind: PaymentMethod['kind'], label = ''): PaymentMethod => ({
+    kind,
+    label,
+    handle: 'x',
+  })
+  it('names only the trip’s own ways to pay', () => {
+    expect(receiptToForward([m('cashapp')])).toBe('Cash App email')
+    expect(receiptToForward([m('zelle')])).toBe('Zelle email from your bank')
+    expect(receiptToForward([m('cashapp'), m('venmo')])).toBe('Cash App or Venmo email')
+    expect(receiptToForward([m('cashapp'), m('zelle'), m('paypal')])).toBe(
+      'Cash App, Zelle or PayPal email'
+    )
+    expect(receiptToForward([m('cashapp'), m('cashapp')])).toBe('Cash App email')
+  })
+  it('says "payment email" for "Something else" or no methods', () => {
+    expect(receiptToForward([m('custom', 'Bank transfer')])).toBe('payment email')
+    expect(receiptToForward([])).toBe('payment email')
+    expect(receiptToForward([m('zelle'), m('custom', 'Cash')])).toBe('Zelle or other payment email')
   })
 })

@@ -342,6 +342,23 @@ export function paymentMethodLabel(m: PaymentMethod): string {
   return m.handle.trim() ? `${name} · ${m.handle.trim()}` : name
 }
 
+/**
+ * Which payment email a guest forwards to the trip's receipts address, named from the trip's own ways to pay:
+ * "Cash App email", "Zelle email from your bank" (Zelle receipts come from the bank), "Cash App or Venmo email",
+ * "Cash App or other payment email" beside a "Something else", and "payment email" when the trip names none.
+ */
+export function receiptToForward(methods: PaymentMethod[]): string {
+  const named: string[] = [
+    ...new Set(methods.filter((m) => m.kind !== 'custom').map((m) => m.kind)),
+  ].map((kind) => PAYMENT_METHOD_KINDS.find((k) => k.kind === kind)?.name ?? 'Other')
+  if (named.length === 0) return 'payment email'
+  if (methods.some((m) => m.kind === 'custom')) named.push('other payment')
+  else if (named.length === 1 && named[0] === 'Zelle') return 'Zelle email from your bank'
+  const names =
+    named.length === 1 ? named[0] : `${named.slice(0, -1).join(', ')} or ${named[named.length - 1]}`
+  return `${names} email`
+}
+
 /** One payment a guest sent the organizer, for any installment. Amounts are whole cents. */
 export interface Payment {
   id: string

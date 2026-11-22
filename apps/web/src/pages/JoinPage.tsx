@@ -981,7 +981,7 @@ function MyPlace({
           {/* Forwarding the payment email records it for them (issue #12). */}
           {me.receiptsEmail && (
             <div className="mt-3">
-              <ReceiptsAddress email={me.receiptsEmail} />
+              <ReceiptsAddress email={me.receiptsEmail} methods={me.paymentMethods} />
             </div>
           )}
         </div>
