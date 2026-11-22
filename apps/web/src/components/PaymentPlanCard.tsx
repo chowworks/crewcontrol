@@ -1,8 +1,9 @@
 import { paymentPlan, roomPrice, roomsPricedApart, type TripRoom } from '@cc/types'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { CalendarDays } from 'lucide-react'
 import { Dropdown, REMIND_OPTIONS } from '@/components/Dropdown'
 import { Card, Field, field, Money } from '@/components/EditorParts'
-import { money } from '@/lib/format'
+import { money, shortDate } from '@/lib/format'
 import { spreadDates } from '@/lib/pricing'
 
 // The payment plan (step 5 of the trip editor): how many payments guests make, by when, and the reminders. It is the
@@ -154,6 +155,11 @@ export function PaymentPlanCard({
       plan: planAt(price),
       rooms: rooms.filter((r) => roomPrice(r, costCents) === price).map((r) => r.name || 'Room'),
     }))
+  // Rooms at different prices, without custom amounts: up to 4 prices, the dates then one table of what each room
+  // pays; more, the dates with one room's dollars, picked from a list (owner's decision, 2026-11-21).
+  const byRoom = apart && !shares && prices.length > 1
+  const roomTable = byRoom && prices.length <= 4
+  const pickRoom = byRoom && prices.length > 4
   const lowest = Math.min(costCents, ...rooms.map((r) => roomPrice(r, costCents)))
 
   // The first and last due dates; until both are set (with more than one payment), they wait here unsaved.
@@ -281,11 +287,15 @@ export function PaymentPlanCard({
           </div>
         )}
 
-        {way === 'custom' && apart && rooms.length > 0 && (
+        {((way === 'custom' && apart) || pickRoom) && rooms.length > 0 && (
           <Field
             as="div"
             label="Show dollars for"
-            hint="Payments are a percentage of each room’s price"
+            hint={
+              pickRoom
+                ? 'Each room pays its own price, on these dates'
+                : 'Payments are a percentage of each room’s price'
+            }
           >
             <Dropdown
               label="Show dollars for"
@@ -303,11 +313,11 @@ export function PaymentPlanCard({
           <p className="rounded-xl bg-ground p-4 text-body">
             Set the price guests see in step 4, Pricing, to see the plan.
           </p>
-        ) : (
+        ) : roomTable ? null : (
           <ol className="flex flex-col">
             <li className="hidden grid-cols-2 gap-3 pb-2 text-sm font-semibold text-muted sm:grid">
               <span>Due by</span>
-              <span className="text-right">Each guest pays</span>
+              {!roomTable && <span className="text-right">Each guest pays</span>}
             </li>
             {plan.map((c, k) => (
               <li
@@ -338,7 +348,7 @@ export function PaymentPlanCard({
                     </span>
                   )}
                 </span>
-                <span className="font-semibold sm:text-right">
+                <span className={`font-semibold sm:text-right ${roomTable ? 'hidden' : ''}`}>
                   <span className="block text-sm font-normal text-muted sm:hidden">
                     Each guest pays
                   </span>
@@ -380,13 +390,8 @@ export function PaymentPlanCard({
                         </span>
                       )}
                     </span>
-                  ) : apart ? (
-                    prices.map((g) => (
-                      <span key={g.price} className="block">
-                        {money(g.plan[k].amountCents)}{' '}
-                        <span className="text-sm font-normal text-muted">{g.rooms.join(', ')}</span>
-                      </span>
-                    ))
+                  ) : pickRoom ? (
+                    money(samplePlan[k].amountCents)
                   ) : (
                     money(c.amountCents)
                   )}
@@ -394,6 +399,57 @@ export function PaymentPlanCard({
               </li>
             ))}
           </ol>
+        )}
+        {costCents > 0 && roomTable && (
+          <div className="flex flex-col gap-2">
+            <h3 className="font-semibold">What each room pays</h3>
+            {dueDates.length === plan.length && (
+              <p className="text-sm text-muted">Tap a date to move just that payment.</p>
+            )}
+            <ul className="flex flex-col gap-0.5 text-sm">
+              {prices.map((g) => (
+                <li key={g.price}>
+                  <strong>{money(g.price)}</strong>{' '}
+                  <span className="text-muted">{g.rooms.join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="align-bottom text-xs text-muted">
+                  <th className="py-1.5 pr-2 text-left font-semibold">Due</th>
+                  {prices.map((g) => (
+                    <th key={g.price} className="px-1 py-1.5 text-right font-semibold">
+                      {money(g.price)} room
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {plan.map((_, k) => (
+                  <tr key={k} className="border-t border-rule">
+                    <td className="whitespace-nowrap py-1.5 pr-2">
+                      {dueDates.length === plan.length ? (
+                        <DueChip
+                          n={k + 1}
+                          value={dueDates[k]}
+                          early={k > 0 && dueDates[k] < dueDates[k - 1]}
+                          onChange={(v) => onDueDates(dueDates.map((d, j) => (j === k ? v : d)))}
+                        />
+                      ) : (
+                        <span className="text-muted">{k + 1} · No date yet</span>
+                      )}
+                    </td>
+                    {prices.map((g) => (
+                      <td key={g.price} className="px-1 py-2 text-right font-semibold">
+                        {money(g.plan[k].amountCents)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         {shares && (
           <div className="flex flex-wrap items-center gap-3">
@@ -445,5 +501,59 @@ export function PaymentPlanCard({
         )}
       </Card>
     </>
+  )
+}
+
+/** A payment's due date as a small button in the plan's table; tapping it opens the date picker. */
+function DueChip({
+  n,
+  value,
+  early,
+  onChange,
+}: {
+  n: number
+  value: string
+  /** Before the payment above it. */
+  early: boolean
+  onChange: (date: string) => void
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <span className="relative inline-flex flex-col items-start">
+      <button
+        type="button"
+        onClick={() => {
+          const el = input.current
+          if (!el) return
+          try {
+            el.showPicker()
+          } catch {
+            el.focus()
+          }
+        }}
+        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 font-semibold hover:bg-royal-pale ${
+          early ? 'border-[#B42318] text-[#B42318]' : 'border-royal text-royal'
+        }`}
+        aria-label={`Payment ${n} due ${shortDate(value)}. Change the date`}
+      >
+        <span className="text-xs font-normal text-muted">{n}</span>
+        {shortDate(value)}
+        <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <input
+        ref={input}
+        type="date"
+        tabIndex={-1}
+        aria-hidden="true"
+        value={value}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="pointer-events-none absolute bottom-0 left-0 h-px w-px opacity-0"
+      />
+      {early && (
+        <span role="alert" className="text-xs font-semibold text-[#B42318]">
+          Before payment {n - 1}
+        </span>
+      )}
+    </span>
   )
 }
