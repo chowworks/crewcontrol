@@ -48,6 +48,20 @@ function chipClass(p: Place) {
 const chipText = (p: Place) =>
   p.name ? (p.you ? `${p.name} (you)` : p.name) : p.taken ? 'Taken' : 'Free'
 
+/** "You're in the ... room", at the top of Rooms, for an accepted guest on a plan shared with names. */
+export function YoureIn({ plan }: { plan: SharedRoomPlan }) {
+  const mine = plan.tiles.find((t) => t.room?.places.some((p) => p.you))
+  const myPlace = mine?.room?.places.find((p) => p.you)
+  if (!mine?.room || !myPlace) return null
+  const myBed = myPlace.bed != null ? mine.room.bedTypes[myPlace.bed] : undefined
+  return (
+    <p className="rounded-xl bg-royal-pale px-4 py-3">
+      <strong>You’re in the {mine.room.name}</strong>
+      {myBed ? `, on the ${BED_LABELS[myBed].label} bed.` : '.'}
+    </p>
+  )
+}
+
 /**
  * The floor plan an organizer shared, as last applied, with no prices: a button below the room cards that opens it,
  * the same for everyone (owner's decisions, 2026-11-28). Accepted guests see who sleeps where (accepted guests by
@@ -62,19 +76,9 @@ export function GuestFloorPlan({
   anonymous?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const mine = plan.tiles.find((t) => t.room?.places.some((p) => p.you))
-  const myPlace = mine?.room?.places.find((p) => p.you)
-  const myBed = myPlace?.bed != null ? mine?.room?.bedTypes[myPlace.bed] : undefined
-  const where = mine?.room && (
-    <p className="rounded-xl bg-royal-pale px-4 py-3">
-      <strong>You’re in the {mine.room.name}</strong>
-      {myBed ? `, on the ${BED_LABELS[myBed].label} bed.` : '.'}
-    </p>
-  )
-
+  const mine = plan.tiles.some((t) => t.room?.places.some((p) => p.you))
   return (
     <>
-      {where}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -84,7 +88,7 @@ export function GuestFloorPlan({
       </button>
       {open && (
         <Dialog title="Floor plan" wide onClose={() => setOpen(false)}>
-          {mine?.room && <p className="mb-3 text-sm text-muted">Your spot has a gold ring.</p>}
+          {mine && <p className="mb-3 text-sm text-muted">Your spot has a gold ring.</p>}
           <ZoomablePlan plan={plan} anonymous={anonymous} />
           {/* A plug for the paid room planner (owner's ask, 2026-11-28). */}
           <p className="mt-4 rounded-xl bg-royal-pale px-4 py-3 text-sm">
