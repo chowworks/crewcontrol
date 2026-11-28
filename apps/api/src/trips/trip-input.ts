@@ -358,7 +358,12 @@ export const sameName = (a: string, b: string): boolean =>
   a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
 /** An organizer saying "I'm going too" on Trip Control (issue #53): their name, phone and email as a guest's. */
-export function parseOrganizerGoing(raw: unknown): { name: string; phone: string; email: string } {
+export function parseOrganizerGoing(raw: unknown): {
+  name: string
+  phone: string
+  email: string
+  roomId: string | null
+} {
   if (!raw || typeof raw !== 'object') fail('Send the form as JSON')
   const body = raw as Body
   const name = text(body, 'name', 120)
@@ -366,7 +371,9 @@ export function parseOrganizerGoing(raw: unknown): { name: string; phone: string
   if (phone.replace(/\D/g, '').length < 7) fail('Phone must be a phone number')
   const email = text(body, 'email', 254)
   if (!EMAIL.test(email)) fail('Email must be an email address')
-  return { name, phone, email: email.toLowerCase() }
+  // The room they take, as a guest picks one when joining; none to pick later.
+  const roomId = typeof body.roomId === 'string' && body.roomId ? body.roomId : null
+  return { name, phone, email: email.toLowerCase(), roomId }
 }
 
 /**

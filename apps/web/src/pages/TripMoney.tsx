@@ -251,6 +251,9 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
               maxGuests: trip.maxGuests,
               going: trip.guests.some((g) => g.id === trip.myGuestId && g.status === 'approved'),
               rooms: plan,
+              organizerRoomId: trip.guests.find(
+                (g) => g.id === trip.myGuestId && g.organizer && g.status === 'approved'
+              )?.roomId,
             })}
           />
         </Dialog>

@@ -22,7 +22,8 @@ export function RoomCard({
   /** "Room to myself", under the picked room when the organizer priced it and every place is free. */
   wholeRoom?: { checked: boolean; behalf: boolean; onChange: (on: boolean) => void }
 }) {
-  const full = room.spotsLeft === 0
+  // The room someone is already in stays theirs to keep, even when it's full with them in it.
+  const full = room.spotsLeft === 0 && !checked
   // On the trip page the card only shows the room; on the join page it's a choice.
   // With the upgrade showing, the room and the upgrade are each their own label.
   const Tag = onChange && !wholeRoom ? 'label' : 'div'
@@ -61,7 +62,7 @@ export function RoomCard({
             <span className="text-ink">With {guests.join(', ')}</span>
           )}
           <span className="font-semibold text-royal">
-            {full
+            {room.spotsLeft === 0
               ? 'Full'
               : `${room.spotsLeft} of ${room.capacity} ${room.capacity === 1 ? 'place' : 'places'} left`}
           </span>

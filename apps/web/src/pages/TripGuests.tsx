@@ -4,6 +4,7 @@
 import {
   confirmedCents,
   guestActions,
+  roomsPricedApart,
   totalDueCents,
   waitlistSpotOpen,
   type BalanceAdjustmentInput,
@@ -42,7 +43,12 @@ import { AdjustBalance } from './AdjustBalance'
 import { NotReceivedReason, SignedCopy, UndoConfirm } from './ControlPanelPage'
 import { ReceiptActionRow, ReceiptProofButton } from './ForwardedReceipts'
 import { GuestDetails } from './GuestDetails'
-import { GoingButton, NotGoingButton, type OrganizerGoingInput } from './OrganizerGoing'
+import {
+  GoingButton,
+  NotGoingButton,
+  roomsToPick,
+  type OrganizerGoingInput,
+} from './OrganizerGoing'
 
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -1523,7 +1529,13 @@ export function GuestsCard(props: Props) {
         {max ? `${accepted} of ${max} spots taken.` : `${accepted} accepted. No limit set.`}
       </p>
       {props.onGoing && !going && (
-        <GoingButton spotsLeft={max ? max - accepted : null} onGoing={props.onGoing} />
+        <GoingButton
+          spotsLeft={max ? max - accepted : null}
+          rooms={roomsToPick(props.rooms, trip)}
+          byRoom={trip.options.costSplit === 'room'}
+          priced={roomsPricedApart(props.rooms, trip.costPerPersonCents)}
+          onGoing={props.onGoing}
+        />
       )}
       {waiting > 0 && (
         <button

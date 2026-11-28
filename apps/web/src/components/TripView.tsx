@@ -29,6 +29,7 @@ export function TripView({
   interest,
   sections = trip.sections,
   floorPlan,
+  myRoom,
 }: {
   trip: PublicTrip
   preview?: boolean
@@ -44,6 +45,8 @@ export function TripView({
   sections?: TripSection[]
   /** Where everyone sleeps, when the organizer shared the floor plan with accepted guests. */
   floorPlan?: ReactNode
+  /** Under Rooms, for an organizer going on their own trip: their room, and picking or changing it. */
+  myRoom?: ReactNode
 }) {
   const cover = trip.photos[0]
   // Once sign-ups close, nobody is still joining (issue #88).
@@ -206,7 +209,7 @@ export function TripView({
                   <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
                 ))}
               </div>
-              <p className="text-sm text-muted">You pick your room when you join.</p>
+              {myRoom ?? <p className="text-sm text-muted">You pick your room when you join.</p>}
             </section>
           )}
 

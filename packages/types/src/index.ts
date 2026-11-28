@@ -676,6 +676,17 @@ export type CostSplit = 'even' | 'room' | 'set'
 export const ownPartOf = (options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>) =>
   options.costSplit === 'even' || options.costSplit === 'room' ? options.ownPartCents : 0
 
+/**
+ * What an organizer going on their own trip puts in (issue #53), counted as paid. On a trip priced by room it's their
+ * room's price per person (owner's decision, 2026-11-28): their place is one of the places the rooms are priced for, so
+ * "You put in" no longer applies; nothing until they pick a room. On an even split it's what they typed under "You put
+ * in".
+ */
+export const organizerPartOf = (
+  options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>,
+  roomPriceCents: number | null
+) => (options.costSplit === 'room' ? (roomPriceCents ?? 0) : ownPartOf(options))
+
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,
   roomRequired: false,
@@ -1013,6 +1024,11 @@ export interface MyGuest {
   paymentInstructions: string
   /** Where to forward a payment receipt (the trip's receipts address), under the same rule; null when there's none. */
   receiptsEmail: string | null
+  /**
+   * An organizer going on their own trip (issue #53): the trip's id, so their trip page can change their own room
+   * through Trip Control's route (owner's decision, 2026-11-28). null for everyone else.
+   */
+  organizerTripId: string | null
 }
 
 /** The join page: the trip, the agreement to sign, and the guest's own place once they've joined. */

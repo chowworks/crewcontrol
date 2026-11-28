@@ -1015,16 +1015,22 @@ export class TripsService {
   /**
    * An organizer of the trip going on it too (issue #53): accepted at once, taking a spot (the database refuses when
    * every spot is taken), with no trip agreement, since they accepted the Organizer Terms. Their place on the trip as
-   * a guest, if they had one, becomes this one. No email: they did it themselves.
+   * a guest, if they had one, becomes this one. No email: they did it themselves. They pick a room as a guest does, or
+   * later from their trip page (owner's decision, 2026-11-28); a full room is refused by the database.
    */
   async goingToo(
     id: string,
-    input: { name: string; phone: string; email: string },
+    input: { name: string; phone: string; email: string; roomId?: string | null },
     caller: Caller
   ): Promise<OrganizerTrip> {
     const trip = await this.get(id, caller)
     const mine = trip.guests.find((g) => g.id === trip.myGuestId)
     if (mine?.status === 'approved') throw new ConflictException('You’re already on this trip')
+    if (
+      input.roomId &&
+      !(await this.prisma.room.findFirst({ where: { id: input.roomId, tripId: id } }))
+    )
+      throw new BadRequestException('That room is not on this trip')
     const [firstName, lastName] = splitName(input.name)
     const data = {
       firstName,
@@ -1032,6 +1038,8 @@ export class TripsService {
       email: input.email,
       phone: input.phone,
       status: 'approved',
+      roomId: input.roomId ?? mine?.roomId ?? null,
+      wholeRoomId: null,
       organizerGoingAt: new Date(),
       waitlistedAt: null,
       offeredAt: null,

@@ -11,6 +11,7 @@ import { InterestTile } from './GuestInterest'
 import { QuestionsSection } from './GuestQuestions'
 import { hasJoined, MyTripPanel } from './JoinPage'
 import { NotFoundPage } from './NotFoundPage'
+import { OrganizerRoom } from './OrganizerRoom'
 
 export function GuestTripPage() {
   const { slug = '' } = useParams()
@@ -58,10 +59,25 @@ export function GuestTripPage() {
   if (error) return <NotFoundPage message={error} />
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
   const mine = view && hasJoined(view) && !view.claimable
+  // An organizer going on their own trip picks their room here (owner's decision, 2026-11-28).
+  const me = view?.me
+  const organizerGoing = mine && me?.organizerTripId && me.status === 'approved' ? me : null
   return (
     <TripView
       trip={trip}
       floorPlan={mine && view.floorPlan ? <GuestFloorPlan plan={view.floorPlan} /> : undefined}
+      myRoom={
+        view && organizerGoing ? (
+          <OrganizerRoom
+            view={{ ...view, trip, me: organizerGoing }}
+            // The rooms' places and the organizer's own part follow the move.
+            onSaved={() => {
+              api.getPublicTrip(slug).then(setTrip, () => {})
+              api.getJoin(slug).then(setView, () => {})
+            }}
+          />
+        ) : undefined
+      }
       mine={
         mine
           ? {

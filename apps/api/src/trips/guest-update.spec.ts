@@ -132,7 +132,10 @@ function setup(trip: Record<string, unknown>, guests: ReturnType<typeof guest>[]
     guests.find((g) => g.payments.some((p) => p.id === paymentId))!
   const prisma = {
     trip: { findFirst: async () => row },
-    room: { findFirst: async () => null },
+    room: {
+      findFirst: async ({ where }: { where: { id: string } }) =>
+        (row.rooms as { id: string }[]).find((r) => r.id === where.id) ?? null,
+    },
     tripMember: { findFirst: async () => ({ userId: 'owner' }) },
     systemSettings: { findUnique: async () => ({ waitlistBufferPercent: 10 }) },
     guest: {
@@ -617,7 +620,11 @@ describe('an organizer going on their own trip (issue #53)', () => {
   it('takes a spot at once, with no agreement, owing nothing, and emails nobody', () => {
     const { service, guests, emails } = setup({ joinMode: 'accept_first' }, [])
     return service
-      .goingToo('t1', { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com' }, caller)
+      .goingToo(
+        't1',
+        { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com', roomId: null },
+        caller
+      )
       .then((trip) => {
         expect(guests[0]).toMatchObject({ userId: 'u1', status: 'approved', firstName: 'Sam' })
         const me = trip.guests.find((g) => g.id === trip.myGuestId)!
@@ -640,6 +647,50 @@ describe('an organizer going on their own trip (issue #53)', () => {
     await expect(
       service.goingToo('t1', { name: 'Sam R', phone: '5550199', email: 's@example.com' }, caller)
     ).rejects.toThrow(ConflictException)
+  })
+
+  it('takes the room they pick, and on a trip priced by room their part is that room’s price, paid', async () => {
+    const rooms = [
+      { id: 'king', name: 'King', capacity: 2, priceCents: 260_000 },
+      { id: 'loft', name: 'Loft', capacity: 2, priceCents: 210_000 },
+    ]
+    const options = { costSplit: 'room', ownPartCents: 623_334 }
+    const { service, guests } = setup({ rooms, options }, [])
+    const trip = await service.goingToo(
+      't1',
+      { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com', roomId: 'king' },
+      caller
+    )
+    expect(guests[0]).toMatchObject({ roomId: 'king' })
+    const me = trip.guests.find((g) => g.id === trip.myGuestId)!
+    // "You put in" no longer counts once they're in a room: the room's price is their part, counted as paid.
+    expect(me.terms).toMatchObject({ priceCents: 260_000, paidCents: 260_000, balanceCents: 0 })
+  })
+
+  it('owes nothing on a trip priced by room until they pick a room', async () => {
+    const options = { costSplit: 'room', ownPartCents: 623_334 }
+    const { service } = setup(
+      { rooms: [{ id: 'king', capacity: 2, priceCents: 260_000 }], options },
+      []
+    )
+    const trip = await service.goingToo(
+      't1',
+      { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com', roomId: null },
+      caller
+    )
+    const me = trip.guests.find((g) => g.id === trip.myGuestId)!
+    expect(me.terms).toMatchObject({ priceCents: 0, balanceCents: 0 })
+  })
+
+  it('refuses a room that isn’t on the trip', async () => {
+    const { service } = setup({}, [])
+    await expect(
+      service.goingToo(
+        't1',
+        { name: 'Sam Rivers', phone: '555-0199', email: 'sam@example.com', roomId: 'elsewhere' },
+        caller
+      )
+    ).rejects.toThrow(BadRequestException)
   })
 
   it('gives the spot back: the place goes when nothing was logged, and stays turned down when it was', async () => {
