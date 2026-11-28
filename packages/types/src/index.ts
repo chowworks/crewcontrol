@@ -101,6 +101,8 @@ export interface PublicTrip {
   guestNames: string[] | null
   /** A demo trip from the seed, shown with a "Sample Trip" badge. */
   isSample: boolean
+  /** A sample trip on the live site: "I want to join" explains it's a sample instead of opening the join page. */
+  sampleJoinOff: boolean
   maxGuests: number | null
   joinMode: JoinMode
   /** The payment plan the agreement quotes: each installment's amount and due date (terms, not anything private). */
