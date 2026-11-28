@@ -8,7 +8,7 @@ import {
 import { Minus, Plus, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@/components/Dialog'
-import { LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
+import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { sectionBands } from '@/lib/roomPlan'
 
 const CELL = PLAN_CELL_PX
@@ -322,17 +322,49 @@ function PlanTileView({ tile, anonymous }: { tile: SharedPlanTile; anonymous: bo
       </div>
     )
   if (!tile.room) return null
+  // Drawn as the room planner draws it (owner's ask, 2026-11-28): each bed's picture with its places under it.
+  const room = tile.room
+  const beds = room.bedTypes.map((type, bed) => ({
+    type,
+    places: room.places.filter((p) => p.bed === bed),
+  }))
+  const extra = room.places.filter((p) => p.bed === null)
+  const chips = (places: typeof room.places) =>
+    places.map((p) => <Chip key={p.index} p={p} anonymous={anonymous} />)
   return (
     <div
-      className="absolute flex flex-col gap-1.5 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
+      className="absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
       style={style}
     >
-      <strong className="truncate font-display text-[15px]">{tile.room.name}</strong>
-      <span className="text-[11px] text-muted">{bedsLine(tile.room)}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {tile.room.places.map((p) => (
-          <Chip key={p.index} p={p} anonymous={anonymous} />
-        ))}
+      <strong className="shrink-0 truncate font-display text-[15px]">{room.name}</strong>
+      <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
+        {beds.map((b, i) =>
+          b.type === 'bunk' ? (
+            <div key={i} className="flex items-start gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <BedPicture type="bunk" className="h-[72px] w-auto" />
+                <span className="text-[10px] font-semibold text-royal-dark">Bunk</span>
+              </div>
+              <div className="flex flex-col gap-3 pt-1.5">{chips(b.places)}</div>
+            </div>
+          ) : (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <BedPicture type={b.type} className="h-16 w-auto" />
+              <span className="text-[10px] font-semibold text-royal-dark">
+                {BED_LABELS[b.type].label}
+              </span>
+              {chips(b.places)}
+            </div>
+          )
+        )}
+        {extra.length > 0 && (
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[10px] font-semibold text-royal-dark">
+              {room.bedTypes.length ? 'Extra places' : 'Places'}
+            </span>
+            {chips(extra)}
+          </div>
+        )}
       </div>
     </div>
   )
