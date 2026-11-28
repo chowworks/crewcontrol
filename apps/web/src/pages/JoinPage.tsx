@@ -955,6 +955,10 @@ function MyPlace({
           <span className="text-sm text-body">
             {money(me.terms.paidCents)} of {money(totalDueCents(me.terms))} paid
             {me.terms.balanceCents > 0 && ` · ${money(me.terms.balanceCents)} left`}
+            {/* An organizer going who put in more than their room's price (owner's decision, 2026-11-28). */}
+            {me.organizerTripId &&
+              me.terms.balanceCents < 0 &&
+              ` · ${money(-me.terms.balanceCents)} more than your share`}
           </span>
         </div>
       )}

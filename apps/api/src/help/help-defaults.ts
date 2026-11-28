@@ -105,7 +105,7 @@ The sign-in account is only for signing in: on the join form they can change the
 
 You show up on the guest list tagged Organizer. You don't sign anything, and you owe nothing on your row: your own part shows as already paid. To track more of your share, add a charge in your Details on Trip Control.
 
-If the trip has rooms, pick yours in "I'm going too", or later with "Pick your room" under Rooms on your trip page. On a trip priced by room, your part is your room's price, so "You put in" goes away.`,
+If the trip has rooms, pick yours in "I'm going too", or later with "Pick your room" under Rooms on your trip page. On a trip priced by room, your share is your room's price, and what you put in counts toward it. Put in more and you show as paid in full, with the rest going toward the trip.`,
     pages: ['editor:signups', 'control'],
   },
   {

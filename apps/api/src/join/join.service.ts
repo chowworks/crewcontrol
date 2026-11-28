@@ -28,6 +28,7 @@ import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
   organizerPartOf,
+  ownPartOf,
   roomPrice,
   paymentMethodLabel,
   roomsPricedApart,
@@ -139,6 +140,7 @@ export class JoinService {
                 trip,
                 payments,
                 adjustments,
+                ownPartOf(optionsOf(row.trip)),
                 organizerPartOf(
                   optionsOf(row.trip),
                   row.roomId
