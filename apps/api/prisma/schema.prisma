@@ -253,6 +253,10 @@ model Expense {
   amountCents     Int
   paidOn          String? // 'YYYY-MM-DD'
   dueOn           String? // 'YYYY-MM-DD'
+  // The due date the organizers were last reminded about, a week before and on the day (issue #116, migration
+  // 20261128010000_vendor_reminders): a changed due date asks again. Written by trusted work only.
+  remindedEarlyFor String?
+  remindedDueFor   String?
   createdAt       DateTime @default(now())
   createdByUserId String
   trip            Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)

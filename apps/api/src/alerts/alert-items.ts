@@ -10,8 +10,9 @@ export interface AlertItem {
 }
 
 /**
- * What on a trip needs its organizers and is worth an email: Trip Control's Actions (tripActionCount), less two. A
- * question has its own email the moment it's asked, and a room's new price is the organizer's own change.
+ * What on a trip needs its organizers and is worth an email: Trip Control's Actions (tripActionCount), less three. A
+ * question has its own email the moment it's asked, a vendor payment its own reminders (issue #116), and a room's new
+ * price is the organizer's own change.
  */
 export function alertItems(trip: OrganizerTrip): AlertItem[] {
   const items = new Map<string, AlertItem>()

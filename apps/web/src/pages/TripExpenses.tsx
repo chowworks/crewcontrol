@@ -11,6 +11,7 @@ import { useToast } from '@/components/Toast'
 import { api } from '@/lib/api'
 import { money, shortDate } from '@/lib/format'
 import { centsFrom, dollarsFor, today } from '@/lib/payments'
+import { VENDOR_COSTS_ID } from './VendorDue'
 
 const filled =
   'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-royal px-3 text-sm font-semibold text-white hover:bg-royal-dark disabled:opacity-60'
@@ -121,7 +122,9 @@ export function Expenses({
 
   return (
     <div className="flex flex-col gap-3 border-t border-[#E4E9EE] pt-5">
-      <h3 className="text-lg font-extrabold">Vendor costs</h3>
+      <h3 id={VENDOR_COSTS_ID} className="scroll-mt-4 text-lg font-extrabold">
+        Vendor costs
+      </h3>
       {error && !editing && (
         <p role="alert" className="font-semibold text-[#B42318]">
           {error}

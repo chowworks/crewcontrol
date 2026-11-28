@@ -109,6 +109,11 @@ export const withGuests = {
     select: { id: true },
     orderBy: { createdAt: 'asc' },
   },
+  // Each vendor payment due soon or overdue is one too (issue #116).
+  expenses: {
+    where: { paidOn: null, dueOn: { not: null } },
+    orderBy: [{ dueOn: 'asc' }, { createdAt: 'asc' }],
+  },
 } satisfies Prisma.TripInclude
 
 function data(input: TripInput) {

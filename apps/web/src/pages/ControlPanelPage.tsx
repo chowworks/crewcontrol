@@ -39,6 +39,7 @@ import { RemindersCard } from './TripReminders'
 import { MoneyCard } from './TripMoney'
 import { useHasPlanner } from './RoomPlannerPage'
 import { PlannerRow } from './PlannerRow'
+import { useVendorDueRows } from './VendorDue'
 
 // The organizer's Trip Control panel: what needs doing on the trip (Actions), then its guests in line order. The trip's rooms, price and payment schedule are set in the
 // trip editor (steps 3 and 4).
@@ -330,6 +331,7 @@ export function ControlPanelPage() {
   const changes = useTripChangeRequests(admin ? null : trip)
   // The save the date's Interested list (issue #47), the organizer's to work.
   const interest = useTripInterest(admin ? null : trip, setTrip)
+  const vendors = useVendorDueRows(admin ? null : trip, setTrip, setGuestError)
 
   if (error) return <p className="p-8 text-body">{error}</p>
   if (!trip) return <div className="min-h-screen bg-ground" aria-busy="true" />
@@ -403,7 +405,12 @@ export function ControlPanelPage() {
             rooms={rooms}
             {...handlers}
             {...receiptHandlers}
-            questionRows={[...interest.actionRows, ...changes.actionRows, ...questions.actionRows]}
+            questionRows={[
+              ...vendors.actionRows,
+              ...interest.actionRows,
+              ...changes.actionRows,
+              ...questions.actionRows,
+            ]}
             error={guestError}
           />
         )}
@@ -424,7 +431,11 @@ export function ControlPanelPage() {
             </Link>
           </div>
         )}
-        <MoneyCard trip={trip} />
+        {/* A vendor cost changed there can change Actions (issue #116), so the trip reloads. */}
+        <MoneyCard
+          trip={trip}
+          onExpensesChange={() => void api.getTrip(id, admin).then(setTrip, () => undefined)}
+        />
         {planner && <PlannerRow {...planner} />}
         <GuestsCard
           trip={trip}

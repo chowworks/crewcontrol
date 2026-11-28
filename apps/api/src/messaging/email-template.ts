@@ -165,6 +165,21 @@ export interface EmailContext {
     /** The hours between alerts (System Settings), for the footer. */
     windowHours: number
   }
+  /** In the email to an organizer about a vendor payment coming due (issue #116): a week before, and on the day. */
+  vendor?: {
+    firstName: string
+    tripName: string
+    payee: string
+    /** What it's for ("Vehicle tickets"); may be empty. */
+    description: string
+    amount: string
+    dueDate: string
+    /** "in 1 week", "today". */
+    when: string
+    dueToday: boolean
+    /** The trip's Trip Control, where it's marked paid. */
+    link: string
+  }
   /** In the email to an organizer whose help question the admin answered (issue #66). */
   help?: {
     firstName: string
@@ -232,6 +247,7 @@ export type VariableGroup =
   | 'interest'
   | 'deletion'
   | 'alert'
+  | 'vendor'
   | 'help'
 
 export interface Variable {
@@ -348,6 +364,17 @@ export const VARIABLES: Record<VariableGroup, Variable[]> = {
     },
     { path: 'alert.link', label: 'Your trips link' },
     { path: 'alert.windowHours', label: 'Hours between these emails' },
+  ],
+  vendor: [
+    { path: 'vendor.firstName', label: 'Organizer’s first name' },
+    { path: 'vendor.tripName', label: 'Trip name' },
+    { path: 'vendor.payee', label: 'Who gets paid' },
+    { path: 'vendor.description', label: 'What it’s for (may be empty)' },
+    { path: 'vendor.amount', label: 'Amount' },
+    { path: 'vendor.dueDate', label: 'Due date, written out' },
+    { path: 'vendor.when', label: 'How soon (“in 1 week”, “today”)' },
+    { path: 'vendor.dueToday', label: 'Due today (yes or no)' },
+    { path: 'vendor.link', label: 'Its Trip Control link' },
   ],
   help: [
     { path: 'help.firstName', label: 'Organizer’s first name' },
@@ -639,14 +666,17 @@ export function render(
                   ? `You’re getting this because you run trips on Travel HQ and something on them needs you. ` +
                     `We email you at most once every ${context.alert.windowHours === 1 ? 'hour' : `${context.alert.windowHours} hours`}, and only about what’s new; ` +
                     'everything waiting is in the Actions on each trip’s Trip Control.'
-                  : context.help
-                    ? 'You’re getting this because you asked Travel HQ a question from the Help button. Reply to this email to ask a follow-up.'
-                    : question
-                      ? question.answered
-                        ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
-                        : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
-                          'Reply to this email to answer them directly.'
-                      : 'Sent from the contact form on Travel HQ. Reply to answer them.'
+                  : context.vendor
+                    ? `You’re getting this because you help run ${Handlebars.escapeExpression(context.vendor.tripName)} on Travel HQ and this vendor payment has a due date. ` +
+                      'Mark it paid, or take its due date off, and these reminders stop. Travel HQ never handles money: you pay the vendor directly.'
+                    : context.help
+                      ? 'You’re getting this because you asked Travel HQ a question from the Help button. Reply to this email to ask a follow-up.'
+                      : question
+                        ? question.answered
+                          ? `You’re getting this because you asked a question about ${question.trip} on Travel HQ.`
+                          : `You’re getting this because someone asked a question about ${question.trip}, which you run on Travel HQ. ` +
+                            'Reply to this email to answer them directly.'
+                        : 'Sent from the contact form on Travel HQ. Reply to answer them.'
   return {
     subject,
     html: layout(body, footer, logoSrc),

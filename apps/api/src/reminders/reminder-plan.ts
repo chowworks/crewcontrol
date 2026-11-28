@@ -1,5 +1,10 @@
 import { canPay } from '../join/guest-pay'
-import { totalDueCents, type Guest, type OrganizerTrip } from '../trips/trip-types'
+import {
+  totalDueCents,
+  VENDOR_REMINDER_DAYS,
+  type Guest,
+  type OrganizerTrip,
+} from '../trips/trip-types'
 
 /**
  * Which reminders a trip sends, when, and to whom (issue #12). Two kinds: a payment reminder before each installment's
@@ -140,4 +145,33 @@ export function howSoon(date: string, today: string): string {
   if (days === 7) return 'in 1 week'
   if (days === 14) return 'in 2 weeks'
   return `in ${days} days`
+}
+
+/**
+ * Which reminder a vendor payment's organizers get at `now` (issue #116), if any: 'early' from the morning
+ * VENDOR_REMINDER_DAYS before its due date, 'due' the morning it's due. Only while it's still owed; each once per due
+ * date (`remindedEarlyFor`, `remindedDueFor`). One added inside the week gets its early one at once; one added on
+ * the day gets only the day's. Nothing once the date has passed: Trip Control's Actions show it as overdue.
+ */
+export function vendorReminder(
+  e: {
+    paidOn: string | null
+    dueOn: string | null
+    remindedEarlyFor: string | null
+    remindedDueFor: string | null
+  },
+  now: Date
+): 'early' | 'due' | null {
+  if (e.paidOn || !e.dueOn) return null
+  const due: PlannedReminder = {
+    key: 'due',
+    kind: 'date',
+    date: e.dueOn,
+    sendOn: e.dueOn,
+    label: '',
+  }
+  if (isDue(due, now)) return e.remindedDueFor === e.dueOn ? null : 'due'
+  if (isoDay(now) >= e.dueOn) return null
+  const early = { ...due, sendOn: minusDays(e.dueOn, VENDOR_REMINDER_DAYS) }
+  return isDue(early, now) && e.remindedEarlyFor !== e.dueOn ? 'early' : null
 }

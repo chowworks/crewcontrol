@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { Caller } from '../auth/caller'
+import { ClerkService } from '../auth/clerk.service'
 import { runAsSystem } from '../core/tenant-context'
 import { money } from '../join/agreement'
 import { EmailsService } from '../messaging/emails.service'
@@ -15,7 +16,14 @@ import { PrismaService } from '../prisma/prisma.service'
 import { toOrganizerTrip } from '../trips/trip-mapper'
 import type { Guest, OrganizerTrip, StopUpdatesView, TripReminders } from '../trips/trip-types'
 import { TripsService } from '../trips/trips.service'
-import { howSoon, isDue, isoDay, remindersFor, type ReminderFor } from './reminder-plan'
+import {
+  howSoon,
+  isDue,
+  isoDay,
+  remindersFor,
+  vendorReminder,
+  type ReminderFor,
+} from './reminder-plan'
 import { forwardTo } from '../receipts/receipts-config'
 
 const webUrl = () => (process.env.FRONTEND_URL ?? 'http://localhost:5173').split(',')[0].trim()
@@ -45,7 +53,8 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
   constructor(
     private readonly prisma: PrismaService,
     private readonly trips: TripsService,
-    private readonly emails: EmailsService
+    private readonly emails: EmailsService,
+    private readonly clerk: ClerkService
   ) {}
 
   onApplicationBootstrap() {
@@ -65,8 +74,13 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     clearInterval(this.timer)
   }
 
-  /** Sends every reminder due at `now` that a guest hasn't had. Returns how many went. */
+  /** Sends every reminder due at `now` that a guest (or, for a vendor payment, an organizer) hasn't had. */
   async run(now = new Date()): Promise<number> {
+    return (await this.runGuests(now)) + (await this.runVendors(now))
+  }
+
+  /** Sends every guest reminder due at `now` that a guest hasn't had. Returns how many went. */
+  private async runGuests(now: Date): Promise<number> {
     return runAsSystem(async () => {
       const rows = await this.prisma.trip.findMany({
         // A deleted trip sends nothing more.
@@ -90,6 +104,65 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         }
       }
       if (sent) this.logger.log(`Sent ${sent} reminder${sent === 1 ? '' : 's'}`)
+      return sent
+    })
+  }
+
+  /**
+   * Vendor payment reminders (issue #116): a week before an unpaid expense is due and the morning it's due, to each
+   * owner and organizer of its trip. The mark on the expense is written first, so a second run (or a second API)
+   * never sends it again. Returns how many emails went.
+   */
+  private async runVendors(now: Date): Promise<number> {
+    return runAsSystem(async () => {
+      const rows = await this.prisma.expense.findMany({
+        where: {
+          paidOn: null,
+          dueOn: { gte: isoDay(now) },
+          trip: { deletedAt: null, members: { some: {} } },
+        },
+        include: {
+          trip: { select: { id: true, name: true, members: { select: { userId: true } } } },
+        },
+        orderBy: [{ dueOn: 'asc' }, { createdAt: 'asc' }],
+      })
+      let sent = 0
+      for (const e of rows) {
+        const stage = vendorReminder(e, now)
+        if (!stage || !e.dueOn) continue
+        const mark = stage === 'early' ? 'remindedEarlyFor' : 'remindedDueFor'
+        const { count } = await this.prisma.expense.updateMany({
+          where: {
+            id: e.id,
+            paidOn: null,
+            dueOn: e.dueOn,
+            OR: [{ [mark]: null }, { [mark]: { not: e.dueOn } }],
+          },
+          data: { [mark]: e.dueOn },
+        })
+        if (count === 0) continue
+        const people = await this.clerk.people(e.trip.members.map((m) => m.userId))
+        for (const person of people.values()) {
+          if (!person.email) continue
+          const ok = await this.emails.sendVendorReminder(
+            {
+              firstName: person.name.split(' ')[0] || 'there',
+              tripName: e.trip.name,
+              payee: e.payee,
+              description: e.description,
+              amount: money(e.amountCents),
+              dueDate: day(e.dueOn),
+              when: howSoon(e.dueOn, isoDay(now)),
+              dueToday: stage === 'due',
+              link: `${webUrl()}/organize/${e.trip.id}/control`,
+            },
+            person.email,
+            e.trip.id
+          )
+          if (ok) sent++
+        }
+      }
+      if (sent) this.logger.log(`Sent ${sent} vendor payment reminder${sent === 1 ? '' : 's'}`)
       return sent
     })
   }

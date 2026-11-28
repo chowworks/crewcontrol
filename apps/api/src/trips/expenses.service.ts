@@ -1,20 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import type { Expense as ExpenseRow } from '@prisma/client'
 import type { Caller } from '../auth/caller'
 import { money } from '../join/agreement'
 import { PrismaService } from '../prisma/prisma.service'
 import { recordChange } from './trip-changes'
+import { toExpense } from './trip-mapper'
 import type { Expense, ExpenseInput } from './trip-types'
-
-const toExpense = (row: ExpenseRow): Expense => ({
-  id: row.id,
-  payee: row.payee,
-  description: row.description,
-  amountCents: row.amountCents,
-  paidOn: row.paidOn,
-  dueOn: row.dueOn,
-  createdAt: row.createdAt.toISOString(),
-})
 
 /**
  * Trip Financials' vendor expenses (issue #16): what the organizer pays out for the trip, recorded only. The trip's

@@ -1,6 +1,7 @@
 import type {
   AgreementSignature as SignatureRow,
   BalanceAdjustment as AdjustmentRow,
+  Expense as ExpenseRow,
   ForwardedReceipt as ForwardedReceiptRow,
   PayerAddress as PayerAddressRow,
   Guest as GuestRow,
@@ -25,6 +26,7 @@ import {
   type Guest,
   type GuestStatus,
   type JoinMode,
+  type Expense,
   type OrganizerTrip,
   type Payment,
   type PaymentMethod,
@@ -42,6 +44,17 @@ import {
   offersWholeRoom,
 } from './trip-types'
 
+/** A vendor expense as its organizers see it: never the reminder marks. */
+export const toExpense = (row: ExpenseRow): Expense => ({
+  id: row.id,
+  payee: row.payee,
+  description: row.description,
+  amountCents: row.amountCents,
+  paidOn: row.paidOn,
+  dueOn: row.dueOn,
+  createdAt: row.createdAt.toISOString(),
+})
+
 type GuestWithAgreement = GuestRow & {
   agreement?: SignatureRow | null
   payments?: PaymentRow[]
@@ -57,6 +70,8 @@ type TripWithGuests = TripRow & {
   questions?: { id: string }[]
   /** The trip change requests still open, when the query asked for them (issue #82). */
   changeRequests?: { id: string }[]
+  /** The vendor expenses still owed that have a due date, when the query asked for them (issue #116). */
+  expenses?: ExpenseRow[]
 }
 
 /** A trip's receipts address and the forwarded receipts waiting for an organizer. */
@@ -414,6 +429,7 @@ export function toOrganizerTrip(
     waitlistBufferPercent,
     questionsWaiting: row.questions?.length ?? 0,
     changeRequestsOpen: (row.changeRequests ?? []).map((r) => r.id),
+    expensesDue: (row.expenses ?? []).map(toExpense),
     myGuestId: (callerUserId && row.guests.find((g) => g.userId === callerUserId)?.id) || null,
   }
 }

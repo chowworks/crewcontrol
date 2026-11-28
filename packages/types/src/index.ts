@@ -767,6 +767,11 @@ export interface OrganizerTrip extends TripInput {
   questionsWaiting: number
   /** The ids of guests' trip change requests still open (issue #82): each is one of Trip Control's Actions. */
   changeRequestsOpen: string[]
+  /**
+   * The trip's vendor expenses still owed that have a due date (issue #116), soonest first. One due within
+   * VENDOR_REMINDER_DAYS, or overdue, is one of Trip Control's Actions (vendorPaymentsDue).
+   */
+  expensesDue: Expense[]
   /** The guest row of the organizer looking at Trip Control, if they're on the trip (issue #53). */
   myGuestId: string | null
   updatedAt: string
@@ -1295,13 +1300,28 @@ export function waitlistSpotOpen(trip: OrganizerTrip): boolean {
   return spotsLeft > inLine
 }
 
+/** How many days before a vendor payment's due date the organizers are reminded, and it joins the Actions (issue #116). */
+export const VENDOR_REMINDER_DAYS = 7
+
+/** The vendor payments that need the organizer now: still owed, and due within VENDOR_REMINDER_DAYS or overdue. */
+export function vendorPaymentsDue(
+  trip: Pick<OrganizerTrip, 'expensesDue' | 'timeZone'>,
+  now = new Date()
+): Expense[] {
+  const d = new Date(`${tripToday(trip.timeZone, now)}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + VENDOR_REMINDER_DAYS)
+  const until = d.toISOString().slice(0, 10)
+  return trip.expensesDue.filter((e) => !e.paidOn && e.dueOn !== null && e.dueOn <= until)
+}
+
 /** Everything that needs the organizer on a trip: the red count beside Actions. */
 export const tripActionCount = (trip: OrganizerTrip): number =>
   new Set(trip.guests.flatMap((g) => guestActions(g, trip).map((a) => a.key))).size +
   (waitlistSpotOpen(trip) ? 1 : 0) +
   trip.receipts.unmatched.length +
   trip.questionsWaiting +
-  trip.changeRequestsOpen.length
+  trip.changeRequestsOpen.length +
+  vendorPaymentsDue(trip).length
 
 /** The red count in the account menu: each trip or trip page that needs the signed-in person, and how many things. */
 export interface MyActions {
