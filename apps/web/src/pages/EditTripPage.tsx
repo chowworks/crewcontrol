@@ -142,6 +142,8 @@ function previewOf(
     ...trip,
     slug,
     isSample: false,
+    // The shared floor plan lives in the room planner; the editor's preview leaves it out.
+    floorPlan: null,
     // The trip's questions live in Trip Control; the editor's preview leaves them out.
     faq: [],
     // Drawn when the trip is saved; the page itself never shows it.

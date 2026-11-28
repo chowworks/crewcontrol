@@ -696,6 +696,37 @@ suite('trip isolation', () => {
     })
   })
 
+  it('shows a shared floor plan to the public page without who sleeps where, for published trips only', async () => {
+    const shared = JSON.stringify({
+      sections: [{ id: 's1', name: 'Main floor' }],
+      tiles: [{ id: 't1', sectionId: 's1', roomId: 'R-T1', x: 0, y: 0, w: 4, h: 3, places: 2 }],
+      rooms: [{ id: 'R-T1', name: 'King', bedTypes: ['king'] }],
+      spots: [{ roomId: 'R-T1', index: 0, guestId: 'G-T1-a' }],
+    })
+    for (const t of ['T1', 'T2'])
+      await db.query(
+        `INSERT INTO "RoomPlan" (id, "tripId", shared, "sharedAt") VALUES ($1, $2, $3::jsonb, now())`,
+        [`P-${t}`, t, shared]
+      )
+    try {
+      await as({ public: true }, async () => {
+        const rows = (
+          await db.query<{ shared: Record<string, unknown> }>(
+            `SELECT * FROM "public_room_plan"('T1')`
+          )
+        ).rows
+        expect(rows).toHaveLength(1)
+        expect(Object.keys(rows[0].shared).sort()).toEqual(['rooms', 'sections', 'tiles'])
+        expect(JSON.stringify(rows[0].shared)).not.toContain('G-T1-a')
+        expect((await db.query(`SELECT * FROM "public_room_plan"('T2')`)).rows).toEqual([])
+        // The named version stays for signed-in accepted guests only.
+        expect((await db.query(`SELECT * FROM "guest_room_plan"('T1')`)).rows).toEqual([])
+      })
+    } finally {
+      await db.query(`DELETE FROM "RoomPlan" WHERE id IN ('P-T1', 'P-T2')`)
+    }
+  })
+
   it("names only accepted guests in a published trip's rooms", async () => {
     await as({ public: true }, async () => {
       const inRooms = await db.query(`SELECT * FROM "public_room_guests"('T1')`)

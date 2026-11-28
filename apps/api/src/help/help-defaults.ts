@@ -83,9 +83,11 @@ The colours show who's who: filled purple for accepted guests, a purple outline 
     key: 'room-planner-share',
     topic: 'rooms',
     question: 'Can guests see the floor plan?',
-    answer: `Only if you choose to. When you apply rooms, tick "Show the floor plan to accepted guests" and it appears on the trip page for guests you've accepted, under "Where everyone sleeps". They see the plan as you applied it: accepted guests by first name and last initial, anyone else on a bed as "Taken", and no prices. If nobody needs to move, Apply rooms offers "Show the floor plan to guests" instead.
+    answer: `Only if you choose to. When you apply rooms, tick "Show the floor plan on the trip page". If nobody needs to move, Apply rooms offers "Show the floor plan to guests" instead.
 
-Keep drafting afterwards: guests only see your changes when you apply rooms again. "Stop sharing" on the room planner hides it from guests right away.`,
+Guests you've accepted see it under "Where everyone sleeps": accepted guests by first name and last initial, anyone else on a bed as "Taken". Everyone else who opens the trip page sees it under Rooms with no names, every bed looking the same. Nobody sees prices on it.
+
+Keep drafting afterwards: guests only see your changes when you apply rooms again. "Stop sharing" on the room planner takes it off the trip page right away.`,
     pages: ['planner'],
   },
   {
@@ -119,7 +121,7 @@ If the trip has rooms, pick yours in "I'm going too", or later with "Pick your r
     key: 'public-vs-crew',
     topic: 'tripPage',
     question: 'What can people see before they sign up, and what’s only for my crew?',
-    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, your sections set to Everyone, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
+    answer: `Anyone with the link, once the trip is published: the trip's name, place, dates and description, your name, photos, highlights, your sections set to Everyone, key dates, the price and payment plan, how many spots are left and how many are going and joining, the rooms if guests pick their own, the floor plan if you share it (with no names), and the trip's Questions with the answers you shared with everyone. Accepted guests' names show only if you turn on "Show accepted guests' names", as first name and last initial.
 
 Only people who joined: how to pay you (on an accept-first trip, only once you've accepted them), their own balance and payments, their signed agreement, and answers you gave just to them. Announcements and sections set to "Accepted guests only" show only to accepted guests. You can also email one to your Interested list, but they don't see it on the trip page.
 

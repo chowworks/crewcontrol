@@ -1,4 +1,4 @@
-import { guestPlan, sharedCopy } from './shared-plan'
+import { guestPlan, sharedCopy, publicPlan } from './shared-plan'
 import type { RoomPlanLayout } from './trip-types'
 
 const layout: RoomPlanLayout = {
@@ -68,5 +68,22 @@ describe('the floor plan shared with guests', () => {
   it('shows a guest who is no longer accepted as taken, without a name', () => {
     const plan = guestPlan(copy, new Date(), [], [])
     expect(plan.tiles[0].room!.places[0]).toMatchObject({ name: null, taken: true, you: false })
+  })
+})
+
+describe('the floor plan on the public trip page', () => {
+  it('keeps the rooms and beds but nobody on them: every place the same, no names', () => {
+    const plan = publicPlan(
+      {
+        sections: [{ id: 's1', name: 'Main floor', cols: 8, rows: 6 }],
+        tiles: [{ id: 't1', sectionId: 's1', roomId: 'r1', x: 0, y: 0, w: 4, h: 3, places: 2 }],
+        rooms: [{ id: 'r1', name: 'King suite', bedTypes: ['king'] }],
+      } as Parameters<typeof publicPlan>[0],
+      new Date('2026-11-28T00:00:00Z')
+    )
+    const places = plan.tiles[0].room!.places
+    expect(plan.tiles[0].room!.name).toBe('King suite')
+    expect(places).toHaveLength(2)
+    expect(places.every((p) => p.name === null && !p.taken && !p.you)).toBe(true)
   })
 })

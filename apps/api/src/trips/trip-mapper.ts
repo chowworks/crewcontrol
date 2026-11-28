@@ -33,6 +33,7 @@ import {
   type SignedAgreement,
   type TripHighlight,
   type TripKeyDate,
+  type SharedRoomPlan,
   type TripOptions,
   type TripPhoto,
   type TripSection,
@@ -143,6 +144,8 @@ export function toPublicTrip(
     waitlisting?: boolean
     /** The trip's questions answered for everyone, in order. */
     faq?: { id: string; question: string; answer: string | null }[]
+    /** The shared floor plan with nobody on it (public_room_plan), when the organizer shares it. */
+    floorPlan?: SharedRoomPlan | null
   }
 ): PublicTrip {
   const approved = row.guests.filter((g) => g.status === 'approved')
@@ -216,6 +219,7 @@ export function toPublicTrip(
     })),
     // The question and its answer only: never who asked (issue #13).
     faq: (row.faq ?? []).map((f) => ({ id: f.id, question: f.question, answer: f.answer ?? '' })),
+    floorPlan: row.floorPlan ?? null,
   }
 }
 
