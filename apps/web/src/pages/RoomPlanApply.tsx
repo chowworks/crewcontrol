@@ -231,7 +231,7 @@ export function ApplyRoomsDialog({
 }
 
 /**
- * Share on trip page (owner's decision, 2026-11-28): the rooms and beds go on the trip page as drawn now, with no names
+ * Share (owner's decision, 2026-11-28): the rooms and beds go on the trip page as drawn now, with no names
  * and no prices, no Apply needed. Ticked, accepted guests also see who sleeps where, which needs everyone on the plan
  * in their room already (the server says so otherwise).
  */

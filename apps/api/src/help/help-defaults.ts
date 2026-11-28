@@ -83,7 +83,7 @@ The colours show who's who: filled purple for accepted guests, a purple outline 
     key: 'room-planner-share',
     topic: 'rooms',
     question: 'Can guests see the floor plan?',
-    answer: `Only if you choose to. Click "Share on trip page" on the room planner: everyone who opens the trip page sees the rooms and beds as you've drawn them, with no names and no prices, and a "View full floor plan" button below the rooms. You don't need to apply rooms for that.
+    answer: `Only if you choose to. Click "Share" on the room planner: everyone who opens the trip page sees the rooms and beds as you've drawn them, with no names and no prices, and a "View full floor plan" button below the rooms. You don't need to apply rooms for that.
 
 Tick "Show accepted guests who sleeps where" to also show names, to accepted guests only: they see it under "Where everyone sleeps", accepted guests by first name and last initial, anyone else on a bed as "Taken". That needs everyone on the plan in their room already, so apply rooms first if anyone still needs to move. Applying rooms with "Show the floor plan on the trip page" ticked shares it too.
 

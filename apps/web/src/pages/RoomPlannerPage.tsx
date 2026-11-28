@@ -236,7 +236,7 @@ export function RoomPlannerPage() {
     if (draftAt) setSharing(draftAt)
   }
 
-  /** Share on trip page: the plan as drawn, with names for accepted guests only when asked. */
+  /** Share: the plan as drawn, with names for accepted guests only when asked. */
   async function shareOnPage(names: boolean): Promise<string | null> {
     if (!sharing) return null
     try {
@@ -333,7 +333,7 @@ export function RoomPlannerPage() {
               Save draft
             </button>
             <button type="button" disabled={busy} onClick={openShare} className={outlined}>
-              Share on trip page
+              Share
             </button>
             <button type="button" disabled={busy} onClick={openApply} className={filled}>
               Apply rooms
