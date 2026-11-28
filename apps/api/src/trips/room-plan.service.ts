@@ -90,6 +90,7 @@ export class RoomPlanService {
       layout,
       updatedAt: row?.updatedAt.toISOString() ?? null,
       sharedAt: row?.sharedAt?.toISOString() ?? null,
+      sharedNames: (row?.shared as { names?: false } | null)?.names !== false,
     }
   }
 
@@ -205,7 +206,8 @@ export class RoomPlanService {
         ...(grown.length ? { grown: grown.map(({ room, from, to }) => ({ room, from, to })) } : {}),
       })
     // Guests see the plan as applied now, or no plan when the organizer stopped sharing it.
-    if (share) await this.keepShared(tripId, draft.layout)
+    // Applying keeps the way it was shared: with no names stays with no names.
+    if (share) await this.keepShared(tripId, draft.layout, !draft.sharedAt || draft.sharedNames)
     else if (draft.sharedAt) await this.unshare(tripId, caller)
     const { emailed, unsettled } = result
     return {
@@ -216,18 +218,26 @@ export class RoomPlanService {
   }
 
   /**
-   * Shares the plan with accepted guests when applying has nothing to do: everyone on it is in their room already, so
-   * the saved draft is the trip as it stands. With moves waiting, the organizer applies them to share (never a draft).
+   * Shares the plan on the trip page. With names, only when applying has nothing to do: everyone on it is in their room
+   * already, so the saved draft is the trip as it stands, and with moves waiting the organizer applies them to share
+   * (never a draft). With no names (owner's decision, 2026-11-28), the rooms and beds go up as drawn, no Apply needed:
+   * nobody's place is on it.
    */
-  async share(tripId: string, draftAt: string, caller: Caller): Promise<RoomPlan> {
+  async share(
+    tripId: string,
+    { draftAt, names }: { draftAt: string; names: boolean },
+    caller: Caller
+  ): Promise<RoomPlan> {
     await this.requireFeature(tripId, caller)
     const draft = await this.draft(tripId)
     if (!draft.updatedAt) throw new BadRequestException('Save the draft before sharing it')
     if (draft.updatedAt !== draftAt)
-      throw new ConflictException('The draft changed since you looked. Open Apply rooms again.')
-    if ((await this.movesOf(tripId, draft.layout, caller)).length)
-      throw new BadRequestException('Apply rooms to share the plan: some guests are in other rooms')
-    await this.keepShared(tripId, draft.layout)
+      throw new ConflictException('The draft changed since you looked. Open it again.')
+    if (names && (await this.movesOf(tripId, draft.layout, caller)).length)
+      throw new BadRequestException(
+        'To show names, apply rooms first: some guests are in other rooms on the plan.'
+      )
+    await this.keepShared(tripId, draft.layout, names)
     return this.draft(tripId)
   }
 
@@ -241,7 +251,7 @@ export class RoomPlanService {
     return this.draft(tripId)
   }
 
-  private async keepShared(tripId: string, layout: RoomPlanLayout): Promise<void> {
+  private async keepShared(tripId: string, layout: RoomPlanLayout, names: boolean): Promise<void> {
     const rooms = await this.prisma.room.findMany({
       where: { tripId },
       select: { id: true, name: true, capacity: true, bedTypes: true },
@@ -249,7 +259,7 @@ export class RoomPlanService {
     await this.prisma.roomPlan.update({
       where: { tripId },
       data: {
-        shared: sharedCopy(layout, rooms) as unknown as Prisma.InputJsonValue,
+        shared: sharedCopy(layout, rooms, names) as unknown as Prisma.InputJsonValue,
         sharedAt: new Date(),
       },
     })
@@ -447,6 +457,21 @@ export function clean(layout: RoomPlanLayout, facts: Facts): RoomPlanLayout {
     const tile = (layout.tiles ?? []).find((t) => t.roomId === s.roomId)
     if (room && s.index < spotsOf(room, tile).length) spots.push(linked)
     else if (!linked.guestId && !linked.interestId) waiting.push(s.name)
+  }
+  // A name typed on a bed before that person signed up becomes them once they have (owner's ask, 2026-11-28): the
+  // typed name starts with their first name, and nobody else could be meant (one guest off the plan with that first
+  // name, one typed name for it).
+  const firstWord = (name: string) => name.trim().split(/[\s(]/)[0].toLowerCase()
+  const offPlan = [...facts.guests.values()].filter((g) => !onPlan.has(g.id))
+  const typed = spots.filter((s) => !s.guestId && !s.interestId)
+  for (const s of typed) {
+    const first = firstWord(s.name)
+    if (!first || typed.filter((t) => firstWord(t.name) === first).length !== 1) continue
+    const meant = offPlan.filter((g) => g.firstName.trim().toLowerCase() === first)
+    if (meant.length !== 1 || onPlan.has(meant[0].id)) continue
+    const g = meant[0]
+    onPlan.add(g.id)
+    spots[spots.indexOf(s)] = { ...s, name: shortName(g.firstName, g.lastName), guestId: g.id }
   }
   return {
     sections: layout.sections,

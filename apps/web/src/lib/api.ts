@@ -193,8 +193,8 @@ export const api = {
       `/trips/${id}/room-plan/apply`,
       json('POST', { email, draftAt, share })
     ),
-  shareRoomPlan: (id: string, draftAt: string) =>
-    request<RoomPlan>(`/trips/${id}/room-plan/share`, json('POST', { draftAt })),
+  shareRoomPlan: (id: string, draftAt: string, names = true) =>
+    request<RoomPlan>(`/trips/${id}/room-plan/share`, json('POST', { draftAt, names })),
   unshareRoomPlan: (id: string) =>
     request<RoomPlan>(`/trips/${id}/room-plan/share`, { method: 'DELETE' }),
   // An organizer going on their own trip, and not after all (issue #53).

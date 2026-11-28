@@ -131,7 +131,10 @@ export function parseApplyRoomPlan(raw: unknown): ApplyRoomPlanInput {
   }
 }
 
-export function parseShareRoomPlan(raw: unknown): { draftAt: string } {
-  if (!raw || typeof raw !== 'object') fail('Expected { draftAt }')
-  return { draftAt: text(raw as Body, 'draftAt', 40) }
+export function parseShareRoomPlan(raw: unknown): { draftAt: string; names: boolean } {
+  if (!raw || typeof raw !== 'object') fail('Expected { draftAt, names }')
+  const body = raw as Body
+  if (body.names !== undefined && typeof body.names !== 'boolean')
+    fail('names must be true or false')
+  return { draftAt: text(body, 'draftAt', 40), names: body.names !== false }
 }

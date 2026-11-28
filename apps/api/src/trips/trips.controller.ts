@@ -276,7 +276,7 @@ export class TripsController {
   @Post(':id/room-plan/share')
   @HttpCode(200)
   shareRoomPlan(@Param('id') id: string, @Body() body: unknown, @CurrentCaller() caller: Caller) {
-    return this.roomPlans.share(id, parseShareRoomPlan(body).draftAt, caller)
+    return this.roomPlans.share(id, parseShareRoomPlan(body), caller)
   }
 
   @Delete(':id/room-plan/share')

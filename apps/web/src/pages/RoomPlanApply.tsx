@@ -18,6 +18,7 @@ export function ApplyRoomsDialog({
   grown,
   plannerOnly,
   shared,
+  names = true,
   onApply,
   onShare,
   onClose,
@@ -29,6 +30,8 @@ export function ApplyRoomsDialog({
   plannerOnly: Person[]
   /** Whether accepted guests can see the floor plan now: the share box starts that way. */
   shared: boolean
+  /** Whether accepted guests see names on it: applying keeps a plan shared with no names that way. */
+  names?: boolean
   onApply: (email: boolean, share: boolean) => Promise<string | null>
   /** Shares the plan as it is, when there's nothing to apply. */
   onShare: () => Promise<string | null>
@@ -197,7 +200,9 @@ export function ApplyRoomsDialog({
           </label>
           <span className="pl-8 text-sm text-muted">
             {share
-              ? 'As you apply it now. Accepted guests see who sleeps where; everyone else sees the rooms and beds with no names.'
+              ? shared && !names
+                ? 'As you apply it now, with no names, as you shared it.'
+                : 'As you apply it now. Accepted guests see who sleeps where; everyone else sees the rooms and beds with no names.'
               : shared
                 ? 'Unticked, guests stop seeing the floor plan when you apply.'
                 : 'Guests don’t see the floor plan. You can share it the next time you apply.'}
@@ -218,6 +223,83 @@ export function ApplyRoomsDialog({
             className="min-h-[44px] rounded-xl border-2 border-royal bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
           >
             Apply {count} {count === 1 ? 'move' : 'moves'}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+/**
+ * Share (owner's decision, 2026-11-28): the rooms and beds go on the trip page as drawn now, with no names
+ * and no prices, no Apply needed. Ticked, accepted guests also see who sleeps where, which needs everyone on the plan
+ * in their room already (the server says so otherwise).
+ */
+export function ShareFloorPlanDialog({
+  shared,
+  names: wasNames,
+  onShare,
+  onClose,
+}: {
+  /** Whether it's on the trip page already: sharing again updates it. */
+  shared: boolean
+  names: boolean
+  onShare: (names: boolean) => Promise<string | null>
+  onClose: () => void
+}) {
+  const [names, setNames] = useState(shared && wasNames)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function share() {
+    setBusy(true)
+    setError(await onShare(names))
+    setBusy(false)
+  }
+
+  return (
+    <Dialog title="Show the floor plan on the trip page" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="font-semibold text-[#B42318]">
+            {error}
+          </p>
+        )}
+        <p>
+          Everyone who opens the trip page sees the rooms and beds as you’ve drawn them, with no
+          names and no prices.{shared && ' This replaces the plan there now.'}
+        </p>
+        <div className="flex flex-col gap-1">
+          <label className="flex min-h-[44px] items-center gap-3">
+            <input
+              type="checkbox"
+              checked={names}
+              onChange={(e) => setNames(e.target.checked)}
+              className="h-5 w-5 accent-royal"
+            />
+            Show accepted guests who sleeps where
+          </label>
+          <span className="pl-8 text-sm text-muted">
+            {names
+              ? 'Only accepted guests see names. Apply rooms first if anyone on the plan still needs to move.'
+              : 'Nobody sees names, accepted guests included.'}
+          </span>
+        </div>
+        <div className="flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[44px] rounded-xl border-2 border-royal px-5 font-semibold text-royal hover:bg-royal-pale"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={share}
+            className="min-h-[44px] rounded-xl border-2 border-royal bg-royal px-5 font-semibold text-white hover:bg-royal-dark disabled:opacity-60"
+          >
+            {shared ? 'Update the trip page' : 'Share'}
           </button>
         </div>
       </div>
