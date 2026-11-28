@@ -1,15 +1,44 @@
 import { useUser } from '@clerk/clerk-react'
+import { roomPrice, type OrganizerTrip, type PublicRoom, type TripRoom } from '@cc/types'
 import { UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Dialog } from '@/components/Dialog'
 import { EmailTypoHint } from '@/components/EmailTypoHint'
+import { RoomPick } from '@/components/RoomPick'
 
 /** An organizer going on their own trip (issue #53): their details as a guest's, from sign-in. */
 export interface OrganizerGoingInput {
   name: string
   phone: string
   email: string
+  /** The room they take (owner's decision, 2026-11-28); null to pick later. */
+  roomId?: string | null
+}
+
+/** Trip Control's rooms as room cards show them, with the places left counted from the trip's guests. */
+export function roomsToPick(rooms: TripRoom[], trip: OrganizerTrip): PublicRoom[] {
+  return rooms.flatMap((r) =>
+    r.id
+      ? [
+          {
+            id: r.id,
+            name: r.name,
+            beds: r.beds,
+            bedTypes: r.bedTypes,
+            capacity: r.capacity,
+            minPeople: r.minPeople,
+            spotsLeft: trip.guests.some((g) => g.roomId === r.id && g.wholeRoom)
+              ? 0
+              : Math.max(0, r.capacity - trip.guests.filter((g) => g.roomId === r.id).length),
+            priceCents: roomPrice(r, trip.costPerPersonCents),
+            // Not shown when picking: the organizer signs no plan.
+            paymentPlan: [],
+            wholeRoom: null,
+          },
+        ]
+      : []
+  )
 }
 
 // Trip Control's buttons (TripGuests.tsx).
@@ -24,10 +53,19 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 /** "I'm going too" in Manage Guests, and the dialog that takes the organizer's spot. */
 export function GoingButton({
   spotsLeft,
+  rooms,
+  byRoom,
+  priced,
   onGoing,
 }: {
   /** Spots still open, or null with no limit. */
   spotsLeft: number | null
+  /** The trip's rooms to pick from; none when it has none. */
+  rooms: PublicRoom[]
+  /** The trip is priced by room: the organizer's part is their room's price. */
+  byRoom: boolean
+  /** The rooms cost different amounts, so each card shows its price. */
+  priced: boolean
   onGoing: (input: OrganizerGoingInput) => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
@@ -38,7 +76,14 @@ export function GoingButton({
         I’m going too
       </button>
       {open && (
-        <GoingDialog spotsLeft={spotsLeft} onGoing={onGoing} onClose={() => setOpen(false)} />
+        <GoingDialog
+          spotsLeft={spotsLeft}
+          rooms={rooms}
+          byRoom={byRoom}
+          priced={priced}
+          onGoing={onGoing}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   )
@@ -46,10 +91,16 @@ export function GoingButton({
 
 function GoingDialog({
   spotsLeft,
+  rooms,
+  byRoom,
+  priced,
   onGoing,
   onClose,
 }: {
   spotsLeft: number | null
+  rooms: PublicRoom[]
+  byRoom: boolean
+  priced: boolean
   onGoing: (input: OrganizerGoingInput) => Promise<boolean>
   onClose: () => void
 }) {
@@ -58,6 +109,7 @@ function GoingDialog({
     name: user?.fullName ?? '',
     phone: user?.primaryPhoneNumber?.phoneNumber ?? '',
     email: user?.primaryEmailAddress?.emailAddress ?? '',
+    roomId: '',
   }))
   const [busy, setBusy] = useState(false)
   const problems = {
@@ -72,12 +124,19 @@ function GoingDialog({
     if (!ok || busy) return
     setBusy(true)
     try {
-      if (await onGoing({ ...draft, email: draft.email.trim().toLowerCase() })) onClose()
+      if (
+        await onGoing({
+          ...draft,
+          email: draft.email.trim().toLowerCase(),
+          roomId: draft.roomId || null,
+        })
+      )
+        onClose()
     } finally {
       setBusy(false)
     }
   }
-  const field = (key: keyof OrganizerGoingInput, label: string, type: string) => (
+  const field = (key: 'name' | 'phone' | 'email', label: string, type: string) => (
     <label className="flex flex-col gap-1.5 text-sm font-semibold">
       {label}
       <input
@@ -103,13 +162,27 @@ function GoingDialog({
         </p>
         <ul className="list-disc space-y-1 pl-5 text-body">
           <li>You don’t sign the trip agreement.</li>
-          <li>You owe nothing here. To track your own share, add a charge in your Details.</li>
+          <li>
+            {byRoom
+              ? 'Your share is your room’s price, counted as paid.'
+              : 'You owe nothing here. To track your own share, add a charge in your Details.'}
+          </li>
           <li>Guests see you as one of the crew.</li>
         </ul>
         {field('name', 'Your name', 'text')}
         {field('phone', 'Phone', 'tel')}
         {field('email', 'Email', 'email')}
         <EmailTypoHint email={draft.email} onUse={(email) => setDraft((d) => ({ ...d, email }))} />
+        {rooms.length > 0 && (
+          <RoomPick
+            legend="Which room are you taking?"
+            rooms={rooms}
+            value={draft.roomId ?? ''}
+            onChange={(roomId) => setDraft((d) => ({ ...d, roomId }))}
+            priced={priced}
+            later={{ title: 'Pick later', line: 'Pick from your trip page any time.' }}
+          />
+        )}
         <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={busy || !ok} className={`${filled} disabled:opacity-60`}>
             Take my spot

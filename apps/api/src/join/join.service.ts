@@ -27,7 +27,8 @@ import { guestPlan, type SharedPlanCopy } from '../trips/shared-plan'
 import { splitName } from '../trips/trip-input'
 import {
   fillAgreementNames,
-  ownPartOf,
+  organizerPartOf,
+  roomPrice,
   paymentMethodLabel,
   roomsPricedApart,
   type ClaimInput,
@@ -134,7 +135,20 @@ export class JoinService {
         terms: row.agreement
           ? termsOf(row.agreement, payments, adjustments)
           : row.organizerGoingAt
-            ? organizerTerms(trip, payments, adjustments, ownPartOf(optionsOf(row.trip)))
+            ? organizerTerms(
+                trip,
+                payments,
+                adjustments,
+                organizerPartOf(
+                  optionsOf(row.trip),
+                  row.roomId
+                    ? roomPrice(
+                        trip.rooms.find((r) => r.id === row.roomId),
+                        trip.costPerPersonCents
+                      )
+                    : null
+                )
+              )
             : null,
         agreement: row.agreement ? toSignedAgreement(row.agreement) : null,
         payments,
@@ -143,6 +157,7 @@ export class JoinService {
         paymentInstructions: pay ? row.trip.paymentInstructions : '',
         // Where to forward a receipt instead of reporting by hand, under the same rule as how to pay.
         receiptsEmail: pay && receiptsConfig() ? receiptsEmail(row.trip.receiptsAddress) : null,
+        organizerTripId: row.organizerGoingAt ? row.tripId : null,
       }
     }
     const tripId = await this.tripId(slug)

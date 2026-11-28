@@ -1,5 +1,7 @@
 import {
+  organizerPartOf,
   ownPartOf,
+  roomPrice,
   type CostSplit,
   type Expense,
   type ExpenseInput,
@@ -210,25 +212,39 @@ export function summaryOf({
   maxGuests,
   going,
   rooms,
+  organizerRoomId,
 }: {
   options: TripOptions
   costCents: number
   maxGuests: number | null
   going: boolean
   rooms: TripRoom[]
+  /**
+   * The organizer's room when they're going on their own trip (issue #53), null before they pick one; left out when
+   * they're not going that way. On a trip priced by room their place is one of the rooms' places, and its price is their
+   * part (owner's decision, 2026-11-28).
+   */
+  organizerRoomId?: string | null
 }) {
   const limitGuests = maxGuests ? Math.max(1, maxGuests - (going ? 1 : 0)) : 0
   const guests = options.splitGuests ?? (limitGuests || 1)
   const byRoom = options.costSplit === 'room'
+  const inRoom = byRoom && organizerRoomId !== undefined
+  const myRoom = rooms.find((r) => r.id && r.id === organizerRoomId)
+  const ownPartCents = inRoom
+    ? organizerPartOf(options, myRoom ? roomPrice(myRoom, costCents) : null)
+    : ownPartOf(options)
   return {
     guests,
-    ownPartCents: ownPartOf(options),
+    ownPartCents,
+    ownPartNote: inRoom ? 'Your room’s price' : 'What you put in',
     each: byRoom
       ? rooms
           .map((r) => `${r.name || 'Room'} ${r.capacity} × ${money(r.priceCents ?? 0)}`)
           .join(', ')
       : `${guests} × ${money(costCents)}`,
-    crewCents: byRoom ? fullRooms(rooms) : costCents * guests,
+    // Your own place is one of the rooms' places: the rest are the guests'.
+    crewCents: byRoom ? fullRooms(rooms) - (inRoom ? ownPartCents : 0) : costCents * guests,
     crewLabel: byRoom ? 'Rooms full' : `${guests} ${guests === 1 ? 'guest' : 'guests'}`,
   }
 }
@@ -236,6 +252,7 @@ export function summaryOf({
 export function CostSummary({
   expenses,
   ownPartCents,
+  ownPartNote = 'What you put in',
   each,
   crewCents,
   crewLabel,
@@ -243,6 +260,8 @@ export function CostSummary({
   expenses: Expense[]
   /** What the organizer puts in themselves ("You put in", with an even split or price by room). */
   ownPartCents: number
+  /** Where it comes from: "What you put in", or their room's price when they're going. */
+  ownPartNote?: string
   /** How the guests' part is made up: "5 guests at $250", "Rooms full, from $1,884". */
   each: string
   /** What the guests pay in all, with the trip full. */
@@ -347,7 +366,7 @@ export function CostSummary({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">Coming in</h3>
           <ul className="flex flex-col divide-y divide-rule">
             {line('Guests', each, money(crewCents))}
-            {ownPartCents > 0 && line('Your part', 'What you put in', money(ownPartCents))}
+            {ownPartCents > 0 && line('Your part', ownPartNote, money(ownPartCents))}
             {line('Total', '', money(collect), true)}
           </ul>
         </section>
@@ -373,6 +392,7 @@ export function PricingStep({
   going,
   rooms,
   setRooms,
+  organizerRoomId,
 }: {
   tripId: string
   options: TripOptions
@@ -386,6 +406,8 @@ export function PricingStep({
   going: boolean
   rooms: TripRoom[]
   setRooms: (update: (rooms: TripRoom[]) => TripRoom[]) => void
+  /** The organizer's room when they're going on their own trip (summaryOf); left out when they're not. */
+  organizerRoomId?: string | null
 }) {
   const admin = useAdminView()
   const toast = useToast()
@@ -400,7 +422,11 @@ export function PricingStep({
   const way = options.costSplit
   const total = (expenses ?? []).reduce((n, e) => n + e.amountCents, 0)
   // Guests who share the cost: what the organizer set, or the guest limit less the organizer's own spot.
-  const summary = summaryOf({ options, costCents, maxGuests, going, rooms })
+  const summary = summaryOf({ options, costCents, maxGuests, going, rooms, organizerRoomId })
+  // Price by room with the organizer going: their place is one of the rooms', so "You put in" doesn't apply on top.
+  const goingByRoom = organizerRoomId !== undefined
+  const chipIn = goingByRoom ? 0 : options.ownPartCents
+  const myRoom = rooms.find((r) => r.id && r.id === organizerRoomId)
   const { guests } = summary
   const each = evenSplit(total, options.ownPartCents, guests)
 
@@ -413,7 +439,7 @@ export function PricingStep({
     // Price by room: guests pick their room, so they sign its price. Each room without a price starts from an even
     // split. Leaving it, rooms go back to the trip's one price.
     if (next === 'room') {
-      const start = evenRoomPrice(total - options.ownPartCents, rooms) || costCents || null
+      const start = evenRoomPrice(total - chipIn, rooms) || costCents || null
       setRooms((rs) => rs.map((r) => ({ ...r, priceCents: r.priceCents ?? start })))
       setOptions({ costSplit: next, roomChoice: true, roomRequired: true })
     } else {
@@ -490,7 +516,7 @@ export function PricingStep({
       rs.map((r, j) => (j === i ? { ...r, wholeRoomExtraCents: extra > 0 ? extra : null } : r))
     )
   // Price by room: the rooms full plus the organizer's own part, against what the trip costs.
-  const collected = fullRooms(rooms) + options.ownPartCents
+  const collected = fullRooms(rooms) + chipIn
   const gap = collected - total
   const known = costCents * guests
   const noCosts = expenses !== null && expenses.length === 0
@@ -651,21 +677,31 @@ export function PricingStep({
             </p>
           ) : (
             <>
-              <Field
-                label="You put in"
-                hint={`Your own part${total ? ` of the ${money(total)}` : ''}, if you’re chipping in`}
-              >
-                <span className="block sm:w-48">
-                  <Money
-                    value={dollars(options.ownPartCents)}
-                    onChange={(v) => setOptions({ ownPartCents: cents(v) })}
-                  />
-                </span>
-              </Field>
+              {goingByRoom ? (
+                <p className="rounded-xl bg-royal-pale px-4 py-3 text-sm text-ink">
+                  {myRoom
+                    ? `You’re going in ${myRoom.name || 'your room'}, so your part is its price, ${money(
+                        myRoom.priceCents ?? costCents
+                      )}, counted as paid.`
+                    : 'You’re going, so your part is your room’s price once you pick your room.'}
+                </p>
+              ) : (
+                <Field
+                  label="You put in"
+                  hint={`Your own part${total ? ` of the ${money(total)}` : ''}, if you’re chipping in`}
+                >
+                  <span className="block sm:w-48">
+                    <Money
+                      value={dollars(options.ownPartCents)}
+                      onChange={(v) => setOptions({ ownPartCents: cents(v) })}
+                    />
+                  </span>
+                </Field>
+              )}
               <div className="flex flex-col gap-1.5">
                 <div className="flex flex-wrap justify-between gap-x-3 text-sm">
                   <span>
-                    Rooms full{options.ownPartCents > 0 ? ' and your part' : ''}: you collect{' '}
+                    Rooms full{chipIn > 0 ? ' and your part' : ''}: you collect{' '}
                     <strong>{money(collected)}</strong>
                   </span>
                   {total > 0 && (
@@ -755,7 +791,7 @@ export function PricingStep({
                 className={outlined}
                 disabled={total === 0}
                 onClick={() => {
-                  const price = evenRoomPrice(total - options.ownPartCents, rooms)
+                  const price = evenRoomPrice(total - chipIn, rooms)
                   setRooms((rs) => rs.map((r) => ({ ...r, priceCents: price })))
                 }}
               >

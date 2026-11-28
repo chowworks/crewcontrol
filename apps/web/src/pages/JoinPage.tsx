@@ -896,7 +896,8 @@ function MyPlace({
         ? // Once they're in, the card is about their payments (owner's decision, 2026-10-29); a line only when they act.
           [
             'Payment details',
-            trip.joinMode !== 'accept_first' || me.spotPaidAt
+            // An organizer going on their own trip holds their spot already (issue #53).
+            trip.joinMode !== 'accept_first' || me.spotPaidAt || me.organizerTripId
               ? ''
               : reported
                 ? `Payment sent: ${o} will confirm it arrived.`

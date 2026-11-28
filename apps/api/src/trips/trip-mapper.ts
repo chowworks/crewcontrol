@@ -13,7 +13,7 @@ import { FROM_STRANGER } from '../receipts/place-receipt'
 import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/receipts-config'
 import {
   DEFAULT_TRIP_OPTIONS,
-  ownPartOf,
+  organizerPartOf,
   tripEnded,
   tripStarted,
   paymentPlan,
@@ -297,7 +297,7 @@ function toGuest(
   row: GuestWithAgreement,
   all: GuestWithAgreement[],
   priceOfRoom: (roomId: string) => number | null,
-  trip: { startDate: string; endDate: string; ownPartCents: number }
+  trip: { startDate: string; endDate: string; options: TripOptions }
 ): Guest {
   const payments = paymentsOf(row.payments)
   const adjustments = adjustmentsOf(row.adjustments)
@@ -325,7 +325,12 @@ function toGuest(
     terms: row.agreement
       ? termsOf(row.agreement, payments, adjustments)
       : row.organizerGoingAt
-        ? organizerTerms(trip, payments, adjustments, trip.ownPartCents)
+        ? organizerTerms(
+            trip,
+            payments,
+            adjustments,
+            organizerPartOf(trip.options, row.roomId ? priceOfRoom(row.roomId) : null)
+          )
         : null,
     organizer: Boolean(row.organizerGoingAt),
     hasAccount: row.userId !== null,
@@ -399,7 +404,7 @@ export function toOrganizerTrip(
           const room = row.rooms?.find((r) => r.id === roomId)
           return room ? roomPrice(room, row.costPerPersonCents) : null
         },
-        { ...row, ownPartCents: ownPartOf(optionsOf(row)) }
+        { ...row, options: optionsOf(row) }
       )
     ),
     receipts: receiptsOf(row, row.forwardedReceipts, row.payerAddresses),

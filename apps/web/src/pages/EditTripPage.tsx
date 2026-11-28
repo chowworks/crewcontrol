@@ -234,6 +234,10 @@ export function EditTripPage() {
   const [goingWant, setGoingWant] = useState<boolean | null>(null)
   const [goingPhone, setGoingPhone] = useState(() => user?.primaryPhoneNumber?.phoneNumber ?? '')
   const going = guests.some((g) => g.id === myGuestId && g.status === 'approved')
+  // Going as an organizer: their room, whose price is their part on a trip priced by room (owner's decision, 2026-11-28).
+  const organizerRoomId = guests.find(
+    (g) => g.id === myGuestId && g.organizer && g.status === 'approved'
+  )?.roomId
   // The system's waitlist buffer, for the preview's "Join the waitlist" (a new trip uses the default until saved).
   const [buffer, setBuffer] = useState(10)
   const [loading, setLoading] = useState(Boolean(id))
@@ -1078,6 +1082,7 @@ export function EditTripPage() {
                       going={going}
                       rooms={rooms}
                       setRooms={setRooms}
+                      organizerRoomId={organizerRoomId}
                     />
                   </>
                 ) : (
