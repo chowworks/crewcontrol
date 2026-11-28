@@ -679,15 +679,14 @@ export const ownPartOf = (options: Pick<TripOptions, 'costSplit' | 'ownPartCents
   options.costSplit === 'even' || options.costSplit === 'room' ? options.ownPartCents : 0
 
 /**
- * What an organizer going on their own trip puts in (issue #53), counted as paid. On a trip priced by room it's their
- * room's price per person (owner's decision, 2026-11-28): their place is one of the places the rooms are priced for, so
- * "You put in" no longer applies; nothing until they pick a room. On an even split it's what they typed under "You put
- * in".
+ * An organizer going on their own trip (issue #53): their share. On a trip priced by room, once they're in a room, it's
+ * that room's price per person (owner's decision, 2026-11-28); otherwise it's what they put in. What they put in
+ * ("You put in", ownPartOf) always counts as paid toward it, so it can be more than their share.
  */
 export const organizerPartOf = (
   options: Pick<TripOptions, 'costSplit' | 'ownPartCents'>,
   roomPriceCents: number | null
-) => (options.costSplit === 'room' ? (roomPriceCents ?? 0) : ownPartOf(options))
+) => (options.costSplit === 'room' && roomPriceCents !== null ? roomPriceCents : ownPartOf(options))
 
 export const DEFAULT_TRIP_OPTIONS: TripOptions = {
   roomChoice: false,

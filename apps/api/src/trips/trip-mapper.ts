@@ -14,6 +14,7 @@ import { receiptsConfig, receiptsDomain, receiptsEmail } from '../receipts/recei
 import {
   DEFAULT_TRIP_OPTIONS,
   organizerPartOf,
+  ownPartOf,
   tripEnded,
   tripStarted,
   paymentPlan,
@@ -329,6 +330,7 @@ function toGuest(
             trip,
             payments,
             adjustments,
+            ownPartOf(trip.options),
             organizerPartOf(trip.options, row.roomId ? priceOfRoom(row.roomId) : null)
           )
         : null,

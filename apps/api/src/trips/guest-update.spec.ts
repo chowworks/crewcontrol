@@ -663,11 +663,15 @@ describe('an organizer going on their own trip (issue #53)', () => {
     )
     expect(guests[0]).toMatchObject({ roomId: 'king' })
     const me = trip.guests.find((g) => g.id === trip.myGuestId)!
-    // "You put in" no longer counts once they're in a room: the room's price is their part, counted as paid.
-    expect(me.terms).toMatchObject({ priceCents: 260_000, paidCents: 260_000, balanceCents: 0 })
+    // Their share is the room's price, and what they put in still counts as paid: here more than their share.
+    expect(me.terms).toMatchObject({
+      priceCents: 260_000,
+      paidCents: 623_334,
+      balanceCents: -363_334,
+    })
   })
 
-  it('owes nothing on a trip priced by room until they pick a room', async () => {
+  it('keeps what they put in as their share and paid until they pick a room', async () => {
     const options = { costSplit: 'room', ownPartCents: 623_334 }
     const { service } = setup(
       { rooms: [{ id: 'king', capacity: 2, priceCents: 260_000 }], options },
@@ -679,7 +683,7 @@ describe('an organizer going on their own trip (issue #53)', () => {
       caller
     )
     const me = trip.guests.find((g) => g.id === trip.myGuestId)!
-    expect(me.terms).toMatchObject({ priceCents: 0, balanceCents: 0 })
+    expect(me.terms).toMatchObject({ priceCents: 623_334, paidCents: 623_334, balanceCents: 0 })
   })
 
   it('refuses a room that isn’t on the trip', async () => {

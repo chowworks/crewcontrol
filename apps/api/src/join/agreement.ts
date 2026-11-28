@@ -368,19 +368,21 @@ export function agreementPreview(trip: AgreementFacts, onBehalf = false): Agreem
  * (issue #17) and the payments the organizer confirmed. The signed price itself never changes.
  */
 /**
- * The terms of an organizer going on their own trip (issue #53), who signs no agreement. Their price is what they put
- * in themselves on an even split (issue #65), counted as paid so they never owe themselves; past that, what they owe is
- * the charges an organizer adds, less what they logged as paid.
+ * The terms of an organizer going on their own trip (issue #53), who signs no agreement. Their price is their share
+ * (organizerPartOf: their room's price on a trip priced by room, else what they put in), and what they put in themselves
+ * (issue #65) counts as paid, so they never owe themselves and can show more paid than their share. Past that, what
+ * they owe is the charges an organizer adds, less what they logged as paid.
  */
 export function organizerTerms(
   trip: { startDate: string; endDate: string },
   payments: Parameters<typeof termsOf>[1],
   adjustments: Parameters<typeof termsOf>[2] = [],
-  ownPartCents = 0
+  ownPartCents = 0,
+  shareCents = ownPartCents
 ): GuestTerms {
   const terms = termsOf(
     {
-      priceCents: ownPartCents,
+      priceCents: shareCents,
       installmentCount: 1,
       startDate: trip.startDate,
       endDate: trip.endDate,
