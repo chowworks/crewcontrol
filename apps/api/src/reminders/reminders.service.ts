@@ -83,8 +83,8 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
   private async runGuests(now: Date): Promise<number> {
     return runAsSystem(async () => {
       const rows = await this.prisma.trip.findMany({
-        // A deleted trip sends nothing more.
-        where: { endDate: { gte: isoDay(now) }, deletedAt: null },
+        // A deleted trip sends nothing more, and a sample trip never sends (owner's decision, 2026-11-28).
+        where: { endDate: { gte: isoDay(now) }, deletedAt: null, isSample: false },
         include: withGuests,
       })
       let sent = 0
@@ -119,7 +119,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         where: {
           paidOn: null,
           dueOn: { gte: isoDay(now) },
-          trip: { deletedAt: null, members: { some: {} } },
+          trip: { deletedAt: null, isSample: false, members: { some: {} } },
         },
         include: {
           trip: { select: { id: true, name: true, members: { select: { userId: true } } } },

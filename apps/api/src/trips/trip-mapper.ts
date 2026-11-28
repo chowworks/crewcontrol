@@ -144,6 +144,15 @@ export function shortName(firstName: string, lastName: string): string {
 }
 
 /**
+ * Nobody joins a sample trip on the live site (owner's decision, 2026-11-28): a visitor who signed would get real
+ * reminders for a made-up trip. Dev keeps them joinable, for tours on the seed.
+ */
+export function sampleJoinOff(isSample: boolean): boolean {
+  const env = process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.RAILWAY_ENVIRONMENT
+  return isSample && env === 'production'
+}
+
+/**
  * The guest-facing view. Payment instructions and guest contact details never leave the API this way (a guest who
  * joined gets the instructions on their own join page, never here), and people not yet accepted are counted, never
  * named.
@@ -201,6 +210,7 @@ export function toPublicTrip(
       ? approved.map((g) => shortName(g.firstName ?? '', g.lastName ?? ''))
       : null,
     isSample: row.isSample,
+    sampleJoinOff: sampleJoinOff(row.isSample),
     maxGuests: row.maxGuests,
     joinMode: row.joinMode as JoinMode,
     refundPolicy: row.refundPolicy as RefundPolicy,

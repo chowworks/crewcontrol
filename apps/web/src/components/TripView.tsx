@@ -1,7 +1,8 @@
 import { roomsPricedApart, type PublicTrip, type TripSection } from '@cc/types'
 import { RoomCard } from '@/components/RoomCard'
 import { CalendarDays, MapPin } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { defaultSignupNote } from '@/lib/signups'
 import { dateRange, installmentLine, money, shortDate } from '@/lib/format'
@@ -9,6 +10,7 @@ import { HighlightIcon } from './HighlightIcon'
 import { Logo } from './Logo'
 import { TileArt } from './TileArt'
 import { AccountMenu } from './AccountMenu'
+import { Dialog } from './Dialog'
 import { PhotoGallery } from './PhotoGallery'
 import { SampleTripBadge } from './SampleTripBadge'
 import { TripSectionView } from './TripSectionView'
@@ -295,7 +297,8 @@ function initials(name: string) {
 
 /**
  * "I want to join": opens the join page, where guests sign in, sign the agreement and see how to pay. Inert in the
- * organizer's preview. On a full trip it leads to the waitlist, and back to their place for guests who joined.
+ * organizer's preview. On a full trip it leads to the waitlist, and back to their place for guests who joined. On a
+ * sample trip on the live site it says it's a sample instead (owner's decision, 2026-11-28).
  */
 function JoinLink({
   trip,
@@ -310,11 +313,38 @@ function JoinLink({
   className: string
   children: ReactNode
 }) {
+  const [sample, setSample] = useState(false)
   if (preview)
     return (
       <span aria-disabled="true" title="Guests open the join page from here" className={className}>
         {children}
       </span>
+    )
+  if (trip.sampleJoinOff)
+    return (
+      <>
+        <button type="button" onClick={() => setSample(true)} className={className}>
+          {children}
+        </button>
+        {/* On the page body, so the tile's colour and stacking don't reach it. */}
+        {sample &&
+          createPortal(
+            <Dialog title="This is a sample trip" onClose={() => setSample(false)}>
+              <p className="text-[15px] text-body">
+                {trip.name} shows what a trip page looks like on Travel HQ. It isn’t a real trip, so
+                nobody can join it.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSample(false)}
+                className="mt-5 inline-flex min-h-[44px] items-center justify-center self-end rounded-lg bg-royal px-5 font-semibold text-white hover:bg-royal-dark"
+              >
+                Got it
+              </button>
+            </Dialog>,
+            document.body
+          )}
+      </>
     )
   return (
     <Link to={`/t/${trip.slug}/join`} className={className}>

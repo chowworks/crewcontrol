@@ -1,5 +1,5 @@
 import type { Guest, Trip } from '@prisma/client'
-import { optionsOf, shortName, toPublicTrip } from './trip-mapper'
+import { optionsOf, sampleJoinOff, shortName, toPublicTrip } from './trip-mapper'
 
 const trip: Trip = {
   id: 't1',
@@ -302,5 +302,24 @@ describe('shortName', () => {
   it('keeps the first name and the last initial', () => {
     expect(shortName('Jordan', 'price')).toBe('Jordan P.')
     expect(shortName('Cher', '')).toBe('Cher')
+  })
+})
+
+describe('sampleJoinOff', () => {
+  const was = process.env.RAILWAY_ENVIRONMENT_NAME
+  afterEach(() => {
+    if (was === undefined) delete process.env.RAILWAY_ENVIRONMENT_NAME
+    else process.env.RAILWAY_ENVIRONMENT_NAME = was
+  })
+
+  it('closes joining a sample trip on the live site only', () => {
+    process.env.RAILWAY_ENVIRONMENT_NAME = 'production'
+    expect(sampleJoinOff(true)).toBe(true)
+    expect(sampleJoinOff(false)).toBe(false)
+    expect(toPublicTrip({ ...trip, isSample: true, guests: [] }).sampleJoinOff).toBe(true)
+    process.env.RAILWAY_ENVIRONMENT_NAME = 'dev'
+    expect(sampleJoinOff(true)).toBe(false)
+    delete process.env.RAILWAY_ENVIRONMENT_NAME
+    expect(sampleJoinOff(true)).toBe(false)
   })
 })
