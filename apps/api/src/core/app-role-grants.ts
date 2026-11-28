@@ -21,6 +21,8 @@ export const APP_ROLE_FUNCTIONS: readonly string[] = [
   'public_room_guests(text)',
   // The floor plan an organizer shared, for a signed-in accepted guest of that trip only.
   'guest_room_plan(text)',
+  // The same shared floor plan for the public trip page: no names, nothing about who sleeps where.
+  'public_room_plan(text)',
   // How many spots are taken on a published trip (accepted guests).
   'public_spots_taken(text)',
   // Whether someone joining a published trip now goes on its waitlist (yes or no, never who).

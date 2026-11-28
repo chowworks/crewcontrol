@@ -86,3 +86,11 @@ export function guestPlan(
     }),
   }
 }
+
+/**
+ * The shared plan for the public trip page (owner's decision, 2026-11-28): the copy without who is on each place, so
+ * every place reads the same, with no names and nothing taken.
+ */
+export function publicPlan(copy: Omit<SharedPlanCopy, 'spots'>, sharedAt: Date): SharedRoomPlan {
+  return guestPlan({ ...copy, spots: [] }, sharedAt, [], [])
+}

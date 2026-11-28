@@ -5,10 +5,18 @@ import {
   type SharedPlanTile,
   type SharedRoomPlan,
 } from '@cc/types'
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Dialog } from '@/components/Dialog'
-import { LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
+import {
+  LandmarkTileFrame,
+  PlanBands,
+  PlanSectionFrame,
+  RoomTileFrame,
+  landmarkLabelClass,
+  tileBox,
+} from '@/components/PlanParts'
 import { sectionBands } from '@/lib/roomPlan'
 
 const CELL = PLAN_CELL_PX
@@ -18,6 +26,17 @@ const COLUMN_GAP = 41
 type Place = NonNullable<SharedPlanTile['room']>['places'][number]
 
 const chipBase = 'inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold'
+// The public trip page's plan (owner's decision, 2026-11-28): every place the same, a placeholder with no name.
+const placeholder = `${chipBase} border-2 border-dashed border-line text-muted`
+function Chip({ p, anonymous }: { p: Place; anonymous: boolean }) {
+  if (anonymous)
+    return (
+      <span className={placeholder} role="img" aria-label="A place to sleep">
+        <User className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+    )
+  return <span className={chipClass(p)}>{chipText(p)}</span>
+}
 function chipClass(p: Place) {
   if (p.name)
     return `${chipBase} bg-royal text-white ${p.you ? 'shadow-[0_0_0_2px_#fff,0_0_0_4px_#F2B33D]' : ''}`
@@ -43,10 +62,18 @@ const shortDay = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 /**
- * The floor plan an organizer shared with accepted guests, as last applied: who sleeps where, accepted guests by
- * name, anyone else "Taken", and no prices. A phone gets a list by part of the house; a computer gets the plan.
+ * The floor plan an organizer shared, as last applied, with no prices. Accepted guests see who sleeps where (accepted
+ * guests by name, anyone else "Taken"); everyone else (`anonymous`, a button below the room cards) sees only the rooms
+ * and their beds, every place the same (owner's decision, 2026-11-28). A phone gets a list by part of the house; a
+ * computer gets the plan.
  */
-export function GuestFloorPlan({ plan }: { plan: SharedRoomPlan }) {
+export function GuestFloorPlan({
+  plan,
+  anonymous = false,
+}: {
+  plan: SharedRoomPlan
+  anonymous?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const mine = plan.tiles.find((t) => t.room?.places.some((p) => p.you))
   const myPlace = mine?.room?.places.find((p) => p.you)
@@ -54,6 +81,32 @@ export function GuestFloorPlan({ plan }: { plan: SharedRoomPlan }) {
   const sections = plan.sections.filter((s) =>
     plan.tiles.some((t) => t.sectionId === s.id && t.room)
   )
+
+  // Everyone else gets a button below the room cards that opens the plan (owner's decision, 2026-11-28).
+  if (anonymous)
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex min-h-[44px] items-center justify-center self-stretch rounded-xl border-2 border-royal bg-white px-4 font-semibold text-royal hover:bg-royal-pale sm:self-start"
+        >
+          View full floor plan
+        </button>
+        {open && (
+          <Dialog title="Floor plan" wide onClose={() => setOpen(false)}>
+            <FittedPlan plan={plan} zoomable anonymous />
+            {/* A plug for the paid room planner (owner's ask, 2026-11-28). */}
+            <p className="mt-4 rounded-xl bg-royal-pale px-4 py-3 text-sm">
+              Your organizer drew this with Travel HQ’s room planner, a paid feature for organizers.{' '}
+              <Link to="/" className="font-semibold text-royal underline">
+                Plan your own trip
+              </Link>
+            </p>
+          </Dialog>
+        )}
+      </>
+    )
 
   return (
     <section className="flex flex-col gap-3.5">
@@ -91,9 +144,7 @@ export function GuestFloorPlan({ plan }: { plan: SharedRoomPlan }) {
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {t.room!.places.map((p) => (
-                        <span key={p.index} className={chipClass(p)}>
-                          {chipText(p)}
-                        </span>
+                        <Chip key={p.index} p={p} anonymous={false} />
                       ))}
                     </div>
                   </div>
@@ -146,7 +197,15 @@ const ZOOMS = [0.5, 0.75, 1]
  * The plan at a zoom that fits its box, never larger than full size. Zoomable, it starts there and steps in and out,
  * scrolling once it's wider than the box.
  */
-function FittedPlan({ plan, zoomable = false }: { plan: SharedRoomPlan; zoomable?: boolean }) {
+function FittedPlan({
+  plan,
+  zoomable = false,
+  anonymous = false,
+}: {
+  plan: SharedRoomPlan
+  zoomable?: boolean
+  anonymous?: boolean
+}) {
   const box = useRef<HTMLDivElement>(null)
   const [fitted, setFitted] = useState(1)
   const [chosen, setChosen] = useState<number | null>(null)
@@ -202,97 +261,60 @@ function FittedPlan({ plan, zoomable = false }: { plan: SharedRoomPlan; zoomable
         </div>
       )}
       <div ref={box} className={zoomable ? 'overflow-auto pb-2' : 'overflow-hidden'}>
-        <Plan plan={plan} zoom={zoom} />
+        <Plan plan={plan} zoom={zoom} anonymous={anonymous} />
       </div>
     </div>
   )
 }
 
-function Plan({ plan, zoom = 1 }: { plan: SharedRoomPlan; zoom?: number }) {
-  const section = (s: PlanSection) => (
-    <div style={{ marginTop: (s.down ?? 0) * CELL }} className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-semibold text-muted">{s.name}</span>
-      <div
-        className="relative rounded-xl"
-        style={{
-          width: s.cols * CELL,
-          height: s.rows * CELL,
-          backgroundColor: 'white',
-          backgroundImage: 'radial-gradient(#A3ABB6 1.5px, transparent 1.6px)',
-          backgroundSize: `${CELL}px ${CELL}px`,
-          backgroundPosition: `-${CELL / 2}px -${CELL / 2}px`,
-        }}
-      >
-        {plan.tiles
-          .filter((t) => t.sectionId === s.id)
-          .map((t) => (
-            <PlanTileView key={t.id} tile={t} />
-          ))}
-      </div>
-    </div>
-  )
+function Plan({
+  plan,
+  zoom = 1,
+  anonymous,
+}: {
+  plan: SharedRoomPlan
+  zoom?: number
+  anonymous: boolean
+}) {
   return (
-    <div style={{ zoom }} className="flex w-max flex-col items-start gap-4">
-      {sectionBands(plan.sections).map((band) =>
-        'across' in band ? (
-          <div key={band.across.id}>{section(band.across)}</div>
-        ) : (
-          <div key={band.columns[0][0].id} className="flex items-stretch gap-5">
-            {band.columns.map((column, c) => (
-              <div key={column[0].id} className="flex items-stretch gap-5">
-                {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
-                <div className="flex flex-col items-start gap-4">
-                  {column.map((s) => (
-                    <div key={s.id}>{section(s)}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      )}
+    <div style={{ zoom }} className="flex w-max flex-col items-start gap-4 pt-3">
+      <PlanBands
+        sections={plan.sections}
+        renderSection={(s) => (
+          <PlanSectionFrame section={s}>
+            {plan.tiles
+              .filter((t) => t.sectionId === s.id)
+              .map((t) => (
+                <PlanTileView key={t.id} tile={t} anonymous={anonymous} />
+              ))}
+          </PlanSectionFrame>
+        )}
+      />
     </div>
   )
 }
 
-function PlanTileView({ tile }: { tile: SharedPlanTile }) {
-  const style = {
-    left: tile.x * CELL + 3,
-    top: tile.y * CELL + 3,
-    width: tile.w * CELL - 6,
-    height: tile.h * CELL - 6,
-  }
+/** A tile as the room planner draws it (the same parts), with no prices or controls. */
+function PlanTileView({ tile, anonymous }: { tile: SharedPlanTile; anonymous: boolean }) {
   if (tile.landmark)
     return (
-      <div
-        className="absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
-        style={{ ...style, ...LANDMARK_FLOOR[tile.landmark.kind] }}
-      >
-        <LandmarkPicture
-          kind={tile.landmark.kind}
-          turn={tile.landmark.turn}
-          className="relative min-h-0 w-full flex-1"
-        />
-        <span className="max-w-full shrink-0 truncate rounded-full bg-white/90 px-2 text-[12px]">
-          {tile.landmark.label}
-        </span>
-      </div>
+      <LandmarkTileFrame
+        style={tileBox(tile)}
+        kind={tile.landmark.kind}
+        turn={tile.landmark.turn}
+        label={<span className={landmarkLabelClass}>{tile.landmark.label}</span>}
+      />
     )
   if (!tile.room) return null
   return (
-    <div
-      className="absolute flex flex-col gap-1.5 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
-      style={style}
-    >
-      <strong className="truncate font-display text-[15px]">{tile.room.name}</strong>
-      <span className="text-[11px] text-muted">{bedsLine(tile.room)}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {tile.room.places.map((p) => (
-          <span key={p.index} className={chipClass(p)}>
-            {chipText(p)}
-          </span>
-        ))}
-      </div>
-    </div>
+    <RoomTileFrame
+      style={tileBox(tile)}
+      head={
+        <strong className="shrink-0 truncate font-display text-[15px]">{tile.room.name}</strong>
+      }
+      bedTypes={tile.room.bedTypes}
+      spots={tile.room.places}
+      renderSpot={(p) => <Chip key={p.index} p={p} anonymous={anonymous} />}
+    />
   )
 }

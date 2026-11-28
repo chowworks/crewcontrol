@@ -125,6 +125,12 @@ export interface PublicTrip {
   signupsClosed: boolean
   /** The trip's last day has passed on its own clock (issue #88). */
   ended: boolean
+  /**
+   * The floor plan the organizer shared (owner's decision, 2026-11-28): rooms, beds and places with no names and nothing
+   * about who sleeps where, so every place looks the same; null while it isn't shared. Accepted guests see the named
+   * version instead (JoinView.floorPlan).
+   */
+  floorPlan: SharedRoomPlan | null
 }
 
 /** Joining, then accepted, or turned down by the organizer. */

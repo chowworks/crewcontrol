@@ -188,7 +188,7 @@ export function RoomPlannerPage() {
       window.dispatchEvent(new Event('cc:actions-changed'))
       const who = done.moved === 1 ? '1 guest' : `${done.moved} guests`
       const shareNote = plan.sharedAt
-        ? ' Accepted guests can see the floor plan.'
+        ? ' The floor plan is on the trip page.'
         : sharedAt
           ? ' Guests no longer see the floor plan.'
           : ''
@@ -217,7 +217,7 @@ export function RoomPlannerPage() {
       const plan = await api.shareRoomPlan(id, moves.draftAt)
       setSharedAt(plan.sharedAt)
       setMoves(null)
-      toast({ text: 'Accepted guests can see the floor plan.' })
+      toast({ text: 'The floor plan is on the trip page.' })
       return null
     } catch (err) {
       return err instanceof Error ? err.message : 'The floor plan was not shared.'
@@ -339,9 +339,10 @@ export function RoomPlannerPage() {
               <Share2 className="h-4 w-4" aria-hidden="true" />
             </span>
             <p className="min-w-[200px] flex-1">
-              <strong>Accepted guests can see the floor plan</strong>{' '}
+              <strong>The floor plan is on the trip page</strong>{' '}
               <span className="text-muted">
-                as you applied it on {sharedDay(sharedAt)}.
+                as you applied it on {sharedDay(sharedAt)}. Accepted guests see who sleeps where;
+                everyone else sees the rooms with no names.
                 {!admin && ' Keep drafting: they see your changes only when you apply rooms again.'}
               </span>
             </p>
@@ -398,8 +399,8 @@ export function RoomPlannerPage() {
           onCancel={() => setStopping(false)}
           onConfirm={stopSharing}
         >
-          Accepted guests stop seeing who sleeps where on the trip page right away. You can share it
-          again the next time you apply rooms.
+          The floor plan leaves the trip page right away, for accepted guests and everyone else. You
+          can share it again the next time you apply rooms.
         </ConfirmDialog>
       )}
       {adding && (

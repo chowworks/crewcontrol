@@ -60,7 +60,14 @@ import {
 import { toPng } from 'html-to-image'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
-import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
+import {
+  LandmarkTileFrame,
+  PlanBands,
+  PlanSectionFrame,
+  RoomTileFrame,
+  landmarkLabelClass,
+  tileBox,
+} from '@/components/PlanParts'
 import { money } from '@/lib/format'
 import {
   addTyped,
@@ -514,24 +521,7 @@ export function PlannerBoard({
                 style={{ zoom }}
                 className="flex w-max flex-col items-start gap-4 bg-white pt-3"
               >
-                {sectionBands(layout.sections).map((band) =>
-                  'across' in band ? (
-                    <div key={band.across.id}>{renderSection(band.across)}</div>
-                  ) : (
-                    <div key={band.columns[0][0].id} className="flex items-stretch gap-5">
-                      {band.columns.map((column, c) => (
-                        <div key={column[0].id} className="flex items-stretch gap-5">
-                          {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
-                          <div className="flex flex-col items-start gap-4">
-                            {column.map((s) => (
-                              <div key={s.id}>{renderSection(s)}</div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
+                <PlanBands sections={layout.sections} renderSection={renderSection} />
                 {dragging?.type === 'section' && <AcrossZone />}
               </div>
             </div>
@@ -926,59 +916,60 @@ function Section({
   }
 
   return (
-    <div
-      className="relative flex flex-col gap-2.5"
-      style={{ width: section.cols * CELL, marginTop: (section.down ?? 0) * CELL }}
-    >
-      {edgeHandle('top')}
-      <div className="flex items-center gap-2">
-        <button
-          ref={handle.setNodeRef}
-          type="button"
-          data-no-export
-          aria-label={`Move ${section.name}`}
-          {...handle.attributes}
-          {...handle.listeners}
-          className="cursor-grab rounded-md p-1 text-muted hover:bg-ground"
-        >
-          <GripVertical className="h-5 w-5" aria-hidden="true" />
-        </button>
-        {renaming ? (
-          <input
-            aria-label="Name of this part of the house"
-            autoFocus
-            value={name}
-            maxLength={60}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={rename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') rename()
-              if (e.key === 'Escape') {
-                setName(section.name)
-                setRenaming(false)
-              }
-            }}
-            className="h-9 w-56 rounded-lg border-2 border-royal px-2.5 text-sm font-semibold"
-          />
-        ) : (
-          <>
-            <span className="text-sm font-semibold text-muted">{section.name}</span>
-            <button
-              type="button"
-              data-no-export
-              aria-label={`Rename ${section.name}`}
-              onClick={() => {
-                setName(section.name)
-                setRenaming(true)
+    <PlanSectionFrame
+      section={section}
+      top={edgeHandle('top')}
+      name={
+        <>
+          <button
+            ref={handle.setNodeRef}
+            type="button"
+            data-no-export
+            aria-label={`Move ${section.name}`}
+            {...handle.attributes}
+            {...handle.listeners}
+            className="cursor-grab rounded-md p-1 text-muted hover:bg-ground"
+          >
+            <GripVertical className="h-5 w-5" aria-hidden="true" />
+          </button>
+          {renaming ? (
+            <input
+              aria-label="Name of this part of the house"
+              autoFocus
+              value={name}
+              maxLength={60}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={rename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') rename()
+                if (e.key === 'Escape') {
+                  setName(section.name)
+                  setRenaming(false)
+                }
               }}
-              className="rounded-md p-2 text-royal hover:bg-royal-pale"
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </>
-        )}
-        <span aria-hidden="true" className="h-px flex-1 bg-line" />
-        {canRemove && (
+              className="h-9 w-56 rounded-lg border-2 border-royal px-2.5 text-sm font-semibold"
+            />
+          ) : (
+            <>
+              <span className="text-sm font-semibold text-muted">{section.name}</span>
+              <button
+                type="button"
+                data-no-export
+                aria-label={`Rename ${section.name}`}
+                onClick={() => {
+                  setName(section.name)
+                  setRenaming(true)
+                }}
+                className="rounded-md p-2 text-royal hover:bg-royal-pale"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </>
+      }
+      end={
+        canRemove && (
           <button
             type="button"
             data-no-export
@@ -988,45 +979,36 @@ function Section({
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </button>
-        )}
-      </div>
-      <div className="relative">
-        <div
-          ref={grid.setNodeRef}
-          data-grid={section.id}
-          className={`relative rounded-xl ${grid.isOver ? 'ring-2 ring-royal' : ''}`}
-          style={{
-            width: section.cols * CELL,
-            height: section.rows * CELL,
-            backgroundColor: 'white',
-            backgroundImage: 'radial-gradient(#A3ABB6 1.5px, transparent 1.6px)',
-            backgroundSize: `${CELL}px ${CELL}px`,
-            backgroundPosition: `-${CELL / 2}px -${CELL / 2}px`,
-          }}
-        >
-          {tiles.map((t) => (
-            <Tile
-              key={t.id}
-              tile={t}
-              layout={layout}
-              setLayout={setLayout}
-              room={rooms.find((r) => r.id === t.roomId)}
-              people={people}
-              tripPriceCents={tripPriceCents}
-              zoom={zoom}
-            />
-          ))}
-          {edgeHandle('x')}
-          {edgeHandle('y')}
-        </div>
-        {draggingSection && draggingSection !== section.id && (
+        )
+      }
+      gridRef={grid.setNodeRef}
+      gridId={section.id}
+      gridClassName={grid.isOver ? 'ring-2 ring-royal' : ''}
+      after={
+        draggingSection &&
+        draggingSection !== section.id && (
           <>
             <Zone id={section.id} where="beside" />
             <Zone id={section.id} where="below" />
           </>
-        )}
-      </div>
-    </div>
+        )
+      }
+    >
+      {tiles.map((t) => (
+        <Tile
+          key={t.id}
+          tile={t}
+          layout={layout}
+          setLayout={setLayout}
+          room={rooms.find((r) => r.id === t.roomId)}
+          people={people}
+          tripPriceCents={tripPriceCents}
+          zoom={zoom}
+        />
+      ))}
+      {edgeHandle('x')}
+      {edgeHandle('y')}
+    </PlanSectionFrame>
   )
 }
 
@@ -1174,10 +1156,11 @@ function Tile({
   })
   const [renaming, setRenaming] = useState(false)
   const style = {
-    left: (tile.x + (drag.shift?.dx ?? 0)) * CELL + 3,
-    top: (tile.y + (drag.shift?.dy ?? 0)) * CELL + 3,
-    width: tile.w * CELL - 6,
-    height: tile.h * CELL - 6,
+    ...tileBox({
+      ...tile,
+      x: tile.x + (drag.shift?.dx ?? 0),
+      y: tile.y + (drag.shift?.dy ?? 0),
+    }),
     // Carried over the other parts of the house, the room stays on top.
     ...(drag.shift ? { zIndex: 30 } : {}),
   }
@@ -1208,48 +1191,49 @@ function Tile({
         })
       )
     return (
-      <div
-        className="group absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
-        style={{ ...style, ...LANDMARK_FLOOR[lm.kind] }}
-      >
-        <div
-          onPointerDown={drag.down('move')}
-          onPointerMove={drag.move}
-          onPointerUp={drag.up}
-          onPointerCancel={drag.cancel}
-          onLostPointerCapture={drag.cancel}
-          className="absolute inset-0 cursor-move rounded-xl"
-          aria-hidden="true"
-        />
-        <LandmarkPicture
-          kind={lm.kind}
-          turn={lm.turn}
-          className="pointer-events-none relative min-h-0 w-full flex-1"
-        />
-        {renaming ? (
-          <input
-            aria-label="Landmark name"
-            autoFocus
-            defaultValue={lm.label}
-            maxLength={60}
-            onBlur={(e) => {
-              const label = e.target.value.trim()
-              if (label) setLayout((l) => setTile(l, { ...tile, landmark: { ...lm, label } }))
-              setRenaming(false)
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            className="relative w-full rounded border border-royal px-1 text-center text-xs"
+      <LandmarkTileFrame
+        style={style}
+        kind={lm.kind}
+        turn={lm.turn}
+        className="group"
+        label={
+          renaming ? (
+            <input
+              aria-label="Landmark name"
+              autoFocus
+              defaultValue={lm.label}
+              maxLength={60}
+              onBlur={(e) => {
+                const label = e.target.value.trim()
+                if (label) setLayout((l) => setTile(l, { ...tile, landmark: { ...lm, label } }))
+                setRenaming(false)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              className="relative w-full rounded border border-royal px-1 text-center text-xs"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRenaming(true)}
+              className={`${landmarkLabelClass} hover:underline`}
+              title="Rename"
+            >
+              {lm.label}
+            </button>
+          )
+        }
+        under={
+          <div
+            onPointerDown={drag.down('move')}
+            onPointerMove={drag.move}
+            onPointerUp={drag.up}
+            onPointerCancel={drag.cancel}
+            onLostPointerCapture={drag.cancel}
+            className="absolute inset-0 cursor-move rounded-xl"
+            aria-hidden="true"
           />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setRenaming(true)}
-            className="relative max-w-full shrink-0 truncate rounded-full bg-white/90 px-2 text-[12px] hover:underline"
-            title="Rename"
-          >
-            {lm.label}
-          </button>
-        )}
+        }
+      >
         <span className="absolute right-1 top-1 flex gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
           <button
             type="button"
@@ -1270,7 +1254,7 @@ function Tile({
           </button>
         </span>
         {grip}
-      </div>
+      </LandmarkTileFrame>
     )
   }
 
@@ -1283,130 +1267,79 @@ function Tile({
   const full = inRoom.length >= places
   // A place added with + goes back unless that would leave someone without one.
   const canTakeBack = added > room.capacity && setPlaces(layout, room, added - 1) !== layout
-  const beds = room.bedTypes.map((type, bed) => ({
-    type,
-    spots: spots.filter((s) => s.bed === bed),
-  }))
-  const extra = spots.filter((s) => s.bed === null)
   const price = room.priceCents ?? tripPriceCents
   return (
-    <div
-      ref={drop.setNodeRef}
-      className={`group absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] bg-white px-3 py-2.5 shadow-card ${drop.isOver ? 'border-royal' : 'border-line'}`}
+    <RoomTileFrame
+      tileRef={drop.setNodeRef}
+      className={drop.isOver ? 'border-royal' : 'border-line'}
       style={style}
-    >
-      <div
-        onPointerDown={drag.down('move')}
-        onPointerMove={drag.move}
-        onPointerUp={drag.up}
-        onPointerCancel={drag.cancel}
-        onLostPointerCapture={drag.cancel}
-        className="-mx-3 -mt-2.5 cursor-move select-none px-3 pt-2.5"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <strong className="truncate font-display text-[15px]">{room.name}</strong>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={remove}
-            aria-label={`Take ${room.name} off the plan`}
-            className="hidden rounded-full p-1 text-muted hover:bg-ground group-focus-within:block group-hover:block"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] text-muted">
-          <span className="flex-1">
-            {money(price)} each · Sleeps {places}
-            {places > room.capacity && ` (was ${room.capacity})`}
-          </span>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setLayout((l) => setPlaces(l, room, added - 1))}
-            disabled={!canTakeBack}
-            aria-label={`Take a place back from ${room.name}`}
-            title="Take back a place you added"
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink opacity-0 hover:bg-ground focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
-          >
-            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setLayout((l) => setPlaces(l, room, places + 1))}
-            disabled={places >= ROOM_MAX_PLACES}
-            aria-label={`Add a place to ${room.name}`}
-            title="Add a place: applying rooms makes the room sleep one more"
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal opacity-0 hover:bg-royal-pale focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-      <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
-        {beds.map((b, i) =>
-          b.type === 'bunk' ? (
-            <div key={i} className="flex items-start gap-2">
-              <div className="flex flex-col items-center gap-1">
-                <BedPicture type="bunk" className="h-[72px] w-auto" />
-                <span className="text-[10px] font-semibold text-royal-dark">Bunk</span>
-              </div>
-              <div className="flex flex-col gap-3 pt-1.5">
-                {b.spots.map((s) => (
-                  <Spot
-                    key={s.index}
-                    room={room}
-                    spot={s}
-                    layout={layout}
-                    setLayout={setLayout}
-                    people={people}
-                    full={full}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <BedPicture type={b.type} className="h-16 w-auto" />
-              <span className="text-[10px] font-semibold text-royal-dark">
-                {BED_LABELS[b.type].label}
-              </span>
-              {b.spots.map((s) => (
-                <Spot
-                  key={s.index}
-                  room={room}
-                  spot={s}
-                  layout={layout}
-                  setLayout={setLayout}
-                  people={people}
-                  full={full}
-                />
-              ))}
-            </div>
-          )
-        )}
-        {extra.length > 0 && (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-semibold text-royal-dark">
-              {room.bedTypes.length ? 'Extra places' : 'Places'}
-            </span>
-            {extra.map((s) => (
-              <Spot
-                key={s.index}
-                room={room}
-                spot={s}
-                layout={layout}
-                setLayout={setLayout}
-                people={people}
-                full={full}
-              />
-            ))}
+      bedTypes={room.bedTypes}
+      spots={spots}
+      renderSpot={(s) => (
+        <Spot
+          key={s.index}
+          room={room}
+          spot={s}
+          layout={layout}
+          setLayout={setLayout}
+          people={people}
+          full={full}
+        />
+      )}
+      head={
+        <div
+          onPointerDown={drag.down('move')}
+          onPointerMove={drag.move}
+          onPointerUp={drag.up}
+          onPointerCancel={drag.cancel}
+          onLostPointerCapture={drag.cancel}
+          className="-mx-3 -mt-2.5 cursor-move select-none px-3 pt-2.5"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <strong className="truncate font-display text-[15px]">{room.name}</strong>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={remove}
+              aria-label={`Take ${room.name} off the plan`}
+              className="hidden rounded-full p-1 text-muted hover:bg-ground group-focus-within:block group-hover:block"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-1 text-[11px] text-muted">
+            <span className="flex-1">
+              {money(price)} each · Sleeps {places}
+              {places > room.capacity && ` (was ${room.capacity})`}
+            </span>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setLayout((l) => setPlaces(l, room, added - 1))}
+              disabled={!canTakeBack}
+              aria-label={`Take a place back from ${room.name}`}
+              title="Take back a place you added"
+              className="flex h-6 w-6 items-center justify-center rounded-md border border-line bg-white text-ink opacity-0 hover:bg-ground focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
+            >
+              <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setLayout((l) => setPlaces(l, room, places + 1))}
+              disabled={places >= ROOM_MAX_PLACES}
+              aria-label={`Add a place to ${room.name}`}
+              title="Add a place: applying rooms makes the room sleep one more"
+              className="flex h-6 w-6 items-center justify-center rounded-md border border-royal bg-white text-royal opacity-0 hover:bg-royal-pale focus-visible:opacity-100 disabled:cursor-not-allowed disabled:border-rule disabled:text-line group-focus-within:opacity-100 group-hover:opacity-100"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      }
+    >
       {grip}
-    </div>
+    </RoomTileFrame>
   )
 }
 

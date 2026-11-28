@@ -29,6 +29,7 @@ export function TripView({
   interest,
   sections = trip.sections,
   floorPlan,
+  publicFloorPlan,
   myRoom,
 }: {
   trip: PublicTrip
@@ -45,6 +46,11 @@ export function TripView({
   sections?: TripSection[]
   /** Where everyone sleeps, when the organizer shared the floor plan with accepted guests. */
   floorPlan?: ReactNode
+  /**
+   * The shared floor plan with no names, under Rooms, for anyone who doesn't see `floorPlan` (owner's decision,
+   * 2026-11-28).
+   */
+  publicFloorPlan?: ReactNode
   /** Under Rooms, for an organizer going on their own trip: their room, and picking or changing it. */
   myRoom?: ReactNode
 }) {
@@ -201,15 +207,22 @@ export function TripView({
 
           {floorPlan}
 
-          {trip.options.roomChoice && trip.rooms.length > 0 && (
+          {((trip.options.roomChoice && trip.rooms.length > 0) || publicFloorPlan) && (
             <section className="flex flex-col gap-3.5">
               <h2 className={h2}>Rooms</h2>
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
-                {trip.rooms.map((r) => (
-                  <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
-                ))}
-              </div>
-              {myRoom ?? <p className="text-sm text-muted">You pick your room when you join.</p>}
+              {trip.options.roomChoice && trip.rooms.length > 0 && (
+                <>
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+                    {trip.rooms.map((r) => (
+                      <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
+                    ))}
+                  </div>
+                  {myRoom ?? (
+                    <p className="text-sm text-muted">You pick your room when you join.</p>
+                  )}
+                </>
+              )}
+              {publicFloorPlan}
             </section>
           )}
 

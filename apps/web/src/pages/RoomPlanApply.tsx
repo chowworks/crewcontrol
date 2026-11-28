@@ -68,8 +68,8 @@ export function ApplyRoomsDialog({
         </p>
         {!shared && (
           <p className="mt-2 text-body text-muted">
-            You can still show this floor plan to accepted guests on the trip page. Only accepted
-            guests’ names show; anyone else is “Taken”.
+            You can still show this floor plan on the trip page. Accepted guests see who sleeps
+            where; everyone else sees the rooms and beds with no names.
           </p>
         )}
         <div className="mt-5 flex flex-wrap justify-end gap-3">
@@ -193,11 +193,11 @@ export function ApplyRoomsDialog({
               onChange={(e) => setShare(e.target.checked)}
               className="h-5 w-5 accent-royal"
             />
-            Show the floor plan to accepted guests
+            Show the floor plan on the trip page
           </label>
           <span className="pl-8 text-sm text-muted">
             {share
-              ? 'On the trip page, as you apply it now. Only accepted guests’ names show; anyone else is “Taken”.'
+              ? 'As you apply it now. Accepted guests see who sleeps where; everyone else sees the rooms and beds with no names.'
               : shared
                 ? 'Unticked, guests stop seeing the floor plan when you apply.'
                 : 'Guests don’t see the floor plan. You can share it the next time you apply.'}

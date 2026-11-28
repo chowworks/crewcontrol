@@ -41,6 +41,7 @@ import {
   toTripSummary,
   type PublicGuestRow,
 } from './trip-mapper'
+import { publicPlan, type SharedPlanCopy } from './shared-plan'
 import type {
   AgreementPreview,
   BalanceAdjustmentInput,
@@ -516,11 +517,16 @@ export class TripsService {
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, question: true, answer: true },
     })
+    // The floor plan the organizer shared, with nobody on it (owner's decision, 2026-11-28).
+    const [plan] = await this.prisma.$queryRaw<
+      { shared: Omit<SharedPlanCopy, 'spots'>; sharedAt: Date }[]
+    >(Prisma.sql`SELECT * FROM "public_room_plan"(${row.id})`)
     const trip = await withPhotoLinks(
       toPublicTrip({
         ...row,
         guests,
         faq,
+        floorPlan: plan ? publicPlan(plan.shared, plan.sharedAt) : null,
         roomTaken: new Map(taken.map((t) => [t.roomId, t.taken])),
         spotsTaken: spots,
         waitlisting,
