@@ -210,7 +210,6 @@ export function TripView({
           {((trip.options.roomChoice && trip.rooms.length > 0) || publicFloorPlan) && (
             <section className="flex flex-col gap-3.5">
               <h2 className={h2}>Rooms</h2>
-              {publicFloorPlan}
               {trip.options.roomChoice && trip.rooms.length > 0 && (
                 <>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
@@ -223,6 +222,7 @@ export function TripView({
                   )}
                 </>
               )}
+              {publicFloorPlan}
             </section>
           )}
 

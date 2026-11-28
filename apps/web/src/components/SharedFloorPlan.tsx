@@ -7,6 +7,7 @@ import {
 } from '@cc/types'
 import { Minus, Plus, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Dialog } from '@/components/Dialog'
 import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { sectionBands } from '@/lib/roomPlan'
@@ -55,7 +56,7 @@ const shortDay = (iso: string) =>
 
 /**
  * The floor plan an organizer shared, as last applied, with no prices. Accepted guests see who sleeps where (accepted
- * guests by name, anyone else "Taken"); everyone else (`anonymous`, under Rooms on the trip page) sees only the rooms
+ * guests by name, anyone else "Taken"); everyone else (`anonymous`, a button below the room cards) sees only the rooms
  * and their beds, every place the same (owner's decision, 2026-11-28). A phone gets a list by part of the house; a
  * computer gets the plan.
  */
@@ -74,14 +75,36 @@ export function GuestFloorPlan({
     plan.tiles.some((t) => t.sectionId === s.id && t.room)
   )
 
+  // Everyone else gets a button below the room cards that opens the plan (owner's decision, 2026-11-28).
+  if (anonymous)
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex min-h-[44px] items-center justify-center self-stretch rounded-xl border-2 border-royal bg-white px-4 font-semibold text-royal hover:bg-royal-pale sm:self-start"
+        >
+          View full floor plan
+        </button>
+        {open && (
+          <Dialog title="Floor plan" wide onClose={() => setOpen(false)}>
+            <FittedPlan plan={plan} zoomable anonymous />
+            {/* A plug for the paid room planner (owner's ask, 2026-11-28). */}
+            <p className="mt-4 rounded-xl bg-royal-pale px-4 py-3 text-sm">
+              Your organizer drew this with Travel HQ’s room planner, a paid feature for organizers.{' '}
+              <Link to="/" className="font-semibold text-royal underline">
+                Plan your own trip
+              </Link>
+            </p>
+          </Dialog>
+        )}
+      </>
+    )
+
   return (
     <section className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        {anonymous ? (
-          <h3 className="text-lg font-extrabold">Floor plan</h3>
-        ) : (
-          <h2 className="text-[26px] font-extrabold">Where everyone sleeps</h2>
-        )}
+        <h2 className="text-[26px] font-extrabold">Where everyone sleeps</h2>
         <span className="text-sm text-muted">Updated {shortDay(plan.sharedAt)}</span>
       </div>
       <div className="flex flex-col gap-3.5 rounded-[14px] bg-white p-4">
@@ -114,7 +137,7 @@ export function GuestFloorPlan({
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {t.room!.places.map((p) => (
-                        <Chip key={p.index} p={p} anonymous={anonymous} />
+                        <Chip key={p.index} p={p} anonymous={false} />
                       ))}
                     </div>
                   </div>
@@ -125,7 +148,7 @@ export function GuestFloorPlan({
 
         {/* A computer: the plan the organizer drew, shrunk to fit. */}
         <div className="hidden lg:block">
-          <FittedPlan plan={plan} anonymous={anonymous} />
+          <FittedPlan plan={plan} />
         </div>
 
         <button
@@ -137,18 +160,12 @@ export function GuestFloorPlan({
           <span className="hidden lg:inline">Zoom in</span>
         </button>
         <p className="text-sm text-muted">
-          {anonymous
-            ? 'The rooms and beds your organizer planned.'
-            : 'The plan your organizer drew, as they last applied rooms.'}
+          The plan your organizer drew, as they last applied rooms.
         </p>
       </div>
       {open && (
-        <Dialog
-          title={anonymous ? 'Floor plan' : 'Where everyone sleeps'}
-          wide
-          onClose={() => setOpen(false)}
-        >
-          <FittedPlan plan={plan} zoomable anonymous={anonymous} />
+        <Dialog title="Where everyone sleeps" wide onClose={() => setOpen(false)}>
+          <FittedPlan plan={plan} zoomable />
         </Dialog>
       )}
     </section>
