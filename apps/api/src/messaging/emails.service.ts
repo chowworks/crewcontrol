@@ -37,6 +37,7 @@ const GROUP_NAMES: Record<VariableGroup, string> = {
   interest: 'Interested person',
   deletion: 'Trip deleted',
   alert: 'What needs them',
+  vendor: 'Vendor payment',
   help: 'Help question',
 }
 
@@ -307,6 +308,27 @@ export class EmailsService {
     } catch (err) {
       this.logger.error(
         `The "organizer_actions" email failed: ${err instanceof Error ? err.message : 'unknown'}`
+      )
+      return false
+    }
+  }
+
+  /**
+   * An organizer's reminder about a vendor payment coming due (issue #116). Logged, never thrown: it's on their Trip
+   * Control's Actions either way. True when it went (or, with no Resend key, was logged instead).
+   */
+  async sendVendorReminder(
+    vendor: NonNullable<EmailContext['vendor']>,
+    to: string,
+    tripId: string
+  ): Promise<boolean> {
+    try {
+      const email = render(await this.template(this.kindOf('vendor_reminder')), { vendor })
+      const result = await this.deliver('vendor_reminder', { to, ...email }, { id: tripId })
+      return result.sent || result.reason === 'mocked'
+    } catch (err) {
+      this.logger.error(
+        `The "vendor_reminder" email failed: ${err instanceof Error ? err.message : 'unknown'}`
       )
       return false
     }

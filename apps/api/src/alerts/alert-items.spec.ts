@@ -68,6 +68,7 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
     receipts: { address: null, email: null, domain: null, on: false, unmatched: [] },
     questionsWaiting: 0,
     changeRequestsOpen: [],
+    expensesDue: [],
     ...extra,
   }) as OrganizerTrip
 
@@ -104,6 +105,19 @@ describe('organizer alert items', () => {
       questionsWaiting: 2,
     })
     expect(alertItems(t)).toEqual([])
+  })
+
+  it('leaves out vendor payments, which have their own reminders', () => {
+    const due = {
+      id: 'x1',
+      payee: 'V',
+      description: '',
+      amountCents: 100,
+      paidOn: null,
+      dueOn: '2000-01-01',
+      createdAt: at,
+    }
+    expect(alertItems(trip([], { expensesDue: [due] }))).toEqual([])
   })
 
   it('names each open trip change request, and counts them in the sentence', () => {

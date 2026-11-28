@@ -277,6 +277,19 @@ ${plan('{{guest.firstName}}’s')}
 <p><a href="{{alert.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">See your trips</a></p>`,
   },
   {
+    kind: 'vendor_reminder',
+    name: 'Vendor payment reminder',
+    when: 'To each owner and organizer of a trip, a week before a vendor payment on its Trip Financials is due and again the morning it’s due, while it isn’t marked paid.',
+    groups: ['vendor'],
+    subject:
+      '{{#if vendor.dueToday}}Due today{{else}}Due {{vendor.when}}{{/if}}: {{vendor.amount}} to {{vendor.payee}}',
+    body: `<p>Hi {{vendor.firstName}},</p>
+<p>A payment for <strong>{{vendor.tripName}}</strong> is due {{vendor.when}}{{#unless vendor.dueToday}}, on {{vendor.dueDate}}{{/unless}}:</p>
+<div style="border-left:4px solid #5A2D91;background:#F3F6F5;border-radius:8px;padding:12px 16px;"><strong>{{vendor.amount}} to {{vendor.payee}}</strong>{{#if vendor.description}}<br>{{vendor.description}}{{/if}}</div>
+<p>Once you’ve paid it, mark it paid in Trip Control so everyone running the trip knows.</p>
+<p><a href="{{vendor.link}}" style="display:inline-block;background:#5A2D91;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">Open Trip Control</a></p>`,
+  },
+  {
     kind: 'question_answered',
     name: 'Question answered',
     when: 'To the person who asked a question on a trip page, when an organizer answers it.',
@@ -487,6 +500,17 @@ export function sampleContext(guest: PreviewGuest): Required<EmailContext> {
       ],
       link: 'https://travel-hq.app/organize',
       windowHours: 4,
+    },
+    vendor: {
+      firstName: 'Nia',
+      tripName: 'Aruba Crew Getaway 2028',
+      payee: 'Island Ferries',
+      description: 'Vehicle tickets for the ferry',
+      amount: '$480',
+      dueDate: 'Feb 10, 2028',
+      when: 'in 1 week',
+      dueToday: false,
+      link: 'https://travel-hq.app/organize/sample/control',
     },
     help: {
       firstName: 'Nia',

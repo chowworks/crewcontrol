@@ -147,7 +147,14 @@ export function expenseRows(expenses: Expense[]): Cell[][] {
   ]
 }
 
-export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
+export function MoneyCard({
+  trip,
+  onExpensesChange,
+}: {
+  trip: OrganizerTrip
+  /** After a cost is added, changed or removed here, so Trip Control's Actions follow. */
+  onExpensesChange?: () => void
+}) {
   const admin = useAdminView()
   const toast = useToast()
   // Vendor costs load on their own: they're the organizer's, never part of the trip guests and the public page see.
@@ -155,9 +162,11 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
   // An optional part (owner's decision, 2026-10-28): for trips that turned it on, or that have costs from the editor's
   // Pricing step (issue #65).
   const [loaded, setLoaded] = useState<Expense[] | null>(null)
+  // Again when a payment due is marked paid from Actions (issue #116).
+  const dueKey = trip.expensesDue.map((e) => e.id).join()
   useEffect(() => {
     api.getExpenses(trip.id, admin).then(setLoaded, () => setLoaded([]))
-  }, [trip.id, admin])
+  }, [trip.id, admin, dueKey])
   useEffect(() => {
     setExpenses(loaded && (trip.options.vendorCosts || loaded.length > 0) ? loaded : null)
   }, [loaded, trip.options.vendorCosts])
@@ -321,7 +330,10 @@ export function MoneyCard({ trip }: { trip: OrganizerTrip }) {
         <Expenses
           trip={trip}
           expenses={expenses}
-          onChange={setExpenses}
+          onChange={(next) => {
+            setExpenses(next)
+            onExpensesChange?.()
+          }}
           collected={totals.collected}
           agreed={totals.agreed}
         />

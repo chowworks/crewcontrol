@@ -1,6 +1,7 @@
 import {
   guestActions,
   tripActionCount,
+  vendorPaymentsDue,
   waitlistSpotOpen,
   type Guest,
   type OrganizerTrip,
@@ -73,6 +74,7 @@ const trip = (guests: Guest[], extra: Partial<OrganizerTrip> = {}) =>
     receipts: { address: null, email: null, domain: null, on: false, unmatched: [] },
     questionsWaiting: 0,
     changeRequestsOpen: [],
+    expensesDue: [],
     ...extra,
   }) as OrganizerTrip
 
@@ -163,6 +165,22 @@ describe('what needs the organizer', () => {
 
   it('counts each trip change request still open', () => {
     expect(tripActionCount({ ...trip([]), changeRequestsOpen: ['c1', 'c2'] })).toBe(2)
+  })
+
+  it('counts each vendor payment due within a week or overdue, on the trip’s own clock', () => {
+    const e = (id: string, dueOn: string, paidOn: string | null = null) =>
+      ({ id, payee: 'V', description: '', amountCents: 100, dueOn, paidOn, createdAt: at }) as const
+    const t = trip([], {
+      timeZone: 'America/New_York',
+      expensesDue: [
+        e('late', '2026-10-01'),
+        e('soon', '2026-10-27'),
+        e('later', '2026-10-28'),
+        e('paid', '2026-10-21', '2026-10-19'),
+      ],
+    })
+    const now = new Date('2026-10-20T15:00:00Z')
+    expect(vendorPaymentsDue(t, now).map((x) => x.id)).toEqual(['late', 'soon'])
   })
 
   it('counts each forwarded receipt waiting to be matched', () => {

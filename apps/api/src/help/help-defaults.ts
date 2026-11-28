@@ -200,6 +200,17 @@ Make the change yourself first, from the guest's Details (their room, a credit o
     pages: ['control'],
   },
   {
+    key: 'vendor-reminders',
+    topic: 'payments',
+    question: 'Will Travel HQ remind me to pay the house, the resort or other vendors?',
+    answer: `Yes, when the cost has a due date. Add it under Vendor costs in Trip Financials on Trip Control (or "What the trip costs" in the editor's Pricing step), with "Paid yet?" set to "Not yet" and a "Due by" date.
+
+A week before it's due, and again the morning it's due, we email you and everyone else who runs the trip. From a week before, it also waits in your Actions, and stays there if the date passes. Tap Mark paid once you've paid it and the reminders stop. Guests never see it.
+
+Travel HQ only records it: the money still goes from you to the vendor.`,
+    pages: ['control', 'editor:pricing'],
+  },
+  {
     key: 'announce-interested',
     topic: 'start',
     question: 'Can I send an update to people who are only interested?',

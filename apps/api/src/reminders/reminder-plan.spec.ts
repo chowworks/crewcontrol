@@ -1,5 +1,5 @@
 import { paymentPlan, type Guest, type GuestTerms } from '../trips/trip-types'
-import { howSoon, isDue, owedBy, remindersFor } from './reminder-plan'
+import { howSoon, isDue, owedBy, remindersFor, vendorReminder } from './reminder-plan'
 
 // Which reminders go out, when, to whom, and what a payment reminder asks for.
 const terms = (over: Partial<GuestTerms> = {}): GuestTerms => ({
@@ -131,5 +131,41 @@ describe('howSoon', () => {
     expect(howSoon('2027-02-10', '2027-02-09')).toBe('tomorrow')
     expect(howSoon('2027-02-10', '2027-02-03')).toBe('in 1 week')
     expect(howSoon('2027-02-10', '2027-02-07')).toBe('in 3 days')
+  })
+})
+
+describe('vendorReminder', () => {
+  const e = (extra: Partial<Parameters<typeof vendorReminder>[0]> = {}) => ({
+    paidOn: null,
+    dueOn: '2027-03-10',
+    remindedEarlyFor: null,
+    remindedDueFor: null,
+    ...extra,
+  })
+  const at = (iso: string) => new Date(iso)
+
+  it('reminds a week before, from that morning, and again the morning it’s due', () => {
+    expect(vendorReminder(e(), at('2027-03-03T13:00:00Z'))).toBeNull()
+    expect(vendorReminder(e(), at('2027-03-03T14:00:00Z'))).toBe('early')
+    expect(vendorReminder(e(), at('2027-03-10T13:00:00Z'))).toBeNull()
+    expect(vendorReminder(e(), at('2027-03-10T14:00:00Z'))).toBe('due')
+    expect(vendorReminder(e(), at('2027-03-11T14:00:00Z'))).toBeNull()
+  })
+
+  it('sends each once per due date, and asks again when the date moves', () => {
+    const sent = e({ remindedEarlyFor: '2027-03-10' })
+    expect(vendorReminder(sent, at('2027-03-05T15:00:00Z'))).toBeNull()
+    expect(vendorReminder({ ...sent, dueOn: '2027-03-12' }, at('2027-03-05T15:00:00Z'))).toBe(
+      'early'
+    )
+    expect(
+      vendorReminder(e({ remindedDueFor: '2027-03-10' }), at('2027-03-10T15:00:00Z'))
+    ).toBeNull()
+  })
+
+  it('sends the early one at once for a payment added inside the week, and nothing once paid', () => {
+    expect(vendorReminder(e(), at('2027-03-08T15:00:00Z'))).toBe('early')
+    expect(vendorReminder(e({ paidOn: '2027-03-01' }), at('2027-03-10T15:00:00Z'))).toBeNull()
+    expect(vendorReminder(e({ dueOn: null }), at('2027-03-10T15:00:00Z'))).toBeNull()
   })
 })
