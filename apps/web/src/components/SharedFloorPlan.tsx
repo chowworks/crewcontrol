@@ -9,7 +9,14 @@ import { Minus, Plus, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Dialog } from '@/components/Dialog'
-import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
+import {
+  LandmarkTileFrame,
+  PlanBands,
+  PlanSectionFrame,
+  RoomTileFrame,
+  landmarkLabelClass,
+  tileBox,
+} from '@/components/PlanParts'
 import { sectionBands } from '@/lib/roomPlan'
 
 const CELL = PLAN_CELL_PX
@@ -269,120 +276,45 @@ function Plan({
   zoom?: number
   anonymous: boolean
 }) {
-  const section = (s: PlanSection) => (
-    <div style={{ marginTop: (s.down ?? 0) * CELL }} className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-semibold text-muted">{s.name}</span>
-      <div
-        className="relative rounded-xl"
-        style={{
-          width: s.cols * CELL,
-          height: s.rows * CELL,
-          backgroundColor: 'white',
-          backgroundImage: 'radial-gradient(#A3ABB6 1.5px, transparent 1.6px)',
-          backgroundSize: `${CELL}px ${CELL}px`,
-          backgroundPosition: `-${CELL / 2}px -${CELL / 2}px`,
-        }}
-      >
-        {plan.tiles
-          .filter((t) => t.sectionId === s.id)
-          .map((t) => (
-            <PlanTileView key={t.id} tile={t} anonymous={anonymous} />
-          ))}
-      </div>
-    </div>
-  )
   return (
-    <div style={{ zoom }} className="flex w-max flex-col items-start gap-4">
-      {sectionBands(plan.sections).map((band) =>
-        'across' in band ? (
-          <div key={band.across.id}>{section(band.across)}</div>
-        ) : (
-          <div key={band.columns[0][0].id} className="flex items-stretch gap-5">
-            {band.columns.map((column, c) => (
-              <div key={column[0].id} className="flex items-stretch gap-5">
-                {c > 0 && <span aria-hidden="true" className="w-px bg-line" />}
-                <div className="flex flex-col items-start gap-4">
-                  {column.map((s) => (
-                    <div key={s.id}>{section(s)}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      )}
+    <div style={{ zoom }} className="flex w-max flex-col items-start gap-4 pt-3">
+      <PlanBands
+        sections={plan.sections}
+        renderSection={(s) => (
+          <PlanSectionFrame section={s}>
+            {plan.tiles
+              .filter((t) => t.sectionId === s.id)
+              .map((t) => (
+                <PlanTileView key={t.id} tile={t} anonymous={anonymous} />
+              ))}
+          </PlanSectionFrame>
+        )}
+      />
     </div>
   )
 }
 
+/** A tile as the room planner draws it (the same parts), with no prices or controls. */
 function PlanTileView({ tile, anonymous }: { tile: SharedPlanTile; anonymous: boolean }) {
-  const style = {
-    left: tile.x * CELL + 3,
-    top: tile.y * CELL + 3,
-    width: tile.w * CELL - 6,
-    height: tile.h * CELL - 6,
-  }
   if (tile.landmark)
     return (
-      <div
-        className="absolute flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-[1.5px] border-line p-2 text-center text-[13px] font-semibold shadow-card"
-        style={{ ...style, ...LANDMARK_FLOOR[tile.landmark.kind] }}
-      >
-        <LandmarkPicture
-          kind={tile.landmark.kind}
-          turn={tile.landmark.turn}
-          className="relative min-h-0 w-full flex-1"
-        />
-        <span className="max-w-full shrink-0 truncate rounded-full bg-white/90 px-2 text-[12px]">
-          {tile.landmark.label}
-        </span>
-      </div>
+      <LandmarkTileFrame
+        style={tileBox(tile)}
+        kind={tile.landmark.kind}
+        turn={tile.landmark.turn}
+        label={<span className={landmarkLabelClass}>{tile.landmark.label}</span>}
+      />
     )
   if (!tile.room) return null
-  // Drawn as the room planner draws it (owner's ask, 2026-11-28): each bed's picture with its places under it.
-  const room = tile.room
-  const beds = room.bedTypes.map((type, bed) => ({
-    type,
-    places: room.places.filter((p) => p.bed === bed),
-  }))
-  const extra = room.places.filter((p) => p.bed === null)
-  const chips = (places: typeof room.places) =>
-    places.map((p) => <Chip key={p.index} p={p} anonymous={anonymous} />)
   return (
-    <div
-      className="absolute flex flex-col gap-2 overflow-hidden rounded-xl border-[1.5px] border-line bg-white px-3 py-2.5 shadow-card"
-      style={style}
-    >
-      <strong className="shrink-0 truncate font-display text-[15px]">{room.name}</strong>
-      <div className="flex flex-1 flex-wrap items-start justify-center gap-4 rounded-[10px] border border-royal/20 bg-royal-pale px-2 py-2.5">
-        {beds.map((b, i) =>
-          b.type === 'bunk' ? (
-            <div key={i} className="flex items-start gap-2">
-              <div className="flex flex-col items-center gap-1">
-                <BedPicture type="bunk" className="h-[72px] w-auto" />
-                <span className="text-[10px] font-semibold text-royal-dark">Bunk</span>
-              </div>
-              <div className="flex flex-col gap-3 pt-1.5">{chips(b.places)}</div>
-            </div>
-          ) : (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <BedPicture type={b.type} className="h-16 w-auto" />
-              <span className="text-[10px] font-semibold text-royal-dark">
-                {BED_LABELS[b.type].label}
-              </span>
-              {chips(b.places)}
-            </div>
-          )
-        )}
-        {extra.length > 0 && (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-semibold text-royal-dark">
-              {room.bedTypes.length ? 'Extra places' : 'Places'}
-            </span>
-            {chips(extra)}
-          </div>
-        )}
-      </div>
-    </div>
+    <RoomTileFrame
+      style={tileBox(tile)}
+      head={
+        <strong className="shrink-0 truncate font-display text-[15px]">{tile.room.name}</strong>
+      }
+      bedTypes={tile.room.bedTypes}
+      spots={tile.room.places}
+      renderSpot={(p) => <Chip key={p.index} p={p} anonymous={anonymous} />}
+    />
   )
 }
