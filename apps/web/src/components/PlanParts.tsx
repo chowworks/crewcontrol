@@ -5,6 +5,7 @@ import {
   type LandmarkKind,
   type PlanSection,
 } from '@cc/types'
+import { Minus, Plus } from 'lucide-react'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 import { BedPicture, LANDMARK_FLOOR, LandmarkPicture } from '@/components/RoomArt'
 import { sectionBands } from '@/lib/roomPlan'
@@ -218,6 +219,49 @@ export function RoomTileFrame<S extends { index: number; bed: number | null }>({
           </div>
         )}
       </div>
+      {children}
+    </div>
+  )
+}
+
+/** The zoom steps of the planner and the shared plan. */
+export const PLAN_ZOOMS = [0.5, 0.75, 1, 1.25]
+
+/** The next zoom step in or out from `z`. */
+export function stepPlanZoom(z: number, dir: 1 | -1): number {
+  const i = PLAN_ZOOMS.findIndex((x) => x >= z - 0.001)
+  return PLAN_ZOOMS[Math.max(0, Math.min(PLAN_ZOOMS.length - 1, (i < 0 ? 2 : i) + dir))]
+}
+
+export const planBtnOutline =
+  'inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border-2 border-royal bg-white px-3 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50'
+
+/** Zoom out, the zoom, zoom in and Fit to screen, as on the room planner; `children` after (its Download picture). */
+export function PlanZoomBar({
+  zoom,
+  onStep,
+  onFit,
+  children,
+}: {
+  zoom: number
+  onStep: (dir: 1 | -1) => void
+  onFit: () => void
+  children?: ReactNode
+}) {
+  const btn =
+    'flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white hover:bg-ground'
+  return (
+    <div className="flex items-center gap-1.5">
+      <button type="button" aria-label="Zoom out" onClick={() => onStep(-1)} className={btn}>
+        <Minus className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span className="w-14 text-center text-sm font-semibold">{Math.round(zoom * 100)}%</span>
+      <button type="button" aria-label="Zoom in" onClick={() => onStep(1)} className={btn}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <button type="button" onClick={onFit} className={`${planBtnOutline} ml-1`}>
+        Fit to screen
+      </button>
       {children}
     </div>
   )

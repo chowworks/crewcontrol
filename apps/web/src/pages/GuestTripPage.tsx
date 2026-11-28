@@ -65,10 +65,12 @@ export function GuestTripPage() {
   return (
     <TripView
       trip={trip}
-      floorPlan={mine && view.floorPlan ? <GuestFloorPlan plan={view.floorPlan} /> : undefined}
-      // Everyone else sees the shared plan with no names, every place the same (owner's decision, 2026-11-28).
-      publicFloorPlan={
-        !(mine && view.floorPlan) && trip.floorPlan ? (
+      // One button under Rooms for everyone; accepted guests see names when the organizer shared them (owner's
+      // decision, 2026-11-28).
+      floorPlan={
+        mine && view.floorPlan ? (
+          <GuestFloorPlan plan={view.floorPlan} />
+        ) : trip.floorPlan ? (
           <GuestFloorPlan plan={trip.floorPlan} anonymous />
         ) : undefined
       }

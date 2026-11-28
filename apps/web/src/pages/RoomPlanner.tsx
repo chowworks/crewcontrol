@@ -64,8 +64,11 @@ import {
   LandmarkTileFrame,
   PlanBands,
   PlanSectionFrame,
+  PlanZoomBar,
   RoomTileFrame,
   landmarkLabelClass,
+  planBtnOutline,
+  stepPlanZoom,
   tileBox,
 } from '@/components/PlanParts'
 import { money } from '@/lib/format'
@@ -99,7 +102,6 @@ import {
  */
 
 const CELL = PLAN_CELL_PX
-const ZOOMS = [0.5, 0.75, 1, 1.25]
 
 export const KIND_CHIP: Record<PersonKind, string> = {
   accepted: 'border-2 border-royal bg-royal text-white',
@@ -158,8 +160,7 @@ type DragData =
   | { type: 'room'; roomId: string }
   | { type: 'section'; sectionId: string }
 
-const btnOutline =
-  'inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border-2 border-royal bg-white px-3 font-semibold text-royal hover:bg-royal-pale disabled:opacity-50'
+const btnOutline = planBtnOutline
 
 /**
  * Each kind of drag sees only its own drop places: a room only the dots (where the pointer is, so a bed place under it
@@ -413,12 +414,7 @@ export function PlannerBoard({
     />
   )
 
-  const stepZoom = (dir: 1 | -1) =>
-    setZoom((z) => {
-      const i = ZOOMS.findIndex((x) => x >= z - 0.001)
-      const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? 2 : i) + dir))]
-      return next
-    })
+  const stepZoom = (dir: 1 | -1) => setZoom((z) => stepPlanZoom(z, dir))
 
   return (
     <DndContext
@@ -474,38 +470,18 @@ export function PlannerBoard({
                 </div>
               )}
             </div>
-            <div className="ml-auto flex items-center gap-1.5">
-              <button
-                type="button"
-                aria-label="Zoom out"
-                onClick={() => stepZoom(-1)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white hover:bg-ground"
-              >
-                <Minus className="h-4 w-4" aria-hidden="true" />
-              </button>
-              <span className="w-14 text-center text-sm font-semibold">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                type="button"
-                aria-label="Zoom in"
-                onClick={() => stepZoom(1)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white hover:bg-ground"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </button>
-              <button type="button" onClick={fit} className={`${btnOutline} ml-1`}>
-                Fit to screen
-              </button>
-              <button
-                type="button"
-                onClick={downloadPicture}
-                disabled={exporting}
-                className={`${btnOutline} inline-flex items-center gap-1.5`}
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {exporting ? 'Downloading…' : 'Download picture'}
-              </button>
+            <div className="ml-auto">
+              <PlanZoomBar zoom={zoom} onStep={stepZoom} onFit={fit}>
+                <button
+                  type="button"
+                  onClick={downloadPicture}
+                  disabled={exporting}
+                  className={`${btnOutline} inline-flex items-center gap-1.5`}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  {exporting ? 'Downloading…' : 'Download picture'}
+                </button>
+              </PlanZoomBar>
             </div>
           </div>
 

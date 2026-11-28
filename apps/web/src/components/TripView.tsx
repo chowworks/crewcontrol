@@ -29,7 +29,6 @@ export function TripView({
   interest,
   sections = trip.sections,
   floorPlan,
-  publicFloorPlan,
   myRoom,
 }: {
   trip: PublicTrip
@@ -44,13 +43,11 @@ export function TripView({
    * every section, those for accepted guests only included (JoinView.sections).
    */
   sections?: TripSection[]
-  /** Where everyone sleeps, when the organizer shared the floor plan with accepted guests. */
-  floorPlan?: ReactNode
   /**
-   * The shared floor plan with no names, under Rooms, for anyone who doesn't see `floorPlan` (owner's decision,
-   * 2026-11-28).
+   * The shared floor plan's button, under Rooms, for everyone: with names for accepted guests when the organizer
+   * shared them, with none for anyone else (owner's decision, 2026-11-28: the same place and button for both).
    */
-  publicFloorPlan?: ReactNode
+  floorPlan?: ReactNode
   /** Under Rooms, for an organizer going on their own trip: their room, and picking or changing it. */
   myRoom?: ReactNode
 }) {
@@ -205,9 +202,7 @@ export function TripView({
             <TripSectionView key={i} section={s} />
           ))}
 
-          {floorPlan}
-
-          {((trip.options.roomChoice && trip.rooms.length > 0) || publicFloorPlan) && (
+          {((trip.options.roomChoice && trip.rooms.length > 0) || floorPlan) && (
             <section className="flex flex-col gap-3.5">
               <h2 className={h2}>Rooms</h2>
               {trip.options.roomChoice && trip.rooms.length > 0 && (
@@ -222,7 +217,7 @@ export function TripView({
                   )}
                 </>
               )}
-              {publicFloorPlan}
+              {floorPlan}
             </section>
           )}
 
