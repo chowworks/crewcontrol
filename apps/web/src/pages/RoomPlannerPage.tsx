@@ -31,7 +31,7 @@ import { roomProblem } from '@/components/RoomsEditor'
 import { useToast } from '@/components/Toast'
 import { ApiError, api } from '@/lib/api'
 import { notPlaced, spotPerson, tripPeople, type Person } from '@/lib/roomPlan'
-import { ApplyRoomsDialog } from './RoomPlanApply'
+import { ApplyRoomsDialog, ShareFloorPlanDialog } from './RoomPlanApply'
 import { Chip, PlannerBoard } from './RoomPlanner'
 
 const filled =
@@ -63,6 +63,10 @@ export function RoomPlannerPage() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   // When accepted guests were last shown the floor plan, or null while they can't see it.
   const [sharedAt, setSharedAt] = useState<string | null>(null)
+  // Whether accepted guests see who sleeps where on it, or everyone sees it with no names.
+  const [sharedNames, setSharedNames] = useState(true)
+  // Share on trip page is open, for the draft saved at this time.
+  const [sharing, setSharing] = useState<string | null>(null)
   const [stopping, setStopping] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [locked, setLocked] = useState(false)
@@ -93,6 +97,7 @@ export function RoomPlannerPage() {
           setLayoutState(plan.layout)
           setUpdatedAt(plan.updatedAt)
           setSharedAt(plan.sharedAt)
+          setSharedNames(plan.sharedNames)
         } catch (err) {
           if (err instanceof ApiError && err.status === 403) setLocked(true)
           else throw err
@@ -183,6 +188,7 @@ export function RoomPlannerPage() {
       setLayoutState(plan.layout)
       setUpdatedAt(plan.updatedAt)
       setSharedAt(plan.sharedAt)
+      setSharedNames(plan.sharedNames)
       setDirty(false)
       setMoves(null)
       window.dispatchEvent(new Event('cc:actions-changed'))
@@ -216,8 +222,33 @@ export function RoomPlannerPage() {
     try {
       const plan = await api.shareRoomPlan(id, moves.draftAt)
       setSharedAt(plan.sharedAt)
+      setSharedNames(plan.sharedNames)
       setMoves(null)
       toast({ text: 'The floor plan is on the trip page.' })
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : 'The floor plan was not shared.'
+    }
+  }
+
+  async function openShare() {
+    const draftAt = dirty || !updatedAt ? await save() : updatedAt
+    if (draftAt) setSharing(draftAt)
+  }
+
+  /** Share on trip page: the plan as drawn, with names for accepted guests only when asked. */
+  async function shareOnPage(names: boolean): Promise<string | null> {
+    if (!sharing) return null
+    try {
+      const plan = await api.shareRoomPlan(id, sharing, names)
+      setSharedAt(plan.sharedAt)
+      setSharedNames(plan.sharedNames)
+      setSharing(null)
+      toast({
+        text: names
+          ? 'The floor plan is on the trip page. Accepted guests see who sleeps where.'
+          : 'The floor plan is on the trip page, with no names.',
+      })
       return null
     } catch (err) {
       return err instanceof Error ? err.message : 'The floor plan was not shared.'
@@ -301,6 +332,9 @@ export function RoomPlannerPage() {
             <button type="button" disabled={busy} onClick={saveDraft} className={outlined}>
               Save draft
             </button>
+            <button type="button" disabled={busy} onClick={openShare} className={outlined}>
+              Share on trip page
+            </button>
             <button type="button" disabled={busy} onClick={openApply} className={filled}>
               Apply rooms
             </button>
@@ -341,9 +375,11 @@ export function RoomPlannerPage() {
             <p className="min-w-[200px] flex-1">
               <strong>The floor plan is on the trip page</strong>{' '}
               <span className="text-muted">
-                as you applied it on {sharedDay(sharedAt)}. Accepted guests see who sleeps where;
-                everyone else sees the rooms with no names.
-                {!admin && ' Keep drafting: they see your changes only when you apply rooms again.'}
+                {sharedNames
+                  ? `as of ${sharedDay(sharedAt)}. Accepted guests see who sleeps where; everyone else sees the rooms with no names.`
+                  : `as of ${sharedDay(sharedAt)}, with no names for anyone.`}
+                {!admin &&
+                  ' Keep drafting: guests see your changes only when you share or apply rooms again.'}
               </span>
             </p>
             {!admin && (
@@ -372,9 +408,18 @@ export function RoomPlannerPage() {
           grown={grown}
           plannerOnly={plannerOnly}
           shared={!!sharedAt}
+          names={sharedNames}
           onApply={apply}
           onShare={share}
           onClose={() => setMoves(null)}
+        />
+      )}
+      {sharing && (
+        <ShareFloorPlanDialog
+          shared={!!sharedAt}
+          names={sharedNames}
+          onShare={shareOnPage}
+          onClose={() => setSharing(null)}
         />
       )}
       {leaving && (
@@ -400,7 +445,7 @@ export function RoomPlannerPage() {
           onConfirm={stopSharing}
         >
           The floor plan leaves the trip page right away, for accepted guests and everyone else. You
-          can share it again the next time you apply rooms.
+          can share it again any time.
         </ConfirmDialog>
       )}
       {adding && (

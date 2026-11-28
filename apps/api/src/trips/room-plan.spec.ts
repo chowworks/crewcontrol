@@ -132,7 +132,9 @@ describe('parseRoomPlanLayout', () => {
 
   it('reads a share without moves', () => {
     const draftAt = '2026-11-20T18:42:00.000Z'
-    expect(parseShareRoomPlan({ draftAt })).toEqual({ draftAt })
+    expect(parseShareRoomPlan({ draftAt })).toEqual({ draftAt, names: true })
+    expect(parseShareRoomPlan({ draftAt, names: false })).toEqual({ draftAt, names: false })
+    expect(() => parseShareRoomPlan({ draftAt, names: 'no' })).toThrow(BadRequestException)
     expect(() => parseShareRoomPlan({})).toThrow(BadRequestException)
   })
 })
@@ -221,6 +223,56 @@ describe('clean', () => {
     expect(out.spots).toEqual([
       { roomId: 'r1', index: 0, name: 'Avery L.', guestId: 'g3', interestId: null },
     ])
+  })
+
+  it('makes a typed name the guest who signed up with that first name', () => {
+    const out = clean(
+      {
+        ...layout,
+        spots: [
+          { roomId: 'r2', index: 1, name: 'avery (my cousin)', guestId: null, interestId: null },
+        ],
+      },
+      { rooms, guests, interest: new Set() }
+    )
+    expect(out.spots).toEqual([
+      { roomId: 'r2', index: 1, name: 'Avery L.', guestId: 'g3', interestId: null },
+    ])
+  })
+
+  it('leaves a typed name alone when it could mean more than one person', () => {
+    const typed = (index: number) => ({
+      roomId: 'r2',
+      index,
+      name: 'Avery',
+      guestId: null,
+      interestId: null,
+    })
+    const twice = clean(
+      { ...layout, spots: [typed(1), typed(2)] },
+      { rooms, guests, interest: new Set() }
+    )
+    expect(twice.spots.map((s) => s.guestId)).toEqual([null, null])
+    const twoAverys = new Map([
+      ...guests,
+      ['g4', { id: 'g4', firstName: 'Avery', lastName: 'Ross', roomId: null }],
+    ])
+    const out = clean(
+      { ...layout, spots: [typed(1)] },
+      { rooms, guests: twoAverys, interest: new Set() }
+    )
+    expect(out.spots[0].guestId).toBeNull()
+  })
+
+  it('leaves a typed name alone when that guest is on the plan already', () => {
+    const out = clean(
+      {
+        ...layout,
+        spots: [kendra, { ...kendra, roomId: 'r2', index: 1, name: 'Kendra', guestId: null }],
+      },
+      { rooms, guests, interest: new Set() }
+    )
+    expect(out.spots[1].guestId).toBeNull()
   })
 
   it('keeps a person on a place the organizer added to the room', () => {

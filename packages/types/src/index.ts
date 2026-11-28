@@ -2162,6 +2162,8 @@ export interface RoomPlan {
   updatedAt: string | null
   /** When the organizer last shared the plan with accepted guests (by applying rooms); null while it isn't shared. */
   sharedAt: string | null
+  /** Whether accepted guests see who sleeps where on the shared plan; false: everyone sees it with no names. */
+  sharedNames: boolean
 }
 
 /**

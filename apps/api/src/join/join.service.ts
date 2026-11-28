@@ -231,7 +231,9 @@ export class JoinService {
         accepted: { id: string; firstName: string; lastName: string }[]
       }[]
     >`SELECT * FROM "guest_room_plan"(${tripId})`
-    return row ? guestPlan(row.shared, row.sharedAt, row.accepted, yours) : null
+    // Shared with no names: accepted guests see it as everyone else does, on the trip page.
+    if (!row || row.shared.names === false) return null
+    return guestPlan(row.shared, row.sharedAt, row.accepted, yours)
   }
 
   private async tripId(slug: string): Promise<string> {

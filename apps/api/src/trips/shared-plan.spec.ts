@@ -49,6 +49,14 @@ describe('the floor plan shared with guests', () => {
     expect(copy.tiles[0].places).toBe(3)
   })
 
+  it('keeps nobody’s place when shared with no names', () => {
+    const bare = sharedCopy(layout, rooms, false)
+    expect(bare.spots).toEqual([])
+    expect(bare.names).toBe(false)
+    expect(bare.tiles[0].places).toBe(3)
+    expect(copy.names).toBeUndefined()
+  })
+
   it('names accepted guests only, marks the reader, and shows everyone else as taken', () => {
     const plan = guestPlan(
       copy,

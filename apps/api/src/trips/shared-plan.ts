@@ -20,11 +20,14 @@ export interface SharedPlanCopy {
   tiles: PlanTile[]
   rooms: { id: string; name: string; bedTypes: BedType[] }[]
   spots: { roomId: string; index: number; guestId: string | null }[]
+  /** False when the organizer shared it with no names for anyone (owner's decision, 2026-11-28): no spots kept. */
+  names?: false
 }
 
 export function sharedCopy(
   layout: RoomPlanLayout,
-  rooms: { id: string; name: string; capacity: number; bedTypes: string[] }[]
+  rooms: { id: string; name: string; capacity: number; bedTypes: string[] }[],
+  names = true
 ): SharedPlanCopy {
   const onPlan = rooms.filter((r) => layout.tiles.some((t) => t.roomId === r.id))
   return {
@@ -40,7 +43,10 @@ export function sharedCopy(
       return places ? { ...tile, places } : tile
     }),
     rooms: onPlan.map((r) => ({ id: r.id, name: r.name, bedTypes: r.bedTypes as BedType[] })),
-    spots: layout.spots.map((s) => ({ roomId: s.roomId, index: s.index, guestId: s.guestId })),
+    spots: names
+      ? layout.spots.map((s) => ({ roomId: s.roomId, index: s.index, guestId: s.guestId }))
+      : [],
+    ...(names ? {} : { names: false as const }),
   }
 }
 
