@@ -2,7 +2,7 @@ import { useUser } from '@clerk/clerk-react'
 import type { JoinView, PublicTrip } from '@cc/types'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { GuestFloorPlan } from '@/components/SharedFloorPlan'
+import { GuestFloorPlan, YoureIn } from '@/components/SharedFloorPlan'
 import { TripView } from '@/components/TripView'
 import { ApiError, api } from '@/lib/api'
 import { AnnouncementsSection } from './GuestAnnouncements'
@@ -62,6 +62,11 @@ export function GuestTripPage() {
   // An organizer going on their own trip picks their room here (owner's decision, 2026-11-28).
   const me = view?.me
   const organizerGoing = mine && me?.organizerTripId && me.status === 'approved' ? me : null
+  // On a plan shared with names, the guest's own place leads Rooms (owner's decision, 2026-11-28).
+  const myPlan =
+    mine && view.floorPlan?.tiles.some((t) => t.room?.places.some((p) => p.you))
+      ? view.floorPlan
+      : null
   return (
     <TripView
       trip={trip}
@@ -74,10 +79,12 @@ export function GuestTripPage() {
           <GuestFloorPlan plan={trip.floorPlan} anonymous />
         ) : undefined
       }
+      youreIn={myPlan ? <YoureIn plan={myPlan} /> : undefined}
       myRoom={
         view && organizerGoing ? (
           <OrganizerRoom
             view={{ ...view, trip, me: organizerGoing }}
+            named={!!myPlan}
             // The rooms' places and the organizer's own part follow the move.
             onSaved={() => {
               api.getPublicTrip(slug).then(setTrip, () => {})

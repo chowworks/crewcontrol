@@ -17,9 +17,12 @@ const outlined =
 export function OrganizerRoom({
   view,
   onSaved,
+  named = false,
 }: {
   view: JoinView & { me: NonNullable<JoinView['me']> }
   onSaved: () => void
+  /** "You're in the ..." already names the room above, so only the button shows. */
+  named?: boolean
 }) {
   const { trip, me } = view
   const toast = useToast()
@@ -48,15 +51,17 @@ export function OrganizerRoom({
 
   return (
     <div className="flex flex-col items-start gap-2.5">
-      <p className="text-sm text-body">
-        {room ? (
-          <>
-            Your room: <strong className="text-ink">{room.name}</strong>
-          </>
-        ) : (
-          'You haven’t picked your room yet.'
-        )}
-      </p>
+      {!(room && named) && (
+        <p className="text-sm text-body">
+          {room ? (
+            <>
+              Your room: <strong className="text-ink">{room.name}</strong>
+            </>
+          ) : (
+            'You haven’t picked your room yet.'
+          )}
+        </p>
+      )}
       <button
         type="button"
         onClick={() => {

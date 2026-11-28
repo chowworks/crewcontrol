@@ -29,6 +29,7 @@ export function TripView({
   interest,
   sections = trip.sections,
   floorPlan,
+  youreIn,
   myRoom,
 }: {
   trip: PublicTrip
@@ -48,6 +49,8 @@ export function TripView({
    * shared them, with none for anyone else (owner's decision, 2026-11-28: the same place and button for both).
    */
   floorPlan?: ReactNode
+  /** First under Rooms: which room the guest is in on the shared plan (owner's decision, 2026-11-28). */
+  youreIn?: ReactNode
   /** Under Rooms, for an organizer going on their own trip: their room, and picking or changing it. */
   myRoom?: ReactNode
 }) {
@@ -205,6 +208,8 @@ export function TripView({
           {((trip.options.roomChoice && trip.rooms.length > 0) || floorPlan) && (
             <section className="flex flex-col gap-3.5">
               <h2 className={h2}>Rooms</h2>
+              {youreIn}
+              {trip.options.roomChoice && trip.rooms.length > 0 && myRoom}
               {trip.options.roomChoice && trip.rooms.length > 0 && (
                 <>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
@@ -212,7 +217,7 @@ export function TripView({
                       <RoomCard key={r.id} room={r} price={apart ? r.priceCents : undefined} />
                     ))}
                   </div>
-                  {myRoom ?? (
+                  {!myRoom && !youreIn && (
                     <p className="text-sm text-muted">You pick your room when you join.</p>
                   )}
                 </>
